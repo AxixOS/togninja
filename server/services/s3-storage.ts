@@ -22,9 +22,34 @@ export function normalizeEndpoint(ep: string | null | undefined): string {
   return /^https?:\/\//i.test(s) ? s : `https://${s}`;
 }
 
+// A storage endpoint is only usable if it's an absolute http(s) URL with a REAL host
+// (dotted domain, IP, or localhost). This rejects a mistyped value — e.g. a bare
+// access-key token pasted into the endpoint field — which would otherwise become
+// "https://<token>" and fail every upload with "getaddrinfo ENOTFOUND <token>".
+export function isUsableEndpoint(ep: string): boolean {
+  if (!ep) return false;
+  try {
+    const u = new URL(ep);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    return u.hostname === 'localhost' || u.hostname.includes('.');
+  } catch {
+    return false;
+  }
+}
+
+// Prefer the wizard/DB endpoint, but if it's junk, fall back to the env endpoint
+// rather than breaking uploads. If neither is usable, return '' (AWS default host).
+function pickEndpoint(dbRaw: string | null | undefined, envRaw: string | null | undefined): string {
+  const db = normalizeEndpoint(dbRaw);
+  if (isUsableEndpoint(db)) return db;
+  const env = normalizeEndpoint(envRaw);
+  if (isUsableEndpoint(env)) return env;
+  return '';
+}
+
 function envStorageConfig(): StorageConfig {
   const bucket = process.env.AWS_S3_BUCKET || '';
-  const endpoint = normalizeEndpoint(process.env.AWS_S3_ENDPOINT);
+  const endpoint = pickEndpoint(null, process.env.AWS_S3_ENDPOINT);
   const region = process.env.AWS_REGION || 'eu-central-1';
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID || '';
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || '';
@@ -37,7 +62,7 @@ const STORAGE_TTL = 60_000;
 
 async function resolveStorageConfig(): Promise<StorageConfig> {
   const bucket = (await appConfig.get('storage_bucket')) || process.env.AWS_S3_BUCKET || '';
-  const endpoint = normalizeEndpoint((await appConfig.get('storage_endpoint')) || process.env.AWS_S3_ENDPOINT || '');
+  const endpoint = pickEndpoint(await appConfig.get('storage_endpoint'), process.env.AWS_S3_ENDPOINT);
   const region = (await appConfig.get('storage_region')) || process.env.AWS_REGION || 'eu-central-1';
   const accessKeyId = (await appConfig.get('storage_access_key_id')) || process.env.AWS_ACCESS_KEY_ID || '';
   const secretAccessKey = (await appConfig.get('storage_secret_key')) || process.env.AWS_SECRET_ACCESS_KEY || '';
