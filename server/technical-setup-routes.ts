@@ -258,11 +258,15 @@ router.post('/storage', async (req: Request, res: Response) => {
     }
 
     const siId = await ensureIntegrations();
+    // Store a clean, absolute endpoint. Owners paste bare hosts (Supabase or
+    // Backblaze B2) without a scheme; normalise on save so the stored value is
+    // valid, not just corrected on read. Provider-agnostic — covers B2 too.
+    const { normalizeEndpoint } = await import('./services/s3-storage');
     const updateData: Record<string, any> = {
       storage_provider: provider || 'backblaze',
       storage_access_key_id: accessKeyId,
       storage_bucket: bucket,
-      storage_endpoint: endpoint || null,
+      storage_endpoint: normalizeEndpoint(endpoint) || null,
       storage_region: region || null,
     };
     if (secretKey) {

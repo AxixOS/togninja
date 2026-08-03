@@ -1875,8 +1875,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/workflow-wizard', workflowWizardRoutes);
 
   // Setup Wizard - SmartTog Hub onboarding integration
-  app.use('/api/setup', setupRoutes);
-  console.log('✅ /api/setup routes registered');
+  //
+  // Security: the creative setup steps write to studio_configs (business name,
+  // branding, logo, content). On a FINISHED instance an anonymous POST here could
+  // overwrite a live studio's branding, so mutations are gated once setup is done.
+  // The gate keys on `creative_setup_complete` — NOT "an admin exists" — because the
+  // content steps (integrations/scan/fix/drafts) run AFTER the admin is created but
+  // BEFORE setup completes; gating on admin-exists would lock first-run onboarding
+  // out. Exempt: reads (the wizard polls them) and POST /complete (it flips the flag).
+  app.use('/api/setup', async (req: any, res: any, next: any) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+    if (process.env.DEMO_MODE === 'true') return next();
+    if (req.method === 'POST' && req.path === '/complete') return next();
+    try {
+      const rows = await runSql(`SELECT creative_setup_complete AS done FROM studio_configs LIMIT 1`);
+      const done = (rows?.[0] as any)?.done === true;
+      if (!done) return next(); // onboarding still in progress — allow every step
+    } catch {
+      return next(); // fresh / empty DB — allow onboarding
+    }
+    return authenticateUser(req, res, next);
+  }, setupRoutes);
+  console.log('✅ /api/setup routes registered (mutations gated once setup completes)');
 
   // Technical Setup Wizard - Stage 1 onboarding (infrastructure & credentials)
   //

@@ -16,7 +16,7 @@ interface StorageConfig {
 // The AWS SDK requires an absolute URL and throws `TypeError: Invalid URL` on a
 // schemeless endpoint — which surfaces as a cryptic upload failure. Normalise here so
 // any env- or wizard-supplied endpoint works with or without the scheme.
-function normalizeEndpoint(ep: string | null | undefined): string {
+export function normalizeEndpoint(ep: string | null | undefined): string {
   const s = String(ep || '').trim().replace(/\/+$/, '');
   if (!s) return '';
   return /^https?:\/\//i.test(s) ? s : `https://${s}`;
@@ -87,7 +87,7 @@ export function buildPublicUrl(bucket: string, endpoint: string, key: string): s
     return `${host}/storage/v1/object/public/${bucket}/${encodedKey}`;
   }
   return ep.includes('backblazeb2.com')
-    ? `https://${bucket}.${ep.replace('https://', '')}/${encodedKey}`
+    ? `https://${bucket}.${ep.replace(/^https?:\/\//i, '')}/${encodedKey}`
     : `${ep}/${bucket}/${encodedKey}`;
 }
 
