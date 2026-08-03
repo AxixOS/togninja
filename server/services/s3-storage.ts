@@ -68,6 +68,14 @@ export function buildPublicUrl(bucket: string, endpoint: string, key: string): s
   // URL encode each path segment, preserving slashes for proper URL formatting
   const encodedKey = key.split('/').map(part => encodeURIComponent(part)).join('/');
   if (!ep) return `https://${bucket}.s3.amazonaws.com/${encodedKey}`;
+  // Supabase Storage: the S3-compatible endpoint (…/storage/v1/s3) is auth-only —
+  // a browser <img> can't load from it. Public objects are served from a different
+  // path: …/storage/v1/object/public/<bucket>/<key> (bucket must be marked Public).
+  // Accept either the full S3 endpoint or the bare project host.
+  if (ep.includes('supabase')) {
+    const host = ep.replace(/\/storage\/v1\/s3$/, '');
+    return `${host}/storage/v1/object/public/${bucket}/${encodedKey}`;
+  }
   return ep.includes('backblazeb2.com')
     ? `https://${bucket}.${ep.replace('https://', '')}/${encodedKey}`
     : `${ep}/${bucket}/${encodedKey}`;

@@ -1894,6 +1894,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/setup/technical', async (req: any, res: any, next: any) => {
     if (req.method === 'GET' && (req.path === '/status' || req.path === '/current')) return next();
     if (req.method === 'POST' && req.path === '/complete') return next();
+    // Demo instances (DEMO_MODE=true) walk the whole wizard without a login, so the
+    // hosted demo/dev URL can be driven end-to-end for testing and screen-sharing.
+    // Real customer instances leave DEMO_MODE unset, so an existing admin still gates.
+    if (process.env.DEMO_MODE === 'true') return next();
     try {
       const rows = await runSql(`SELECT COUNT(*)::int AS n FROM admin_users`);
       const hasAdmins = (rows?.[0]?.n || 0) > 0;
