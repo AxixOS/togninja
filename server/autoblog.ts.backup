@@ -1,0 +1,605 @@
+import sharp from 'sharp';
+import path from 'path';
+import fs from 'fs/promises';
+import OpenAI from 'openai';
+import FormData from 'form-data';
+import { autoBlogSchema, type AutoBlogParsed, type AutoBlogInput } from './autoblog-schema';
+import { buildAutoBlogPrompt } from './autoblog-prompt';
+import { stripDangerousHtml, generateUniqueSlug, cleanSlug } from './util-strip-html';
+import { storage } from './storage';
+
+// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+const openai = new OpenAI({ 
+  apiKey: process.env.OPENAI_API_KEY 
+});
+
+interface ProcessedImage {
+  filename: string;
+  publicUrl: string;
+  buffer: Buffer;
+}
+
+interface AutoBlogResult {
+  success: boolean;
+  post?: any;
+  ai?: AutoBlogParsed;
+  error?: string;
+  debug?: any;
+}
+
+/**
+ * Main orchestrator for AutoBlog feature
+ * Handles image processing, site scraping, OpenAI generation, and blog post creation
+ */
+export class AutoBlogOrchestrator {
+  private studioName: string;
+  private publicSiteUrl: string;
+  private internalBookingPath: string;
+  private maxImages: number;
+
+  constructor() {
+    this.studioName = process.env.STUDIO_NAME || 'New Age Fotografie';
+    this.publicSiteUrl = process.env.PUBLIC_SITE_BASE_URL || 'https://www.newagefotografie.com';
+    this.internalBookingPath = process.env.INTERNAL_WARTELISTE_PATH || '/warteliste/';
+    this.maxImages = parseInt(process.env.MAX_AUTOBLOG_IMAGES || '3');
+  }
+
+  /**
+   * Process uploaded images: resize, compress, and store
+   */
+  async processImages(files: Express.Multer.File[]): Promise<ProcessedImage[]> {
+    if (files.length > this.maxImages) {
+      throw new Error(`Maximum ${this.maxImages} images allowed`);
+    }
+
+    const processedImages: ProcessedImage[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const timestamp = Date.now();
+      const filename = `autoblog-${timestamp}-${i + 1}.jpg`;
+      
+      try {
+        // Resize and compress image
+        const processedBuffer = await sharp(file.buffer)
+          .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 75, progressive: true })
+          .toBuffer();
+
+        // Store image and get public URL
+        const publicUrl = await storage.savePublicAsset('blog-images', filename, processedBuffer);
+        
+        processedImages.push({
+          filename,
+          publicUrl,
+          buffer: processedBuffer
+        });
+      } catch (error) {
+        console.error(`Error processing image ${file.originalname}:`, error);
+        throw new Error(`Failed to process image: ${file.originalname}`);
+      }
+    }
+
+    return processedImages;
+  }
+
+  /**
+   * Scrape site context for brand voice and services
+   */
+  async scrapeSiteContext(siteUrl?: string): Promise<string> {
+    try {
+      const url = siteUrl || this.publicSiteUrl;
+      
+      // Import scraping agent dynamically to avoid circular dependencies
+      const { scrapeSiteContent } = await import('./scraping-agent');
+      const scrapedData = await scrapeSiteContent(url);
+      
+      // Extract key information for context
+      const context = `
+Studio: ${this.studioName}
+Location: Vienna, Austria
+Services: ${scrapedData.services || 'Family, newborn, maternity, and portrait photography'}
+Brand Voice: ${scrapedData.brandVoice || 'Professional, warm, and personal'}
+Key Features: ${scrapedData.keyFeatures || 'High-quality photography, professional editing, personal service'}
+      `.trim();
+      
+      return context;
+    } catch (error) {
+      console.error('Error scraping site context:', error);
+      // Fallback context if scraping fails
+      return `
+Studio: ${this.studioName}
+Location: Vienna, Austria
+Services: Family, newborn, maternity, and portrait photography
+Brand Voice: Professional, warm, and personal
+Key Features: High-quality photography, professional editing, personal service
+      `.trim();
+    }
+  }
+
+  /**
+   * Generate blog content using OpenAI Assistant
+   */
+  async generateBlogContent(
+    images: ProcessedImage[], 
+    input: AutoBlogInput, 
+    siteContext: string
+  ): Promise<AutoBlogParsed> {
+    const assistantId = 'asst_nlyO3yRav2oWtyTvkq0cHZaU'; // AutoBlog Assistant
+    
+    // Build user message with context
+    const userMessage = `Business Context: ${siteContext}
+Session Details: ${input.userPrompt || 'Professional photography session documentation'}
+Language: ${input.language}
+Generate blog post for uploaded photography session images.`;
+
+    // Prepare image content for OpenAI vision
+    const imageContent = images.map((img, index) => ({
+      type: "image_url" as const,
+      image_url: {
+        url: `data:image/jpeg;base64,${img.buffer.toString('base64')}`
+      }
+    }));
+
+    try {
+      console.log('Attempting to use OpenAI Assistant API first...');
+      console.log('Assistant ID:', assistantId);
+      console.log('Image count:', images.length);
+      console.log('User context:', userMessage);
+
+      // Try OpenAI Assistant API first
+      try {
+        const assistantResult = await this.generateWithAssistantAPI(assistantId, images, input, siteContext);
+        if (assistantResult) {
+          return assistantResult;
+        }
+      } catch (assistantError) {
+        console.error('Assistant API failed:', assistantError);
+        console.log('Falling back to Chat Completions API...');
+      }
+
+      // Fallback to Chat Completions API with your exact prompt structure
+      console.log('Using Chat Completions API with your custom prompt structure');
+      
+      // Convert images to base64 for Chat Completions API
+      const imageContents = [];
+      for (let i = 0; i < images.length; i++) {
+        console.log(`Processing image ${i + 1}/${images.length}...`);
+        
+        // Convert buffer to base64
+        const base64Image = images[i].buffer.toString('base64');
+        imageContents.push({
+          type: "image_url",
+          image_url: {
+            url: `data:image/jpeg;base64,${base64Image}`,
+            detail: "high"
+          }
+        });
+      }
+      
+      console.log('Successfully processed', imageContents.length, 'images for analysis');
+
+      // Use your exact prompt structure
+      const customPrompt = `Context:
+You're my content-writing sidekick for New Age Fotografie, a professional photography studio in Vienna specializing in family, newborn, and portrait photography. We speak directly to clients like real humans. You write like I talk. This is not a blog post. It's a one-to-one convo — with substance, soul, and structure.
+
+Business Context: ${siteContext}
+Session Details: ${input.userPrompt || 'Professional photography session documentation'}
+Language: ${input.language || 'de'}
+
+Tone = founder + mentor + experience-led
+Your default voice combines:
+- Sabri Suby (no-BS sales copy)
+- Real-world photo biz owner (not an AI)
+- Mentor explaining things clearly to a student
+- Relatable, first-person tone with light imperfection
+
+You Must Ensure:
+Content passes AI detection by:
+- Varying sentence length + rhythm
+- Using idioms, human anecdotes, casual fragments
+- Avoiding robotic transitions or overstructured tone
+- Sprinkling natural glitches: "gonna", "let's be real", "yep", "fair enough"
+- Using first-person perspective
+- Writing as if it was manually written over 3 days, not generated in 30 seconds
+
+Your Task:
+Create a full content package, structured for SEO and real-human storytelling:
+
+YOAST SEO COMPLIANCE (Built-in):
+- Keyphrase in SEO title, slug, H1, first paragraph, at least one H2, twice minimum in body
+- Meta description: 120–156 chars
+- Flesch Reading Ease > 60
+- Passive voice < 10%
+- Long sentences < 25%
+- Transition words > 30%
+- Paragraphs < 150 words
+
+NEVER USE:
+Words or phrases like: "Step into," "unleash," "embrace your journey," "buckle up," "believe it or not," "elevate," "transform," "revolutionary," etc.
+Use natural, specific, grounded language.
+
+Output Format (Use this EXACT structure):
+**SEO Title:** [SEO-optimized title]
+**Slug:** [url-friendly-slug]
+**Headline (H1):** [main headline]
+**Outline:** [brief outline of content structure]
+**Key Takeaways:** [3-5 key points readers will learn]
+**Blog Article:** [full blog article with H1 and 6-8 H2 sections, 300-500 words each]
+**Review Snippets:** [2-3 short review-style snippets]
+**Meta Description:** [120-156 character meta description]
+**Excerpt:** [brief excerpt for preview]
+**Tags:** [relevant tags for the post]
+
+Analyze the uploaded images carefully and create comprehensive content about this photography session. Describe authentic details from the images (clothing, setting, mood, emotions, location details, etc.) and write in German for the Vienna market.`;
+
+      // Prepare messages for Chat Completions API
+      const messages = [
+        {
+          role: "system",
+          content: "You are a professional photography content writer. Analyze the uploaded images and create structured content using the exact format provided."
+        },
+        {
+          role: "user", 
+          content: [
+            {
+              type: "text",
+              text: customPrompt
+            },
+            ...imageContents
+          ]
+        }
+      ];
+
+      // Make API call with images
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o", // Latest model that supports vision
+        messages: messages,
+        max_tokens: 4000,
+        temperature: 0.7
+      });
+
+      const content = response.choices[0].message.content;
+      
+      if (!content) {
+        throw new Error('No content received from OpenAI');
+      }
+
+      console.log('Chat Completions response length:', content.length);
+      console.log('Chat Completions response preview:', content.substring(0, 500) + '...');
+
+      // Parse the structured markdown response
+      const parsedContent = this.parseStructuredResponse(content);
+      console.log('Parsed structured content keys:', Object.keys(parsedContent));
+      console.log('Content HTML length:', parsedContent.content_html?.length || 0);
+      console.log('Content HTML preview:', parsedContent.content_html?.substring(0, 200) + '...');
+
+      // Override status based on publishing option
+      if (input.publishOption === 'publish') {
+        parsedContent.status = 'PUBLISHED';
+      } else if (input.publishOption === 'schedule') {
+        parsedContent.status = 'SCHEDULED';
+      } else {
+        parsedContent.status = 'DRAFT';
+      }
+
+      return parsedContent;
+    } catch (error) {
+      console.error('Error generating blog content with Chat Completions:', error);
+      throw new Error('Failed to generate blog content');
+    }
+  }
+
+  /**
+   * Generate content using OpenAI Assistant API
+   */
+  async generateWithAssistantAPI(
+    assistantId: string, 
+    images: ProcessedImage[], 
+    input: AutoBlogInput, 
+    siteContext: string
+  ): Promise<AutoBlogParsed | null> {
+    try {
+      console.log('Attempting OpenAI Assistant API...');
+      
+      // Build user message with your custom prompt structure
+      const userMessage = `Context:
+You're my content-writing sidekick for New Age Fotografie, a professional photography studio in Vienna specializing in family, newborn, and portrait photography.
+
+Business Context: ${siteContext}
+Session Details: ${input.userPrompt || 'Professional photography session documentation'}
+Language: ${input.language || 'de'}
+
+Tone = founder + mentor + experience-led
+Your default voice combines:
+- Sabri Suby (no-BS sales copy)
+- Real-world photo biz owner (not an AI)
+- Mentor explaining things clearly to a student
+- Relatable, first-person tone with light imperfection
+
+Create a full content package using this EXACT format:
+**SEO Title:** [SEO-optimized title]
+**Slug:** [url-friendly-slug]
+**Headline (H1):** [main headline]
+**Outline:** [brief outline of content structure]
+**Key Takeaways:** [3-5 key points readers will learn]
+**Blog Article:** [full blog article with H1 and 6-8 H2 sections, 300-500 words each]
+**Review Snippets:** [2-3 short review-style snippets]
+**Meta Description:** [120-156 character meta description]
+**Excerpt:** [brief excerpt for preview]
+**Tags:** [relevant tags for the post]
+
+Analyze the uploaded images and create authentic German content about this photography session.`;
+
+      // Create thread
+      const thread = await openai.beta.threads.create();
+      
+      // For now, send message without images since Assistant API base64 limitation
+      const message = await openai.beta.threads.messages.create(thread.id, {
+        role: "user",
+        content: userMessage
+      });
+
+      // Run the assistant
+      const run = await openai.beta.threads.runs.create(thread.id, {
+        assistant_id: assistantId
+      });
+
+      // Wait for completion
+      let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+      let attempts = 0;
+      const maxAttempts = 30;
+      
+      while ((runStatus.status === 'queued' || runStatus.status === 'in_progress') && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+        attempts++;
+      }
+
+      if (runStatus.status === 'completed') {
+        const messages = await openai.beta.threads.messages.list(thread.id);
+        const lastMessage = messages.data[0];
+        
+        if (lastMessage.content[0].type === 'text') {
+          const content = lastMessage.content[0].text.value;
+          console.log('Assistant response length:', content.length);
+          console.log('Assistant response preview:', content.substring(0, 500) + '...');
+
+          // Parse the structured response
+          const parsedContent = this.parseStructuredResponse(content);
+          return parsedContent;
+        }
+      }
+
+      console.log('Assistant API failed or timed out, status:', runStatus.status);
+      return null;
+      
+    } catch (error) {
+      console.error('Assistant API error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Parse structured response from assistant
+   */
+  private parseStructuredResponse(content: string): AutoBlogParsed {
+    // Extract sections using regex patterns
+    const sections = {
+      seo_title: this.extractSection(content, 'SEO Title:'),
+      slug: this.extractSection(content, 'Slug:'),
+      title: this.extractSection(content, 'Headline \\(H1\\):'),
+      outline: this.extractSection(content, 'Outline:'),
+      key_takeaways: this.extractSection(content, 'Key Takeaways:'),
+      content_html: this.extractSection(content, 'Blog Article:'),
+      review_snippets: this.extractSection(content, 'Review Snippets:'),
+      meta_description: this.extractSection(content, 'Meta Description:'),
+      excerpt: this.extractSection(content, 'Excerpt:'),
+      tags: this.extractSection(content, 'Tags:')?.split(',').map(tag => tag.trim()) || []
+    };
+
+    // Convert blog article to HTML format
+    const htmlContent = this.convertToHtml(sections.content_html || '');
+
+    return {
+      title: sections.title || sections.seo_title || 'Generated Photography Blog Post',
+      seo_title: sections.seo_title || sections.title || 'Generated Photography Blog Post',
+      meta_description: sections.meta_description || 'Professional photography session documentation',
+      content_html: htmlContent,
+      excerpt: sections.excerpt || 'Professional photography session',
+      tags: sections.tags,
+      seo_keywords: sections.tags.slice(0, 3),
+      keyphrase: sections.tags[0] || 'photography',
+      slug: sections.slug || 'photography-session',
+      status: 'DRAFT'
+    };
+  }
+
+  /**
+   * Extract section content from structured response
+   */
+  private extractSection(content: string, sectionHeader: string): string | null {
+    const regex = new RegExp(`\\*\\*${sectionHeader}\\*\\*\\s*([\\s\\S]*?)(?=\\*\\*[^*]+:\\*\\*|$)`, 'i');
+    const match = content.match(regex);
+    return match ? match[1].trim() : null;
+  }
+
+  /**
+   * Convert markdown-style content to HTML
+   */
+  private convertToHtml(content: string): string {
+    if (!content) return '';
+    
+    return content
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/\n\n+/g, '</p><p>')
+      .replace(/^(?!<[h|p])/gm, '<p>')
+      .replace(/(?<!>)$/gm, '</p>')
+      .replace(/<p><\/p>/g, '')
+      .replace(/<p>(<h[1-6]>)/g, '$1')
+      .replace(/(<\/h[1-6]>)<\/p>/g, '$1')
+      .replace(/^<p>|<\/p>$/g, '');
+  }
+
+  /**
+   * Create blog post in database
+   */
+  async createBlogPost(aiContent: AutoBlogParsed, images: ProcessedImage[], authorId: string, input: AutoBlogInput): Promise<any> {
+    try {
+      // Get existing slugs to ensure uniqueness
+      const existingSlugs = await storage.getAllBlogSlugs();
+      const uniqueSlug = generateUniqueSlug(cleanSlug(aiContent.slug), existingSlugs);
+
+      console.log('Original AI content HTML length:', aiContent.content_html?.length || 0);
+      
+      // Sanitize HTML content and embed images
+      let sanitizedHtml = stripDangerousHtml(aiContent.content_html);
+      console.log('Sanitized HTML length:', sanitizedHtml?.length || 0);
+      
+      // Add images to the blog content if they were uploaded
+      if (images.length > 0) {
+        const imageElements = images.map((img, index) => {
+          const altText = aiContent.image_alts?.[index] || `Photography session image ${index + 1}`;
+          return `<img src="${img.publicUrl}" alt="${altText}" style="max-width: 100%; height: auto; margin: 20px 0; border-radius: 8px;" />`;
+        }).join('\n');
+        
+        // Insert images after the first paragraph
+        const firstParagraphEnd = sanitizedHtml.indexOf('</p>');
+        if (firstParagraphEnd !== -1) {
+          sanitizedHtml = sanitizedHtml.slice(0, firstParagraphEnd + 4) + 
+                         '\n\n' + imageElements + '\n\n' + 
+                         sanitizedHtml.slice(firstParagraphEnd + 4);
+        } else {
+          // If no paragraphs found, add images at the beginning
+          sanitizedHtml = imageElements + '\n\n' + sanitizedHtml;
+        }
+      }
+      
+      console.log('Final HTML content length before database save:', sanitizedHtml?.length || 0);
+
+      // Replace image placeholders with actual uploaded images
+      let finalHtml = sanitizedHtml;
+      
+      // Replace generic image placeholders with actual uploaded images
+      if (images && images.length > 0) {
+        // Replace common image placeholder patterns
+        finalHtml = finalHtml.replace(/Photography session image \d+/g, '');
+        finalHtml = finalHtml.replace(/Image \d+/g, '');
+        
+        // Insert actual images strategically into the content
+        const imageHtml = images.map((img, index) => 
+          `<img src="${img.publicUrl}" alt="Professionelle Familienfotografie bei New Age Fotografie in Wien" class="blog-image" style="width: 100%; height: auto; margin: 20px 0; border-radius: 8px;">`
+        ).join('\n');
+        
+        // Insert first image after the first H2 section
+        const firstH2Match = finalHtml.match(/(<h2[^>]*>.*?<\/h2>.*?<\/p>)/s);
+        if (firstH2Match) {
+          const afterFirstH2 = firstH2Match.index + firstH2Match[0].length;
+          finalHtml = finalHtml.substring(0, afterFirstH2) + '\n\n' + imageHtml + '\n\n' + finalHtml.substring(afterFirstH2);
+        } else {
+          // Fallback: insert after first paragraph
+          const firstPMatch = finalHtml.match(/(<p[^>]*>.*?<\/p>)/s);
+          if (firstPMatch) {
+            const afterFirstP = firstPMatch.index + firstPMatch[0].length;
+            finalHtml = finalHtml.substring(0, afterFirstP) + '\n\n' + imageHtml + '\n\n' + finalHtml.substring(afterFirstP);
+          }
+        }
+      }
+      
+      console.log('Final HTML with embedded images length:', finalHtml.length);
+
+      // Prepare blog post data with publishing logic
+      const blogPostData = {
+        title: aiContent.title,
+        slug: uniqueSlug,
+        content: finalHtml, // Plain text version for search
+        contentHtml: finalHtml, // HTML version for display with embedded images
+        excerpt: aiContent.excerpt,
+        imageUrl: images[0]?.publicUrl || null,
+        seoTitle: aiContent.seo_title,
+        metaDescription: aiContent.meta_description,
+        published: input.publishOption === 'publish',
+        publishedAt: input.publishOption === 'publish' ? new Date() : null,
+        scheduledFor: input.publishOption === 'schedule' && input.scheduledFor ? new Date(input.scheduledFor) : null,
+        status: input.publishOption === 'publish' ? 'PUBLISHED' : 
+                input.publishOption === 'schedule' ? 'SCHEDULED' : 'DRAFT',
+        tags: aiContent.tags || [],
+        authorId: authorId,
+      };
+
+      // Validate blog post data before insertion
+      const { insertBlogPostSchema } = await import('../shared/schema');
+      console.log('Validating blog post data with schema...');
+      console.log('Blog post data keys:', Object.keys(blogPostData));
+      console.log('Content HTML in blog data:', !!blogPostData.contentHtml, 'length:', blogPostData.contentHtml?.length || 0);
+      
+      const validatedBlogData = insertBlogPostSchema.parse(blogPostData);
+      console.log('Blog post validation successful!');
+      console.log('Validated data keys:', Object.keys(validatedBlogData));
+      console.log('Validated contentHtml exists:', !!validatedBlogData.contentHtml, 'length:', validatedBlogData.contentHtml?.length || 0);
+      
+      // Create blog post
+      const createdPost = await storage.createBlogPost(validatedBlogData);
+      
+      return createdPost;
+    } catch (error) {
+      console.error('Error creating blog post:', error);
+      throw new Error('Failed to create blog post in database');
+    }
+  }
+
+  /**
+   * Main orchestration method
+   */
+  async generateAutoBlog(
+    files: Express.Multer.File[],
+    input: AutoBlogInput,
+    authorId: string
+  ): Promise<AutoBlogResult> {
+    try {
+      // Validate inputs
+      if (!files || files.length === 0) {
+        throw new Error('At least one image is required');
+      }
+
+      if (files.length > this.maxImages) {
+        throw new Error(`Maximum ${this.maxImages} images allowed`);
+      }
+
+      // Step 1: Process images
+      console.log('Processing images...');
+      const processedImages = await this.processImages(files);
+
+      // Step 2: Scrape site context
+      console.log('Scraping site context...');
+      const siteContext = await this.scrapeSiteContext(input.siteUrl);
+
+      // Step 3: Generate content with OpenAI
+      console.log('Generating content with OpenAI...');
+      const aiContent = await this.generateBlogContent(processedImages, input, siteContext);
+
+      // Step 4: Create blog post
+      console.log('Creating blog post...');
+      console.log('AI content before creating post - HTML length:', aiContent.content_html?.length || 0);
+      const createdPost = await this.createBlogPost(aiContent, processedImages, authorId, input);
+      console.log('Blog post created successfully with ID:', createdPost.id);
+
+      return {
+        success: true,
+        post: createdPost,
+        ai: aiContent
+      };
+
+    } catch (error) {
+      console.error('AutoBlog generation failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+}

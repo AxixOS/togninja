@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interaction Test</title>
+    <style>
+        body { 
+            margin: 20px; 
+            font-family: Arial, sans-serif;
+            height: 200vh;
+            background: linear-gradient(to bottom, #f0f0f0, #ffffff);
+        }
+        .test-button {
+            padding: 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .scroll-area {
+            height: 100px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Mouse and Scroll Test Page</h1>
+    <p>This page tests basic interaction functionality.</p>
+    
+    <button class="test-button" onclick="alert('Button clicked!')">Test Click</button>
+    <button class="test-button" onclick="window.location.href='/'">Back to Main Site</button>
+    
+    <div class="scroll-area">
+        <p>This is a scrollable area.</p>
+        <p>Line 1</p><p>Line 2</p><p>Line 3</p><p>Line 4</p><p>Line 5</p>
+        <p>Line 6</p><p>Line 7</p><p>Line 8</p><p>Line 9</p><p>Line 10</p>
+    </div>
+    
+    <p>Try scrolling this entire page up and down.</p>
+    <p style="margin-top: 500px;">This content is far down the page.</p>
+    <p style="margin-top: 500px;">Bottom of test page.</p>
+    
+    <script>
+        console.log('Test page loaded successfully');
+        document.addEventListener('click', function(e) {
+            console.log('Click detected on:', e.target);
+        });
+        
+        document.addEventListener('scroll', function(e) {
+            console.log('Scroll detected:', window.scrollY);
+        });
+    </script>
+</body>
+</html>

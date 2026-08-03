@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Calendar Import Test</title>
+</head>
+<body>
+    <h1>Calendar Import Test</h1>
+    <p>Testing the calendar import API endpoint...</p>
+    
+    <button onclick="testImport()">Test Calendar Import</button>
+    <div id="result"></div>
+
+    <script>
+        async function testImport() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                const response = await fetch('/api/calendar/import/ics-url?dryRun=true', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        icsUrl: 'https://calendar.google.com/calendar/ical/newagefotografen%40gmail.com/public/basic.ics'
+                    })
+                });
+                
+                const result = await response.text();
+                resultDiv.innerHTML = `
+                    <h3>Response Status: ${response.status}</h3>
+                    <pre>${result}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<h3>Error:</h3><pre>${error.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

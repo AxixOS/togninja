@@ -1,0 +1,34 @@
+console.log('Testing proxy connection...');
+
+fetch('/api/health')
+  .then(response => {
+    console.log('Health check response status:', response.status);
+    return response.text();
+  })
+  .then(data => {
+    console.log('Health check response:', data);
+  })
+  .catch(error => {
+    console.error('Health check failed:', error);
+  });
+
+// Test calendar import endpoint
+fetch('/api/calendar/import/ics-url?dryRun=true', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    icsUrl: 'https://calendar.google.com/calendar/ical/newagefotografen%40gmail.com/public/basic.ics'
+  })
+})
+.then(response => {
+  console.log('Calendar import test status:', response.status);
+  return response.json();
+})
+.then(data => {
+  console.log('Calendar import test response:', data);
+})
+.catch(error => {
+  console.error('Calendar import test failed:', error);
+});

@@ -1,0 +1,38 @@
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://www.newagefotografie.com/sitemap.xml
+
+# Block admin, development, and internal areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /_vite/
+Disallow: /node_modules/
+Disallow: /checkout/
+Disallow: /account/
+Disallow: /my-archive
+Disallow: /my-subscription
+Disallow: /storage-demo
+Disallow: /cart
+Disallow: /survey-demo
+Disallow: /image-test
+Disallow: /onboarding
+Disallow: /download-data
+Disallow: /demo-success
+Disallow: /order-complete/
+
+# Allow all important public pages (explicit allows are not needed with Allow: / but good for documentation)
+Allow: /galerie
+Allow: /preise/
+Allow: /kontakt
+Allow: /blog
+Allow: /fotoshootings
+Allow: /vouchers
+Allow: /warteliste
+Allow: /ueber-uns/
+Allow: /faq/
+Allow: /kundenstimmen/
+
+# Crawl-delay (optional, remove if causing issues)
+# Crawl-delay: 1

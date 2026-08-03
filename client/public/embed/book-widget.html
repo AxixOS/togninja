@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Booking Widget</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:Inter,Arial,Helvetica,sans-serif;margin:16px}
+    .slot{padding:8px;border:1px solid #ddd;margin:6px 0;border-radius:6px}
+    .btn{background:#6b21a8;color:#fff;padding:8px 12px;border-radius:6px;border:0}
+  </style>
+</head>
+<body>
+  <h3>Book a session</h3>
+  <div>
+    <label>Start: <input type="date" id="dstart" /></label>
+    <label>End: <input type="date" id="dend" /></label>
+    <button id="refresh">Refresh</button>
+  </div>
+  <div id="slots"></div>
+  <div id="form" style="display:none">
+    <h4>Book</h4>
+    <input id="first" placeholder="First name" />
+    <input id="last" placeholder="Last name" />
+    <input id="email" placeholder="Email" />
+    <button id="book" class="btn">Book</button>
+  </div>
+  <script>
+    const slotsEl = document.getElementById('slots');
+    const fEl = document.getElementById('form');
+    let chosen = null;
+    document.getElementById('refresh').addEventListener('click', async ()=>{
+      const start = document.getElementById('dstart').value;
+      const end = document.getElementById('dend').value;
+      if(!start||!end) return alert('choose start/end');
+      const s = new Date(start).toISOString();
+      const e = new Date(end).toISOString();
+      const resp = await fetch(`/api/embed/availability?start=${encodeURIComponent(s)}&end=${encodeURIComponent(e)}`);
+      const data = await resp.json();
+      slotsEl.innerHTML = '';
+      (data.available||[]).forEach(slot=>{
+        const o = document.createElement('div');
+        o.className='slot';
+        o.textContent = new Date(slot).toLocaleString();
+        o.onclick = ()=>{ chosen = slot; fEl.style.display='block'; };
+        slotsEl.appendChild(o);
+      });
+    });
+    document.getElementById('book').addEventListener('click', async ()=>{
+      const first = document.getElementById('first').value;
+      const last = document.getElementById('last').value;
+      const email = document.getElementById('email').value;
+      if(!chosen) return alert('choose slot');
+      const resp = await fetch('/api/embed/book',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({firstName:first,lastName:last,email, startTime:chosen})});
+      const data = await resp.json();
+      if(resp.ok) {
+        alert('Booked: ' + (data.booking?.id || data.booking?.id || 'ok'));
+        parent.postMessage({ type: 'booking:success', payload: data }, '*');
+      } else {
+        alert('Error: ' + (data.error || 'failed'));
+      }
+    });
+  </script>
+</body>
+</html>

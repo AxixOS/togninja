@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: clean-crm-backend-v6
+    env: node
+    region: oregon
+    repo: https://github.com/siparrott/clean-crm
+    buildCommand: |
+      cp package.backend.json package.json &&
+      npm install --production --legacy-peer-deps
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DEMO_MODE
+        value: false
+    autoDeploy: false
+    healthCheckPath: /api/health

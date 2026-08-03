@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Import Debugger</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; max-width: 800px; }
+        .test-section { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #fee; border-color: #fcc; }
+        .success { background: #efe; border-color: #cfc; }
+        .info { background: #eef; border-color: #ccf; }
+        button { padding: 8px 16px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        textarea { width: 100%; height: 150px; font-family: monospace; font-size: 12px; }
+        input[type="url"] { width: 100%; padding: 8px; margin: 5px 0; }
+        .result { margin-top: 10px; padding: 10px; border-radius: 3px; font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Calendar Import Debugger</h1>
+    
+    <div class="test-section info">
+        <h3>Step 1: Test Google Calendar URL</h3>
+        <input type="url" id="calendarUrl" placeholder="Paste your Google Calendar iCal URL here" 
+               value="https://calendar.google.com/calendar/ical/newagefotografen%40gmail.com/public/basic.ics">
+        <button onclick="testDirectAccess()">Test Direct Access</button>
+        <div id="directResult" class="result"></div>
+    </div>
+
+    <div class="test-section info">
+        <h3>Step 2: Test CRM API</h3>
+        <button onclick="testCrmApi()">Test CRM Calendar Import API</button>
+        <div id="apiResult" class="result"></div>
+    </div>
+
+    <div class="test-section info">
+        <h3>Step 3: Alternative URLs</h3>
+        <p>If the above fails, try these alternative URL formats:</p>
+        <ul>
+            <li>Public URL: <code>https://calendar.google.com/calendar/ical/newagefotografen@gmail.com/public/basic.ics</code></li>
+            <li>Private URL: <code>https://calendar.google.com/calendar/ical/[LONG_PRIVATE_ID]/private-[KEY]/basic.ics</code></li>
+        </ul>
+        <button onclick="testAlternativeUrl()">Test Unencoded URL</button>
+        <div id="altResult" class="result"></div>
+    </div>
+
+    <script>
+        async function testDirectAccess() {
+            const url = document.getElementById('calendarUrl').value;
+            const result = document.getElementById('directResult');
+            result.textContent = 'Testing direct access to calendar URL...';
+            
+            try {
+                // Note: This will likely fail due to CORS, but we can see the error
+                const response = await fetch(url, { mode: 'no-cors' });
+                result.textContent = `Direct access test: Status unknown (CORS blocked)\nThis is expected - the server-side test is more important.`;
+                result.className = 'result info';
+            } catch (error) {
+                result.textContent = `Direct access failed (expected due to CORS): ${error.message}`;
+                result.className = 'result error';
+            }
+        }
+
+        async function testCrmApi() {
+            const url = document.getElementById('calendarUrl').value;
+            const result = document.getElementById('apiResult');
+            result.textContent = 'Testing CRM API import...';
+            
+            try {
+                const response = await fetch('/api/calendar/import/ics-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        icsUrl: url,
+                        dryRun: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.textContent = `✅ SUCCESS!\n${JSON.stringify(data, null, 2)}`;
+                    result.className = 'result success';
+                } else {
+                    result.textContent = `❌ API Error (${response.status}):\n${JSON.stringify(data, null, 2)}`;
+                    result.className = 'result error';
+                }
+            } catch (error) {
+                result.textContent = `❌ Request failed: ${error.message}`;
+                result.className = 'result error';
+            }
+        }
+
+        async function testAlternativeUrl() {
+            const unencoded = 'https://calendar.google.com/calendar/ical/newagefotografen@gmail.com/public/basic.ics';
+            document.getElementById('calendarUrl').value = unencoded;
+            
+            const result = document.getElementById('altResult');
+            result.textContent = 'Testing with unencoded @ symbol...';
+            
+            try {
+                const response = await fetch('/api/calendar/import/ics-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        icsUrl: unencoded,
+                        dryRun: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.textContent = `✅ SUCCESS with unencoded URL!\n${JSON.stringify(data, null, 2)}`;
+                    result.className = 'result success';
+                } else {
+                    result.textContent = `❌ Still failed with unencoded URL (${response.status}):\n${JSON.stringify(data, null, 2)}`;
+                    result.className = 'result error';
+                }
+            } catch (error) {
+                result.textContent = `❌ Request failed: ${error.message}`;
+                result.className = 'result error';
+            }
+        }
+    </script>
+</body>
+</html>

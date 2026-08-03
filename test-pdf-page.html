@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voucher PDF Test - New Age Fotografie</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #e91e63;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #f8f9fa;
+            border-left: 4px solid #e91e63;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 18px;
+        }
+        .voucher-info {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid #ddd;
+        }
+        .voucher-code {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #e91e63;
+            font-size: 16px;
+        }
+        .btn {
+            display: inline-block;
+            background: #e91e63;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 10px 10px 10px 0;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #c2185b;
+        }
+        .btn-secondary {
+            background: #2196F3;
+        }
+        .btn-secondary:hover {
+            background: #1976D2;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status-success {
+            background: #4CAF50;
+            color: white;
+        }
+        .status-info {
+            background: #2196F3;
+            color: white;
+        }
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .checklist li:last-child {
+            border-bottom: none;
+        }
+        .image-preview {
+            max-width: 200px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            margin: 15px 0;
+        }
+        .success-icon {
+            color: #4CAF50;
+            font-size: 24px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Voucher PDF Test Page</h1>
+        <p class="subtitle">Test the personalized voucher PDF generation with custom images</p>
+
+        <!-- Test Voucher 1: Latest with Happy Birthday Image -->
+        <div class="test-section">
+            <h2>📸 Test 1: Happy Birthday Image Voucher <span class="status status-success">READY</span></h2>
+            
+            <div class="voucher-info">
+                <p><strong>Voucher Code:</strong> <span class="voucher-code">IMAGE-TEST-1762005373091-VEKJYA</span></p>
+                <p><strong>Product:</strong> Neugeborenen Fotoshooting (€399.00)</p>
+                <p><strong>Recipient:</strong> Birthday Person</p>
+                <p><strong>From:</strong> Image Test User</p>
+                <p><strong>Message:</strong> Happy Birthday! 🎉 Hope you have an amazing day filled with love and laughter!</p>
+                <p><strong>Image:</strong> Happy Birthday (Pink Carnations)</p>
+                
+                <img src="https://i.postimg.cc/cCLh7639/827ee647-a4cc-4f99-ac43-a7165efa0314.webp" 
+                     alt="Happy Birthday" class="image-preview">
+            </div>
+
+            <a href="http://localhost:3001/voucher/pdf/preview?voucher_id=IMAGE-TEST-1762005373091-VEKJYA&sku=neugeborenen-fotoshooting&name=Birthday%20Person&from=Image%20Test%20User&message=Happy%20Birthday!%20%F0%9F%8E%89%20Hope%20you%20have%20an%20amazing%20day%20filled%20with%20love%20and%20laughter!&amount=399.00&custom_image=https%3A%2F%2Fi.postimg.cc%2FcCLh7639%2F827ee647-a4cc-4f99-ac43-a7165efa0314.webp" 
+               class="btn" target="_blank">
+                📄 Download PDF with Happy Birthday Image
+            </a>
+
+            <a href="http://localhost:3001/admin/voucher-sales" 
+               class="btn btn-secondary" target="_blank">
+                📊 View in Admin Panel
+            </a>
+        </div>
+
+        <!-- Test Voucher 2: Alternative Test -->
+        <div class="test-section">
+            <h2>📸 Test 2: Alternative Image Test <span class="status status-info">BACKUP</span></h2>
+            
+            <div class="voucher-info">
+                <p><strong>Voucher Code:</strong> <span class="voucher-code">IMAGE-TEST-1762005360365-TSWYTS</span></p>
+                <p><strong>Product:</strong> Neugeborenen Fotoshooting (€399.00)</p>
+                <p><strong>Same Happy Birthday Image</strong></p>
+            </div>
+
+            <a href="http://localhost:3001/voucher/pdf/preview?voucher_id=IMAGE-TEST-1762005360365-TSWYTS&sku=neugeborenen-fotoshooting&name=Birthday%20Person&from=Image%20Test%20User&message=Happy%20Birthday!%20%F0%9F%8E%89%20Hope%20you%20have%20an%20amazing%20day%20filled%20with%20love%20and%20laughter!&amount=399.00&custom_image=https%3A%2F%2Fi.postimg.cc%2FcCLh7639%2F827ee647-a4cc-4f99-ac43-a7165efa0314.webp" 
+               class="btn" target="_blank">
+                📄 Download Alternative PDF
+            </a>
+        </div>
+
+        <!-- Test Voucher 3: No Image (Control Test) -->
+        <div class="test-section">
+            <h2>📄 Test 3: Standard Voucher (No Custom Image) <span class="status status-info">CONTROL</span></h2>
+            
+            <div class="voucher-info">
+                <p><strong>Voucher Code:</strong> <span class="voucher-code">DEMO-1761998473413-NIVJJB</span></p>
+                <p><strong>Product:</strong> Neugeborenen Fotoshooting (€399.00)</p>
+                <p><strong>No Custom Image</strong> - Should show logo and text only</p>
+            </div>
+
+            <a href="http://localhost:3001/voucher/pdf/preview?voucher_id=DEMO-1761998473413-NIVJJB&sku=neugeborenen-fotoshooting&name=Anna%20Mueller&from=John%20Smith&message=Herzlichen%20Glückwunsch!&amount=399.00" 
+               class="btn" target="_blank">
+                📄 Download Standard PDF (No Image)
+            </a>
+        </div>
+
+        <!-- Verification Checklist -->
+        <div class="test-section">
+            <h2>✅ PDF Verification Checklist</h2>
+            
+            <p><strong>When you open the PDF, verify:</strong></p>
+            
+            <ul class="checklist">
+                <li><span class="success-icon">□</span> Logo appears centered at the top</li>
+                <li><span class="success-icon">□</span> "www.newagefotografie.com" is visible below logo</li>
+                <li><span class="success-icon">□</span> "SHOOTING GUTSCHEIN" title is displayed</li>
+                <li><span class="success-icon">□</span> <strong>Happy Birthday image appears in top 50% of page</strong></li>
+                <li><span class="success-icon">□</span> Image is centered and properly sized</li>
+                <li><span class="success-icon">□</span> Voucher details appear below the image</li>
+                <li><span class="success-icon">□</span> Voucher ID is correct</li>
+                <li><span class="success-icon">□</span> Recipient name is "Birthday Person"</li>
+                <li><span class="success-icon">□</span> Gift message is visible</li>
+                <li><span class="success-icon">□</span> Amount shows €399.00</li>
+            </ul>
+        </div>
+
+        <!-- CRM Agent Test Links -->
+        <div class="test-section">
+            <h2>🤖 CRM Agent V2 Test</h2>
+            
+            <p><strong>The Agent can now answer these questions:</strong></p>
+            
+            <ul class="checklist">
+                <li>✅ "What are our total voucher sales?" → <strong>6 sales, €1,994</strong></li>
+                <li>✅ "Show me voucher sales from November" → <strong>Full list with details</strong></li>
+                <li>✅ "How many clients live in Baden?" → <strong>Searches by city</strong></li>
+                <li>✅ "List all clients in Vienna" → <strong>Returns Vienna clients</strong></li>
+                <li>✅ "Generate a report of all clients with company details" → <strong>Full company report</strong></li>
+            </ul>
+
+            <a href="http://localhost:3001/admin/agent-v2" 
+               class="btn btn-secondary" target="_blank">
+                🤖 Open CRM Agent V2
+            </a>
+        </div>
+
+        <hr style="margin: 40px 0; border: none; border-top: 1px solid #ddd;">
+        
+        <h2>📊 System Status</h2>
+        <ul>
+            <li><strong>Server:</strong> <span class="status status-success">RUNNING</span> http://localhost:3001</li>
+            <li><strong>Agent Tools Registered:</strong> <span class="status status-success">13 TOOLS</span></li>
+            <li><strong>New Database Tools:</strong> <span class="status status-success">3 ACTIVE</span>
+                <ul>
+                    <li>voucher_sales_query</li>
+                    <li>clients_location_query</li>
+                    <li>clients_company_report</li>
+                </ul>
+            </li>
+            <li><strong>PDF Generation:</strong> <span class="status status-success">FIXED</span> Image rendering updated</li>
+            <li><strong>Database Tables:</strong> <span class="status status-success">READY</span> Agent V2 tables created</li>
+        </ul>
+    </div>
+
+    <script>
+        // Add click handlers to copy voucher codes
+        document.querySelectorAll('.voucher-code').forEach(el => {
+            el.style.cursor = 'pointer';
+            el.title = 'Click to copy';
+            el.addEventListener('click', () => {
+                navigator.clipboard.writeText(el.textContent);
+                const original = el.textContent;
+                el.textContent = '✓ Copied!';
+                setTimeout(() => el.textContent = original, 2000);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,370 @@
+/**
+ * Setup Wizard - Phase 3: Scanning
+ * 
+ * AI-powered content analysis:
+ * - Scans existing portfolio images
+ * - Checks blog posts for SEO issues
+ * - Analyzes product listings
+ * - Reviews client data completeness
+ * - Builds knowledge graph for AI assistance
+ */
+
+import { useState, useEffect } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Loader2, 
+  ArrowRight, 
+  Scan, 
+  CheckCircle2, 
+  AlertTriangle,
+  FileImage,
+  FileText,
+  Users,
+  Package,
+  Sparkles
+} from 'lucide-react';
+
+interface ScanningPhaseProps {
+  onComplete: () => void;
+}
+
+interface ScanResult {
+  scanId: string;
+  status: 'idle' | 'running' | 'complete' | 'error';
+  progress: number;
+  results?: {
+    pagesScanned: number;
+    issuesFound: number;
+    suggestionsGenerated: number;
+    fixFirstItems: Array<{
+      id: string;
+      type: string;
+      severity: 'high' | 'medium' | 'low';
+      title: string;
+      description: string;
+    }>;
+  };
+  error?: string;
+}
+
+export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
+  const [scanState, setScanState] = useState<ScanResult>({
+    scanId: '',
+    status: 'idle',
+    progress: 0
+  });
+  
+  // Start scan mutation
+  const startScanMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/setup/scanning/start', {
+        method: 'POST'
+      });
+      if (!res.ok) throw new Error('Failed to start scan');
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setScanState({
+        scanId: data.scanId,
+        status: 'running',
+        progress: 0
+      });
+    }
+  });
+  
+  // Poll for scan status
+  const { data: statusData, isLoading: statusLoading } = useQuery({
+    queryKey: ['scan-status', scanState.scanId],
+    queryFn: async () => {
+      const res = await fetch(`/api/setup/scanning/status/${scanState.scanId}`);
+      if (!res.ok) throw new Error('Failed to get scan status');
+      return res.json();
+    },
+    enabled: scanState.status === 'running' && !!scanState.scanId,
+    refetchInterval: 2000 // Poll every 2 seconds
+  });
+  
+  // Update scan state when status changes
+  useEffect(() => {
+    if (statusData) {
+      if (statusData.status === 'complete') {
+        setScanState(prev => ({
+          ...prev,
+          status: 'complete',
+          progress: 100,
+          results: statusData.results
+        }));
+      } else {
+        setScanState(prev => ({
+          ...prev,
+          progress: Math.min(prev.progress + 10, 90)
+        }));
+      }
+    }
+  }, [statusData]);
+  
+  // Complete phase mutation
+  const completeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/setup/scanning/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pagesScanned: scanState.results?.pagesScanned || 0,
+          issuesFound: scanState.results?.issuesFound || 0
+        })
+      });
+      if (!res.ok) throw new Error('Failed to complete scanning');
+      return res.json();
+    },
+    onSuccess: () => {
+      onComplete();
+    }
+  });
+  
+  const handleStartScan = () => {
+    startScanMutation.mutate();
+  };
+  
+  const scanningSteps = [
+    { id: 'portfolio', label: 'Portfolio Images', icon: FileImage, count: 24 },
+    { id: 'blog', label: 'Blog Posts', icon: FileText, count: 8 },
+    { id: 'products', label: 'Products & Services', icon: Package, count: 12 },
+    { id: 'clients', label: 'Client Records', icon: Users, count: 45 }
+  ];
+  
+  return (
+    <>
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center">
+            <Scan className="w-6 h-6 text-cyan-600" />
+          </div>
+          <div>
+            <CardTitle className="text-2xl">Let's analyze your content</CardTitle>
+            <CardDescription>
+              Our AI will scan your existing data to find quick wins
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        {scanState.status === 'idle' && (
+          <>
+            <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                  <Sparkles className="w-6 h-6 text-cyan-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">
+                    What we'll scan
+                  </h3>
+                  <ul className="space-y-2 text-sm text-gray-600">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-cyan-600" />
+                      Portfolio images for missing metadata
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-cyan-600" />
+                      Blog posts for SEO optimization
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-cyan-600" />
+                      Products for pricing and descriptions
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-cyan-600" />
+                      Client data for completeness
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            
+            <div className="text-center py-8">
+              <Button 
+                size="lg" 
+                onClick={handleStartScan}
+                disabled={startScanMutation.isPending}
+                className="gap-2"
+              >
+                {startScanMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Starting scan...
+                  </>
+                ) : (
+                  <>
+                    <Scan className="w-5 h-5" />
+                    Start AI Scan
+                  </>
+                )}
+              </Button>
+            </div>
+          </>
+        )}
+        
+        {scanState.status === 'running' && (
+          <div className="py-8">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                <Scan className="w-10 h-10 text-cyan-600" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Scanning your content...</h3>
+              <p className="text-gray-500">This usually takes about 30 seconds</p>
+            </div>
+            
+            <div className="max-w-md mx-auto">
+              <Progress value={scanState.progress} className="h-3 mb-4" />
+              <p className="text-center text-sm text-gray-500">
+                {scanState.progress}% complete
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 mt-8">
+              {scanningSteps.map((step, index) => {
+                const Icon = step.icon;
+                const isActive = scanState.progress > (index * 25);
+                const isComplete = scanState.progress > ((index + 1) * 25);
+                
+                return (
+                  <div 
+                    key={step.id}
+                    className={`
+                      flex items-center gap-3 p-3 rounded-lg transition-all
+                      ${isActive ? 'bg-cyan-50' : 'bg-gray-50'}
+                    `}
+                  >
+                    <div className={`
+                      w-8 h-8 rounded-lg flex items-center justify-center
+                      ${isComplete ? 'bg-cyan-200' : isActive ? 'bg-cyan-100 animate-pulse' : 'bg-gray-200'}
+                    `}>
+                      {isComplete ? (
+                        <CheckCircle2 className="w-4 h-4 text-cyan-700" />
+                      ) : isActive ? (
+                        <Loader2 className="w-4 h-4 text-cyan-600 animate-spin" />
+                      ) : (
+                        <Icon className="w-4 h-4 text-gray-400" />
+                      )}
+                    </div>
+                    <div>
+                      <p className={`text-sm font-medium ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
+                        {step.label}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        
+        {scanState.status === 'complete' && scanState.results && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="w-10 h-10 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Scan Complete!</h3>
+              <p className="text-gray-500">
+                We found some opportunities to improve your setup
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-blue-50 rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-blue-600">
+                  {scanState.results.pagesScanned}
+                </p>
+                <p className="text-sm text-blue-700">Pages Scanned</p>
+              </div>
+              <div className="bg-amber-50 rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-amber-600">
+                  {scanState.results.issuesFound}
+                </p>
+                <p className="text-sm text-amber-700">Issues Found</p>
+              </div>
+              <div className="bg-green-50 rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-green-600">
+                  {scanState.results.suggestionsGenerated}
+                </p>
+                <p className="text-sm text-green-700">AI Suggestions</p>
+              </div>
+            </div>
+            
+            {scanState.results.fixFirstItems.length > 0 && (
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h4 className="font-medium mb-3 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                  Quick Wins Found
+                </h4>
+                <ul className="space-y-2">
+                  {scanState.results.fixFirstItems.slice(0, 3).map(item => (
+                    <li key={item.id} className="flex items-center gap-3">
+                      <Badge 
+                        variant={item.severity === 'high' ? 'destructive' : 'secondary'}
+                        className="text-xs"
+                      >
+                        {item.severity}
+                      </Badge>
+                      <span className="text-sm">{item.title}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-gray-500 mt-3">
+                  We'll help you fix these in the next step
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+      
+      <CardFooter className="flex justify-between pt-6 border-t">
+        <div>
+          {scanState.status === 'running' && (
+            <p className="text-sm text-gray-500">
+              Please wait while we analyze your content...
+            </p>
+          )}
+        </div>
+        <div className="flex gap-3">
+          {scanState.status === 'idle' && (
+            <Button
+              variant="ghost"
+              onClick={() => completeMutation.mutate()}
+              disabled={completeMutation.isPending}
+            >
+              Skip scan
+            </Button>
+          )}
+          {scanState.status === 'complete' && (
+            <Button 
+              onClick={() => completeMutation.mutate()}
+              disabled={completeMutation.isPending}
+              className="gap-2"
+            >
+              {completeMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  Continue to Fix First
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      </CardFooter>
+    </>
+  );
+}

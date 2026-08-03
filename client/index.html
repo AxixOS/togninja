@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="%SITE_LANG%">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- Primary SEO — %SITE_*% placeholders are filled per-tenant by the server
+         (server/lib/siteIdentity.ts); route-specific tags are then injected by
+         react-helmet-async during hydration. -->
+    <title>%SITE_NAME%</title>
+    <meta name="description" content="%SITE_DESCRIPTION%">
+
+    <!-- Viewport & Icons — no maximum-scale so pinch-zoom works (WCAG 1.4.4) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Speed up image loading: open the TLS connection to the image hosts
+         early (most site photos are on i.postimg.cc; uploads on Backblaze B2)
+         so the first images don't wait on connection setup. -->
+    <link rel="preconnect" href="https://i.postimg.cc" crossorigin>
+    <link rel="dns-prefetch" href="https://i.postimg.cc">
+    <link rel="preconnect" href="https://s3.eu-central-003.backblazeb2.com" crossorigin>
+    <link rel="dns-prefetch" href="https://s3.eu-central-003.backblazeb2.com">
+    <!-- On-the-fly image resizer (images.weserv.nl) — public marketing photos are
+         served through it as smaller WebP; open the connection early. -->
+    <link rel="preconnect" href="https://images.weserv.nl" crossorigin>
+    <link rel="dns-prefetch" href="https://images.weserv.nl">
+
+    <!-- Cache Control - Force fresh assets -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png">
+    <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="%SITE_LOCALE%">
+    <meta property="og:site_name" content="%SITE_NAME%">
+    <meta property="og:image" content="%SITE_OG_IMAGE%">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="%SITE_OG_IMAGE%">
+
+    <!-- Analytics (injected only when GA_MEASUREMENT_ID is set) -->
+    %SITE_GA%
+
+    <!-- Robots — allow large image previews in search (per-page SEOHead overrides on hydration) -->
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+
+    <!-- Structured Data (per-tenant, built server-side) -->
+    <script type="application/ld+json">%SITE_JSONLD%</script>
+
+    <!-- Tenant identity for the SPA (Footer, Header, SEO defaults).
+         Carried as a JSON script (never executed) + a safe loader, so an
+         UNREPLACED %SITE_CONFIG_JSON% token (e.g. during the build-time
+         prerender, which serves this file raw) is a harmless JSON.parse
+         failure instead of a page-crashing JS syntax error. -->
+    <script type="application/json" id="site-config">%SITE_CONFIG_JSON%</script>
+    <script>
+      try {
+        window.__SITE_CONFIG__ = JSON.parse(document.getElementById('site-config').textContent);
+      } catch (e) { /* placeholder not replaced — SPA falls back to defaults */ }
+    </script>
+  </head>
+  <body>
+    <script>
+      // One-time legacy service-worker cleanup.
+      //
+      // The app no longer registers a service worker, but an old one shipped in
+      // the past could still be cached in returning visitors' browsers, pinning
+      // them to a stale build. This purges it — but only ONCE per browser, guarded
+      // by a localStorage flag, instead of on every page load (which defeated the
+      // browser's normal caching and added needless work to each visit).
+      (function () {
+        try {
+          if (localStorage.getItem('sw-purged-v1')) return;
+          var didWork = false;
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+              for (var i = 0; i < registrations.length; i++) registrations[i].unregister();
+            }).catch(function () {});
+            didWork = true;
+          }
+          if ('caches' in window) {
+            caches.keys().then(function (names) {
+              for (var i = 0; i < names.length; i++) caches.delete(names[i]);
+            }).catch(function () {});
+            didWork = true;
+          }
+          if (didWork) localStorage.setItem('sw-purged-v1', '1');
+        } catch (e) { /* localStorage/caches unavailable — skip cleanup */ }
+      })();
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

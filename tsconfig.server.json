@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist-server",
+    "target": "ES2020",
+  "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "skipLibCheck": true,
+    "sourceMap": false
+  },
+  "include": ["server/**/*", "shared/**/*", "agent/**/*"],
+  "exclude": ["node_modules", "dist", "dist-server", "client", "**/*.test.ts"]
+}

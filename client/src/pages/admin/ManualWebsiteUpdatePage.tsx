@@ -1,0 +1,2091 @@
+   import React, { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import AdminLayout from '../../components/admin/AdminLayout';
+import { useLanguage } from '../../context/LanguageContext';
+import { Save, Eye, RotateCcw, FileText, Globe, Check, X, Upload, Trash2, Image as ImageIcon, Sparkles, TrendingUp, Wand2 } from 'lucide-react';
+import { manualPageManifest, type ManualPageDefinition, type ManualPageSection, type ManualPageField } from '../../../../shared/manualPages';
+import Cropper, { Area } from 'react-easy-crop';
+
+interface PageContent {
+  id?: string;
+  pageId: string;
+  language: string;
+  draftContent: Record<string, string>;
+  publishedContent: Record<string, string>;
+  status: string;
+  publishedAt?: string;
+  updatedAt?: string;
+}
+
+const createImageElement = (url: string): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', (error) => reject(error));
+    image.setAttribute('crossOrigin', 'anonymous');
+    image.src = url;
+  });
+};
+
+const getCroppedImageBlob = async (imageSrc: string, crop: Area, mimeType: string): Promise<Blob> => {
+  const image = await createImageElement(imageSrc);
+  const canvas = document.createElement('canvas');
+  const targetWidth = Math.round(crop.width);
+  const targetHeight = Math.round(crop.height);
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('Canvas context unavailable');
+  }
+
+  ctx.drawImage(
+    image,
+    crop.x,
+    crop.y,
+    crop.width,
+    crop.height,
+    0,
+    0,
+    targetWidth,
+    targetHeight
+  );
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Failed to crop image'));
+        return;
+      }
+      resolve(blob);
+    }, mimeType || 'image/jpeg', 0.92);
+  });
+};
+
+// Homepage Images Manager Component
+const HomepageImagesManager: React.FC = () => {
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [newImageSection, setNewImageSection] = useState('hero');
+  const [uploadMethod, setUploadMethod] = useState<'url' | 'file'>('file');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [replacingImage, setReplacingImage] = useState<any | null>(null);
+  const [replaceMethod, setReplaceMethod] = useState<'url' | 'file'>('file');
+  const [replaceUrl, setReplaceUrl] = useState('');
+  const [replaceFile, setReplaceFile] = useState<File | null>(null);
+  const queryClient = useQueryClient();
+
+  // Admin token helper (read fresh from localStorage each call)
+  const getAdminToken = () => (typeof window !== 'undefined' ? (localStorage.getItem('ADMIN_TOKEN') || '') : '');
+  const withAdminHeaders = () => ({ 'x-admin-token': getAdminToken() });
+  const withAdminJsonHeaders = () => ({ 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() });
+
+  // Fetch homepage images
+  const { data: images, isLoading } = useQuery({
+    queryKey: ['/api/homepage/images'],
+    queryFn: async () => {
+      const res = await fetch('/api/homepage/images', {
+        credentials: 'include',
+        headers: withAdminHeaders()
+      });
+      if (!res.ok) throw new Error('Failed to fetch images');
+      return res.json();
+    }
+  });
+
+  // Add image via URL mutation
+  const addImageMutation = useMutation({
+    mutationFn: async (data: { section: string; url: string }) => {
+      const res = await fetch('/api/homepage/images', {
+        method: 'POST',
+        credentials: 'include',
+        headers: withAdminJsonHeaders(),
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error('Failed to add image');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/homepage/images'] });
+      setNewImageUrl('');
+    }
+  });
+
+  // Upload image file mutation
+  const uploadImageMutation = useMutation({
+    mutationFn: async (data: { file: File; section: string }) => {
+      const formData = new FormData();
+      formData.append('image', data.file);
+      formData.append('section', data.section);
+
+      const res = await fetch('/api/homepage/images/upload', {
+        method: 'POST',
+        credentials: 'include',
+        headers: withAdminHeaders(),
+        body: formData
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to upload image');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/homepage/images'] });
+      setSelectedFile(null);
+      setUploadProgress(0);
+    }
+  });
+
+  // Delete image mutation
+  const deleteImageMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/homepage/images/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: withAdminHeaders()
+      });
+      if (!res.ok) throw new Error('Failed to delete image');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/homepage/images'] });
+    }
+  });
+
+  const handleAddImage = () => {
+    if (uploadMethod === 'url') {
+      if (!newImageUrl.trim()) return;
+      addImageMutation.mutate({
+        section: newImageSection,
+        url: newImageUrl.trim()
+      });
+    } else {
+      if (!selectedFile) return;
+      uploadImageMutation.mutate({
+        file: selectedFile,
+        section: newImageSection
+      });
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files[0]) {
+      setSelectedFile(files[0]);
+    }
+  };
+
+  const handleReplaceFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files[0]) {
+      setReplaceFile(files[0]);
+    }
+  };
+
+  // Replace image mutation
+  const replaceImageMutation = useMutation({
+    mutationFn: async (data: { id: string; file?: File; url?: string }) => {
+      if (data.file) {
+        // Upload new file
+        const formData = new FormData();
+        formData.append('image', data.file);
+        formData.append('section', replacingImage.section);
+
+        const uploadRes = await fetch('/api/homepage/images/upload', {
+          method: 'POST',
+          credentials: 'include',
+          headers: withAdminHeaders(),
+          body: formData
+        });
+        if (!uploadRes.ok) {
+          const error = await uploadRes.json();
+          throw new Error(error.message || 'Failed to upload image');
+        }
+        const uploadData = await uploadRes.json();
+        
+        // Delete old image
+        await fetch(`/api/homepage/images/${data.id}`, { 
+          method: 'DELETE',
+          credentials: 'include',
+          headers: withAdminHeaders()
+        });
+        
+        return uploadData;
+      } else if (data.url) {
+        // Update with new URL
+        const res = await fetch(`/api/homepage/images/${data.id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: withAdminJsonHeaders(),
+          body: JSON.stringify({ url: data.url })
+        });
+        if (!res.ok) throw new Error('Failed to update image');
+        return res.json();
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/homepage/images'] });
+      setReplacingImage(null);
+      setReplaceFile(null);
+      setReplaceUrl('');
+    }
+  });
+
+  const handleReplace = () => {
+    if (!replacingImage) return;
+    
+    if (replaceMethod === 'file' && replaceFile) {
+      replaceImageMutation.mutate({ id: replacingImage.id, file: replaceFile });
+    } else if (replaceMethod === 'url' && replaceUrl.trim()) {
+      replaceImageMutation.mutate({ id: replacingImage.id, url: replaceUrl.trim() });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Add New Image */}
+      <div className="bg-white rounded-lg border-2 border-dashed border-purple-200 p-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Upload size={20} />
+          Add New Image
+        </h3>
+        
+        {/* Upload Method Toggle */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setUploadMethod('file')}
+            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+              uploadMethod === 'file'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Upload File (Recommended)
+          </button>
+          <button
+            onClick={() => setUploadMethod('url')}
+            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+              uploadMethod === 'url'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Use URL
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {uploadMethod === 'file' ? (
+            /* File Upload */
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Image File
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={handleFileSelect}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+                {selectedFile && (
+                  <div className="text-sm text-green-600 flex items-center gap-1">
+                    <Check size={16} />
+                    {selectedFile.name}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                JPG, PNG, or WebP • Max 20MB • Will be optimized and stored in Backblaze B2
+              </p>
+            </div>
+          ) : (
+            /* URL Input */
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
+              <input
+                type="text"
+                value={newImageUrl}
+                onChange={(e) => setNewImageUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
+            <select
+              value={newImageSection}
+              onChange={(e) => setNewImageSection(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            >
+              <option value="hero">Hero / Main Grid</option>
+              <option value="content-1">Content Block 1</option>
+              <option value="content-2">Content Block 2</option>
+              <option value="services-family">Services - Family</option>
+              <option value="services-pregnancy">Services - Pregnancy</option>
+              <option value="services-newborn">Services - Newborn</option>
+              <option value="services-business">Services - Business</option>
+              <option value="services-event">Services - Event</option>
+              <option value="services-product">Services - Product</option>
+              <option value="faq">FAQ</option>
+            </select>
+          </div>
+
+          <button
+            onClick={handleAddImage}
+            disabled={
+              (uploadMethod === 'url' && !newImageUrl.trim()) ||
+              (uploadMethod === 'file' && !selectedFile) ||
+              addImageMutation.isPending ||
+              uploadImageMutation.isPending
+            }
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Upload size={16} />
+            {addImageMutation.isPending || uploadImageMutation.isPending
+              ? uploadMethod === 'file' 
+                ? 'Uploading to B2...' 
+                : 'Adding...'
+              : uploadMethod === 'file'
+              ? 'Upload & Add Image'
+              : 'Add Image'}
+          </button>
+          
+          {uploadImageMutation.isError && (
+            <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+              {uploadImageMutation.error?.message || 'Upload failed'}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Current Images */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <ImageIcon size={20} />
+          Current Homepage Images ({images?.length || 0})
+        </h3>
+        
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+            <p className="text-gray-600 mt-4">Loading images...</p>
+          </div>
+        ) : images && images.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {images.map((image: any) => (
+              <div key={image.id} className="relative group border border-gray-200 rounded-lg overflow-hidden">
+                <img
+                  src={image.url}
+                  alt={image.alt || 'Homepage image'}
+                  className="w-full h-48 object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=Image+Not+Found';
+                  }}
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center gap-3">
+                  <button
+                    onClick={() => {
+                      setReplacingImage(image);
+                      setReplaceMethod('file');
+                      setReplaceUrl('');
+                      setReplaceFile(null);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-all flex items-center gap-2"
+                  >
+                    <Upload size={16} />
+                    Replace
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm('Delete this image?')) {
+                        deleteImageMutation.mutate(image.id);
+                      }
+                    }}
+                    className="opacity-0 group-hover:opacity-100 bg-red-600 text-white p-2 rounded-full hover:bg-red-700 transition-all"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+                <div className="p-3 bg-gray-50">
+                  <p className="text-sm font-medium text-gray-700">{image.section}</p>
+                  {image.title && <p className="text-xs text-gray-500 mt-1">{image.title}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <ImageIcon size={48} className="mx-auto mb-4 opacity-30" />
+            <p>No images yet. Add your first image above.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Replace Image Modal */}
+      {replacingImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Replace Image: {replacingImage.section}
+                </h3>
+                <button
+                  onClick={() => setReplacingImage(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Current Image Preview */}
+              <div className="mb-6">
+                <p className="text-sm font-medium text-gray-700 mb-2">Current Image:</p>
+                <img
+                  src={replacingImage.url}
+                  alt="Current"
+                  className="w-full h-48 object-cover rounded-lg border border-gray-200"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=Current+Image';
+                  }}
+                />
+              </div>
+
+              {/* Upload Method Toggle */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setReplaceMethod('file')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    replaceMethod === 'file'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Upload New File
+                </button>
+                <button
+                  onClick={() => setReplaceMethod('url')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    replaceMethod === 'url'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Use URL
+                </button>
+              </div>
+
+              {/* Replace Input */}
+              <div className="space-y-4 mb-6">
+                {replaceMethod === 'file' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select New Image File
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={handleReplaceFileSelect}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                    {replaceFile && (
+                      <div className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                        <Check size={16} />
+                        {replaceFile.name} ({(replaceFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      New Image URL
+                    </label>
+                    <input
+                      type="text"
+                      value={replaceUrl}
+                      onChange={(e) => setReplaceUrl(e.target.value)}
+                      placeholder="https://example.com/new-image.jpg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setReplacingImage(null)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReplace}
+                  disabled={
+                    (replaceMethod === 'file' && !replaceFile) ||
+                    (replaceMethod === 'url' && !replaceUrl.trim()) ||
+                    replaceImageMutation.isPending
+                  }
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Upload size={16} />
+                  {replaceImageMutation.isPending
+                    ? replaceMethod === 'file'
+                      ? 'Uploading...'
+                      : 'Updating...'
+                    : 'Replace Image'}
+                </button>
+              </div>
+
+              {replaceImageMutation.isError && (
+                <div className="mt-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                  {replaceImageMutation.error?.message || 'Replace failed'}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Portfolio Images Manager Component
+const PortfolioImagesManager: React.FC = () => {
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [newImageCategory, setNewImageCategory] = useState('family');
+  const [newImageTitle, setNewImageTitle] = useState('');
+  const [uploadMethod, setUploadMethod] = useState<'url' | 'file'>('file');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [replacingImage, setReplacingImage] = useState<any | null>(null);
+  const [replaceMethod, setReplaceMethod] = useState<'url' | 'file'>('file');
+  const [replaceUrl, setReplaceUrl] = useState('');
+  const [replaceFile, setReplaceFile] = useState<File | null>(null);
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const queryClient = useQueryClient();
+
+  const getAdminToken = () => (typeof window !== 'undefined' ? (localStorage.getItem('ADMIN_TOKEN') || '') : '');
+  const withAdminHeaders = () => ({ 'x-admin-token': getAdminToken() });
+  const withAdminJsonHeaders = () => ({ 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() });
+
+  const categories = [
+    { value: 'family', label: 'Family Portraits' },
+    { value: 'newborn', label: 'Newborn Photography' },
+    { value: 'maternity', label: 'Maternity Sessions' },
+    { value: 'wedding', label: 'Wedding Photography' },
+    { value: 'business', label: 'Business & Corporate' },
+    { value: 'event', label: 'Event Photography' },
+    { value: 'featured', label: 'Featured Gallery' },
+  ];
+
+  // Fetch portfolio images
+  const { data: images, isLoading } = useQuery({
+    queryKey: ['/api/portfolio/images'],
+    queryFn: async () => {
+      const res = await fetch('/api/portfolio/images', {
+        credentials: 'include',
+        headers: withAdminHeaders()
+      });
+      if (!res.ok) throw new Error('Failed to fetch images');
+      return res.json();
+    }
+  });
+
+  // Add image via URL mutation
+  const addImageMutation = useMutation({
+    mutationFn: async (data: { category: string; url: string; title?: string }) => {
+      const res = await fetch('/api/portfolio/images', {
+        method: 'POST',
+        credentials: 'include',
+        headers: withAdminJsonHeaders(),
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error('Failed to add image');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolio/images'] });
+      setNewImageUrl('');
+      setNewImageTitle('');
+    }
+  });
+
+  // Upload image file mutation
+  const uploadImageMutation = useMutation({
+    mutationFn: async (data: { file: File; category: string; title?: string }) => {
+      const formData = new FormData();
+      formData.append('image', data.file);
+      formData.append('category', data.category);
+      if (data.title) formData.append('title', data.title);
+
+      const res = await fetch('/api/portfolio/images/upload', {
+        method: 'POST',
+        credentials: 'include',
+        headers: withAdminHeaders(),
+        body: formData
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to upload image');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolio/images'] });
+      setSelectedFile(null);
+      setNewImageTitle('');
+    }
+  });
+
+  // Delete image mutation
+  const deleteImageMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/portfolio/images/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: withAdminHeaders()
+      });
+      if (!res.ok) throw new Error('Failed to delete image');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolio/images'] });
+    }
+  });
+
+  // Replace image mutation
+  const replaceImageMutation = useMutation({
+    mutationFn: async (data: { id: string; file?: File; url?: string }) => {
+      if (data.file) {
+        const formData = new FormData();
+        formData.append('image', data.file);
+        formData.append('category', replacingImage.category);
+
+        const uploadRes = await fetch('/api/portfolio/images/upload', {
+          method: 'POST',
+          credentials: 'include',
+          headers: withAdminHeaders(),
+          body: formData
+        });
+        if (!uploadRes.ok) throw new Error('Failed to upload new image');
+        const uploadedImage = await uploadRes.json();
+
+        // Delete old image
+        await fetch(`/api/portfolio/images/${data.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: withAdminHeaders()
+        });
+
+        return uploadedImage;
+      } else if (data.url) {
+        const res = await fetch(`/api/portfolio/images/${data.id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: withAdminJsonHeaders(),
+          body: JSON.stringify({ url: data.url })
+        });
+        if (!res.ok) throw new Error('Failed to update image URL');
+        return res.json();
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolio/images'] });
+      setReplacingImage(null);
+      setReplaceUrl('');
+      setReplaceFile(null);
+    }
+  });
+
+  const handleAddImage = () => {
+    if (uploadMethod === 'url') {
+      if (!newImageUrl.trim()) return;
+      addImageMutation.mutate({
+        category: newImageCategory,
+        url: newImageUrl.trim(),
+        title: newImageTitle.trim() || undefined
+      });
+    } else {
+      if (!selectedFile) return;
+      uploadImageMutation.mutate({
+        file: selectedFile,
+        category: newImageCategory,
+        title: newImageTitle.trim() || undefined
+      });
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files[0]) {
+      setSelectedFile(files[0]);
+    }
+  };
+
+  const handleReplaceFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files[0]) {
+      setReplaceFile(files[0]);
+    }
+  };
+
+  const handleReplace = () => {
+    if (!replacingImage) return;
+    if (replaceMethod === 'file' && replaceFile) {
+      replaceImageMutation.mutate({ id: replacingImage.id, file: replaceFile });
+    } else if (replaceMethod === 'url' && replaceUrl.trim()) {
+      replaceImageMutation.mutate({ id: replacingImage.id, url: replaceUrl.trim() });
+    }
+  };
+
+  const filteredImages = images?.filter((img: any) => 
+    filterCategory === 'all' || img.category === filterCategory
+  );
+
+  const groupedImages = categories.reduce((acc: any, cat) => {
+    acc[cat.value] = filteredImages?.filter((img: any) => img.category === cat.value) || [];
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-6">
+      {/* Add New Image */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Upload size={20} className="text-purple-600" />
+          Add Portfolio Image
+        </h3>
+
+        <div className="space-y-4">
+          {/* Category Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+            <select
+              value={newImageCategory}
+              onChange={(e) => setNewImageCategory(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            >
+              {categories.map((cat) => (
+                <option key={cat.value} value={cat.value}>{cat.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Title Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Title (optional)</label>
+            <input
+              type="text"
+              value={newImageTitle}
+              onChange={(e) => setNewImageTitle(e.target.value)}
+              placeholder="E.g., Family Joy, Wedding Day"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Upload Method Toggle */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setUploadMethod('file')}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                uploadMethod === 'file'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Upload File
+            </button>
+            <button
+              onClick={() => setUploadMethod('url')}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                uploadMethod === 'url'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Use URL
+            </button>
+          </div>
+
+          {/* Upload/URL Input */}
+          {uploadMethod === 'file' ? (
+            <div>
+              <input
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                onChange={handleFileSelect}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              {selectedFile && (
+                <div className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                  <Check size={16} />
+                  {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                </div>
+              )}
+            </div>
+          ) : (
+            <input
+              type="text"
+              value={newImageUrl}
+              onChange={(e) => setNewImageUrl(e.target.value)}
+              placeholder="https://example.com/image.jpg"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+          )}
+
+          {/* Submit Button */}
+          <button
+            onClick={handleAddImage}
+            disabled={
+              (uploadMethod === 'file' && !selectedFile) ||
+              (uploadMethod === 'url' && !newImageUrl.trim()) ||
+              addImageMutation.isPending ||
+              uploadImageMutation.isPending
+            }
+            className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <Upload size={18} />
+            {addImageMutation.isPending || uploadImageMutation.isPending
+              ? uploadMethod === 'file' 
+                ? 'Uploading to B2...' 
+                : 'Adding...'
+              : uploadMethod === 'file'
+              ? 'Upload & Add Image'
+              : 'Add Image'}
+          </button>
+          
+          {uploadImageMutation.isError && (
+            <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+              {uploadImageMutation.error?.message || 'Upload failed'}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Filter and Current Images */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <ImageIcon size={20} />
+            Portfolio Images ({images?.length || 0})
+          </h3>
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="all">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat.value} value={cat.value}>{cat.label}</option>
+            ))}
+          </select>
+        </div>
+        
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+            <p className="text-gray-600 mt-4">Loading images...</p>
+          </div>
+        ) : filteredImages && filteredImages.length > 0 ? (
+          <div className="space-y-6">
+            {filterCategory === 'all' ? (
+              // Show grouped by category
+              categories.map((cat) => {
+                const catImages = groupedImages[cat.value];
+                if (!catImages || catImages.length === 0) return null;
+                return (
+                  <div key={cat.value} className="border-t pt-4 first:border-t-0 first:pt-0">
+                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                      <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                        {cat.label}
+                      </span>
+                      <span className="text-gray-500 text-sm">({catImages.length})</span>
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {catImages.map((image: any) => (
+                        <div key={image.id} className="relative group border border-gray-200 rounded-lg overflow-hidden">
+                          <img
+                            src={image.url}
+                            alt={image.alt || 'Portfolio image'}
+                            className="w-full h-32 object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=Image+Not+Found';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => {
+                                setReplacingImage(image);
+                                setReplaceMethod('file');
+                                setReplaceUrl('');
+                                setReplaceFile(null);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-all text-sm flex items-center gap-1"
+                            >
+                              <Upload size={14} />
+                              Replace
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm('Delete this image?')) {
+                                  deleteImageMutation.mutate(image.id);
+                                }
+                              }}
+                              className="opacity-0 group-hover:opacity-100 bg-red-600 text-white p-1.5 rounded-full hover:bg-red-700 transition-all"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                          {image.title && (
+                            <div className="p-2 bg-gray-50">
+                              <p className="text-xs text-gray-600 truncate">{image.title}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              // Show flat list for filtered category
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {filteredImages.map((image: any) => (
+                  <div key={image.id} className="relative group border border-gray-200 rounded-lg overflow-hidden">
+                    <img
+                      src={image.url}
+                      alt={image.alt || 'Portfolio image'}
+                      className="w-full h-32 object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=Image+Not+Found';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => {
+                          setReplacingImage(image);
+                          setReplaceMethod('file');
+                          setReplaceUrl('');
+                          setReplaceFile(null);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-all text-sm flex items-center gap-1"
+                      >
+                        <Upload size={14} />
+                        Replace
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm('Delete this image?')) {
+                            deleteImageMutation.mutate(image.id);
+                          }
+                        }}
+                        className="opacity-0 group-hover:opacity-100 bg-red-600 text-white p-1.5 rounded-full hover:bg-red-700 transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    {image.title && (
+                      <div className="p-2 bg-gray-50">
+                        <p className="text-xs text-gray-600 truncate">{image.title}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <ImageIcon size={48} className="mx-auto mb-4 opacity-30" />
+            <p>No portfolio images yet. Add your first image above.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Replace Image Modal */}
+      {replacingImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Replace Image: {replacingImage.category}
+                </h3>
+                <button
+                  onClick={() => setReplacingImage(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Current Image Preview */}
+              <div className="mb-6">
+                <p className="text-sm font-medium text-gray-700 mb-2">Current Image:</p>
+                <img
+                  src={replacingImage.url}
+                  alt="Current"
+                  className="w-full h-48 object-cover rounded-lg border border-gray-200"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=Current+Image';
+                  }}
+                />
+              </div>
+
+              {/* Upload Method Toggle */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setReplaceMethod('file')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    replaceMethod === 'file'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Upload New File
+                </button>
+                <button
+                  onClick={() => setReplaceMethod('url')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    replaceMethod === 'url'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Use URL
+                </button>
+              </div>
+
+              {/* Replace Input */}
+              <div className="space-y-4 mb-6">
+                {replaceMethod === 'file' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select New Image File
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={handleReplaceFileSelect}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                    {replaceFile && (
+                      <div className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                        <Check size={16} />
+                        {replaceFile.name} ({(replaceFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      New Image URL
+                    </label>
+                    <input
+                      type="text"
+                      value={replaceUrl}
+                      onChange={(e) => setReplaceUrl(e.target.value)}
+                      placeholder="https://example.com/new-image.jpg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setReplacingImage(null)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReplace}
+                  disabled={
+                    (replaceMethod === 'file' && !replaceFile) ||
+                    (replaceMethod === 'url' && !replaceUrl.trim()) ||
+                    replaceImageMutation.isPending
+                  }
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Upload size={16} />
+                  {replaceImageMutation.isPending
+                    ? replaceMethod === 'file'
+                      ? 'Uploading...'
+                      : 'Updating...'
+                    : 'Replace Image'}
+                </button>
+              </div>
+
+              {replaceImageMutation.isError && (
+                <div className="mt-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                  {replaceImageMutation.error?.message || 'Replace failed'}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ManualWebsiteUpdatePage: React.FC = () => {
+  const [selectedPage, setSelectedPage] = useState<ManualPageDefinition | null>(manualPageManifest[0] || null);
+  const [language, setLanguage] = useState<'de' | 'en'>('de');
+  const [editedContent, setEditedContent] = useState<Record<string, string>>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string | null>>({});
+  const [dragOverFields, setDragOverFields] = useState<Record<string, boolean>>({});
+  const [cropModal, setCropModal] = useState<{
+    field: ManualPageField;
+    file: File;
+    imageSrc: string;
+    mimeType: string;
+  } | null>(null);
+  const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 });
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropOrientation, setCropOrientation] = useState<'landscape' | 'portrait' | 'wide'>('landscape');
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [isProcessingCrop, setIsProcessingCrop] = useState(false);
+  // Transient banner confirming a Save/Publish result (auto-dismisses).
+  const [actionNote, setActionNote] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  // AI field enhancement (refine in tone / SEO-optimise), keyed by translationKey.
+  const [aiFieldBusy, setAiFieldBusy] = useState<Record<string, 'refine' | 'seo' | 'generate'>>({});
+  const [aiFieldTips, setAiFieldTips] = useState<Record<string, string[]>>({});
+  const [aiFieldError, setAiFieldError] = useState<Record<string, string>>({});
+  const queryClient = useQueryClient();
+  const { t } = useLanguage();
+
+  // Load field-specific orientation preferences from localStorage
+  const getFieldOrientation = (fieldId: string): 'landscape' | 'portrait' | 'wide' => {
+    const saved = localStorage.getItem(`cropOrientation_${fieldId}`);
+    return (saved === 'landscape' || saved === 'portrait' || saved === 'wide') ? saved : 'landscape';
+  };
+
+  // Save field-specific orientation preference
+  const saveFieldOrientation = (fieldId: string, orientation: 'landscape' | 'portrait' | 'wide') => {
+    localStorage.setItem(`cropOrientation_${fieldId}`, orientation);
+  };
+
+  // Fetch page content
+  const { data: pageContent, isLoading } = useQuery<PageContent>({
+    queryKey: ['/api/manual-pages', selectedPage?.id, language],
+    queryFn: async () => {
+      if (!selectedPage) return null;
+      const res = await fetch(`/api/manual-pages/${selectedPage.id}?language=${language}`);
+      if (!res.ok) throw new Error('Failed to fetch page content');
+      return res.json();
+    },
+    enabled: !!selectedPage
+  });
+
+  // Initialize edited content when page content loads
+  useEffect(() => {
+    if (pageContent) {
+      // Prepare defaults from translation keys so admins see current site copy even before saving
+      const defaults: Record<string, string> = {};
+      if (selectedPage) {
+        for (const section of selectedPage.sections) {
+          for (const field of section.fields) {
+            try {
+              // t() returns the key itself when no translation exists. Only seed the
+              // field with real copy; otherwise leave it blank (e.g. image slots) so the
+              // editor never shows a raw translation key as the current value.
+              const resolved = t(field.translationKey);
+              defaults[field.translationKey] = resolved && resolved !== field.translationKey ? resolved : '';
+            } catch {
+              defaults[field.translationKey] = '';
+            }
+          }
+        }
+      }
+
+      // Merge defaults -> published -> draft (draft takes precedence)
+      const mergedContent = {
+        ...defaults,
+        ...(pageContent.publishedContent || {}),
+        ...(pageContent.draftContent || {})
+      } as Record<string, string>;
+      setEditedContent(mergedContent);
+      setHasUnsavedChanges(false);
+    } else {
+      setEditedContent({});
+      setHasUnsavedChanges(false);
+    }
+  }, [pageContent, selectedPage?.id, language]);
+
+  // Show a banner for a few seconds, then clear it.
+  const flashNote = (kind: 'success' | 'error', text: string) => {
+    setActionNote({ kind, text });
+    window.setTimeout(() => setActionNote(cur => (cur && cur.text === text ? null : cur)), 6000);
+  };
+
+  // Save draft mutation
+  const saveDraftMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPage) return;
+      const res = await fetch(`/api/manual-pages/${selectedPage.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language,
+          draftContent: editedContent,
+          action: 'save_draft'
+        })
+      });
+      if (!res.ok) throw new Error('Failed to save draft');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/manual-pages'] });
+      setHasUnsavedChanges(false);
+      flashNote('success', 'Draft saved. It is not live yet — click Publish to put it on the website.');
+    },
+    onError: () => flashNote('error', 'Could not save the draft. Please try again.'),
+  });
+
+  // Publish mutation
+  const publishMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPage) return;
+      const res = await fetch(`/api/manual-pages/${selectedPage.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language,
+          draftContent: editedContent,
+          action: 'publish'
+        })
+      });
+      if (!res.ok) throw new Error('Failed to publish');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/manual-pages'] });
+      setHasUnsavedChanges(false);
+      flashNote('success', '✓ Published — your changes are now live on the website.');
+    },
+    onError: () => flashNote('error', 'Publish failed — nothing was changed on the live site. Please try again.'),
+  });
+
+  // Reset mutation
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPage) return;
+      const res = await fetch(`/api/manual-pages/${selectedPage.id}?language=${language}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error('Failed to reset');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/manual-pages'] });
+      setEditedContent({});
+      setHasUnsavedChanges(false);
+    }
+  });
+
+  const handleFieldChange = (fieldId: string, value: string) => {
+    setEditedContent(prev => ({ ...prev, [fieldId]: value }));
+    setHasUnsavedChanges(true);
+  };
+
+  // Refine the field text in the studio's tone, SEO-optimise it, or GENERATE
+  // optimal copy from scratch. The result replaces the field value (still a
+  // draft until Save/Publish). 'generate' works on an empty field; the other
+  // modes need existing text to improve.
+  const enhanceField = async (field: ManualPageField, mode: 'refine' | 'seo' | 'generate') => {
+    const key = field.translationKey;
+    const current = (editedContent[key] || '').trim();
+    if (mode !== 'generate' && !current) {
+      setAiFieldError(prev => ({ ...prev, [key]: 'Enter some text first, then let AI improve it — or use AI Generate to create it from scratch.' }));
+      return;
+    }
+    // Give the model the page's other filled fields so generated copy stays
+    // coherent with what's already there (e.g. a description that matches the title).
+    const context: Array<{ label: string; value: string }> = [];
+    if (selectedPage) {
+      for (const section of selectedPage.sections) {
+        for (const f of section.fields) {
+          if (f.type === 'image' || f.translationKey === key) continue;
+          const v = (editedContent[f.translationKey] || '').trim();
+          if (v) context.push({ label: f.label, value: v });
+        }
+      }
+    }
+    setAiFieldBusy(prev => ({ ...prev, [key]: mode }));
+    setAiFieldError(prev => { const n = { ...prev }; delete n[key]; return n; });
+    try {
+      const res = await fetch('/api/manual-pages/enhance-field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          text: current,
+          mode,
+          label: field.label,
+          helperText: field.helperText || '',
+          pageName: selectedPage?.label || '',
+          context: context.slice(0, 12),
+          language,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.result) throw new Error(data?.error || 'AI could not improve this field');
+      handleFieldChange(key, data.result);
+      setAiFieldTips(prev => ({ ...prev, [key]: Array.isArray(data.tips) ? data.tips : [] }));
+    } catch (e: any) {
+      setAiFieldError(prev => ({ ...prev, [key]: e?.message || 'AI enhancement failed' }));
+    } finally {
+      setAiFieldBusy(prev => { const n = { ...prev }; delete n[key]; return n; });
+    }
+  };
+
+  // Small AI toolbar rendered under editable text fields.
+  const renderAiTools = (field: ManualPageField) => {
+    const key = field.translationKey;
+    const busy = aiFieldBusy[key];
+    const tips = aiFieldTips[key];
+    const err = aiFieldError[key];
+    return (
+      <div className="mt-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => enhanceField(field, 'generate')}
+            disabled={!!busy}
+            className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            title="Let AI write optimal, on-brand copy for this field from scratch"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            {busy === 'generate' ? 'Generating…' : 'AI Generate'}
+          </button>
+          <button
+            type="button"
+            onClick={() => enhanceField(field, 'refine')}
+            disabled={!!busy}
+            className="inline-flex items-center gap-1.5 rounded-md border border-purple-300 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {busy === 'refine' ? 'Refining…' : 'Refine in my tone'}
+          </button>
+          <button
+            type="button"
+            onClick={() => enhanceField(field, 'seo')}
+            disabled={!!busy}
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <TrendingUp className="h-3.5 w-3.5" />
+            {busy === 'seo' ? 'Optimising…' : 'Improve SEO ranking'}
+          </button>
+        </div>
+        {err && <p className="mt-1.5 text-xs text-red-600">{err}</p>}
+        {tips && tips.length > 0 && (
+          <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+            <p className="text-xs font-semibold text-emerald-800 mb-1">SEO tips applied:</p>
+            <ul className="list-disc pl-4 text-xs text-emerald-700 space-y-0.5">
+              {tips.map((tp, i) => <li key={i}>{tp}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Handles image uploads and stores the returned serve URL in the draft content map.
+  const handleImageUpload = async (field: ManualPageField, file: File) => {
+    setUploadErrors(prev => ({ ...prev, [field.id]: null }));
+    setUploadingFields(prev => ({ ...prev, [field.id]: true }));
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folderName', 'Manual Website Images');
+      formData.append('context', field.translationKey);
+
+      const response = await fetch('/api/files/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'File upload failed');
+      }
+
+      // Use the B2 URL from the response
+      const fileUrl = payload.url || payload.thumbnailUrl;
+
+      if (!fileUrl) {
+        throw new Error('No URL returned from upload');
+      }
+
+      handleFieldChange(field.translationKey, fileUrl);
+      return fileUrl;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'File upload failed';
+      setUploadErrors(prev => ({ ...prev, [field.id]: message }));
+      throw error;
+    } finally {
+      setUploadingFields(prev => ({ ...prev, [field.id]: false }));
+    }
+  };
+
+  const handleImageClick = (field: ManualPageField, file: File) => {
+    const imageSrc = URL.createObjectURL(file);
+    setCropModal({ field, file, imageSrc, mimeType: file.type || 'image/jpeg' });
+    setCropPosition({ x: 0, y: 0 });
+    setCropZoom(1);
+    setCroppedAreaPixels(null);
+    // Load the saved orientation preference for this specific field
+    setCropOrientation(getFieldOrientation(field.id));
+  };
+
+  const closeCropModal = () => {
+    if (cropModal?.imageSrc?.startsWith('blob:')) {
+      URL.revokeObjectURL(cropModal.imageSrc);
+    }
+    setCropModal(null);
+    setCroppedAreaPixels(null);
+    setCropPosition({ x: 0, y: 0 });
+    setCropZoom(1);
+    setIsProcessingCrop(false);
+  };
+
+  const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
+    setCroppedAreaPixels(croppedPixels);
+  }, []);
+
+  const handleCropConfirm = async (useOriginal = false) => {
+    if (!cropModal) return;
+    setIsProcessingCrop(true);
+
+    try {
+      let fileToUpload = cropModal.file;
+
+      // Only skip cropping when the user explicitly clicks "Use Original".
+      // Every orientation (incl. Wide Hero) otherwise crops to its frame.
+      const shouldUseOriginal = useOriginal;
+
+      if (!shouldUseOriginal && croppedAreaPixels) {
+        const croppedBlob = await getCroppedImageBlob(cropModal.imageSrc, croppedAreaPixels, cropModal.mimeType);
+        const extension = cropModal.file.name.includes('.') ? cropModal.file.name.split('.').pop() : 'jpg';
+        const nextName = `cropped-${Date.now()}.${extension}`;
+        fileToUpload = new File([croppedBlob], nextName, { type: cropModal.mimeType || 'image/jpeg' });
+      }
+
+      await handleImageUpload(cropModal.field, fileToUpload);
+      closeCropModal();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to process image';
+      setUploadErrors(prev => ({ ...prev, [cropModal.field.id]: message }));
+    } finally {
+      setIsProcessingCrop(false);
+    }
+  };
+
+  const getFieldValue = (field: ManualPageField): string => {
+    return editedContent[field.translationKey] || '';
+  };
+
+  const handleDragOver = (e: React.DragEvent, fieldId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverFields(prev => ({ ...prev, [fieldId]: true }));
+  };
+
+  const handleDragLeave = (e: React.DragEvent, fieldId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverFields(prev => ({ ...prev, [fieldId]: false }));
+  };
+
+  const handleDrop = (e: React.DragEvent, field: ManualPageField) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverFields(prev => ({ ...prev, [field.id]: false }));
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        handleImageClick(field, file);
+      } else {
+        setUploadErrors(prev => ({ ...prev, [field.id]: 'Please drop an image file' }));
+      }
+    }
+  };
+
+  const renderField = (field: ManualPageField) => {
+    const value = getFieldValue(field);
+    const isModified = editedContent[field.translationKey] !== undefined;
+
+    if (field.type === 'longForm') {
+      return (
+        <div key={field.id} className="mb-6">
+          <label className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+            {field.label}
+            {isModified && <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded">Modified</span>}
+          </label>
+          {field.helperText && (
+            <p className="text-xs text-gray-500 mb-2">{field.helperText}</p>
+          )}
+          <textarea
+            value={value}
+            onChange={(e) => handleFieldChange(field.translationKey, e.target.value)}
+            rows={4}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            placeholder={`Enter ${field.label.toLowerCase()}...`}
+          />
+          {renderAiTools(field)}
+          <p className="text-xs text-gray-400 mt-1">Key: {field.translationKey}</p>
+        </div>
+      );
+    }
+
+    if (field.type === 'image') {
+      const isUploading = uploadingFields[field.id];
+      const errorMessage = uploadErrors[field.id];
+      const isDragOver = dragOverFields[field.id];
+
+      return (
+        <div key={field.id} className="mb-6">
+          <label className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+            {field.label}
+            {isModified && <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded">Modified</span>}
+          </label>
+          {field.helperText && (
+            <p className="text-xs text-gray-500 mb-2">{field.helperText}</p>
+          )}
+
+          {/* Drag and Drop Zone */}
+          <div
+            onDragOver={(e) => handleDragOver(e, field.id)}
+            onDragLeave={(e) => handleDragLeave(e, field.id)}
+            onDrop={(e) => handleDrop(e, field)}
+            className={`relative border-2 border-dashed rounded-lg transition-all ${
+              isDragOver
+                ? 'border-purple-500 bg-purple-50'
+                : value
+                ? 'border-gray-300 bg-gray-50'
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            {value ? (
+              <div className="relative group">
+                {/* Logos are shown exactly as they appear in the site header
+                    (contained on a white strip, header height) rather than
+                    stretched/cropped like a photo. */}
+                {field.translationKey.toLowerCase().includes('logo') ? (
+                  <div className="rounded-lg overflow-hidden">
+                    <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center">
+                      <img src={value} alt={field.label} className="h-14 w-auto max-w-[220px] object-contain" />
+                      <span className="ml-auto text-[10px] uppercase tracking-wide text-gray-400">Header preview</span>
+                    </div>
+                    <div className="bg-gray-900 px-4 py-3 flex items-center">
+                      <img src={value} alt={field.label} className="h-14 w-auto max-w-[220px] object-contain" />
+                      <span className="ml-auto text-[10px] uppercase tracking-wide text-gray-500">On dark</span>
+                    </div>
+                  </div>
+                ) : (
+                  <img
+                    src={value}
+                    alt={field.label}
+                    className="w-full max-h-64 object-contain bg-gray-50 rounded-lg"
+                  />
+                )}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all rounded-lg flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-center px-4">
+                    <p className="text-sm font-medium mb-2">Drop new image to replace</p>
+                    <p className="text-xs">or click Upload Image below</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-8 text-center">
+                <div className={`mx-auto w-16 h-16 mb-4 rounded-full flex items-center justify-center ${
+                  isDragOver ? 'bg-purple-100' : 'bg-gray-100'
+                }`}>
+                  <svg
+                    className={`w-8 h-8 ${isDragOver ? 'text-purple-600' : 'text-gray-400'}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                </div>
+                <p className={`text-sm font-medium mb-1 ${isDragOver ? 'text-purple-600' : 'text-gray-700'}`}>
+                  {isDragOver ? 'Drop image here' : 'Drag & drop image here'}
+                </p>
+                <p className="text-xs text-gray-500">or use the Upload Image button below</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => handleFieldChange(field.translationKey, e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+              placeholder={`Paste image URL or drag & drop...`}
+            />
+            <label className={`inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${isUploading ? 'bg-gray-200 text-gray-500' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
+              {isUploading ? 'Uploading…' : 'Upload Image'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={isUploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleImageClick(field, file);
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </label>
+            {value && (
+              <button
+                type="button"
+                onClick={() => handleFieldChange(field.translationKey, '')}
+                className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {errorMessage && (
+            <p className="text-xs text-red-600 mt-2">{errorMessage}</p>
+          )}
+          <p className="text-xs text-gray-400 mt-1">Key: {field.translationKey}</p>
+        </div>
+      );
+    }
+
+    return (
+      <div key={field.id} className="mb-4">
+        <label className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+          {field.label}
+          {isModified && <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded">Modified</span>}
+        </label>
+        {field.helperText && (
+          <p className="text-xs text-gray-500 mb-2">{field.helperText}</p>
+        )}
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => handleFieldChange(field.translationKey, e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+          placeholder={`Enter ${field.label.toLowerCase()}...`}
+        />
+        {renderAiTools(field)}
+        <p className="text-xs text-gray-400 mt-1">Key: {field.translationKey}</p>
+      </div>
+    );
+  };
+
+  const renderSection = (section: ManualPageSection) => {
+    return (
+      <div key={section.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">{section.label}</h3>
+          {section.description && (
+            <p className="text-sm text-gray-600 mt-1">{section.description}</p>
+          )}
+        </div>
+        {section.fields.map(renderField)}
+      </div>
+    );
+  };
+
+  return (
+    <AdminLayout>
+      <div className="flex h-[calc(100vh-4rem)]">
+        {/* Sidebar - Page List */}
+        <div className="w-80 bg-gray-50 border-r border-gray-200 overflow-y-auto">
+          <div className="p-4 border-b border-gray-200 bg-white">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+              <FileText className="mr-2" size={20} />
+              Manual Website Update
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">Edit any public page content</p>
+          </div>
+
+          {/* Language Selector */}
+          <div className="p-4 border-b border-gray-200 bg-white">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setLanguage('de')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  language === 'de'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                🇩🇪 Deutsch
+              </button>
+              <button
+                onClick={() => setLanguage('en')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  language === 'en'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                🇬🇧 English
+              </button>
+            </div>
+          </div>
+
+          {/* Page List */}
+          <div className="p-2">
+            {manualPageManifest.map((page) => (
+              <button
+                key={page.id}
+                onClick={() => setSelectedPage(page)}
+                className={`w-full text-left px-4 py-3 rounded-lg mb-1 transition-colors ${
+                  selectedPage?.id === page.id
+                    ? 'bg-purple-100 border border-purple-300 text-purple-900'
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+              >
+                <div className="font-medium">{page.label}</div>
+                <div className="text-xs text-gray-500 mt-1">{page.route}</div>
+                {page.tags && page.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {page.tags.map((tag, idx) => (
+                      <span key={idx} className="px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-y-auto">
+          {selectedPage ? (
+            <div className="max-w-4xl mx-auto p-8">
+              {/* Header */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-900">{selectedPage.label}</h1>
+                    <p className="text-sm text-gray-600 mt-1">{selectedPage.description}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Globe size={16} className="text-gray-400" />
+                      <code className="text-sm bg-gray-100 px-2 py-1 rounded">{selectedPage.route}</code>
+                      {selectedPage.previewUrl && (
+                        <a
+                          href={selectedPage.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-purple-600 hover:text-purple-700 flex items-center"
+                        >
+                          <Eye size={14} className="mr-1" />
+                          Preview
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => saveDraftMutation.mutate()}
+                      disabled={!hasUnsavedChanges || saveDraftMutation.isPending}
+                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <Save size={16} />
+                      Save Draft
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Publish changes to live website?')) {
+                          publishMutation.mutate();
+                        }
+                      }}
+                      disabled={publishMutation.isPending}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <Check size={16} />
+                      {publishMutation.isPending ? 'Publishing…' : 'Publish'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Reset to default content? This will delete all customizations.')) {
+                          resetMutation.mutate();
+                        }
+                      }}
+                      disabled={resetMutation.isPending}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <RotateCcw size={16} />
+                      Reset
+                    </button>
+                  </div>
+                </div>
+
+                {/* Save/Publish result banner */}
+                {actionNote && (
+                  <div
+                    role="status"
+                    className={`flex items-center gap-2 p-3 rounded-lg border text-sm font-medium ${
+                      actionNote.kind === 'success'
+                        ? 'bg-green-50 border-green-300 text-green-800'
+                        : 'bg-red-50 border-red-300 text-red-800'
+                    }`}
+                  >
+                    {actionNote.kind === 'success' ? <Check size={16} /> : <X size={16} />}
+                    <span>{actionNote.text}</span>
+                    <button
+                      type="button"
+                      onClick={() => setActionNote(null)}
+                      className="ml-auto text-current/70 hover:text-current"
+                      aria-label="Dismiss"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Status Indicator */}
+                {pageContent && (
+                  <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        pageContent.status === 'published' ? 'bg-green-500' : 'bg-yellow-500'
+                      }`} />
+                      <span className="text-sm text-gray-700">
+                        Status: <strong>{pageContent.status || 'default'}</strong>
+                      </span>
+                    </div>
+                    {pageContent.publishedAt && (
+                      <div className="text-sm text-gray-600">
+                        Last published: {new Date(pageContent.publishedAt).toLocaleString()}
+                      </div>
+                    )}
+                    {hasUnsavedChanges && (
+                      <div className="ml-auto flex items-center gap-2 text-yellow-600">
+                        <X size={14} />
+                        <span className="text-sm font-medium">Unsaved changes</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Sections */}
+              {selectedPage.id === 'homepage-images' ? (
+                <HomepageImagesManager />
+              ) : selectedPage.id === 'portfolio-images' ? (
+                <PortfolioImagesManager />
+              ) : isLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                  <p className="text-gray-600 mt-4">Loading page content...</p>
+                </div>
+              ) : (
+                selectedPage.sections.map(renderSection)
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              <p>Select a page to edit</p>
+            </div>
+          )}
+        </div>
+      </div>
+    {cropModal && (
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 px-4">
+        <div className="w-full max-w-4xl rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Adjust Image Position</h2>
+              <p className="text-sm text-gray-600 mb-2">Choose orientation, drag to reposition, and zoom to frame perfectly.</p>
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                <span className="flex items-center gap-1">
+                  <span className="inline-flex w-4 h-4 bg-gray-200 rounded border border-gray-300 items-center justify-center">🖱️</span>
+                  Drag to move
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-flex w-4 h-4 bg-gray-200 rounded border border-gray-300 items-center justify-center">🔍</span>
+                  Scroll to zoom
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={closeCropModal}
+              className="rounded-full bg-gray-100 p-2 text-gray-600 hover:bg-gray-200"
+              aria-label="Close cropper"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Orientation Toggle */}
+          <div className="mb-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCropOrientation('landscape');
+                if (cropModal) saveFieldOrientation(cropModal.field.id, 'landscape');
+              }}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                cropOrientation === 'landscape'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Landscape (16:10)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCropOrientation('portrait');
+                if (cropModal) saveFieldOrientation(cropModal.field.id, 'portrait');
+              }}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                cropOrientation === 'portrait'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Portrait (10:16)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCropOrientation('wide');
+                if (cropModal) saveFieldOrientation(cropModal.field.id, 'wide');
+              }}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                cropOrientation === 'wide'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Wide Hero
+            </button>
+          </div>
+
+          {/* react-easy-crop draws its own draggable crop area (dimmed surround +
+              grid) from the chosen aspect. A previous decorative overlay sat on
+              top of it and swallowed the drag, so the reposition never worked —
+              it's gone; the native crop UI is both draggable and clearer. */}
+          <div className="relative mb-2 h-96 w-full overflow-hidden rounded-xl bg-black">
+            <Cropper
+              image={cropModal.imageSrc}
+              crop={cropPosition}
+              zoom={cropZoom}
+              aspect={cropOrientation === 'landscape' ? 16 / 10 : cropOrientation === 'portrait' ? 10 / 16 : 16 / 9}
+              cropShape="rect"
+              showGrid={true}
+              onCropChange={setCropPosition}
+              onZoomChange={setCropZoom}
+              onCropComplete={onCropComplete}
+              zoomWithWheel
+              restrictPosition={false}
+            />
+          </div>
+          <p className="mb-4 text-center text-xs font-medium text-gray-500">
+            {cropOrientation === 'landscape' ? 'Landscape · 16:10' : cropOrientation === 'portrait' ? 'Portrait · 10:16' : 'Wide Hero · 16:9'}
+            {' · '}Drag the image to reposition · scroll or use the slider to zoom
+          </p>
+
+          <div className="mb-6">
+            <label className="mb-2 flex items-center justify-between text-sm font-medium text-gray-700">
+              <span>Zoom: {cropZoom.toFixed(2)}x</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCropZoom(Math.max(1, cropZoom - 0.1))}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-xs font-semibold"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCropZoom(1)}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-xs font-semibold"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCropZoom(Math.min(3, cropZoom + 0.1))}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-xs font-semibold"
+                >
+                  +
+                </button>
+              </div>
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={3}
+              step={0.01}
+              value={cropZoom}
+              onChange={(e) => setCropZoom(Number(e.target.value))}
+              className="w-full accent-purple-600"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={closeCropModal}
+              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
+            >
+              Cancel
+            </button>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => handleCropConfirm(true)}
+                disabled={isProcessingCrop}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Use Original
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCropConfirm(false)}
+                disabled={isProcessingCrop}
+                className="rounded-lg bg-purple-600 px-5 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isProcessingCrop ? 'Saving…' : cropOrientation === 'wide' ? 'Save Wide Hero Crop' : 'Save Crop'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </AdminLayout>
+  );
+};
+
+export default ManualWebsiteUpdatePage;

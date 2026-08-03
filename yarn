@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Fake yarn script that redirects to npm
+# This prevents Render from using yarn
+
+echo "⚠️  Yarn detected, redirecting to npm..."
+
+case "$1" in
+  "install")
+    echo "🔄 Running: npm ci --legacy-peer-deps"
+    exec npm ci --legacy-peer-deps
+    ;;
+  "build")
+    echo "🔄 Running: npx vite build --mode production --base=/ --outDir=dist/public"
+    exec npx vite build --mode production --base=/ --outDir=dist/public
+    ;;
+  *)
+    echo "🔄 Running: npm $@"
+    exec npm "$@"
+    ;;
+esac

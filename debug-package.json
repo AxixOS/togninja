@@ -1,0 +1,8 @@
+{
+  "name": "render-debug",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "debug": "node debug-build.js"
+  }
+}

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Calendar Import Test</title>
+</head>
+<body>
+    <h1>Testing Calendar Import</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Simple health check test
+        console.log('Testing server health...');
+        const resultsDiv = document.getElementById('results');
+        
+        resultsDiv.innerHTML = '<p>🧪 Testing server connection...</p>';
+
+        fetch('http://127.0.0.1:3000/api/health')
+            .then(response => response.json())
+            .then(data => {
+                console.log('✅ Server is responding:', data);
+                resultsDiv.innerHTML += '<p>✅ Server health check passed</p>';
+                
+                // Now test calendar import
+                console.log('\nTesting calendar import...');
+                resultsDiv.innerHTML += '<p>📅 Testing calendar import...</p>';
+                
+                return fetch('http://127.0.0.1:3000/api/calendar/import/ics-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        icsUrl: 'https://calendar.google.com/calendar/ical/newagefotografen%40gmail.com/public/basic.ics',
+                        dryRun: true
+                    })
+                });
+            })
+            .then(response => {
+                console.log('Calendar import response status:', response.status);
+                resultsDiv.innerHTML += `<p>📊 Response status: ${response.status}</p>`;
+                return response.text();
+            })
+            .then(data => {
+                console.log('Calendar import response:', data);
+                resultsDiv.innerHTML += `<p>📄 Response: ${data}</p>`;
+                
+                if (data.includes('imported') || data.includes('events')) {
+                    resultsDiv.innerHTML += '<p>🎉 <strong>SUCCESS: Calendar import is working!</strong></p>';
+                } else {
+                    resultsDiv.innerHTML += '<p>❌ Calendar import may have issues</p>';
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error:', error);
+                resultsDiv.innerHTML += `<p>💥 Error: ${error.message}</p>`;
+            });
+    </script>
+</body>
+</html>

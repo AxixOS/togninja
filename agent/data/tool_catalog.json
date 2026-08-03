@@ -1,0 +1,7138 @@
+{
+  "generated_at": "2025-07-20T11:34:29.299Z",
+  "total_tools": 68,
+  "categories": [
+    "admin",
+    "analytics",
+    "automation",
+    "billing",
+    "communication",
+    "content",
+    "crm",
+    "files",
+    "general",
+    "portal",
+    "products",
+    "scheduling",
+    "search"
+  ],
+  "tools": [
+    {
+      "name": "send_email",
+      "description": "Send email immediately using configured SMTP server. Use this tool when user asks to send or confirm an email. Requires SEND_EMAIL authority.",
+      "parameters": {
+        "to": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "email",
+                "message": "Valid recipient email is required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "subject": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Subject is required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "body": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Email body is required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "fromName": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "innerType": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodOptional"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "priority": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "low",
+                  "normal",
+                  "high"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "isHtml": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "communication"
+    },
+    {
+      "name": "draft_email",
+      "description": "Compose but do NOT send an email to a lead or client. Creates a draft for review.",
+      "parameters": {
+        "lead_id": {
+          "_def": {
+            "checks": [],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "ID of the lead/client to email"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "subject": {
+          "_def": {
+            "checks": [],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "Email subject line"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "body_markdown": {
+          "_def": {
+            "checks": [],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "Email body content in markdown format"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "communication"
+    },
+    {
+      "name": "global_search",
+      "description": "Free-text search across clients, leads, invoices, sessions. Use when you need any record and don't know the specific ID.",
+      "parameters": {
+        "term": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 2,
+                "message": "Need at least 2 characters"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "search"
+    },
+    {
+      "name": "find_entity",
+      "description": "Find a person by name or email across leads and clients tables. Returns the best match with status.",
+      "parameters": {
+        "query": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "Name, email, or phone to search for"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "search"
+    },
+    {
+      "name": "count_invoices",
+      "description": "Count invoices for a specific year (defaults to current year)",
+      "parameters": {
+        "year": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Year to count invoices for (defaults to current year)"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "billing"
+    },
+    {
+      "name": "count_sessions",
+      "description": "Count photography sessions for a specific year (defaults to current year)",
+      "parameters": {
+        "year": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Year to count sessions for (defaults to current year)"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "scheduling"
+    },
+    {
+      "name": "count_leads",
+      "description": "Count leads for a specific year (defaults to current year)",
+      "parameters": {
+        "year": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Year to count leads for (defaults to current year)"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "status": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Filter by lead status"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "search"
+    },
+    {
+      "name": "create_gallery_checkout",
+      "description": "Create Stripe checkout for gallery print order",
+      "parameters": {
+        "gallery_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid gallery UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "client_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid client UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "items": {
+          "_def": {
+            "type": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "minLength": null,
+            "maxLength": null,
+            "exactLength": null,
+            "typeName": "ZodArray"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "products"
+    },
+    {
+      "name": "submit_prodigi_order",
+      "description": "Submit gallery order to Prodigi for print fulfillment and dropshipping",
+      "parameters": {
+        "gallery_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid gallery UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "client_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid client UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "order_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid",
+                    "message": "Valid gallery order UUID required"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "shipping_address": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "products"
+    },
+    {
+      "name": "create_photography_session",
+      "description": "Create a new photography session/booking in the calendar",
+      "parameters": {
+        "client_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid client UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "session_type": {
+          "_def": {
+            "values": [
+              "FAMILY",
+              "NEWBORN",
+              "MATERNITY",
+              "BUSINESS",
+              "WEDDING",
+              "EVENT",
+              "PORTRAIT",
+              "HEADSHOT",
+              "COUPLE",
+              "ENGAGEMENT"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "session_date": {
+          "_def": {
+            "checks": [],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "Session date in YYYY-MM-DD format"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "session_time": {
+          "_def": {
+            "checks": [],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "Session time in HH:MM format"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "duration_minutes": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 30,
+                    "inclusive": true
+                  },
+                  {
+                    "kind": "max",
+                    "value": 480,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "location": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Location is required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "notes": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "price": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 0,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "deposit_required": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 0,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "equipment_needed": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "scheduling"
+    },
+    {
+      "name": "read_calendar_sessions",
+      "description": "Retrieve photography sessions from calendar with filtering options",
+      "parameters": {
+        "start_date": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Start date filter (YYYY-MM-DD)"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "end_date": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "End date filter (YYYY-MM-DD)"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "client_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Filter by specific client"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "session_type": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "FAMILY",
+                  "NEWBORN",
+                  "MATERNITY",
+                  "BUSINESS",
+                  "WEDDING",
+                  "EVENT",
+                  "PORTRAIT",
+                  "HEADSHOT",
+                  "COUPLE",
+                  "ENGAGEMENT"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "status": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "CONFIRMED",
+                  "PENDING",
+                  "CANCELLED",
+                  "COMPLETED"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "limit": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 1,
+                    "inclusive": true
+                  },
+                  {
+                    "kind": "max",
+                    "value": 100,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "scheduling"
+    },
+    {
+      "name": "update_photography_session",
+      "description": "Update an existing photography session (reschedule, change details, update status)",
+      "parameters": {
+        "session_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid session UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "session_date": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "New session date (YYYY-MM-DD)"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "session_time": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "New session time (HH:MM)"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "duration_minutes": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 30,
+                    "inclusive": true
+                  },
+                  {
+                    "kind": "max",
+                    "value": 480,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "location": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "notes": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "price": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 0,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "status": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "CONFIRMED",
+                  "PENDING",
+                  "CANCELLED",
+                  "COMPLETED"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "cancellation_reason": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "scheduling"
+    },
+    {
+      "name": "cancel_photography_session",
+      "description": "Cancel or delete a photography session",
+      "parameters": {
+        "session_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid session UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "cancellation_reason": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Cancellation reason required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "refund_amount": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 0,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "notify_client": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "scheduling"
+    },
+    {
+      "name": "check_calendar_availability",
+      "description": "Check available time slots for booking new sessions",
+      "parameters": {
+        "date": {
+          "_def": {
+            "checks": [],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "Date to check availability (YYYY-MM-DD)"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "duration_minutes": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 30,
+                    "inclusive": true
+                  },
+                  {
+                    "kind": "max",
+                    "value": 480,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "preferred_times": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Preferred time slots (HH:MM format)"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "scheduling"
+    },
+    {
+      "name": "upload_file",
+      "description": "Upload and organize files in the digital files system",
+      "parameters": {
+        "folder_name": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Folder name required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "file_name": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "File name required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "file_type": {
+          "_def": {
+            "values": [
+              "image",
+              "document",
+              "video",
+              "audio",
+              "other"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "file_size": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "inclusive": true
+              }
+            ],
+            "typeName": "ZodNumber",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "client_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "session_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "description": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "tags": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "is_public": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "files"
+    },
+    {
+      "name": "read_digital_files",
+      "description": "Retrieve digital files with filtering and search options",
+      "parameters": {
+        "folder_name": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "file_type": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "image",
+                  "document",
+                  "video",
+                  "audio",
+                  "other"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "client_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "session_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "search_term": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "is_public": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "limit": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 1,
+                    "inclusive": true
+                  },
+                  {
+                    "kind": "max",
+                    "value": 100,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "files"
+    },
+    {
+      "name": "update_digital_file",
+      "description": "Update file metadata, move between folders, or change organization",
+      "parameters": {
+        "file_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid file UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "folder_name": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "file_name": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "description": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "tags": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "is_public": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "client_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "session_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "files"
+    },
+    {
+      "name": "delete_digital_file",
+      "description": "Delete a file from the digital files system",
+      "parameters": {
+        "file_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid file UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "reason": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Deletion reason required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "permanent": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "files"
+    },
+    {
+      "name": "organize_files_by_folder",
+      "description": "Get folder organization and file statistics",
+      "parameters": {
+        "folder_name": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_stats": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_recent": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "files"
+    },
+    {
+      "name": "create_blog_post",
+      "description": "Create a new blog post for the photography website",
+      "parameters": {
+        "title": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Blog title required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "slug": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "URL slug required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "content": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 100,
+                "message": "Blog content must be at least 100 characters"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "excerpt": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "image_url": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "url"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "tags": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "meta_title": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "meta_description": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "status": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "DRAFT",
+                  "PUBLISHED",
+                  "SCHEDULED"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "scheduled_for": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "featured": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "category": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "content"
+    },
+    {
+      "name": "read_blog_posts",
+      "description": "Retrieve blog posts with filtering and search options",
+      "parameters": {
+        "status": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "DRAFT",
+                  "PUBLISHED",
+                  "SCHEDULED"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "featured": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "category": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "search_term": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "tags": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "limit": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 1,
+                    "inclusive": true
+                  },
+                  {
+                    "kind": "max",
+                    "value": 50,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_stats": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "content"
+    },
+    {
+      "name": "update_blog_post",
+      "description": "Update an existing blog post (content, status, metadata)",
+      "parameters": {
+        "post_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid blog post UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "title": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "slug": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "content": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "excerpt": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "image_url": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "url"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "tags": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "meta_title": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "meta_description": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "status": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "DRAFT",
+                  "PUBLISHED",
+                  "SCHEDULED"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "scheduled_for": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "featured": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "category": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "content"
+    },
+    {
+      "name": "delete_blog_post",
+      "description": "Delete a blog post from the website",
+      "parameters": {
+        "post_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid blog post UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "reason": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Deletion reason required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "permanent": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "content"
+    },
+    {
+      "name": "publish_blog_post",
+      "description": "Publish a draft blog post or schedule it for future publication",
+      "parameters": {
+        "post_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid blog post UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "action": {
+          "_def": {
+            "values": [
+              "publish_now",
+              "schedule",
+              "unpublish"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "scheduled_for": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "featured": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "content"
+    },
+    {
+      "name": "create_email_campaign",
+      "description": "Create a new email marketing campaign",
+      "parameters": {
+        "name": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Campaign name required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "subject": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Email subject required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "content": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 50,
+                "message": "Email content must be at least 50 characters"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "sender_name": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "sender_email": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "email"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "campaign_type": {
+          "_def": {
+            "values": [
+              "newsletter",
+              "promotional",
+              "announcement",
+              "follow_up"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "target_audience": {
+          "_def": {
+            "values": [
+              "all_clients",
+              "leads",
+              "high_value_clients",
+              "recent_clients",
+              "custom"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "custom_segment": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "checks": [
+                      {
+                        "kind": "uuid"
+                      }
+                    ],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "scheduled_for": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "status": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "DRAFT",
+                  "SCHEDULED",
+                  "SENT"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "communication"
+    },
+    {
+      "name": "read_email_campaigns",
+      "description": "Retrieve email campaigns with filtering and performance metrics",
+      "parameters": {
+        "status": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "DRAFT",
+                  "SCHEDULED",
+                  "SENT"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "campaign_type": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "newsletter",
+                  "promotional",
+                  "announcement",
+                  "follow_up"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "target_audience": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "all_clients",
+                  "leads",
+                  "high_value_clients",
+                  "recent_clients",
+                  "custom"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "limit": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 1,
+                    "inclusive": true
+                  },
+                  {
+                    "kind": "max",
+                    "value": 50,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_metrics": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "communication"
+    },
+    {
+      "name": "send_email_campaign",
+      "description": "Send an email campaign immediately or schedule it for later",
+      "parameters": {
+        "campaign_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid campaign UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "action": {
+          "_def": {
+            "values": [
+              "send_now",
+              "schedule",
+              "test_send"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "scheduled_for": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "test_email": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "email"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "communication"
+    },
+    {
+      "name": "update_email_campaign",
+      "description": "Update an existing email campaign (only drafts can be modified)",
+      "parameters": {
+        "campaign_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid campaign UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "name": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "subject": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "content": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "campaign_type": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "newsletter",
+                  "promotional",
+                  "announcement",
+                  "follow_up"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "target_audience": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "all_clients",
+                  "leads",
+                  "high_value_clients",
+                  "recent_clients",
+                  "custom"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "custom_segment": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "checks": [
+                      {
+                        "kind": "uuid"
+                      }
+                    ],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "scheduled_for": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "communication"
+    },
+    {
+      "name": "delete_email_campaign",
+      "description": "Delete an email campaign (only drafts can be deleted)",
+      "parameters": {
+        "campaign_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid campaign UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "reason": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Deletion reason required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "communication"
+    },
+    {
+      "name": "create_questionnaire",
+      "description": "Create a new questionnaire for client intake, feedback, or surveys",
+      "parameters": {
+        "title": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Questionnaire title required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "description": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "questionnaire_type": {
+          "_def": {
+            "values": [
+              "client_intake",
+              "feedback",
+              "survey",
+              "pre_session",
+              "post_session"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "questions": {
+          "_def": {
+            "type": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "minLength": {
+              "value": 1,
+              "message": "At least one question required"
+            },
+            "maxLength": null,
+            "exactLength": null,
+            "typeName": "ZodArray"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "active": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "target_audience": {
+          "_def": {
+            "values": [
+              "new_clients",
+              "existing_clients",
+              "all_clients",
+              "leads"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "auto_send": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "send_trigger": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "booking_confirmation",
+                  "session_completion",
+                  "manual"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "read_questionnaires",
+      "description": "Retrieve questionnaires with filtering and response statistics",
+      "parameters": {
+        "questionnaire_type": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "client_intake",
+                  "feedback",
+                  "survey",
+                  "pre_session",
+                  "post_session"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "active": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "target_audience": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "new_clients",
+                  "existing_clients",
+                  "all_clients",
+                  "leads"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_questions": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_stats": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "limit": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 1,
+                    "inclusive": true
+                  },
+                  {
+                    "kind": "max",
+                    "value": 50,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "send_questionnaire",
+      "description": "Send a questionnaire to specific clients or target groups",
+      "parameters": {
+        "questionnaire_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid questionnaire UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "recipients": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "checks": [
+                      {
+                        "kind": "uuid"
+                      }
+                    ],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "target_group": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "new_clients",
+                  "existing_clients",
+                  "all_clients",
+                  "leads"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "send_method": {
+          "_def": {
+            "values": [
+              "email",
+              "sms",
+              "portal_notification"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "custom_message": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "due_date": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "read_questionnaire_responses",
+      "description": "Retrieve questionnaire responses with filtering and analysis",
+      "parameters": {
+        "questionnaire_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "client_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "status": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "SENT",
+                  "STARTED",
+                  "COMPLETED",
+                  "EXPIRED"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "completed_only": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_answers": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "date_from": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "date_to": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "limit": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 1,
+                    "inclusive": true
+                  },
+                  {
+                    "kind": "max",
+                    "value": 100,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "update_questionnaire",
+      "description": "Update an existing questionnaire (structure, settings, activation)",
+      "parameters": {
+        "questionnaire_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid questionnaire UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "title": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "description": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "active": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "target_audience": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "new_clients",
+                  "existing_clients",
+                  "all_clients",
+                  "leads"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "auto_send": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "send_trigger": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "booking_confirmation",
+                  "session_completion",
+                  "manual"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "generate_business_report",
+      "description": "Generate comprehensive business reports with revenue, client, and performance analytics",
+      "parameters": {
+        "report_type": {
+          "_def": {
+            "values": [
+              "revenue",
+              "client_activity",
+              "session_performance",
+              "marketing",
+              "comprehensive"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "date_from": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "date_to": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "period": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "daily",
+                  "weekly",
+                  "monthly",
+                  "quarterly",
+                  "yearly"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_charts": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "export_format": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "json",
+                  "summary"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "analytics"
+    },
+    {
+      "name": "get_kpi_dashboard",
+      "description": "Retrieve key performance indicators and dashboard metrics",
+      "parameters": {
+        "timeframe": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "today",
+                  "week",
+                  "month",
+                  "quarter",
+                  "year"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_trends": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_comparisons": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "analytics"
+    },
+    {
+      "name": "export_data_analytics",
+      "description": "Export analytics data for external analysis or reporting",
+      "parameters": {
+        "data_type": {
+          "_def": {
+            "values": [
+              "clients",
+              "invoices",
+              "sessions",
+              "leads",
+              "all"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "format": {
+          "_def": {
+            "values": [
+              "csv",
+              "json",
+              "summary"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "date_from": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "date_to": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_financial": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_personal": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "analytics"
+    },
+    {
+      "name": "get_performance_metrics",
+      "description": "Get detailed performance metrics for business analysis",
+      "parameters": {
+        "metric_type": {
+          "_def": {
+            "values": [
+              "financial",
+              "operational",
+              "marketing",
+              "client_satisfaction"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "time_period": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "weekly",
+                  "monthly",
+                  "quarterly"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "benchmark_comparison": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "manage_user_accounts",
+      "description": "Create, update, or deactivate user accounts and manage permissions",
+      "parameters": {
+        "action": {
+          "_def": {
+            "values": [
+              "create",
+              "update",
+              "deactivate",
+              "list",
+              "reset_password"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "user_data": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "user_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "filter": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "search"
+    },
+    {
+      "name": "system_configuration",
+      "description": "Manage system settings, preferences, and configuration options",
+      "parameters": {
+        "action": {
+          "_def": {
+            "values": [
+              "read",
+              "update",
+              "reset",
+              "backup"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "config_section": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "general",
+                  "email",
+                  "storage",
+                  "security",
+                  "integrations",
+                  "business"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "settings": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "keyType": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "valueType": {
+                  "_def": {
+                    "typeName": "ZodAny"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  },
+                  "_any": true
+                },
+                "typeName": "ZodRecord"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "admin"
+    },
+    {
+      "name": "database_management",
+      "description": "Perform database maintenance, backups, and optimization tasks",
+      "parameters": {
+        "action": {
+          "_def": {
+            "values": [
+              "backup",
+              "cleanup",
+              "optimize",
+              "status",
+              "repair"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "table_name": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "cleanup_options": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "admin"
+    },
+    {
+      "name": "system_monitoring",
+      "description": "Monitor system performance, health, and generate alerts",
+      "parameters": {
+        "metric_type": {
+          "_def": {
+            "values": [
+              "performance",
+              "errors",
+              "usage",
+              "health"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "time_range": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "hour",
+                  "day",
+                  "week",
+                  "month"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_alerts": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "admin"
+    },
+    {
+      "name": "audit_trail",
+      "description": "Track and review system audit logs and user activities",
+      "parameters": {
+        "action": {
+          "_def": {
+            "values": [
+              "read",
+              "search",
+              "export"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "user_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "action_type": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "login",
+                  "create",
+                  "update",
+                  "delete",
+                  "export",
+                  "email"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "date_from": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "date_to": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "limit": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "min",
+                    "value": 1,
+                    "inclusive": true
+                  },
+                  {
+                    "kind": "max",
+                    "value": 100,
+                    "inclusive": true
+                  }
+                ],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "manage_integrations",
+      "description": "Configure and manage third-party service integrations (email, calendar, payment, storage)",
+      "parameters": {
+        "action": {
+          "_def": {
+            "values": [
+              "list",
+              "configure",
+              "test",
+              "enable",
+              "disable",
+              "remove"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "integration_type": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "email",
+                  "calendar",
+                  "payment",
+                  "storage",
+                  "analytics",
+                  "social",
+                  "booking"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "integration_name": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "config_data": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "api_management",
+      "description": "Manage API keys, endpoints, and external service connections",
+      "parameters": {
+        "action": {
+          "_def": {
+            "values": [
+              "list_apis",
+              "test_endpoint",
+              "rotate_key",
+              "monitor_usage",
+              "configure_webhook"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "api_name": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "endpoint_url": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "webhook_config": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "webhook_management",
+      "description": "Configure, test, and monitor incoming/outgoing webhooks",
+      "parameters": {
+        "action": {
+          "_def": {
+            "values": [
+              "list",
+              "create",
+              "test",
+              "logs",
+              "retry",
+              "disable"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "webhook_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "webhook_config": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "test_payload": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "keyType": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "valueType": {
+                  "_def": {
+                    "typeName": "ZodAny"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  },
+                  "_any": true
+                },
+                "typeName": "ZodRecord"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "data_sync",
+      "description": "Synchronize data between CRM and external systems (calendar, email, accounting)",
+      "parameters": {
+        "sync_type": {
+          "_def": {
+            "values": [
+              "calendar",
+              "email",
+              "contacts",
+              "accounting",
+              "full"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "direction": {
+          "_def": {
+            "values": [
+              "import",
+              "export",
+              "bidirectional"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "external_system": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "sync_options": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "external_service_status",
+      "description": "Monitor the status and health of external service connections",
+      "parameters": {
+        "service_type": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "all",
+                  "email",
+                  "calendar",
+                  "payment",
+                  "storage",
+                  "analytics"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "check_connectivity": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_metrics": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "create_automation_workflow",
+      "description": "Create automated workflows for client onboarding, follow-ups, reminders, and business processes",
+      "parameters": {
+        "workflow_name": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Workflow name required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "description": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "trigger_type": {
+          "_def": {
+            "values": [
+              "form_submission",
+              "booking_confirmed",
+              "payment_received",
+              "date_based",
+              "manual",
+              "email_received"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "trigger_conditions": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "actions": {
+          "_def": {
+            "type": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "minLength": {
+              "value": 1,
+              "message": "At least one action required"
+            },
+            "maxLength": null,
+            "exactLength": null,
+            "typeName": "ZodArray"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "active": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "automation"
+    },
+    {
+      "name": "manage_automated_triggers",
+      "description": "Configure and monitor automated triggers for workflows and business events",
+      "parameters": {
+        "action": {
+          "_def": {
+            "values": [
+              "list",
+              "create",
+              "update",
+              "delete",
+              "test"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "trigger_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "trigger_config": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "automation"
+    },
+    {
+      "name": "schedule_automated_tasks",
+      "description": "Schedule recurring tasks like follow-ups, reminders, reports, and maintenance",
+      "parameters": {
+        "task_name": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Task name required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "task_type": {
+          "_def": {
+            "values": [
+              "email_reminder",
+              "follow_up",
+              "report_generation",
+              "data_cleanup",
+              "backup",
+              "sync"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "schedule_type": {
+          "_def": {
+            "values": [
+              "once",
+              "daily",
+              "weekly",
+              "monthly",
+              "custom_cron"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "schedule_config": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "task_parameters": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "keyType": {
+                  "_def": {
+                    "checks": [],
+                    "typeName": "ZodString",
+                    "coerce": false
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "valueType": {
+                  "_def": {
+                    "typeName": "ZodAny"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  },
+                  "_any": true
+                },
+                "typeName": "ZodRecord"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "active": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "read_automation_status",
+      "description": "Monitor automation execution status, performance, and logs",
+      "parameters": {
+        "status_type": {
+          "_def": {
+            "values": [
+              "workflows",
+              "triggers",
+              "scheduled_tasks",
+              "execution_logs",
+              "performance"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "time_range": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "today",
+                  "week",
+                  "month"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "workflow_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "include_details": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "automation"
+    },
+    {
+      "name": "update_automation_settings",
+      "description": "Modify automation workflow settings, schedules, and configurations",
+      "parameters": {
+        "target_type": {
+          "_def": {
+            "values": [
+              "workflow",
+              "trigger",
+              "scheduled_task"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "target_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid UUID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "updates": {
+          "_def": {
+            "unknownKeys": "strip",
+            "catchall": {
+              "_def": {
+                "typeName": "ZodNever"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodObject"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          },
+          "_cached": null
+        }
+      },
+      "category": "automation"
+    },
+    {
+      "name": "create_portal_access",
+      "description": "Grant clients access to their customer portal with personalized dashboard",
+      "parameters": {
+        "client_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid client ID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "access_level": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "basic",
+                  "premium",
+                  "full"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "features": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "values": [
+                      "galleries",
+                      "invoices",
+                      "bookings",
+                      "files",
+                      "communication"
+                    ],
+                    "typeName": "ZodEnum"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "portal_settings": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "portal"
+    },
+    {
+      "name": "manage_portal_content",
+      "description": "Manage client-specific portal content including galleries, documents, and messages",
+      "parameters": {
+        "action": {
+          "_def": {
+            "values": [
+              "add_content",
+              "remove_content",
+              "update_content",
+              "list_content"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "client_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid client ID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "content_type": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "gallery",
+                  "document",
+                  "message",
+                  "invoice",
+                  "session"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "content_data": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "unknownKeys": "strip",
+                "catchall": {
+                  "_def": {
+                    "typeName": "ZodNever"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  }
+                },
+                "typeName": "ZodObject"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              },
+              "_cached": null
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "content_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "content"
+    },
+    {
+      "name": "read_portal_analytics",
+      "description": "Get analytics on client portal usage, engagement, and activity",
+      "parameters": {
+        "analytics_type": {
+          "_def": {
+            "values": [
+              "usage",
+              "engagement",
+              "popular_content",
+              "client_activity"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "time_range": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "day",
+                  "week",
+                  "month",
+                  "quarter"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "client_id": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "analytics"
+    },
+    {
+      "name": "update_portal_settings",
+      "description": "Update client portal configurations, permissions, and display settings",
+      "parameters": {
+        "client_id": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid client ID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "settings_update": {
+          "_def": {
+            "unknownKeys": "strip",
+            "catchall": {
+              "_def": {
+                "typeName": "ZodNever"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodObject"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          },
+          "_cached": null
+        }
+      },
+      "category": "portal"
+    },
+    {
+      "name": "send_portal_notifications",
+      "description": "Send notifications to clients about new content, updates, or system messages",
+      "parameters": {
+        "notification_type": {
+          "_def": {
+            "values": [
+              "new_content",
+              "system_update",
+              "custom_message",
+              "reminder"
+            ],
+            "typeName": "ZodEnum"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "client_ids": {
+          "_def": {
+            "type": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "minLength": {
+              "value": 1,
+              "message": "At least one client ID required"
+            },
+            "maxLength": null,
+            "exactLength": null,
+            "typeName": "ZodArray"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "notification_data": {
+          "_def": {
+            "unknownKeys": "strip",
+            "catchall": {
+              "_def": {
+                "typeName": "ZodNever"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodObject"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          },
+          "_cached": null
+        }
+      },
+      "category": "portal"
+    },
+    {
+      "name": "reply_email",
+      "description": "Reply to a lead or client using a template. Finds the email automatically.",
+      "parameters": {
+        "entity_id": {
+          "_def": {
+            "checks": [],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "UUID of the lead or client"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "template": {
+          "_def": {
+            "checks": [],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "Email template content"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "subject": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Email subject line"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "communication"
+    },
+    {
+      "name": "create_invoice",
+      "description": "Create an invoice with multiple items. Supports SKU items from price list OR custom items. Use SKUs for standard packages like 'DIGI-10' for 10 digital images.",
+      "parameters": {
+        "client_id": {
+          "_def": {
+            "checks": [],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "Client UUID from database"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "items": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "type": {
+                  "_def": {
+                    "unknownKeys": "strip",
+                    "catchall": {
+                      "_def": {
+                        "typeName": "ZodNever"
+                      },
+                      "~standard": {
+                        "version": 1,
+                        "vendor": "zod"
+                      }
+                    },
+                    "typeName": "ZodObject"
+                  },
+                  "~standard": {
+                    "version": 1,
+                    "vendor": "zod"
+                  },
+                  "_cached": null
+                },
+                "minLength": null,
+                "maxLength": null,
+                "exactLength": null,
+                "typeName": "ZodArray"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Array of invoice items"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "sku": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Single SKU code from price list"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "custom_label": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Custom service description if not using SKU"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "custom_amount": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Custom amount in EUR if not using SKU"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "notes": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Additional notes for the invoice"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "billing"
+    },
+    {
+      "name": "describe_capabilities",
+      "description": "Get comprehensive list of all available CRM tools and their capabilities. Use this when unsure which tools to use for a complex request.",
+      "parameters": {
+        "category": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional",
+            "description": "Optional: filter by category (communication, billing, scheduling, content, files, search, crm, analytics, admin, automation, portal, products)"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "general"
+    },
+    {
+      "name": "kb_search",
+      "description": "Search studio knowledge base for domain-specific information, best practices, or documentation. Returns top 3 most relevant documents.",
+      "parameters": {
+        "query": {
+          "_def": {
+            "checks": [],
+            "typeName": "ZodString",
+            "coerce": false,
+            "description": "Search query for knowledge base (e.g. 'invoice workflow', 'client onboarding', 'pricing strategy')"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "search"
+    },
+    {
+      "name": "create_voucher_product",
+      "description": "Create a new voucher product for sale",
+      "parameters": {
+        "name": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Product name is required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "description": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "price": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 0,
+                "inclusive": true,
+                "message": "Price must be positive"
+              }
+            ],
+            "typeName": "ZodNumber",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "validityMonths": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "billing"
+    },
+    {
+      "name": "sell_voucher",
+      "description": "Sell a voucher to a client or external buyer",
+      "parameters": {
+        "voucherProductId": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "uuid",
+                "message": "Valid voucher product ID required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "clientId": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "buyerName": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Buyer name is required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "buyerEmail": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "email",
+                "message": "Valid email required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "paymentStatus": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "pending",
+                  "paid",
+                  "failed"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "billing"
+    },
+    {
+      "name": "read_voucher_sales",
+      "description": "Read voucher sales with optional filters",
+      "parameters": {
+        "limit": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "status": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "all",
+                  "pending",
+                  "paid",
+                  "redeemed"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "clientId": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [
+                  {
+                    "kind": "uuid"
+                  }
+                ],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "billing"
+    },
+    {
+      "name": "redeem_voucher",
+      "description": "Mark a voucher as redeemed",
+      "parameters": {
+        "voucherCode": {
+          "_def": {
+            "checks": [
+              {
+                "kind": "min",
+                "value": 1,
+                "message": "Voucher code is required"
+              }
+            ],
+            "typeName": "ZodString",
+            "coerce": false
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "notes": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodString",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "billing"
+    },
+    {
+      "name": "list_top_clients",
+      "description": "Get top clients ranked by lifetime value, revenue, or other criteria",
+      "parameters": {
+        "limit": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "orderBy": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "lifetime_value",
+                  "total_revenue",
+                  "session_count",
+                  "recent_activity"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "minRevenue": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "yearFilter": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "checks": [],
+                "typeName": "ZodNumber",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodOptional"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "crm"
+    },
+    {
+      "name": "get_client_segments",
+      "description": "Analyze client segments and provide segmentation insights",
+      "parameters": {
+        "segmentBy": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "values": [
+                  "revenue",
+                  "frequency",
+                  "recency",
+                  "geography"
+                ],
+                "typeName": "ZodEnum"
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        },
+        "includeStats": {
+          "_def": {
+            "innerType": {
+              "_def": {
+                "typeName": "ZodBoolean",
+                "coerce": false
+              },
+              "~standard": {
+                "version": 1,
+                "vendor": "zod"
+              }
+            },
+            "typeName": "ZodDefault"
+          },
+          "~standard": {
+            "version": 1,
+            "vendor": "zod"
+          }
+        }
+      },
+      "category": "crm"
+    }
+  ]
+}

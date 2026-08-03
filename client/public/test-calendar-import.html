@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Import Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { padding: 10px 20px; margin: 10px 0; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        textarea { width: 100%; height: 200px; margin: 10px 0; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Calendar Import Test - New Age Fotografie CRM</h1>
+    
+    <div id="status" class="status info">Ready to test calendar import...</div>
+    
+    <h2>Test API Health</h2>
+    <button onclick="testHealth()">Test API Health</button>
+    
+    <h2>Test Calendar Import</h2>
+    <p>Google Calendar URL: <code>https://calendar.google.com/calendar/ical/newagefotografen%40gmail.com/public/basic.ics</code></p>
+    <button onclick="testCalendarImport()">Test Calendar Import (Dry Run)</button>
+    <button onclick="testCalendarImportReal()">Test Calendar Import (Real Import)</button>
+    
+    <h2>Response Log</h2>
+    <textarea id="responseLog" placeholder="API responses will appear here..."></textarea>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const responseLog = document.getElementById('responseLog');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            responseLog.value += `[${timestamp}] ${message}\n`;
+            responseLog.scrollTop = responseLog.scrollHeight;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        async function testHealth() {
+            updateStatus('Testing API health...', 'info');
+            log('Testing API health...');
+            
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    updateStatus('API health check successful!', 'success');
+                    log(`Health check successful: ${JSON.stringify(data, null, 2)}`);
+                } else {
+                    updateStatus('API health check failed!', 'error');
+                    log(`Health check failed: ${response.status} - ${JSON.stringify(data, null, 2)}`);
+                }
+            } catch (error) {
+                updateStatus('API health check error!', 'error');
+                log(`Health check error: ${error.message}`);
+            }
+        }
+        
+        async function testCalendarImport(dryRun = true) {
+            const action = dryRun ? 'Testing calendar import (dry run)' : 'Importing calendar events';
+            updateStatus(action + '...', 'info');
+            log(action + '...');
+            
+            const googleCalendarUrl = 'https://calendar.google.com/calendar/ical/newagefotografen%40gmail.com/public/basic.ics';
+            
+            try {
+                const response = await fetch('/api/calendar/import/ics-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        icsUrl: googleCalendarUrl,
+                        dryRun: dryRun
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    updateStatus(`${dryRun ? 'Dry run' : 'Import'} successful!`, 'success');
+                    log(`${dryRun ? 'Dry run' : 'Import'} successful:`);
+                    log(JSON.stringify(data, null, 2));
+                    
+                    if (data.events && data.events.length > 0) {
+                        log(`Found ${data.events.length} events to ${dryRun ? 'process' : 'import'}`);
+                        data.events.slice(0, 3).forEach((event, index) => {
+                            log(`Event ${index + 1}: ${event.title} on ${event.start_date}`);
+                        });
+                        if (data.events.length > 3) {
+                            log(`... and ${data.events.length - 3} more events`);
+                        }
+                    }
+                } else {
+                    updateStatus(`${dryRun ? 'Dry run' : 'Import'} failed!`, 'error');
+                    log(`${dryRun ? 'Dry run' : 'Import'} failed: ${response.status}`);
+                    log(JSON.stringify(data, null, 2));
+                }
+            } catch (error) {
+                updateStatus(`${dryRun ? 'Dry run' : 'Import'} error!`, 'error');
+                log(`${dryRun ? 'Dry run' : 'Import'} error: ${error.message}`);
+            }
+        }
+        
+        function testCalendarImportReal() {
+            testCalendarImport(false);
+        }
+        
+        // Auto-run health check on page load
+        window.addEventListener('load', () => {
+            setTimeout(testHealth, 1000);
+        });
+    </script>
+</body>
+</html>

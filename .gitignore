@@ -1,0 +1,264 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production builds
+client/dist/
+build/
+# dist-server/ - INCLUDED for Heroku deployment (TypeScript won't compile cleanly)
+
+# Local tooling / analysis caches
+.config/
+local/state/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+server.err
+server.out
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+# Production build output (built by Vite)
+dist/
+
+# Build-time prerender route list (generated from DB by gen-prerender-routes.mjs)
+prerender-blog-routes.json
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Database
+*.db
+*.sqlite
+
+# Uploaded files
+uploads/
+public/uploads/
+
+# Migration files (generated)
+drizzle/
+migrations/
+
+# Local development files
+*.local
+.local
+
+# Replit specific
+.replit
+replit.nix
+
+# CSV exports and backups
+*.csv
+csv_export/
+database_export/
+*.tar.gz
+
+# Test files
+test-*.js
+test-*.mjs
+
+# Migration scripts (contain sensitive data)
+migrate-*.mjs
+import-*.mjs
+*-migration-*.mjs
+
+# Documentation and migration files (keep only essential)
+*.md
+!README.md
+!VERCEL-ENVIRONMENT-VARIABLES.md
+!GITHUB-DEPLOYMENT-READY.md
+!PHASE-0-SECURITY-REPORT.md
+!HANDOFF-DOCUMENT.md
+
+# Migration and export directories
+attached_assets/
+complete_neon_export/
+CRM_Agent_Export/
+database_export/
+migration-backups/
+neon_export/
+supabase/
+test-deployment/
+prompts/
+docs/
+
+# Build and deployment artifacts
+build-for-deployment.js
+deployment-package.json
+package-*.json
+!package.json
+!package-lock.json
+package.json.backup
+esbuild.config.js
+esbuild.deployment.config.js
+vite.deployment.config.js
+vite.production.config.ts
+
+# Testing and debug files
+test-*.js
+test-*.mjs
+test-*.csv
+test-*.png
+test-*.jpg
+test-*.pdf
+test-*.txt
+debug-*.js
+verify-*.js
+analyze-*.js
+clean-*.js
+explore-*.js
+export-*.mjs
+execute-*.mjs
+setup-*.mjs
+switch-*.mjs
+silence-*.js
+show-*.js
+manual-*.md
+demo-*.md
+demo-*.sh
+keepalive.js
+
+# Deployment scripts and configs (keep only necessary)
+cloud-run.yaml
+start-production*.sh
+start-production*.mjs
+start-deployment.*
+monitor-deployment.sh
+health-check.sh
+
+# Database exports and SQL files
+*.sql
+*.tar.gz
+neon_globals.sql
+data-only-export.sql
+supabase-*.sql
+
+# Session and debug files
+session.txt
+cookies.txt
+database-detective.json
+openai-output.txt
+main_tsx_response.txt
+deployment_response.html
+
+# Jest and testing
+jest.config.cjs
+tests/
+# tools/ - REMOVED: was blocking agent/v2/tools/ from being tracked!
+
+# ================================================================
+# PHASE 0 SECURITY: Files containing secrets or sensitive data
+# ================================================================
+
+# Server log files (may contain key fragments)
+server-log.txt
+
+# Ad-hoc scripts with hardcoded DB connection strings
+seed-newsletter-automation.js
+check-sync-status.js
+copy-images-to-gallery.js
+create-print-orders-table.ts
+seed-prices.js
+fix-blog-status.js
+check-gallery-be65.js
+check-crm-messages.js
+add-email-automations.ts
+
+# Temp / stale server files with hardcoded credentials
+server/routes.ts.tmp
+full-server.js
+
+# Batch files with credential hints
+setup-stripe-live.bat
+
+# Generated preview files with domain references
+preview.pdf
+
+# Backup archives
+*.zip
+
+# Stray git directory copies
+workingnewage.git/
+# Licence signing key — SECRET, never commit
+*.pem
+license-signing-key.pem

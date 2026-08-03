@@ -1,0 +1,19 @@
+# Force Node.js detection
+providers = ["node"]
+
+[variables]
+NODE_ENV = "production"
+
+# Nixpacks configuration for Railway deployment
+[phases.setup]
+cmds = ["cp package.production.json package.json"]
+
+[phases.install]
+cmds = ["npm ci --only=production"]
+
+[phases.build]
+cmds = ["echo 'Using pre-built files - no build needed'"]
+
+[phases.start]
+cmd = "npm start"
+

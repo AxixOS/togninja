@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cart Debugger</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Shopping Cart Debugger</h1>
+    
+    <h2>Current Cart Items:</h2>
+    <pre id="cartData"></pre>
+    
+    <button onclick="clearCart()">Clear Cart</button>
+    <button onclick="refreshData()">Refresh Data</button>
+    
+    <script>
+        function refreshData() {
+            const cartData = localStorage.getItem('cart');
+            document.getElementById('cartData').textContent = cartData || 'Cart is empty';
+        }
+        
+        function clearCart() {
+            localStorage.clear();
+            alert('Cart cleared! Please close this page and go back to your site.');
+            refreshData();
+        }
+        
+        refreshData();
+    </script>
+</body>
+</html>

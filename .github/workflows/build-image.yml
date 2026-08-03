@@ -1,0 +1,46 @@
+# Build the TogNinja container image and push it to GHCR.
+# Runs on version tags (v*) or manual dispatch. The image is what customers'
+# Render services pull. GHCR auth uses the built-in GITHUB_TOKEN — the only
+# requirement is that this workflow can WRITE packages (permissions block below,
+# and repo Settings → Actions → General → Workflow permissions = Read and write).
+#
+# Deliberately minimal: plain `docker login/build/push`, no buildx / metadata /
+# cache actions — so any failure reports the real reason instead of a fast, opaque
+# action error.
+name: Build & push image
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image name + tag (lowercased)
+        id: img
+        run: |
+          IMAGE="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          TAG="${GITHUB_REF_NAME:-manual}"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"     >> "$GITHUB_OUTPUT"
+          echo "Building $IMAGE:$TAG (+ :latest)"
+
+      - name: Log in to GHCR
+        run: echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+
+      - name: Build image
+        run: docker build -t '${{ steps.img.outputs.image }}:${{ steps.img.outputs.tag }}' -t '${{ steps.img.outputs.image }}:latest' .
+
+      - name: Push image
+        run: |
+          docker push '${{ steps.img.outputs.image }}:${{ steps.img.outputs.tag }}'
+          docker push '${{ steps.img.outputs.image }}:latest'
+          echo "✅ Pushed ${{ steps.img.outputs.image }}:${{ steps.img.outputs.tag }} and :latest"

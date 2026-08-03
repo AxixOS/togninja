@@ -1,0 +1,36 @@
+{
+  "name": "Clean CRM Photography Platform",
+  "description": "Full-stack photography CRM with client management and booking system",
+  "keywords": ["node", "express", "react", "vite", "photography", "crm"],
+  "website": "https://workingnewage-2eecd723a444.herokuapp.com/",
+  "repository": "https://github.com/siparrott/workingnewage",
+  "stack": "heroku-22",
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "env": {
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production"
+    },
+    "DATABASE_URL": {
+      "description": "Neon PostgreSQL connection string"
+    },
+    "STRIPE_SECRET_KEY": {
+      "description": "Stripe secret key for payments"
+    },
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key for AI features"
+    },
+    "EMAIL_PASSWORD": {
+      "description": "Email password for notifications"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-redis:mini"
+    }
+  ]
+}

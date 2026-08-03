@@ -1,0 +1,19 @@
+// Growth Components Index — Phase 5
+export { AnalyticsOverview } from './AnalyticsOverview';
+export { AnalyticsCard } from './AnalyticsCard';
+export { PerformanceTable } from './PerformanceTable';
+export { ConversionFunnelCard } from './ConversionFunnelCard';
+export { TopCtasCard } from './TopCtasCard';
+export { TopPagesCard } from './TopPagesCard';
+export { EventTimeline } from './EventTimeline';
+export { VariantManager } from './VariantManager';
+export { VariantCard } from './VariantCard';
+export { VariantCreateDialog } from './VariantCreateDialog';
+export { ExperimentPanel } from './ExperimentPanel';
+export { CloneWinningCampaignDialog } from './CloneWinningCampaignDialog';
+export { PromoPackPanel } from './PromoPackPanel';
+export { PromoPackCard } from './PromoPackCard';
+export { PromoPackPreview } from './PromoPackPreview';
+export { SeasonalTemplateLibrary } from './SeasonalTemplateLibrary';
+export { TemplateCard } from './TemplateCard';
+export { GrowthInsightsPanel } from './GrowthInsightsPanel';

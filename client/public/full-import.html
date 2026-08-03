@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Calendar Import - Full Import</title>
+</head>
+<body>
+    <h1>Calendar Import - Full Database Import</h1>
+    <p>This will import ALL 11,665 events into the database...</p>
+    
+    <button onclick="fullImport()">Import ALL Events to Database</button>
+    <div id="result"></div>
+
+    <script>
+        async function fullImport() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Importing 11,665 events to database... This may take a few minutes...';
+            
+            try {
+                const response = await fetch('/api/calendar/import/ics-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        icsUrl: 'https://calendar.google.com/calendar/ical/newagefotografen%40gmail.com/public/basic.ics'
+                    })
+                });
+                
+                const result = await response.text();
+                resultDiv.innerHTML = `
+                    <h3>Full Import Complete!</h3>
+                    <h4>Response Status: ${response.status}</h4>
+                    <pre>${result}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<h3>Error:</h3><pre>${error.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

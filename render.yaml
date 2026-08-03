@@ -1,0 +1,59 @@
+# Render Blueprint — studioOS platform (tenant instance)
+#
+# Connects this GitHub repo to Render for AUTO-DEPLOY: every push to the tracked
+# branch triggers a build of ./Dockerfile and a zero-downtime deploy. No more
+# manual image pushes.
+#
+# ── One-time connection (owner, in the Render dashboard) ────────────────────
+#   1. Render → New + → "Blueprint".
+#   2. "Connect GitHub" → install the Render GitHub App on `siparrott/studioOS-platform`
+#      (grant repo access). This OAuth step can only be done in the browser.
+#   3. Pick this repo → Render reads render.yaml → "Apply".
+#   4. Fill the prompted secrets (marked `sync: false` below).
+# After that, pushes to `portable-pg` deploy automatically.
+#
+# To brand the instance, set the optional identity vars (see the block at the
+# bottom); leave them unset and the app renders neutrally as "My Studio".
+
+services:
+  - type: web
+    name: tenant-zero
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: free            # free spins down when idle; upgrade to "starter" for always-on
+    branch: portable-pg   # the product branch (tenant-zero = reference instance)
+    autoDeploy: true
+    healthCheckPath: /healthz
+    envVars:
+      # ── Runtime ──────────────────────────────────────────────────────────
+      - key: NODE_ENV
+        value: production
+      - key: DEMO_MODE
+        value: "true"     # tenant-zero ships seeded demo content
+      # Render injects PORT automatically and health-checks it — do not set it.
+
+      # ── Required secrets (you are prompted for these on Apply) ────────────
+      - key: DATABASE_URL
+        sync: false        # Postgres connection string (Supabase / Neon / any)
+      - key: SESSION_SECRET
+        generateValue: true # Render generates a strong secret
+
+      # ── AI keys (optional — app boots without them; AI features 401 until set)
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # ── Identity / branding (optional — unset ⇒ neutral "My Studio") ─────
+      # Set these to brand the instance. See server/lib/siteIdentity.ts for the
+      # full list (address, geo, socials, GA, logo, locale). PUBLIC_SITE_URL is
+      # the single canonical origin used across SEO, sitemap, canonicals & links.
+      - key: PUBLIC_SITE_URL
+        sync: false
+      - key: BUSINESS_NAME
+        sync: false
+      - key: CONTACT_EMAIL
+        sync: false
+      - key: BUSINESS_PHONE
+        sync: false

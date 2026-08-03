@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Age Fotografie - Familienfotograf in Wien</title>
+    <meta name="description" content="Professioneller Familienfotograf in Wien. Neugeborenenfotos, Familienporträts, Business-Headshots. Vertrauen Sie auf 5 Jahre Erfahrung.">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            max-width: 600px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .logo {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .status {
+            font-size: 1.2rem;
+            margin: 20px 0;
+        }
+        .contact {
+            margin-top: 30px;
+            font-size: 1.1rem;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #ff6b6b;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 10px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #ff5252;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">STUDIO CRM</div>
+        <div class="status">
+            <div class="loading"></div>
+            System wird geladen...
+        </div>
+        <p>Professional Photography Studio</p>
+        <div class="contact">
+            <strong>System is starting up...</strong><br>
+            Please wait while the application loads.
+        </div>
+        <div style="margin-top: 30px;">
+        </div>
+    </div>
+
+    <script>
+        // Auto-reload every 30 seconds to check if main app is available
+        let retryCount = 0;
+        const maxRetries = 20;
+
+        async function checkMainApp() {
+            try {
+                const response = await fetch('/api/health');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        // Main app is available, reload to normal site
+                        window.location.reload();
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.log('Main app not ready yet, retrying...', error);
+            }
+
+            retryCount++;
+            if (retryCount < maxRetries) {
+                setTimeout(checkMainApp, 30000); // Check every 30 seconds
+            } else {
+                document.querySelector('.status').innerHTML = 
+                    '⚠️ Technische Wartung läuft<br>Bitte kontaktieren Sie uns direkt.';
+            }
+        }
+
+        // Start checking after 5 seconds
+        setTimeout(checkMainApp, 5000);
+    </script>
+</body>
+</html>

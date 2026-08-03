@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+
+# Block admin and private areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /account/
+Disallow: /checkout/
+Disallow: /gallery/
+Disallow: /inbox/
+
+# Sitemap location
+Sitemap: https://www.newagefotografie.com/sitemap.xml

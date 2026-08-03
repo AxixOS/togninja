@@ -1,0 +1,14 @@
+# Removed from repo root to prevent Railway from using Nixpacks build.
+# Original contents preserved here.
+
+[variables]
+NODE_VERSION = "20"
+
+[phases.setup]
+nixPkgs = ["nodejs", "npm"]
+
+[phases.build]
+cmds = ["npm install --legacy-peer-deps", "npm run build"]
+
+[phases.start]
+cmd = "npm start"

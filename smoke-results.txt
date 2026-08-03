@@ -1,0 +1,465 @@
+﻿🔌 Connecting to Neon database...
+✅ DATABASE_URL found, creating connection pool...
+
+═══════════════════════════════════════════════════
+  VOUCHER SYSTEM SMOKE TEST
+═══════════════════════════════════════════════════
+
+📦 TEST 1: Database product inventory
+🔍 Getting voucher products from database...
+✅ Database connected successfully
+🔨 Initializing database schema...
+✅ Found voucher products: 26
+📋 First product: Family Basic - €95.00
+  ✅ DB returns products (found 26)
+
+📋 TEST 2: Required fields on every product
+  ✅ [Family Basic] has id
+  ✅ [Family Basic] has name
+  ✅ [Family Basic] has slug: "family-basic"
+  ✅ [Family Basic] has price
+  ✅ [Family Classic] has id
+  ✅ [Family Classic] has name
+  ✅ [Family Classic] has slug: "family-classic"
+  ✅ [Family Classic] has price
+  ✅ [Hochzeitsfotografie Basic] has id
+  ✅ [Hochzeitsfotografie Basic] has name
+  ✅ [Hochzeitsfotografie Basic] has slug: "hochzeitsfotografie-basic"
+  ✅ [Hochzeitsfotografie Basic] has price
+  ✅ [Immobilienfotografie] has id
+  ✅ [Immobilienfotografie] has name
+  ✅ [Immobilienfotografie] has slug: "immobilienfotografie"
+  ✅ [Immobilienfotografie] has price
+  ✅ [Produktfotografie] has id
+  ✅ [Produktfotografie] has name
+  ✅ [Produktfotografie] has slug: "produktfotografie"
+  ✅ [Produktfotografie] has price
+  ✅ [Studio-Fotografie Basic] has id
+  ✅ [Studio-Fotografie Basic] has name
+  ✅ [Studio-Fotografie Basic] has slug: "studio-fotografie-basic"
+  ✅ [Studio-Fotografie Basic] has price
+  ✅ [Portraitfotografie Basic] has id
+  ✅ [Portraitfotografie Basic] has name
+  ✅ [Portraitfotografie Basic] has slug: "portraitfotografie-basic"
+  ✅ [Portraitfotografie Basic] has price
+  ✅ [Bewerbungsfotos & LinkedIn] has id
+  ✅ [Bewerbungsfotos & LinkedIn] has name
+  ✅ [Bewerbungsfotos & LinkedIn] has slug: "bewerbungsfotos-und-linkedin"
+  ✅ [Bewerbungsfotos & LinkedIn] has price
+  ✅ [Team & Mitarbeiterfotos] has id
+  ✅ [Team & Mitarbeiterfotos] has name
+  ✅ [Team & Mitarbeiterfotos] has slug: "team-und-mitarbeiterfotos"
+  ✅ [Team & Mitarbeiterfotos] has price
+  ✅ [Business Portrait Basic] has id
+  ✅ [Business Portrait Basic] has name
+  ✅ [Business Portrait Basic] has slug: "business-portrait-basic"
+  ✅ [Business Portrait Basic] has price
+  ✅ [Family Premium] has id
+  ✅ [Family Premium] has name
+  ✅ [Family Premium] has slug: "family-premium"
+  ✅ [Family Premium] has price
+  ✅ [Newborn Premium] has id
+  ✅ [Newborn Premium] has name
+  ✅ [Newborn Premium] has slug: "newborn-premium"
+  ✅ [Newborn Premium] has price
+  ✅ [Business Portrait Session] has id
+  ✅ [Business Portrait Session] has name
+  ✅ [Business Portrait Session] has slug: "business-portrait-session"
+  ✅ [Business Portrait Session] has price
+  ✅ [Shooting Experience Gutschein] has id
+  ✅ [Shooting Experience Gutschein] has name
+  ✅ [Shooting Experience Gutschein] has slug: "shooting-experience-gutschein"
+  ✅ [Shooting Experience Gutschein] has price
+  ✅ [Familie Fotoshootings] has id
+  ✅ [Familie Fotoshootings] has name
+  ✅ [Familie Fotoshootings] has slug: "familie-fotoshootings"
+  ✅ [Familie Fotoshootings] has price
+  ✅ [Maternity Premium] has id
+  ✅ [Maternity Premium] has name
+  ✅ [Maternity Premium] has slug: "maternity-premium"
+  ✅ [Maternity Premium] has price
+  ✅ [Express Headshot] has id
+  ✅ [Express Headshot] has name
+  ✅ [Express Headshot] has slug: "express-headshot"
+  ✅ [Express Headshot] has price
+  ✅ [Solo Pro] has id
+  ✅ [Solo Pro] has name
+  ✅ [Solo Pro] has slug: "solo-pro"
+  ✅ [Solo Pro] has price
+  ✅ [Brand Upgrade] has id
+  ✅ [Brand Upgrade] has name
+  ✅ [Brand Upgrade] has slug: "brand-upgrade"
+  ✅ [Brand Upgrade] has price
+  ✅ [Immobilien Basic] has id
+  ✅ [Immobilien Basic] has name
+  ✅ [Immobilien Basic] has slug: "immobilien-basic"
+  ✅ [Immobilien Basic] has price
+  ✅ [Immobilien Premium] has id
+  ✅ [Immobilien Premium] has name
+  ✅ [Immobilien Premium] has slug: "immobilien-premium"
+  ✅ [Immobilien Premium] has price
+  ✅ [Hochzeit Classic] has id
+  ✅ [Hochzeit Classic] has name
+  ✅ [Hochzeit Classic] has slug: "hochzeit-classic"
+  ✅ [Hochzeit Classic] has price
+  ✅ [Hochzeit Premium] has id
+  ✅ [Hochzeit Premium] has name
+  ✅ [Hochzeit Premium] has slug: "hochzeit-premium"
+  ✅ [Hochzeit Premium] has price
+  ✅ [Portrait Einzelperson] has id
+  ✅ [Portrait Einzelperson] has name
+  ✅ [Portrait Einzelperson] has slug: "portrait-einzelperson"
+  ✅ [Portrait Einzelperson] has price
+  ✅ [Event Premium] has id
+  ✅ [Event Premium] has name
+  ✅ [Event Premium] has slug: "event-premium"
+  ✅ [Event Premium] has price
+  ✅ [Eventfotografie] has id
+  ✅ [Eventfotografie] has name
+  ✅ [Eventfotografie] has slug: "eventfotografie"
+  ✅ [Eventfotografie] has price
+
+🔑 TEST 3: Slug uniqueness
+  ✅ All 26 slugs are unique
+
+🔍 TEST 4: Every product is findable by its slug
+  ✅ [Family Basic] findable by slug "family-basic"
+  ✅ [Family Classic] findable by slug "family-classic"
+  ✅ [Hochzeitsfotografie Basic] findable by slug "hochzeitsfotografie-basic"
+  ✅ [Immobilienfotografie] findable by slug "immobilienfotografie"
+  ✅ [Produktfotografie] findable by slug "produktfotografie"
+  ✅ [Studio-Fotografie Basic] findable by slug "studio-fotografie-basic"
+  ✅ [Portraitfotografie Basic] findable by slug "portraitfotografie-basic"
+  ✅ [Bewerbungsfotos & LinkedIn] findable by slug "bewerbungsfotos-und-linkedin"
+  ✅ [Team & Mitarbeiterfotos] findable by slug "team-und-mitarbeiterfotos"
+  ✅ [Business Portrait Basic] findable by slug "business-portrait-basic"
+  ✅ [Family Premium] findable by slug "family-premium"
+  ✅ [Newborn Premium] findable by slug "newborn-premium"
+  ✅ [Business Portrait Session] findable by slug "business-portrait-session"
+  ✅ [Shooting Experience Gutschein] findable by slug "shooting-experience-gutschein"
+  ✅ [Familie Fotoshootings] findable by slug "familie-fotoshootings"
+  ✅ [Maternity Premium] findable by slug "maternity-premium"
+  ✅ [Express Headshot] findable by slug "express-headshot"
+  ✅ [Solo Pro] findable by slug "solo-pro"
+  ✅ [Brand Upgrade] findable by slug "brand-upgrade"
+  ✅ [Immobilien Basic] findable by slug "immobilien-basic"
+  ✅ [Immobilien Premium] findable by slug "immobilien-premium"
+  ✅ [Hochzeit Classic] findable by slug "hochzeit-classic"
+  ✅ [Hochzeit Premium] findable by slug "hochzeit-premium"
+  ✅ [Portrait Einzelperson] findable by slug "portrait-einzelperson"
+  ✅ [Event Premium] findable by slug "event-premium"
+  ✅ [Eventfotografie] findable by slug "eventfotografie"
+
+🏷️  TEST 5: productNameFromSlug (client fallback) for every product
+  ✅ [Family Basic] slug "family-basic" → fallback name "Family Basic"
+  ✅ [Family Classic] slug "family-classic" → fallback name "Family Classic"
+  ✅ [Hochzeitsfotografie Basic] slug "hochzeitsfotografie-basic" → fallback name "Hochzeitsfotografie Basic"
+  ✅ [Immobilienfotografie] slug "immobilienfotografie" → fallback name "Immobilienfotografie"
+  ✅ [Produktfotografie] slug "produktfotografie" → fallback name "Produktfotografie"
+  ✅ [Studio-Fotografie Basic] slug "studio-fotografie-basic" → fallback name "Studio Fotografie Basic"
+  ✅ [Portraitfotografie Basic] slug "portraitfotografie-basic" → fallback name "Portraitfotografie Basic"
+  ✅ [Bewerbungsfotos & LinkedIn] slug "bewerbungsfotos-und-linkedin" → fallback name "Bewerbungsfotos Und Linkedin"
+  ✅ [Team & Mitarbeiterfotos] slug "team-und-mitarbeiterfotos" → fallback name "Team Und Mitarbeiterfotos"
+  ✅ [Business Portrait Basic] slug "business-portrait-basic" → fallback name "Business Portrait Basic"
+  ✅ [Family Premium] slug "family-premium" → fallback name "Family Premium"
+  ✅ [Newborn Premium] slug "newborn-premium" → fallback name "Newborn Premium"
+  ✅ [Business Portrait Session] slug "business-portrait-session" → fallback name "Business Portrait Session"
+  ✅ [Shooting Experience Gutschein] slug "shooting-experience-gutschein" → fallback name "Shooting Experience Gutschein"
+  ✅ [Familie Fotoshootings] slug "familie-fotoshootings" → fallback name "Familie Fotoshootings"
+  ✅ [Maternity Premium] slug "maternity-premium" → fallback name "Maternity Premium"
+  ✅ [Express Headshot] slug "express-headshot" → fallback name "Express Headshot"
+  ✅ [Solo Pro] slug "solo-pro" → fallback name "Solo Pro"
+  ✅ [Brand Upgrade] slug "brand-upgrade" → fallback name "Brand Upgrade"
+  ✅ [Immobilien Basic] slug "immobilien-basic" → fallback name "Immobilien Basic"
+  ✅ [Immobilien Premium] slug "immobilien-premium" → fallback name "Immobilien Premium"
+  ✅ [Hochzeit Classic] slug "hochzeit-classic" → fallback name "Hochzeit Classic"
+  ✅ [Hochzeit Premium] slug "hochzeit-premium" → fallback name "Hochzeit Premium"
+  ✅ [Portrait Einzelperson] slug "portrait-einzelperson" → fallback name "Portrait Einzelperson"
+  ✅ [Event Premium] slug "event-premium" → fallback name "Event Premium"
+  ✅ [Eventfotografie] slug "eventfotografie" → fallback name "Eventfotografie"
+
+🔧 TEST 6: deriveSkuFromName (server fallback) round-trips
+  ✅ [Family Basic] → derived SKU "family-basic"
+  ✅ [Family Basic] derived "family-basic" === slug
+  ✅ [Family Classic] → derived SKU "family-classic"
+  ✅ [Family Classic] derived "family-classic" === slug
+  ✅ [Hochzeitsfotografie Basic] → derived SKU "hochzeitsfotografie-basic"
+  ✅ [Hochzeitsfotografie Basic] derived "hochzeitsfotografie-basic" === slug
+  ✅ [Immobilienfotografie] → derived SKU "immobilienfotografie"
+  ✅ [Immobilienfotografie] derived "immobilienfotografie" === slug
+  ✅ [Produktfotografie] → derived SKU "produktfotografie"
+  ✅ [Produktfotografie] derived "produktfotografie" === slug
+  ✅ [Studio-Fotografie Basic] → derived SKU "studio-fotografie-basic"
+  ✅ [Studio-Fotografie Basic] derived "studio-fotografie-basic" === slug
+  ✅ [Portraitfotografie Basic] → derived SKU "portraitfotografie-basic"
+  ✅ [Portraitfotografie Basic] derived "portraitfotografie-basic" === slug
+  ✅ [Bewerbungsfotos & LinkedIn] → derived SKU "bewerbungsfotos-und-linkedin"
+  ✅ [Bewerbungsfotos & LinkedIn] derived "bewerbungsfotos-und-linkedin" === slug
+  ✅ [Team & Mitarbeiterfotos] → derived SKU "team-und-mitarbeiterfotos"
+  ✅ [Team & Mitarbeiterfotos] derived "team-und-mitarbeiterfotos" === slug
+  ✅ [Business Portrait Basic] → derived SKU "business-portrait-basic"
+  ✅ [Business Portrait Basic] derived "business-portrait-basic" === slug
+  ✅ [Family Premium] → derived SKU "family-premium"
+  ✅ [Family Premium] derived "family-premium" === slug
+  ✅ [Newborn Premium] → derived SKU "newborn-premium"
+  ✅ [Newborn Premium] derived "newborn-premium" === slug
+  ✅ [Business Portrait Session] → derived SKU "business-portrait-session"
+  ✅ [Business Portrait Session] derived "business-portrait-session" === slug
+  ✅ [Shooting Experience Gutschein] → derived SKU "shooting-experience-gutschein"
+  ✅ [Shooting Experience Gutschein] derived "shooting-experience-gutschein" === slug
+  ✅ [Familie Fotoshootings] → derived SKU "familie-fotoshootings"
+  ✅ [Familie Fotoshootings] derived "familie-fotoshootings" === slug
+  ✅ [Maternity Premium] → derived SKU "maternity-premium"
+  ✅ [Maternity Premium] derived "maternity-premium" === slug
+  ✅ [Express Headshot] → derived SKU "express-headshot"
+  ✅ [Express Headshot] derived "express-headshot" === slug
+  ✅ [Solo Pro] → derived SKU "solo-pro"
+  ✅ [Solo Pro] derived "solo-pro" === slug
+  ✅ [Brand Upgrade] → derived SKU "brand-upgrade"
+  ✅ [Brand Upgrade] derived "brand-upgrade" === slug
+  ✅ [Immobilien Basic] → derived SKU "immobilien-basic"
+  ✅ [Immobilien Basic] derived "immobilien-basic" === slug
+  ✅ [Immobilien Premium] → derived SKU "immobilien-premium"
+  ✅ [Immobilien Premium] derived "immobilien-premium" === slug
+  ✅ [Hochzeit Classic] → derived SKU "hochzeit-classic"
+  ✅ [Hochzeit Classic] derived "hochzeit-classic" === slug
+  ✅ [Hochzeit Premium] → derived SKU "hochzeit-premium"
+  ✅ [Hochzeit Premium] derived "hochzeit-premium" === slug
+  ✅ [Portrait Einzelperson] → derived SKU "portrait-einzelperson"
+  ✅ [Portrait Einzelperson] derived "portrait-einzelperson" === slug
+  ✅ [Event Premium] → derived SKU "event-premium"
+  ✅ [Event Premium] derived "event-premium" === slug
+  ✅ [Eventfotografie] → derived SKU "eventfotografie"
+  ✅ [Eventfotografie] derived "eventfotografie" === slug
+
+📄 TEST 7: PDF title resolution for every product
+  ✅ [Family Basic] DB path → title "Family Basic"
+  ✅ [Family Basic] metadata path → title "Family Basic"
+  ✅ [Family Basic] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Family Classic] DB path → title "Family Classic"
+  ✅ [Family Classic] metadata path → title "Family Classic"
+  ✅ [Family Classic] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Hochzeitsfotografie Basic] DB path → title "Hochzeitsfotografie Basic"
+  ✅ [Hochzeitsfotografie Basic] metadata path → title "Hochzeitsfotografie Basic"
+  ✅ [Hochzeitsfotografie Basic] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Immobilienfotografie] DB path → title "Immobilienfotografie"
+  ✅ [Immobilienfotografie] metadata path → title "Immobilienfotografie"
+  ✅ [Immobilienfotografie] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Produktfotografie] DB path → title "Produktfotografie"
+  ✅ [Produktfotografie] metadata path → title "Produktfotografie"
+  ✅ [Produktfotografie] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Studio-Fotografie Basic] DB path → title "Studio-Fotografie Basic"
+  ✅ [Studio-Fotografie Basic] metadata path → title "Studio-Fotografie Basic"
+  ✅ [Studio-Fotografie Basic] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Portraitfotografie Basic] DB path → title "Portraitfotografie Basic"
+  ✅ [Portraitfotografie Basic] metadata path → title "Portraitfotografie Basic"
+  ✅ [Portraitfotografie Basic] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Bewerbungsfotos & LinkedIn] DB path → title "Bewerbungsfotos & LinkedIn"
+  ✅ [Bewerbungsfotos & LinkedIn] metadata path → title "Bewerbungsfotos & LinkedIn"
+  ✅ [Bewerbungsfotos & LinkedIn] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Team & Mitarbeiterfotos] DB path → title "Team & Mitarbeiterfotos"
+  ✅ [Team & Mitarbeiterfotos] metadata path → title "Team & Mitarbeiterfotos"
+  ✅ [Team & Mitarbeiterfotos] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Business Portrait Basic] DB path → title "Business Portrait Basic"
+  ✅ [Business Portrait Basic] metadata path → title "Business Portrait Basic"
+  ✅ [Business Portrait Basic] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Family Premium] DB path → title "Family Premium"
+  ✅ [Family Premium] metadata path → title "Family Premium"
+  ✅ [Family Premium] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Newborn Premium] DB path → title "Newborn Premium"
+  ✅ [Newborn Premium] metadata path → title "Newborn Premium"
+  ✅ [Newborn Premium] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Business Portrait Session] DB path → title "Business Portrait Session"
+  ✅ [Business Portrait Session] metadata path → title "Business Portrait Session"
+  ✅ [Business Portrait Session] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Shooting Experience Gutschein] DB path → title "Shooting Experience Gutschein"
+  ✅ [Shooting Experience Gutschein] metadata path → title "Shooting Experience Gutschein"
+  ✅ [Shooting Experience Gutschein] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Familie Fotoshootings] DB path → title "Familie Fotoshootings"
+  ✅ [Familie Fotoshootings] metadata path → title "Familie Fotoshootings"
+  ✅ [Familie Fotoshootings] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Maternity Premium] DB path → title "Maternity Premium"
+  ✅ [Maternity Premium] metadata path → title "Maternity Premium"
+  ✅ [Maternity Premium] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Express Headshot] DB path → title "Express Headshot"
+  ✅ [Express Headshot] metadata path → title "Express Headshot"
+  ✅ [Express Headshot] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Solo Pro] DB path → title "Solo Pro"
+  ✅ [Solo Pro] metadata path → title "Solo Pro"
+  ✅ [Solo Pro] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Brand Upgrade] DB path → title "Brand Upgrade"
+  ✅ [Brand Upgrade] metadata path → title "Brand Upgrade"
+  ✅ [Brand Upgrade] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Immobilien Basic] DB path → title "Immobilien Basic"
+  ✅ [Immobilien Basic] metadata path → title "Immobilien Basic"
+  ✅ [Immobilien Basic] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Immobilien Premium] DB path → title "Immobilien Premium"
+  ✅ [Immobilien Premium] metadata path → title "Immobilien Premium"
+  ✅ [Immobilien Premium] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Hochzeit Classic] DB path → title "Hochzeit Classic"
+  ✅ [Hochzeit Classic] metadata path → title "Hochzeit Classic"
+  ✅ [Hochzeit Classic] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Hochzeit Premium] DB path → title "Hochzeit Premium"
+  ✅ [Hochzeit Premium] metadata path → title "Hochzeit Premium"
+  ✅ [Hochzeit Premium] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Portrait Einzelperson] DB path → title "Portrait Einzelperson"
+  ✅ [Portrait Einzelperson] metadata path → title "Portrait Einzelperson"
+  ✅ [Portrait Einzelperson] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Event Premium] DB path → title "Event Premium"
+  ✅ [Event Premium] metadata path → title "Event Premium"
+  ✅ [Event Premium] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+  ✅ [Eventfotografie] DB path → title "Eventfotografie"
+  ✅ [Eventfotografie] metadata path → title "Eventfotografie"
+  ✅ [Eventfotografie] sku-only path → title "Gutschein" (may be 'Gutschein' if not in titleMap — OK since path A/B cover it)
+
+⏰ TEST 8: Webhook validity period for every product
+  ✅ [Family Basic] validityDays = 365 (1.0 years)
+  ✅ [Family Classic] validityDays = 365 (1.0 years)
+  ✅ [Hochzeitsfotografie Basic] validityDays = 365 (1.0 years)
+  ✅ [Immobilienfotografie] validityDays = 365 (1.0 years)
+  ✅ [Produktfotografie] validityDays = 365 (1.0 years)
+  ✅ [Studio-Fotografie Basic] validityDays = 365 (1.0 years)
+  ✅ [Portraitfotografie Basic] validityDays = 365 (1.0 years)
+  ✅ [Bewerbungsfotos & LinkedIn] validityDays = 365 (1.0 years)
+  ✅ [Team & Mitarbeiterfotos] validityDays = 365 (1.0 years)
+  ✅ [Business Portrait Basic] validityDays = 365 (1.0 years)
+  ✅ [Family Premium] validityDays = 365 (1.0 years)
+  ✅ [Newborn Premium] validityDays = 365 (1.0 years)
+  ✅ [Business Portrait Session] validityDays = 730 (2.0 years)
+  ✅ [Shooting Experience Gutschein] validityDays = 365 (1.0 years)
+  ✅ [Familie Fotoshootings] validityDays = 1460 (4.0 years)
+  ✅ [Maternity Premium] validityDays = 365 (1.0 years)
+  ✅ [Express Headshot] validityDays = 365 (1.0 years)
+  ✅ [Solo Pro] validityDays = 365 (1.0 years)
+  ✅ [Brand Upgrade] validityDays = 365 (1.0 years)
+  ✅ [Immobilien Basic] validityDays = 365 (1.0 years)
+  ✅ [Immobilien Premium] validityDays = 365 (1.0 years)
+  ✅ [Hochzeit Classic] validityDays = 365 (1.0 years)
+  ✅ [Hochzeit Premium] validityDays = 365 (1.0 years)
+  ✅ [Portrait Einzelperson] validityDays = 365 (1.0 years)
+  ✅ [Event Premium] validityDays = 365 (1.0 years)
+  ✅ [Eventfotografie] validityDays = 365 (1.0 years)
+
+🔗 TEST 9: End-to-end data chain simulation for every product
+  ✅ [Family Basic] PDF title = "Family Basic" ✓
+  ✅ [Family Basic] webhook finds product by slug "family-basic" ✓
+  ✅ [Family Basic] validity = 365 days ✓
+  ✅ [Family Classic] PDF title = "Family Classic" ✓
+  ✅ [Family Classic] webhook finds product by slug "family-classic" ✓
+  ✅ [Family Classic] validity = 365 days ✓
+  ✅ [Hochzeitsfotografie Basic] PDF title = "Hochzeitsfotografie Basic" ✓
+  ✅ [Hochzeitsfotografie Basic] webhook finds product by slug "hochzeitsfotografie-basic" ✓
+  ✅ [Hochzeitsfotografie Basic] validity = 365 days ✓
+  ✅ [Immobilienfotografie] PDF title = "Immobilienfotografie" ✓
+  ✅ [Immobilienfotografie] webhook finds product by slug "immobilienfotografie" ✓
+  ✅ [Immobilienfotografie] validity = 365 days ✓
+  ✅ [Produktfotografie] PDF title = "Produktfotografie" ✓
+  ✅ [Produktfotografie] webhook finds product by slug "produktfotografie" ✓
+  ✅ [Produktfotografie] validity = 365 days ✓
+  ✅ [Studio-Fotografie Basic] PDF title = "Studio-Fotografie Basic" ✓
+  ✅ [Studio-Fotografie Basic] webhook finds product by slug "studio-fotografie-basic" ✓
+  ✅ [Studio-Fotografie Basic] validity = 365 days ✓
+  ✅ [Portraitfotografie Basic] PDF title = "Portraitfotografie Basic" ✓
+  ✅ [Portraitfotografie Basic] webhook finds product by slug "portraitfotografie-basic" ✓
+  ✅ [Portraitfotografie Basic] validity = 365 days ✓
+  ✅ [Bewerbungsfotos & LinkedIn] PDF title = "Bewerbungsfotos & LinkedIn" ✓
+  ✅ [Bewerbungsfotos & LinkedIn] webhook finds product by slug "bewerbungsfotos-und-linkedin" ✓
+  ✅ [Bewerbungsfotos & LinkedIn] validity = 365 days ✓
+  ✅ [Team & Mitarbeiterfotos] PDF title = "Team & Mitarbeiterfotos" ✓
+  ✅ [Team & Mitarbeiterfotos] webhook finds product by slug "team-und-mitarbeiterfotos" ✓
+  ✅ [Team & Mitarbeiterfotos] validity = 365 days ✓
+  ✅ [Business Portrait Basic] PDF title = "Business Portrait Basic" ✓
+  ✅ [Business Portrait Basic] webhook finds product by slug "business-portrait-basic" ✓
+  ✅ [Business Portrait Basic] validity = 365 days ✓
+  ✅ [Family Premium] PDF title = "Family Premium" ✓
+  ✅ [Family Premium] webhook finds product by slug "family-premium" ✓
+  ✅ [Family Premium] validity = 365 days ✓
+  ✅ [Newborn Premium] PDF title = "Newborn Premium" ✓
+  ✅ [Newborn Premium] webhook finds product by slug "newborn-premium" ✓
+  ✅ [Newborn Premium] validity = 365 days ✓
+  ✅ [Business Portrait Session] PDF title = "Business Portrait Session" ✓
+  ✅ [Business Portrait Session] webhook finds product by slug "business-portrait-session" ✓
+  ✅ [Business Portrait Session] validity = 730 days ✓
+  ✅ [Shooting Experience Gutschein] PDF title = "Shooting Experience Gutschein" ✓
+  ✅ [Shooting Experience Gutschein] webhook finds product by slug "shooting-experience-gutschein" ✓
+  ✅ [Shooting Experience Gutschein] validity = 365 days ✓
+  ✅ [Familie Fotoshootings] PDF title = "Familie Fotoshootings" ✓
+  ✅ [Familie Fotoshootings] webhook finds product by slug "familie-fotoshootings" ✓
+  ✅ [Familie Fotoshootings] validity = 1460 days ✓
+  ✅ [Maternity Premium] PDF title = "Maternity Premium" ✓
+  ✅ [Maternity Premium] webhook finds product by slug "maternity-premium" ✓
+  ✅ [Maternity Premium] validity = 365 days ✓
+  ✅ [Express Headshot] PDF title = "Express Headshot" ✓
+  ✅ [Express Headshot] webhook finds product by slug "express-headshot" ✓
+  ✅ [Express Headshot] validity = 365 days ✓
+  ✅ [Solo Pro] PDF title = "Solo Pro" ✓
+  ✅ [Solo Pro] webhook finds product by slug "solo-pro" ✓
+  ✅ [Solo Pro] validity = 365 days ✓
+  ✅ [Brand Upgrade] PDF title = "Brand Upgrade" ✓
+  ✅ [Brand Upgrade] webhook finds product by slug "brand-upgrade" ✓
+  ✅ [Brand Upgrade] validity = 365 days ✓
+  ✅ [Immobilien Basic] PDF title = "Immobilien Basic" ✓
+  ✅ [Immobilien Basic] webhook finds product by slug "immobilien-basic" ✓
+  ✅ [Immobilien Basic] validity = 365 days ✓
+  ✅ [Immobilien Premium] PDF title = "Immobilien Premium" ✓
+  ✅ [Immobilien Premium] webhook finds product by slug "immobilien-premium" ✓
+  ✅ [Immobilien Premium] validity = 365 days ✓
+  ✅ [Hochzeit Classic] PDF title = "Hochzeit Classic" ✓
+  ✅ [Hochzeit Classic] webhook finds product by slug "hochzeit-classic" ✓
+  ✅ [Hochzeit Classic] validity = 365 days ✓
+  ✅ [Hochzeit Premium] PDF title = "Hochzeit Premium" ✓
+  ✅ [Hochzeit Premium] webhook finds product by slug "hochzeit-premium" ✓
+  ✅ [Hochzeit Premium] validity = 365 days ✓
+  ✅ [Portrait Einzelperson] PDF title = "Portrait Einzelperson" ✓
+  ✅ [Portrait Einzelperson] webhook finds product by slug "portrait-einzelperson" ✓
+  ✅ [Portrait Einzelperson] validity = 365 days ✓
+  ✅ [Event Premium] PDF title = "Event Premium" ✓
+  ✅ [Event Premium] webhook finds product by slug "event-premium" ✓
+  ✅ [Event Premium] validity = 365 days ✓
+  ✅ [Eventfotografie] PDF title = "Eventfotografie" ✓
+  ✅ [Eventfotografie] webhook finds product by slug "eventfotografie" ✓
+  ✅ [Eventfotografie] validity = 365 days ✓
+
+⚠️  TEST 10: Edge cases
+  ✅ productNameFromSlug(undefined) → undefined
+  ✅ productNameFromSlug("") → undefined
+  ✅ productNameFromSlug(null) → undefined
+  ✅ deriveSkuFromName(undefined) → undefined
+  ✅ deriveSkuFromName("") → empty/undefined
+
+🛡️  TEST 11: Body parser webhook exemption paths
+  ✅ Body parser skips "/api/stripe/webhook"
+  ✅ Body parser skips "/api/invoices/webhook"
+  ✅ Body parser skips "/api/vouchers/stripe-webhook"
+  ✅ Body parser processes "/api/vouchers/products"
+  ✅ Body parser processes "/api/checkout/create-session"
+  ✅ Body parser processes "/api/vouchers/coupons/validate"
+
+🆕 TEST 12: Slug auto-generation for hypothetical new products
+  ✅ New: "Outdoor Adventure Shooting" → slug "outdoor-adventure-shooting"
+  ✅ New: "Outdoor Adventure Shooting" slug is lowercase
+  ✅ New: "Outdoor Adventure Shooting" slug has no spaces
+  ✅ New: "Outdoor Adventure Shooting" slug "outdoor-adventure-shooting" is unique (no conflict)
+  ✅ New: "Familienportrait Deluxe" → slug "familienportrait-deluxe"
+  ✅ New: "Familienportrait Deluxe" slug is lowercase
+  ✅ New: "Familienportrait Deluxe" slug has no spaces
+  ✅ New: "Familienportrait Deluxe" slug "familienportrait-deluxe" is unique (no conflict)
+  ✅ New: "Ästhetik & Boudoir" → slug "aesthetik-und-boudoir"
+  ✅ New: "Ästhetik & Boudoir" slug is lowercase
+  ✅ New: "Ästhetik & Boudoir" slug has no spaces
+  ✅ New: "Ästhetik & Boudoir" slug "aesthetik-und-boudoir" is unique (no conflict)
+  ✅ New: "Süße Momente" → slug "suesse-momente"
+  ✅ New: "Süße Momente" slug is lowercase
+  ✅ New: "Süße Momente" slug has no spaces
+  ✅ New: "Süße Momente" slug "suesse-momente" is unique (no conflict)
+  ✅ New: "Großfamilien-Paket" → slug "grossfamilien-paket"
+  ✅ New: "Großfamilien-Paket" slug is lowercase
+  ✅ New: "Großfamilien-Paket" slug has no spaces
+  ✅ New: "Großfamilien-Paket" slug "grossfamilien-paket" is unique (no conflict)
+
+═══════════════════════════════════════════════════
+  RESULTS: 423 passed, 0 failed
+═══════════════════════════════════════════════════
+
+🎉 ALL TESTS PASSED — System is solid.
+

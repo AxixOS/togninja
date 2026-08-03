@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Hero Image</title>
+</head>
+<body>
+    <h1>Hero Image Debug</h1>
+    
+    <h2>1. Test API Response</h2>
+    <button onclick="testAPI()">Test API</button>
+    <pre id="api-result"></pre>
+    
+    <h2>2. Test Image Load</h2>
+    <p>Expected URL: <span id="image-url"></span></p>
+    <img id="test-image" style="max-width: 500px; border: 2px solid red;" />
+    <p id="image-status"></p>
+    
+    <h2>3. Console Logs</h2>
+    <p>Open browser console (F12) to see detailed logs</p>
+    
+    <script>
+        const expectedURL = "https://TogNinja.s3.eu-central-003.backblazeb2.com/Manual Website Images/aeaca37d-d0a1-4ab2-8f71-a91fd0285f8f.webp";
+        
+        async function testAPI() {
+            try {
+                const response = await fetch('/api/manual-pages/produktfotografie');
+                const data = await response.json();
+                console.log('API Response:', data);
+                document.getElementById('api-result').textContent = JSON.stringify(data, null, 2);
+                
+                const heroImage2 = data.publishedContent?.['manual.produktfotografie.heroImage2'];
+                console.log('heroImage2 value:', heroImage2);
+                
+                if (heroImage2) {
+                    document.getElementById('image-url').textContent = heroImage2;
+                    testImageLoad(heroImage2);
+                } else {
+                    document.getElementById('image-status').textContent = '❌ heroImage2 not found in publishedContent';
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                document.getElementById('api-result').textContent = 'ERROR: ' + error.message;
+            }
+        }
+        
+        function testImageLoad(url) {
+            const img = document.getElementById('test-image');
+            const status = document.getElementById('image-status');
+            
+            img.onload = () => {
+                status.textContent = '✅ Image loaded successfully!';
+                status.style.color = 'green';
+                console.log('Image loaded:', url);
+            };
+            
+            img.onerror = () => {
+                status.textContent = '❌ Image failed to load';
+                status.style.color = 'red';
+                console.error('Image load error:', url);
+            };
+            
+            img.src = url;
+        }
+        
+        // Auto-run on page load
+        window.onload = () => {
+            testAPI();
+        };
+    </script>
+</body>
+</html>

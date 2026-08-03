@@ -1,0 +1,26 @@
+:root{--naf-bg:#fff;--naf-text:#111;--naf-muted:#6b7280;--naf-brand:#6b2cff;--naf-saving:#22c55e;--naf-border:#e5e7eb}
+.naf-hero-wrap{max-width:1240px;margin:24px auto 8px;padding:0 16px}
+.naf-hero-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+@media (max-width:980px){.naf-hero-grid{grid-template-columns:1fr}}
+.naf-card{position:relative;border:1px solid var(--naf-border);border-radius:14px;overflow:hidden;background:var(--naf-bg);box-shadow:0 6px 20px rgba(0,0,0,.06);transition:transform .15s ease}
+.naf-card:hover{transform:translateY(-2px)}
+.naf-card-media{position:relative;aspect-ratio:16/9;background:#f3f4f6;overflow:hidden}
+.naf-card-media img{width:100%;height:100%;object-fit:cover;display:block}
+.naf-ribbon{position:absolute;top:10px;left:10px;background:rgba(17,17,17,.85);color:#fff;font-size:12px;line-height:1;padding:8px 10px;border-radius:10px}
+.naf-ribbon-savings{background:linear-gradient(135deg,var(--naf-saving),#16a34a);font-weight:700}
+.naf-card-body{padding:14px 16px 16px}
+.naf-title{font-weight:700;color:var(--naf-text);margin:0 0 8px;line-height:1.3;font-size:16px}
+.naf-sub{color:var(--naf-muted);font-size:14px;margin:0 0 10px;line-height:1.4}
+.naf-details{margin:12px 0;padding:12px;background:#f9fafb;border-radius:8px;border-left:3px solid var(--naf-brand)}
+.naf-description{color:var(--naf-text);font-size:13px;line-height:1.6;margin:0;white-space:pre-line}
+.naf-promo-banner{margin:12px 0;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.naf-promo-banner img{width:100%;height:auto;display:block}
+.naf-price-row{display:flex;align-items:center;gap:8px;margin:8px 0 10px}
+.naf-old{color:var(--naf-muted);text-decoration:line-through;font-size:14px}
+.naf-new{color:var(--naf-brand);font-weight:800;font-size:18px}
+.naf-save{display:none}
+.naf-from{color:var(--naf-muted);font-weight:700;font-size:12px;letter-spacing:.03em}
+.naf-meta{display:flex;align-items:center;gap:10px;color:var(--naf-muted);font-size:13px}
+.naf-cta-row{display:flex;justify-content:flex-end;margin-top:12px}
+.naf-btn{background:var(--naf-brand);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;text-decoration:none}
+.naf-btn:hover{filter:brightness(.95)}

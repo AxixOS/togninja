@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Voucher Purchase Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    button {
+      background: #6B46C1;
+      color: white;
+      padding: 15px 30px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #553C9A;
+    }
+    .result {
+      background: #f5f5f5;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      border-left: 4px solid #6B46C1;
+    }
+    .success {
+      background: #D1FAE5;
+      border-left-color: #10B981;
+    }
+    .error {
+      background: #FEE2E2;
+      border-left-color: #EF4444;
+    }
+    pre {
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    .step {
+      margin: 30px 0;
+      padding: 20px;
+      border: 2px solid #E5E7EB;
+      border-radius: 8px;
+    }
+    h2 {
+      color: #6B46C1;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 Voucher Purchase End-to-End Test</h1>
+  <p>This test will:</p>
+  <ol>
+    <li>Create a demo voucher purchase in the database</li>
+    <li>Generate a downloadable PDF</li>
+    <li>Verify the purchase is visible in the admin panel</li>
+  </ol>
+
+  <div class="step">
+    <h2>Step 1: Create Demo Purchase</h2>
+    <button onclick="createDemoPurchase()">Create Voucher Purchase</button>
+    <div id="step1-result"></div>
+  </div>
+
+  <div class="step">
+    <h2>Step 2: Download PDF</h2>
+    <button id="download-pdf" onclick="downloadPDF()" disabled>Download Voucher PDF</button>
+    <div id="step2-result"></div>
+  </div>
+
+  <div class="step">
+    <h2>Step 3: Verify in Admin</h2>
+    <button onclick="openAdmin()">Open Admin Panel</button>
+    <p>You should see the voucher sale in the admin panel under "Online Voucher Sales"</p>
+    <div id="step3-result"></div>
+  </div>
+
+  <script>
+    let voucherCode = null;
+    let downloadUrl = null;
+
+    async function createDemoPurchase() {
+      const resultDiv = document.getElementById('step1-result');
+      resultDiv.innerHTML = '<p>⏳ Creating voucher purchase...</p>';
+      
+      try {
+        const response = await fetch('http://localhost:3001/api/test/create-demo-voucher-purchase', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            purchaserEmail: 'buyer@test.com',
+            purchaserName: 'Test Buyer',
+            recipientEmail: 'recipient@test.com',
+            recipientName: 'Anna Mueller',
+            giftMessage: 'Happy Birthday Anna!',
+            amount: 199.00,
+            productId: '1ed73171-7c6d-464c-a5b8-67cabbdc203a'
+          })
+        });
+
+        const result = await response.json();
+        
+        if (response.ok) {
+          voucherCode = result.voucherCode;
+          downloadUrl = result.downloadUrl;
+          
+          resultDiv.innerHTML = `
+            <div class="result success">
+              <h3>✅ Success!</h3>
+              <p><strong>Voucher Code:</strong> ${result.voucherCode}</p>
+              <p><strong>Sale ID:</strong> ${result.saleId}</p>
+              <p><strong>Recipient:</strong> ${result.recipientName}</p>
+              <p><strong>Amount:</strong> €${result.amount}</p>
+              <pre>${JSON.stringify(result, null, 2)}</pre>
+            </div>
+          `;
+          
+          document.getElementById('download-pdf').disabled = false;
+        } else {
+          resultDiv.innerHTML = `
+            <div class="result error">
+              <h3>❌ Error</h3>
+              <pre>${JSON.stringify(result, null, 2)}</pre>
+            </div>
+          `;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="result error">
+            <h3>❌ Error</h3>
+            <p>${error.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    function downloadPDF() {
+      if (!downloadUrl) {
+        alert('Please create a voucher purchase first!');
+        return;
+      }
+      
+      const resultDiv = document.getElementById('step2-result');
+      resultDiv.innerHTML = '<p>⏳ Opening PDF...</p>';
+      
+      // Open PDF in new tab
+      const pdfWindow = window.open('http://localhost:3001' + downloadUrl, '_blank');
+      
+      if (pdfWindow) {
+        resultDiv.innerHTML = `
+          <div class="result success">
+            <h3>✅ PDF Opened!</h3>
+            <p>PDF should open in a new tab. If it doesn't, click here:</p>
+            <p><a href="http://localhost:3001${downloadUrl}" target="_blank">Download Voucher PDF</a></p>
+          </div>
+        `;
+      } else {
+        resultDiv.innerHTML = `
+          <div class="result error">
+            <h3>⚠️ Pop-up Blocked</h3>
+            <p>Please allow pop-ups and try again, or click here:</p>
+            <p><a href="http://localhost:3001${downloadUrl}" target="_blank">Download Voucher PDF</a></p>
+          </div>
+        `;
+      }
+    }
+
+    function openAdmin() {
+      window.open('http://localhost:3001/admin/voucher-sales', '_blank');
+      document.getElementById('step3-result').innerHTML = `
+        <div class="result">
+          <p>✅ Admin panel opened in new tab</p>
+          <p>Login credentials:</p>
+          <ul>
+            <li><strong>Email:</strong> admin@photography-crm.local</li>
+            <li><strong>Password:</strong> admin123</li>
+          </ul>
+          <p>Look for voucher code: <strong>${voucherCode || '(create purchase first)'}</strong></p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

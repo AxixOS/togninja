@@ -1,0 +1,181 @@
+// Landing Page Seasonal Template Library
+// 9 curated templates for photographers
+
+import type { LandingPageSeasonalTemplate } from '../types/landingPageGrowth.types';
+
+export const LANDING_PAGE_SEASONAL_TEMPLATES: LandingPageSeasonalTemplate[] = [
+  {
+    id: 'easter-mini',
+    label: 'Easter Mini Sessions',
+    pageType: 'mini-session',
+    targetAudience: 'Families with young children',
+    seasonalHook: 'Easter & early spring',
+    recommendedSections: ['hero', 'gallery', 'pricing', 'testimonials', 'cta', 'faq'],
+    offerExamples: [
+      '20-minute Easter-themed mini session — R850',
+      'Bunny-themed setup included',
+      'Digital gallery of 10 edited images',
+    ],
+    ctaSuggestions: ['Book Your Easter Mini', 'Reserve Your Spot', 'Grab Your Easter Session'],
+    heroAngle: 'Capture the magic of spring with adorable Easter minis for your little ones.',
+    trustAngle: 'Over 200 families trust us with their seasonal memories every year.',
+    seoAngle: 'Easter Mini Sessions [City] — Limited Spots Available',
+    imagePromptAngle: 'Soft pastel Easter setup with bunny ears, spring flowers, and a smiling toddler in a photography studio.',
+  },
+  {
+    id: 'mothers-day',
+    label: "Mother's Day Portraits",
+    pageType: 'portrait-session',
+    targetAudience: 'Families, partners looking for gifts',
+    seasonalHook: "Mother's Day gift experience",
+    recommendedSections: ['hero', 'about', 'gallery', 'voucher', 'testimonials', 'cta'],
+    offerExamples: [
+      "Mother's Day Portrait Experience — from R1 200",
+      'Gift vouchers available — printed & digital',
+      'Includes hair & makeup consultation',
+    ],
+    ctaSuggestions: ['Gift a Portrait Session', 'Buy a Gift Voucher', "Book Mom's Session"],
+    heroAngle: "Give the gift she'll treasure forever — a beautiful portrait experience just for her.",
+    trustAngle: 'Our portrait sessions are designed to make every mom feel celebrated.',
+    seoAngle: "Mother's Day Photography Gift [City] — Portrait Sessions & Vouchers",
+    imagePromptAngle: "Elegant portrait of a mother and daughter laughing together in a warm, light-filled photography studio.",
+  },
+  {
+    id: 'christmas-family',
+    label: 'Christmas Family Sessions',
+    pageType: 'mini-session',
+    targetAudience: 'Families wanting holiday cards & memories',
+    seasonalHook: 'Christmas & festive season',
+    recommendedSections: ['hero', 'gallery', 'pricing', 'testimonials', 'faq', 'cta'],
+    offerExamples: [
+      'Christmas Mini Session — R950',
+      'Festive backdrop & props included',
+      '15 edited images in an online gallery',
+    ],
+    ctaSuggestions: ['Book Your Christmas Mini', 'Secure Your Festive Slot', 'Reserve Now — Limited Dates'],
+    heroAngle: "Create magical Christmas memories your family will cherish for years.",
+    trustAngle: 'Our festive sessions sell out every year — book early to avoid disappointment.',
+    seoAngle: 'Christmas Mini Sessions [City] — Book Your Family Session',
+    imagePromptAngle: 'Warm Christmas setting with fairy lights, a festive wreath, and a family of four smiling at the camera.',
+  },
+  {
+    id: 'spring-mini',
+    label: 'Spring Mini Sessions',
+    pageType: 'mini-session',
+    targetAudience: 'Families, couples, maternity',
+    seasonalHook: 'Spring blossoms & outdoor light',
+    recommendedSections: ['hero', 'gallery', 'pricing', 'testimonials', 'cta'],
+    offerExamples: [
+      '20-minute outdoor spring session — R750',
+      'Beautiful blossom garden location',
+      '10 fully edited images',
+    ],
+    ctaSuggestions: ['Book Your Spring Mini', 'Grab a Spot', 'Join Our Spring Sessions'],
+    heroAngle: 'Fresh blooms, golden light, and beautiful portraits — spring is here.',
+    trustAngle: 'Our outdoor mini sessions are a favourite for families every season.',
+    seoAngle: 'Spring Mini Sessions [City] — Outdoor Family Photography',
+    imagePromptAngle: 'Family laughing in a flower-filled garden during golden hour with soft spring light.',
+  },
+  {
+    id: 'newborn',
+    label: 'Newborn Session',
+    pageType: 'portrait-session',
+    targetAudience: 'Expecting and new parents',
+    seasonalHook: 'Evergreen — works year-round',
+    recommendedSections: ['hero', 'about', 'gallery', 'pricing', 'testimonials', 'faq', 'cta'],
+    offerExamples: [
+      'Newborn Session — from R2 500',
+      'Best booked during pregnancy (5–14 days old)',
+      'Includes wraps, outfits, and props',
+    ],
+    ctaSuggestions: ['Book Your Newborn Session', 'Enquire About Availability', 'Reserve Your Date'],
+    heroAngle: 'Tiny fingers, soft yawns, and those precious first days — captured forever.',
+    trustAngle: 'Fully trained in newborn safety with 5+ years of experience.',
+    seoAngle: 'Newborn Photography [City] — Professional Newborn Sessions',
+    imagePromptAngle: 'Sleeping newborn baby wrapped in soft cream fabric on a beanbag in a warm studio setup.',
+  },
+  {
+    id: 'family-wall-portrait',
+    label: 'Family Wall Portrait Experience',
+    pageType: 'portrait-session',
+    targetAudience: 'Families wanting printed wall art',
+    seasonalHook: 'Evergreen — works year-round',
+    recommendedSections: ['hero', 'about', 'gallery', 'pricing', 'testimonials', 'cta'],
+    offerExamples: [
+      'Full family portrait experience — from R3 500',
+      'Includes in-person design consultation',
+      'Wall art collections starting at R5 000',
+    ],
+    ctaSuggestions: ['Start Your Wall Art Journey', 'Book a Consultation', 'See Our Wall Art Collections'],
+    heroAngle: "Your family deserves more than a phone screen — put them on your wall.",
+    trustAngle: 'We guide you through every step, from session to wall installation.',
+    seoAngle: 'Family Portrait Wall Art [City] — Professional Photography Experience',
+    imagePromptAngle: 'Beautiful large family canvas print hanging on a living room wall above a modern couch.',
+  },
+  {
+    id: 'summer-holiday',
+    label: 'Summer Holiday Sessions',
+    pageType: 'mini-session',
+    targetAudience: 'Families on holiday, beach & outdoor',
+    seasonalHook: 'Summer holidays & outdoor fun',
+    recommendedSections: ['hero', 'gallery', 'pricing', 'testimonials', 'cta'],
+    offerExamples: [
+      'Beach / outdoor summer session — R900',
+      'Golden hour timing for best light',
+      'Digital gallery of 15 images',
+    ],
+    ctaSuggestions: ['Book a Summer Session', 'Capture Your Holiday', 'Reserve a Beach Session'],
+    heroAngle: 'Sun-kissed skin, sandy toes, and golden hour magic — summer memories made.',
+    trustAngle: 'We know the best outdoor spots in the area for stunning natural light.',
+    seoAngle: 'Summer Family Photography [City] — Beach & Outdoor Sessions',
+    imagePromptAngle: 'Family playing on a golden beach at sunset with warm summer light.',
+  },
+  {
+    id: 'business-headshots',
+    label: 'Business Headshots & Branding',
+    pageType: 'commercial',
+    targetAudience: 'Professionals, entrepreneurs, small businesses',
+    seasonalHook: 'New year / new quarter energy',
+    recommendedSections: ['hero', 'about', 'gallery', 'pricing', 'testimonials', 'cta', 'faq'],
+    offerExamples: [
+      'Professional headshot session — from R1 500',
+      'Personal branding package — from R3 000',
+      'Team / corporate packages available',
+    ],
+    ctaSuggestions: ['Book Your Headshot Session', 'Upgrade Your Brand', 'Get a Quote'],
+    heroAngle: 'First impressions matter — show up online with confidence and clarity.',
+    trustAngle: 'Trusted by 50+ local businesses for professional imagery.',
+    seoAngle: 'Professional Headshots [City] — Business & Personal Branding Photography',
+    imagePromptAngle: 'Confident professional woman smiling in a modern office setting with clean background.',
+  },
+  {
+    id: 'school-holiday',
+    label: 'School Holiday Mini Sessions',
+    pageType: 'mini-session',
+    targetAudience: 'Parents with school-age kids',
+    seasonalHook: 'School holidays — keep kids busy & create memories',
+    recommendedSections: ['hero', 'gallery', 'pricing', 'testimonials', 'cta'],
+    offerExamples: [
+      'Fun themed mini session — R650',
+      'Different themes on different days',
+      'Perfect activity for school holidays',
+    ],
+    ctaSuggestions: ['Book a Holiday Mini', 'Check Available Themes', 'Reserve a Spot'],
+    heroAngle: "School's out — let's make it memorable with a fun photo session.",
+    trustAngle: 'Our themed minis are the highlight of every school holiday.',
+    seoAngle: 'School Holiday Mini Sessions [City] — Fun Kids Photography',
+    imagePromptAngle: 'Happy child playing with colourful props in a themed mini session studio setup.',
+  },
+];
+
+export function getLandingPageSeasonalTemplate(
+  templateId: string,
+): LandingPageSeasonalTemplate | undefined {
+  return LANDING_PAGE_SEASONAL_TEMPLATES.find((t) => t.id === templateId);
+}
+
+export function getLandingPageTemplatesByType(
+  pageType: string,
+): LandingPageSeasonalTemplate[] {
+  return LANDING_PAGE_SEASONAL_TEMPLATES.filter((t) => t.pageType === pageType);
+}

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Calendar Import Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        input { padding: 8px; width: 400px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Calendar Import Debug Tool</h1>
+    
+    <div class="test-section info">
+        <h3>Test Configuration</h3>
+        <p>Frontend URL: <code>http://localhost:5173</code></p>
+        <p>Backend URL: <code>http://127.0.0.1:3000</code></p>
+        <p>Google Calendar URL: <code>https://calendar.google.com/calendar/ical/newagefotografen%40gmail.com/public/basic.ics</code></p>
+    </div>
+
+    <div class="test-section">
+        <h3>1. Test API Health (Direct Backend)</h3>
+        <button onclick="testBackendHealth()">Test Backend Health</button>
+        <div id="backend-health-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. Test API Health (Through Proxy)</h3>
+        <button onclick="testProxyHealth()">Test Proxy Health</button>
+        <div id="proxy-health-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Test Calendar Import (Direct Backend)</h3>
+        <button onclick="testBackendImport()">Test Backend Import</button>
+        <div id="backend-import-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>4. Test Calendar Import (Through Proxy) - MAIN TEST</h3>
+        <button onclick="testProxyImport()" style="background-color: #ff6b00; color: white; font-weight: bold;">🎯 Test ACTUAL Import</button>
+        <div id="proxy-import-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>5. Direct ICS URL Test</h3>
+        <button onclick="testIcsUrl()">Test ICS URL Direct</button>
+        <div id="ics-url-result"></div>
+    </div>
+
+    <script>
+        const googleCalendarUrl = 'https://calendar.google.com/calendar/ical/newagefotografen%40gmail.com/public/basic.ics';
+
+        async function makeRequest(url, options, resultElementId) {
+            const resultElement = document.getElementById(resultElementId);
+            resultElement.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                console.log('Making request to:', url, options);
+                const response = await fetch(url, options);
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', [...response.headers.entries()]);
+                
+                const text = await response.text();
+                console.log('Response text:', text);
+                
+                let result = `
+                    <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                    <p><strong>Headers:</strong></p>
+                    <pre>${JSON.stringify([...response.headers.entries()], null, 2)}</pre>
+                    <p><strong>Body:</strong></p>
+                    <pre>${text}</pre>
+                `;
+                
+                if (response.ok) {
+                    resultElement.className = 'test-section success';
+                    result = '<p><strong>✅ SUCCESS</strong></p>' + result;
+                } else {
+                    resultElement.className = 'test-section error';
+                    result = '<p><strong>❌ FAILED</strong></p>' + result;
+                }
+                
+                resultElement.innerHTML = result;
+                
+            } catch (error) {
+                console.error('Request error:', error);
+                resultElement.className = 'test-section error';
+                resultElement.innerHTML = `
+                    <p><strong>❌ ERROR</strong></p>
+                    <p>${error.message}</p>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        }
+
+        function testBackendHealth() {
+            makeRequest('http://127.0.0.1:3000/api/health', {
+                method: 'GET'
+            }, 'backend-health-result');
+        }
+
+        function testProxyHealth() {
+            makeRequest('/api/health', {
+                method: 'GET'
+            }, 'proxy-health-result');
+        }
+
+        function testBackendImport() {
+            makeRequest('http://127.0.0.1:3000/api/calendar/import/ics-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    icsUrl: googleCalendarUrl,
+                    dryRun: true
+                })
+            }, 'backend-import-result');
+        }
+
+        function testProxyImport() {
+            const body = JSON.stringify({
+                icsUrl: googleCalendarUrl
+                // Removed dryRun to test actual import
+            });
+            console.log('Making REAL import request with body:', body);
+            
+            makeRequest('/api/calendar/import/ics-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: body
+            }, 'proxy-import-result');
+        }
+
+        function testIcsUrl() {
+            makeRequest(googleCalendarUrl, {
+                method: 'GET'
+            }, 'ics-url-result');
+        }
+
+        // Auto-run proxy health test when page loads
+        window.addEventListener('load', () => {
+            console.log('Page loaded, testing proxy health...');
+            setTimeout(testProxyHealth, 1000);
+        });
+    </script>
+</body>
+</html>

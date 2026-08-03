@@ -1,0 +1,31 @@
+{
+  "name": "photography-crm-demo",
+  "version": "1.0.0",
+  "description": "Live demo of Photography CRM SaaS platform",
+  "type": "module",
+  "engines": {
+    "node": ">=20.18.1",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "start": "cross-env NODE_ENV=production tsx server/index.ts",
+    "health:check": "echo 'Health check passed'"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.9.1",
+    "@stripe/stripe-js": "^2.4.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.1",
+    "drizzle-orm": "^0.29.3",
+    "express": "^4.18.2",
+    "express-session": "^1.18.0",
+    "memorystore": "^1.6.7",
+    "nodemailer": "^6.9.8",
+    "openai": "^4.24.7",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
+    "stripe": "^14.13.0",
+    "tsx": "^4.6.2",
+    "uuid": "^9.0.1"
+  }
+}

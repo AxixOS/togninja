@@ -1,0 +1,318 @@
+/**
+ * Template/Theme Styles
+ * 
+ * IMPORTANT SAFETY RULES:
+ * 1. NO global :root overrides - all styles must be scoped
+ * 2. ALL selectors must start with [data-template="..."]
+ * 3. The default New Age Fotografie design is preserved when no data-template is set
+ * 4. Themes only apply when explicitly activated by user selection
+ */
+
+/* ============================================
+   CSS Custom Properties for Theme System
+   These are ONLY set via JavaScript when a theme is active
+   ============================================ */
+
+/* Theme variables are injected by TemplateContext.tsx */
+
+/* ============================================
+   Modern Dark Theme
+   ============================================ */
+[data-template="modern-dark"] {
+  --tw-bg-opacity: 1;
+  background-color: #0F172A;
+  color: #F8FAFC;
+}
+
+[data-template="modern-dark"] .bg-white {
+  background-color: #1E293B !important;
+}
+
+[data-template="modern-dark"] .bg-gray-50,
+[data-template="modern-dark"] .bg-gray-100 {
+  background-color: #0F172A !important;
+}
+
+[data-template="modern-dark"] .text-gray-900,
+[data-template="modern-dark"] .text-gray-800 {
+  color: #F8FAFC !important;
+}
+
+[data-template="modern-dark"] .text-gray-600,
+[data-template="modern-dark"] .text-gray-700 {
+  color: #CBD5E1 !important;
+}
+
+[data-template="modern-dark"] .border-gray-200,
+[data-template="modern-dark"] .border-gray-300 {
+  border-color: #334155 !important;
+}
+
+[data-template="modern-dark"] .from-purple-600 {
+  --tw-gradient-from: #6366F1 !important;
+}
+
+[data-template="modern-dark"] .to-pink-500 {
+  --tw-gradient-to: #A855F7 !important;
+}
+
+/* ============================================
+   Classic Elegant Theme
+   ============================================ */
+[data-template="classic-elegant"] {
+  background-color: #FFFEF7;
+  color: #2C1810;
+}
+
+[data-template="classic-elegant"] .bg-white {
+  background-color: #FFFEF7 !important;
+}
+
+[data-template="classic-elegant"] .from-purple-600 {
+  --tw-gradient-from: #B8860B !important;
+}
+
+[data-template="classic-elegant"] .to-pink-500 {
+  --tw-gradient-to: #8B4513 !important;
+}
+
+[data-template="classic-elegant"] h1,
+[data-template="classic-elegant"] h2,
+[data-template="classic-elegant"] h3,
+[data-template="classic-elegant"] h4 {
+  font-family: 'Playfair Display', serif;
+}
+
+/* ============================================
+   Minimal Clean Theme
+   ============================================ */
+[data-template="minimal-clean"] {
+  background-color: #FAFAFA;
+  color: #18181B;
+}
+
+[data-template="minimal-clean"] .shadow-lg,
+[data-template="minimal-clean"] .shadow-md,
+[data-template="minimal-clean"] .shadow-sm {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+
+[data-template="minimal-clean"] .from-purple-600 {
+  --tw-gradient-from: #18181B !important;
+}
+
+[data-template="minimal-clean"] .to-pink-500 {
+  --tw-gradient-to: #52525B !important;
+}
+
+[data-template="minimal-clean"] .rounded-lg,
+[data-template="minimal-clean"] .rounded-xl,
+[data-template="minimal-clean"] .rounded-2xl {
+  border-radius: 4px !important;
+}
+
+/* ============================================
+   Bold Vibrant Theme
+   ============================================ */
+[data-template="bold-vibrant"] {
+  background-color: #FFFFFF;
+  color: #171717;
+}
+
+[data-template="bold-vibrant"] .from-purple-600 {
+  --tw-gradient-from: #DC2626 !important;
+}
+
+[data-template="bold-vibrant"] .to-pink-500 {
+  --tw-gradient-to: #EA580C !important;
+}
+
+[data-template="bold-vibrant"] .bg-purple-600,
+[data-template="bold-vibrant"] .bg-purple-500 {
+  background-color: #DC2626 !important;
+}
+
+[data-template="bold-vibrant"] .text-purple-600,
+[data-template="bold-vibrant"] .text-purple-500 {
+  color: #DC2626 !important;
+}
+
+/* ============================================
+   Soft Pastel Theme
+   ============================================ */
+[data-template="soft-pastel"] {
+  background-color: #FDF4FF;
+  color: #4C1D95;
+}
+
+[data-template="soft-pastel"] .bg-white {
+  background-color: #FFFFFF !important;
+}
+
+[data-template="soft-pastel"] .from-purple-600 {
+  --tw-gradient-from: #F9A8D4 !important;
+}
+
+[data-template="soft-pastel"] .to-pink-500 {
+  --tw-gradient-to: #C4B5FD !important;
+}
+
+[data-template="soft-pastel"] .text-gray-900 {
+  color: #4C1D95 !important;
+}
+
+/* ============================================
+   Forest Nature Theme
+   ============================================ */
+[data-template="forest-nature"] {
+  background-color: #F7FEE7;
+  color: #1A2E05;
+}
+
+[data-template="forest-nature"] .from-purple-600 {
+  --tw-gradient-from: #166534 !important;
+}
+
+[data-template="forest-nature"] .to-pink-500 {
+  --tw-gradient-to: #65A30D !important;
+}
+
+[data-template="forest-nature"] .bg-purple-600,
+[data-template="forest-nature"] .bg-purple-500 {
+  background-color: #166534 !important;
+}
+
+/* ============================================
+   Ocean Breeze Theme
+   ============================================ */
+[data-template="ocean-breeze"] {
+  background-color: #F0FDFA;
+  color: #134E4A;
+}
+
+[data-template="ocean-breeze"] .from-purple-600 {
+  --tw-gradient-from: #0891B2 !important;
+}
+
+[data-template="ocean-breeze"] .to-pink-500 {
+  --tw-gradient-to: #14B8A6 !important;
+}
+
+[data-template="ocean-breeze"] .bg-purple-600,
+[data-template="ocean-breeze"] .bg-purple-500 {
+  background-color: #0891B2 !important;
+}
+
+/* ============================================
+   Luxury Noir Theme
+   ============================================ */
+[data-template="luxury-noir"] {
+  background-color: #FAFAFA;
+  color: #171717;
+}
+
+[data-template="luxury-noir"] .from-purple-600 {
+  --tw-gradient-from: #171717 !important;
+}
+
+[data-template="luxury-noir"] .to-pink-500 {
+  --tw-gradient-to: #D4AF37 !important;
+}
+
+[data-template="luxury-noir"] h1,
+[data-template="luxury-noir"] h2,
+[data-template="luxury-noir"] h3 {
+  font-family: 'Cormorant Garamond', serif;
+  letter-spacing: 0.05em;
+}
+
+[data-template="luxury-noir"] .bg-purple-600,
+[data-template="luxury-noir"] .bg-purple-500 {
+  background-color: #171717 !important;
+}
+
+[data-template="luxury-noir"] .text-purple-600 {
+  color: #D4AF37 !important;
+}
+
+/* ============================================
+   Sunset Warm Theme
+   ============================================ */
+[data-template="sunset-warm"] {
+  background-color: #FFFBEB;
+  color: #451A03;
+}
+
+[data-template="sunset-warm"] .from-purple-600 {
+  --tw-gradient-from: #EA580C !important;
+}
+
+[data-template="sunset-warm"] .to-pink-500 {
+  --tw-gradient-to: #FBBF24 !important;
+}
+
+[data-template="sunset-warm"] .bg-purple-600,
+[data-template="sunset-warm"] .bg-purple-500 {
+  background-color: #EA580C !important;
+}
+
+/* ============================================
+   Tech Modern Theme
+   ============================================ */
+[data-template="tech-modern"] {
+  background-color: #F5F3FF;
+  color: #1E1B4B;
+}
+
+[data-template="tech-modern"] .from-purple-600 {
+  --tw-gradient-from: #7C3AED !important;
+}
+
+[data-template="tech-modern"] .to-pink-500 {
+  --tw-gradient-to: #2563EB !important;
+}
+
+[data-template="tech-modern"] h1,
+[data-template="tech-modern"] h2,
+[data-template="tech-modern"] h3 {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+/* ============================================
+   Vintage Film Theme
+   ============================================ */
+[data-template="vintage-film"] {
+  background-color: #FAF5F0;
+  color: #292524;
+}
+
+[data-template="vintage-film"] .from-purple-600 {
+  --tw-gradient-from: #78716C !important;
+}
+
+[data-template="vintage-film"] .to-pink-500 {
+  --tw-gradient-to: #C2410C !important;
+}
+
+[data-template="vintage-film"] img {
+  filter: sepia(10%) saturate(90%);
+}
+
+[data-template="vintage-film"] h1,
+[data-template="vintage-film"] h2,
+[data-template="vintage-film"] h3 {
+  font-family: 'Crimson Text', serif;
+}
+
+/* ============================================
+   Theme Transition Effects
+   ============================================ */
+[data-template] {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+[data-template] .bg-white,
+[data-template] .bg-gray-50,
+[data-template] .bg-gray-100 {
+  transition: background-color 0.3s ease;
+}
