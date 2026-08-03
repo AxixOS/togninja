@@ -56,8 +56,16 @@ router.post('/upload-logo', setupLogoUpload.single('file'), async (req: any, res
     }));
     return res.json({ url: buildPublicUrl(cfg.bucket, cfg.endpoint, key) });
   } catch (e: any) {
-    console.error('[setup] logo upload failed:', e?.message || e);
-    return res.status(500).json({ error: 'Logo upload failed. Please try again.' });
+    // Surface the underlying storage reason (bucket / keys / endpoint) instead of a
+    // generic message — after a storage-config change, uploads fail here and the
+    // owner needs to know WHY. Safe: only the S3 error code/name + a trimmed message,
+    // never the credentials themselves.
+    const reason = e?.Code || e?.name || e?.code || 'StorageError';
+    const detail = e?.message ? String(e.message).replace(/\s+/g, ' ').slice(0, 180) : '';
+    console.error('[setup] logo upload failed:', reason, detail || e);
+    return res.status(500).json({
+      error: `Logo upload failed (${reason}). Check your File storage keys, bucket and endpoint in setup.${detail ? ' — ' + detail : ''}`,
+    });
   }
 });
 
@@ -313,11 +321,27 @@ router.get('/status', async (_req: Request, res: Response) => {
     const phases = {
       basics: {
         complete: basicsComplete,
+        // Return the FULL saved profile so returning to the step repopulates every
+        // field (previously only name/timezone/currency came back, so tagline,
+        // phone, website, logo etc. looked blank — "it didn't save").
         data: config
           ? {
               businessName: config.businessName,
               timezone: config.timezone,
-              currency: integ?.default_currency || 'EUR',
+              currency: config.currency || integ?.default_currency || 'EUR',
+              vatNumber: config.vatNumber || '',
+              dateFormat: config.dateFormat || 'auto',
+              tagline: config.metaDescription || '',
+              primaryColor: config.primaryColor || '#3B82F6',
+              logoUrl: config.logoUrl || '',
+              phone: config.phone || '',
+              website: config.website || '',
+              address: config.address || '',
+              latitude: config.latitude || '',
+              longitude: config.longitude || '',
+              facebookUrl: config.facebookUrl || '',
+              instagramUrl: config.instagramUrl || '',
+              twitterUrl: config.twitterUrl || '',
             }
           : null,
       },
