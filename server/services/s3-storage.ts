@@ -12,9 +12,19 @@ interface StorageConfig {
   accessKeyId: string; secretAccessKey: string; isConfigured: boolean;
 }
 
+// Owners paste storage endpoints as bare hosts ("xyz.storage.supabase.co/storage/v1/s3").
+// The AWS SDK requires an absolute URL and throws `TypeError: Invalid URL` on a
+// schemeless endpoint — which surfaces as a cryptic upload failure. Normalise here so
+// any env- or wizard-supplied endpoint works with or without the scheme.
+function normalizeEndpoint(ep: string | null | undefined): string {
+  const s = String(ep || '').trim().replace(/\/+$/, '');
+  if (!s) return '';
+  return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+}
+
 function envStorageConfig(): StorageConfig {
   const bucket = process.env.AWS_S3_BUCKET || '';
-  const endpoint = (process.env.AWS_S3_ENDPOINT || '').replace(/\/$/, '');
+  const endpoint = normalizeEndpoint(process.env.AWS_S3_ENDPOINT);
   const region = process.env.AWS_REGION || 'eu-central-1';
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID || '';
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || '';
@@ -27,7 +37,7 @@ const STORAGE_TTL = 60_000;
 
 async function resolveStorageConfig(): Promise<StorageConfig> {
   const bucket = (await appConfig.get('storage_bucket')) || process.env.AWS_S3_BUCKET || '';
-  const endpoint = ((await appConfig.get('storage_endpoint')) || process.env.AWS_S3_ENDPOINT || '').replace(/\/$/, '');
+  const endpoint = normalizeEndpoint((await appConfig.get('storage_endpoint')) || process.env.AWS_S3_ENDPOINT || '');
   const region = (await appConfig.get('storage_region')) || process.env.AWS_REGION || 'eu-central-1';
   const accessKeyId = (await appConfig.get('storage_access_key_id')) || process.env.AWS_ACCESS_KEY_ID || '';
   const secretAccessKey = (await appConfig.get('storage_secret_key')) || process.env.AWS_SECRET_ACCESS_KEY || '';
