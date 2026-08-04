@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 
 interface Guide {
   slug: string;
@@ -36,9 +37,17 @@ const GUIDES: Record<string, Guide[]> = {
 
 export const PillarGuides: React.FC<{ pillar: string }> = ({ pillar }) => {
   const { language } = useLanguage();
-  const guides = GUIDES[pillar];
-  // The linked guide articles exist only in German — hide the block on EN.
-  if (language !== 'de') return null;
+  // Studios with their own Authority Map render that pillar's cluster articles; New Age
+  // (default map) keeps its exact hard-coded German guides.
+  const { map, isCustom } = useAuthorityMap();
+  const norm = (h: string) => (h.endsWith('/') ? h : `${h}/`);
+  const customPillar = isCustom ? map.pillars.find((p) => norm(p.href) === norm(pillar)) : null;
+  const guides: { to: string; title: string }[] = isCustom
+    ? (customPillar?.clusters || []).map((c) => ({ to: c.href, title: c.label }))
+    : (GUIDES[pillar] || []).map((g) => ({ to: `/blog/${g.slug}`, title: g.title }));
+  // The legacy guide articles exist only in German — hide the block on EN. A studio's own
+  // generated clusters are shown in whatever language they were generated in.
+  if (!isCustom && language !== 'de') return null;
   if (!guides || guides.length === 0) return null;
 
   return (
@@ -49,9 +58,9 @@ export const PillarGuides: React.FC<{ pillar: string }> = ({ pillar }) => {
         </h2>
         <ul className="space-y-3">
           {guides.map((g) => (
-            <li key={g.slug}>
+            <li key={g.to}>
               <Link
-                to={`/blog/${g.slug}`}
+                to={g.to}
                 className="group flex items-center justify-between rounded-lg border border-gray-100 p-4 hover:border-purple-200 hover:bg-purple-50 transition-colors"
               >
                 <span className="font-medium text-purple-800 group-hover:text-purple-900">{g.title}</span>

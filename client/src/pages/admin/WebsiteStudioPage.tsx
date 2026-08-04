@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
 import WebsiteWizard from './WebsiteWizard';
 import ManualWebsiteUpdatePage from './ManualWebsiteUpdatePage';
+import AuthorityMapPanel from '../../components/admin/AuthorityMapPanel';
 import { Search, PencilRuler, Palette } from 'lucide-react';
 
 /**
@@ -60,7 +61,12 @@ const WebsiteStudioPage: React.FC = () => {
       </div>
 
       {/* Tab body */}
-      {active === 'analyse' && <WebsiteWizard />}
+      {active === 'analyse' && (
+        <>
+          <AuthorityMapPanel />
+          <WebsiteWizard />
+        </>
+      )}
       {active === 'customise' && <ManualWebsiteUpdatePage embedded />}
       {active === 'themes' && (
         <div className="max-w-2xl">

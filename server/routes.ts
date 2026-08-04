@@ -6931,6 +6931,22 @@ Bitte versuchen Sie es später noch einmal.`;
     }
   });
 
+  // Generate a draft Authority Map from the studio's niche (AI). Returns it for review;
+  // the studio saves via PUT. Does not persist.
+  app.post("/api/authority-map/generate", authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const { generateAuthorityMap } = await import('./lib/authority-map-generator');
+      const b = req.body || {};
+      const map = await generateAuthorityMap({
+        businessName: b.businessName, niche: b.niche, services: b.services, city: b.city, language: b.language,
+      });
+      res.json({ ok: true, map });
+    } catch (e: any) {
+      const code = e?.name === 'NoOpenAIError' ? 400 : 500;
+      res.status(code).json({ error: e?.name === 'NoOpenAIError' ? 'OpenAI is not configured (set OPENAI_API_KEY) to generate an authority map.' : (e?.message || 'Failed to generate authority map') });
+    }
+  });
+
   app.get("/api/studio-config", async (req: Request, res: Response) => {
     // Return defaults - this endpoint will be enhanced when CMS is ready
     const studioConfig: any = {

@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 
 interface PillarLink {
   title: string;
@@ -52,10 +53,17 @@ export function PillarLinksBlock({
     ? currentPath.endsWith('/') ? currentPath : `${currentPath}/`
     : null;
 
-  const links = ALL_PILLARS.filter(l => {
+  // Studios with their own Authority Map list their pillars; New Age (default map) keeps
+  // its full hard-coded pillar grid.
+  const { map, isCustom } = useAuthorityMap();
+  const pillarSource: PillarLink[] = isCustom
+    ? map.pillars.map((p) => ({ title: p.label, titleEn: p.label, path: p.href, description: '', descriptionEn: '' }))
+    : ALL_PILLARS;
+
+  const links = pillarSource.filter(l => {
     const lp = l.path.endsWith('/') ? l.path : `${l.path}/`;
     return lp !== normalizedCurrent;
-  }).slice(0, limit ?? ALL_PILLARS.length);
+  }).slice(0, limit ?? pillarSource.length);
 
   return (
     <section className="py-14 bg-white border-t border-gray-100" data-seo="pillar-links">

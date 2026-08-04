@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Euro, Calendar } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 
 // EN display translations for the German card titles/descriptions below. The
 // data map keeps its German keyword-rich anchors (SEO); only the rendered text
@@ -238,7 +239,17 @@ export function RelatedServices({ currentPath, title }: RelatedServicesProps) {
   const headingText = title ?? tr('Weitere Fotoshootings in Wien')!;
   // Normalize path (ensure trailing slash)
   const normalizedPath = currentPath.endsWith('/') ? currentPath : `${currentPath}/`;
-  const links = serviceLinks[normalizedPath] || defaultLinks;
+  // Studios with their OWN Authority Map render from it; New Age (default map) keeps its
+  // exact hard-coded links below.
+  const { map, isCustom } = useAuthorityMap();
+  let links = serviceLinks[normalizedPath] || defaultLinks;
+  if (isCustom) {
+    const norm = (h: string) => (h.endsWith('/') ? h : `${h}/`);
+    const pillar = map.pillars.find((p) => norm(p.href) === normalizedPath);
+    const sibs = (pillar?.siblings || map.defaultPillar.siblings || []).map((s) => ({ title: s.label, path: s.href, description: '' }));
+    const conv = (map.conversionLinks || []).map((c) => ({ title: c.label, path: c.href, description: '' }));
+    links = [...sibs, ...conv];
+  }
 
   // Filter out current page from links
   const filteredLinks = links.filter(link => {
