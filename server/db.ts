@@ -25,9 +25,18 @@ if (!url) {
 const isLocal = !!url && /(^|@)(localhost|127\.0\.0\.1|::1)(:|\/)/.test(url);
 const useSsl = !!url && !isLocal && !/sslmode=disable/i.test(url);
 
+// Connection budget. Supabase's SESSION-mode pooler caps total client connections at
+// pool_size (15 on small plans) — and a second pool lives in auth.ts (session store), so
+// the two must SUM to under that cap or every query starts failing with
+// "(EMAXCONNSESSION) max clients reached in session mode". Keep the default conservative;
+// raise PG_POOL_MAX only on the transaction-mode pooler (port 6543) or a direct connection,
+// which allow far more clients. auth.ts reads PG_SESSION_POOL_MAX (default 3) — keep
+// PG_POOL_MAX + PG_SESSION_POOL_MAX comfortably below your pooler's pool_size.
+const poolMax = Math.max(1, parseInt(process.env.PG_POOL_MAX || '', 10) || 8);
+
 export const pool = url ? new Pool({
   connectionString: url,
-  max: 20,
+  max: poolMax,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
   ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
@@ -39,7 +48,7 @@ export const db = url ? drizzle(pool, {
 }) : null as any;
 
 if (url) {
-  console.log(`📊 Database: node-postgres (portable) — SSL ${useSsl ? 'on' : 'off'}`);
+  console.log(`📊 Database: node-postgres (portable) — SSL ${useSsl ? 'on' : 'off'}, pool max ${poolMax}`);
 } else {
   console.warn(`⚠️ Database: No connection - DATABASE_URL not configured`);
 }

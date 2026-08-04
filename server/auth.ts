@@ -13,7 +13,10 @@ const PgStore = pgSession(session);
 const sessionPool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 5, // Limit session pool to avoid exhausting Neon connection limits
+  // Kept small: this pool SUMS with the main pool in db.ts (PG_POOL_MAX) against the
+  // Supabase session-mode pooler cap (pool_size, 15 on small plans). Default 3 → 8+3=11,
+  // safely under 15. Tune PG_SESSION_POOL_MAX alongside PG_POOL_MAX if you raise the cap.
+  max: Math.max(1, parseInt(process.env.PG_SESSION_POOL_MAX || '', 10) || 3),
   connectionTimeoutMillis: 5000, // Fail fast instead of hanging indefinitely
   idleTimeoutMillis: 30000, // Release idle connections after 30s
 });
