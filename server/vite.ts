@@ -192,6 +192,35 @@ async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
     // STATIC_ROUTE_META is a module const defined later in the file; this is a
     // function, so it only reads it at request time (after module load) — safe.
     const staticKey = (reqPath.replace(/\/+$/, "") || "/");
+
+    // AI-generated homepage: when a studio has set a landing page as its homepage,
+    // serve that page's meta + prerendered body at "/" (canonical "/", not /lp/slug)
+    // so crawlers see the real homepage. Falls through to the built-in meta on any error.
+    if (staticKey === "/" || staticKey === "/en") {
+      try {
+        const { pool } = await import("./db");
+        const { rows } = await pool.query(`SELECT homepage_landing_slug FROM studio_configs LIMIT 1`);
+        const homeSlug = rows?.[0]?.homepage_landing_slug;
+        if (homeSlug) {
+          const neonMod: any = await import("../database.js");
+          const neonDb = neonMod.default || neonMod;
+          const page = typeof neonDb.getLandingPageBySlug === "function"
+            ? await neonDb.getLandingPageBySlug(homeSlug)
+            : null;
+          if (page) {
+            meta = {
+              title: page.seo_title || page.title || "Home",
+              description: String(page.meta_description || page.content_json?.hero?.subheadline || page.title || "").slice(0, 160),
+              canonical: `${SITE_ORIGIN}/`,
+              bodyHtml: lpBodyHtml(page),
+            };
+            routeMetaCache.set(reqPath, { meta, at: Date.now() });
+            return meta;
+          }
+        }
+      } catch { /* fall through to the built-in homepage meta */ }
+    }
+
     if (STATIC_ROUTE_META[staticKey]) {
       meta = STATIC_ROUTE_META[staticKey];
       routeMetaCache.set(reqPath, { meta, at: Date.now() });

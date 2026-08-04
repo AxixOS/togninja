@@ -46,8 +46,9 @@ function LanguageSwitch({
   );
 }
 
-export default function PublicLandingPage() {
-  const { slug } = useParams<{ slug: string }>();
+export default function PublicLandingPage({ slugOverride }: { slugOverride?: string } = {}) {
+  const { slug: paramSlug } = useParams<{ slug: string }>();
+  const slug = slugOverride || paramSlug;
   const [searchParams] = useSearchParams();
   const previewToken = searchParams.get('preview');
   // ?lang=en deep-links a visitor straight to the English rendering.

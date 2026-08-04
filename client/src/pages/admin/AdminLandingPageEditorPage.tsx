@@ -152,6 +152,23 @@ export default function AdminLandingPageEditorPage() {
     }
   }, [id, requestPreviewLink, toast]);
 
+  const [homepageState, setHomepageState] = useState<'idle' | 'setting' | 'set'>('idle');
+  const handleSetAsHomepage = useCallback(async () => {
+    if (!id) return;
+    setHomepageState('setting');
+    try {
+      const res = await fetch(`/api/admin/landing-pages/${id}/set-as-homepage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed');
+      setHomepageState('set');
+      toast({ title: 'Set as homepage', description: 'This page is now your public homepage (/).' });
+    } catch (e: any) {
+      setHomepageState('idle');
+      toast({ title: 'Could not set homepage', description: e?.message || 'Failed', variant: 'destructive' });
+    }
+  }, [id, toast]);
+
   if (editor.isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -180,6 +197,19 @@ export default function AdminLandingPageEditorPage() {
   }
 
   return (
+    <>
+    {editor.page.status === 'published' && (
+      <div className="fixed bottom-4 right-4 z-40">
+        <button
+          onClick={handleSetAsHomepage}
+          disabled={homepageState === 'setting'}
+          className="shadow-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-full disabled:opacity-60"
+          title="Make this published page your public homepage (/)"
+        >
+          {homepageState === 'set' ? '✓ Set as homepage' : homepageState === 'setting' ? 'Setting…' : '🏠 Set as homepage'}
+        </button>
+      </div>
+    )}
     <LandingPageEditorLayout
       page={editor.page}
       content={editor.content}
@@ -219,5 +249,6 @@ export default function AdminLandingPageEditorPage() {
       onUnpublish={handleUnpublish}
       onPreviewLink={handlePreviewLink}
     />
+    </>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import EmbeddedCRMChat from '../../components/chat/EmbeddedCRMChat';
 import GCalStatusBanner from '../../components/admin/GCalStatusBanner';
+import HomepageDraftBanner from '../../components/admin/HomepageDraftBanner';
 import { supabase } from '../../lib/supabase';
 import { 
   BarChart as BarChartIcon, 
@@ -693,6 +694,8 @@ const AdminDashboardPage: React.FC = () => {
       <div className="space-y-6">
         {/* Google Calendar health alert — shown only when sync is configured but failing */}
         <GCalStatusBanner />
+        {/* AI homepage draft handoff — shown only when an unpublished/unset draft exists */}
+        <HomepageDraftBanner />
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

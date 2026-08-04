@@ -6987,6 +6987,8 @@ Bitte versuchen Sie es später noch einmal.`;
       if (dbConfig?.address) {
         studioConfig.address = dbConfig.city ? `${dbConfig.address}, ${dbConfig.city}` : dbConfig.address;
       }
+      // The AI-generated homepage: when set, "/" renders this landing page slug.
+      studioConfig.homepageLandingSlug = dbConfig?.homepageLandingSlug || null;
     } catch (error) {
       console.warn('Could not fetch studio config from database, using defaults:', (error as any)?.message);
       // Continue with defaults
@@ -19007,6 +19009,39 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
     } catch (error) {
       console.error('Error unpublishing landing page:', error);
       res.status(500).json({ error: 'Failed to unpublish landing page' });
+    }
+  });
+
+  // POST set a published landing page as the public homepage ("/"). Writes the slug
+  // to studio_configs.homepage_landing_slug; the "/" route + SSR meta honour it.
+  app.post("/api/admin/landing-pages/:id/set-as-homepage", authOrApiKey('landing-pages:write'), async (req: Request, res: Response) => {
+    try {
+      const page = await neonDb.getLandingPage(req.params.id);
+      if (!page) return res.status(404).json({ error: 'Landing page not found' });
+      if (page.status !== 'published') {
+        return res.status(422).json({ error: 'Publish the page before setting it as your homepage.' });
+      }
+      await pool.query(
+        `UPDATE studio_configs SET homepage_landing_slug = $1, updated_at = now() WHERE id = (SELECT id FROM studio_configs LIMIT 1)`,
+        [page.slug],
+      );
+      res.json({ success: true, slug: page.slug });
+    } catch (error: any) {
+      console.error('Error setting homepage:', error?.message);
+      res.status(500).json({ error: 'Failed to set homepage' });
+    }
+  });
+
+  // POST clear the custom homepage — "/" reverts to the built-in HomePage.
+  app.post("/api/admin/landing-pages/unset-homepage", authOrApiKey('landing-pages:write'), async (_req: Request, res: Response) => {
+    try {
+      await pool.query(
+        `UPDATE studio_configs SET homepage_landing_slug = NULL, updated_at = now() WHERE id = (SELECT id FROM studio_configs LIMIT 1)`,
+      );
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error clearing homepage:', error?.message);
+      res.status(500).json({ error: 'Failed to clear homepage' });
     }
   });
 

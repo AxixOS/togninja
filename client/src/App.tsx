@@ -213,6 +213,25 @@ function LanguageRouteSync() {
   return null;
 }
 
+// Root route: render the studio's AI-generated homepage (a published landing page)
+// when one is set as the homepage, otherwise the built-in HomePage. Defaults to
+// HomePage while the config loads so there's no blank flash. SSR meta for "/" is
+// handled separately in server/vite.ts.
+function RootHome() {
+  const [slug, setSlug] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/studio-config')
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setSlug(d?.homepageLandingSlug || null); })
+      .catch(() => { if (!cancelled) setSlug(null); });
+    return () => { cancelled = true; };
+  }, []);
+  if (slug === undefined) return <HomePage />;
+  if (slug) return <PublicLandingPage slugOverride={slug} />;
+  return <HomePage />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -229,7 +248,7 @@ function App() {
               <ErrorBoundary>
               <Suspense fallback={<RouteFallback />}>
               <Routes>
-                <Route path="/" element={<HomePage />} />
+                <Route path="/" element={<RootHome />} />
 
                 {/* English (EN) URLs — separately indexable English pages that
                     render the same components with the language forced to EN via
