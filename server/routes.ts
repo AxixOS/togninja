@@ -13266,7 +13266,7 @@ Ihr Team von {{studioName}}`,
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.easyname.com',
       port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false,
+      secure: parseInt(process.env.SMTP_PORT || '587') === 465, // implicit TLS on 465
       auth: {
         user: process.env.BUSINESS_MAILBOX_USER || process.env.SMTP_USER || '',
         pass: process.env.EMAIL_PASSWORD || process.env.SMTP_PASS || ''

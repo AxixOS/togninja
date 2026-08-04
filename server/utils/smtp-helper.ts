@@ -34,7 +34,9 @@ export async function getSmtpTransporter(): Promise<nodemailer.Transporter> {
   const port = await config.getNumber('smtp_port', parseInt(process.env.SMTP_PORT || '465'));
   const user = await config.get('smtp_user') || process.env.BUSINESS_MAILBOX_USER || process.env.SMTP_USER || '';
   const pass = await config.get('smtp_pass') || process.env.EMAIL_PASSWORD || process.env.SMTP_PASS || '';
-  const secure = await config.getBoolean('smtp_secure', port === 465);
+  // Port 465 is implicit TLS — always secure on 465, even if smtp_secure was saved false
+  // (a toggle left off would otherwise fail the handshake). Other ports use the saved flag.
+  const secure = port === 465 ? true : await config.getBoolean('smtp_secure', false);
 
   if (!user || !pass) {
     console.warn('[smtp-helper] SMTP credentials not configured — emails will fail');
