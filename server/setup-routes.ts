@@ -527,6 +527,37 @@ router.post('/lead-sources', async (req: Request, res: Response) => {
   }
 });
 
+// ==================== DEMO RESET (start over) ====================
+// Wipe all test data and return the instance to a FRESH pre-onboarding state, so /setup
+// runs again from scratch. HARD-GUARDED on DEMO_MODE — it can never run on a real
+// customer instance. Also clears the admin + sessions (you'll create a new admin in the
+// wizard) and resets the studio profile; storage/DB env creds are untouched.
+router.post('/reset-demo', async (_req: Request, res: Response) => {
+  if (process.env.DEMO_MODE !== 'true') {
+    return res.status(403).json({ error: 'Reset is only available on demo instances (DEMO_MODE=true).' });
+  }
+  try {
+    // Core data (CASCADE clears dependent rows: invoices/items, gallery images, sessions,
+    // questionnaires, communications, etc. that reference clients/galleries).
+    try {
+      await db.execute(sql`TRUNCATE crm_invoice_items, crm_invoices, crm_leads, crm_clients, gallery_images, galleries, voucher_sales, lead_sources, email_campaigns, landing_pages, blog_posts, admin_users RESTART IDENTITY CASCADE`);
+    } catch (e: any) { console.warn('[reset-demo] core truncate:', e?.message); }
+    // On-demand tables that may not exist yet.
+    for (const t of ['ui_translations', 'i18n_settings', 'website_pages', 'crawl_jobs', 'theme_analysis', 'onboarding_sessions', 'user_sessions']) {
+      try { await db.execute(sql.raw(`TRUNCATE ${t} RESTART IDENTITY CASCADE`)); } catch { /* skip */ }
+    }
+    // Reset the studio_configs singleton to blank pre-onboarding state (keep the row +
+    // technical integration creds so storage keeps working).
+    try { await db.execute(sql`UPDATE studio_configs SET creative_setup_complete = false, technical_setup_complete = false, onboarding_state = NULL`); } catch {}
+    try { await db.execute(sql`UPDATE studio_configs SET homepage_gen_state = NULL, homepage_landing_slug = NULL, homepage_draft_landing_id = NULL, pricing_embed_url = NULL`); } catch {}
+    try { await db.execute(sql`UPDATE studio_configs SET business_name = NULL, logo_url = NULL, meta_description = NULL, address = NULL, phone = NULL, website = NULL, latitude = NULL, longitude = NULL`); } catch {}
+    return res.json({ ok: true, message: 'Demo data cleared. Open /setup to start onboarding again.' });
+  } catch (error: any) {
+    console.error('[reset-demo] error:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to reset demo data', detail: String(error?.message || error).slice(0, 200) });
+  }
+});
+
 // ==================== DEMO DATA SEED ====================
 // Populate a fresh instance with realistic sample data (clients + paid invoices +
 // leads) so a demo CRM shows no blanks and lifetime-value / revenue / top-clients /
