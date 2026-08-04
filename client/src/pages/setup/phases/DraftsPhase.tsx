@@ -60,6 +60,14 @@ export default function DraftsPhase({ onComplete }: DraftsPhaseProps) {
   const [showCsvImport, setShowCsvImport] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [seedStatus, setSeedStatus] = useState('');
+  // The "Load sample data" tool is for demo instances only — real studios import
+  // their own live data, so it's hidden unless DEMO_MODE is on.
+  const { data: setupStatusForDemo } = useQuery<any>({
+    queryKey: ['setup-status-demo'],
+    queryFn: () => fetch('/api/setup/status').then((r) => r.json()),
+    staleTime: 60_000,
+  });
+  const isDemo = !!setupStatusForDemo?.demoMode;
   const handleSeedDemo = async () => {
     setSeeding(true); setSeedStatus('');
     try {
@@ -328,7 +336,9 @@ export default function DraftsPhase({ onComplete }: DraftsPhaseProps) {
           )}
         </div>
 
-        {/* Demo / testing: load sample data so the CRM isn't blank */}
+        {/* Demo / testing only (DEMO_MODE): load sample data so the CRM isn't blank.
+            Hidden for real studios — they import their own live data. */}
+        {isDemo && (
         <div className="border border-dashed rounded-xl p-4 flex items-center justify-between gap-3">
           <div>
             <h3 className="font-medium text-gray-900 text-sm">Load sample data <Badge variant="secondary" className="text-xs ml-1">Demo</Badge></h3>
@@ -341,6 +351,7 @@ export default function DraftsPhase({ onComplete }: DraftsPhaseProps) {
             {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Load sample data'}
           </Button>
         </div>
+        )}
 
         {/* Draft List */}
         {pendingDrafts.length > 0 ? (

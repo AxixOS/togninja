@@ -388,6 +388,7 @@ router.get('/status', async (_req: Request, res: Response) => {
       progressPct: Math.round((doneCount / 5) * 100),
       phases,
       setupMode: !config?.creativeSetupComplete,
+      demoMode: process.env.DEMO_MODE === 'true',
       features: hubIntegration.getFeatureFlags(),
     });
   } catch (error) {
