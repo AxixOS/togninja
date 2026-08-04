@@ -4,6 +4,7 @@ import AdminLayout from '../../components/admin/AdminLayout';
 import WebsiteWizard from './WebsiteWizard';
 import ManualWebsiteUpdatePage from './ManualWebsiteUpdatePage';
 import AuthorityMapPanel from '../../components/admin/AuthorityMapPanel';
+import ThemesPanel from '../../components/admin/ThemesPanel';
 import { Search, PencilRuler, Palette } from 'lucide-react';
 
 /**
@@ -68,19 +69,7 @@ const WebsiteStudioPage: React.FC = () => {
         </>
       )}
       {active === 'customise' && <ManualWebsiteUpdatePage embedded />}
-      {active === 'themes' && (
-        <div className="max-w-2xl">
-          <div className="rounded-xl border border-dashed border-purple-200 bg-purple-50/50 p-8 text-center">
-            <Palette size={28} className="mx-auto text-purple-500 mb-3" />
-            <h3 className="text-lg font-semibold text-gray-900">Style presets are coming soon</h3>
-            <p className="text-gray-600 mt-1">
-              Named style themes (colours, fonts, spacing) that re-skin your whole site in one click —
-              wired into the live pages, not just a preview. In the meantime, the current template chooser
-              lives under <span className="font-medium">Settings → Studio Templates</span>.
-            </p>
-          </div>
-        </div>
-      )}
+      {active === 'themes' && <ThemesPanel />}
     </AdminLayout>
   );
 };

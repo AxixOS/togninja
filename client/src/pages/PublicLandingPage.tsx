@@ -14,6 +14,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { PublicLandingPageRenderer } from '@/features/landing-pages/components/public/PublicLandingPageRenderer';
 import { PublicLandingPageNotFound } from '@/features/landing-pages/components/public/PublicLandingPageNotFound';
+import { ThemeScope } from '@/components/public/ThemeScope';
 
 type Lang = 'de' | 'en';
 
@@ -88,11 +89,13 @@ export default function PublicLandingPage({ slugOverride }: { slugOverride?: str
   return (
     <>
       <LanguageSwitch value={language} onChange={setLanguage} busy={isFetching} />
-      <PublicLandingPageRenderer
-        page={page}
-        isPreview={isPreview}
-        previewExpiresAt={isPreview ? page.preview_token_expires_at : null}
-      />
+      <ThemeScope>
+        <PublicLandingPageRenderer
+          page={page}
+          isPreview={isPreview}
+          previewExpiresAt={isPreview ? page.preview_token_expires_at : null}
+        />
+      </ThemeScope>
     </>
   );
 }

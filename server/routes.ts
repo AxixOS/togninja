@@ -6947,6 +6947,32 @@ Bitte versuchen Sie es später noch einmal.`;
     }
   });
 
+  // Build the studio's own homepage from onboarding data (no crawl) + optional theme,
+  // and set it as "/". This is what gives a new studio a branded homepage instead of NAF's.
+  app.post("/api/admin/homepage/starter", authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const { generateStarterHomepage } = await import('./lib/starter-homepage');
+      const out = await generateStarterHomepage({ themePreset: req.body?.preset });
+      res.json({ ok: true, ...out });
+    } catch (e: any) {
+      console.error('[starter-homepage]', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to build homepage' });
+    }
+  });
+
+  // Public-site theme preset — set the studio's chosen token theme.
+  app.put("/api/admin/site-theme", authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const id = String(req.body?.preset || req.body?.id || '').trim();
+      if (!id) return res.status(400).json({ error: 'preset id is required' });
+      const { saveSiteTheme } = await import('./lib/site-theme');
+      const preset = await saveSiteTheme(id);
+      res.json({ ok: true, preset });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to save theme' });
+    }
+  });
+
   // Phase 2: scaffold a draft landing page for each pillar in the Authority Map.
   app.post("/api/authority-map/scaffold", authenticateUser, async (req: Request, res: Response) => {
     try {
@@ -7045,6 +7071,8 @@ Bitte versuchen Sie es später noch einmal.`;
       studioConfig.homepageLandingSlug = dbConfig?.homepageLandingSlug || null;
       // The studio's own PricingEmbed calculator (homepage price calculator).
       studioConfig.pricingEmbedUrl = dbConfig?.pricingEmbedUrl || null;
+      // Public-site theme preset (tokens) — the client applies it to landing pages.
+      try { const { getSiteTheme } = await import('./lib/site-theme'); studioConfig.siteTheme = await getSiteTheme(); } catch { /* default */ }
     } catch (error) {
       console.warn('Could not fetch studio config from database, using defaults:', (error as any)?.message);
       // Continue with defaults

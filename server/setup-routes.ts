@@ -435,6 +435,19 @@ router.post('/homepage/generate', async (req: Request, res: Response) => {
   }
 });
 
+// Build a starter homepage from onboarding data (no crawl) + optional theme, and set it as
+// "/". Open during onboarding (no admin session yet), so a new studio gets its own homepage.
+router.post('/homepage/starter', async (req: Request, res: Response) => {
+  try {
+    const { generateStarterHomepage } = await import('./lib/starter-homepage');
+    const out = await generateStarterHomepage({ themePreset: req.body?.preset });
+    return res.json({ ok: true, ...out });
+  } catch (error: any) {
+    console.error('[setup] starter homepage failed:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to build homepage' });
+  }
+});
+
 router.get('/homepage/status', async (_req: Request, res: Response) => {
   try {
     const config = await getConfigRow();
