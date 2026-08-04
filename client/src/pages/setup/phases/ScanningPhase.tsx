@@ -236,6 +236,7 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
         {hp?.status === 'error' && (
           <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
             We couldn't auto-generate a homepage from your website this time — you can create one anytime from your dashboard. This won't hold up your setup.
+            {hp?.error && <span className="block mt-1 text-xs text-amber-700">Reason: {hp.error}</span>}
           </div>
         )}
 
