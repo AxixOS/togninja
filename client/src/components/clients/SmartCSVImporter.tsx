@@ -27,7 +27,13 @@ interface CSVPreviewData {
   totalRows: number;
 }
 
-const SmartCSVImporter: React.FC = () => {
+interface SmartCSVImporterProps {
+  // Where each parsed client is POSTed. Defaults to the auth-gated admin CRM
+  // endpoint; onboarding passes the open '/api/setup/import-clients' instead.
+  endpoint?: string;
+}
+
+const SmartCSVImporter: React.FC<SmartCSVImporterProps> = ({ endpoint = '/api/crm/clients' }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<CSVPreviewData | null>(null);
@@ -327,7 +333,7 @@ const SmartCSVImporter: React.FC = () => {
 
               // Insert into database using API
               try {
-                await apiRequest('/api/crm/clients', {
+                await apiRequest(endpoint, {
                   method: 'POST',
                   body: JSON.stringify(clientData),
                   credentials: 'include' // Important for session cookies

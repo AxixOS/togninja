@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Papa from 'papaparse';
 import AdminLayout from '../../../components/admin/AdminLayout';
 import { useLanguage } from '../../../context/LanguageContext';
 import {
@@ -212,29 +213,36 @@ const PriceListSettingsPage: React.FC = () => {
       setImportStatus('Processing CSV file...');
       
       const text = await importFile.text();
-      const lines = text.split('\\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim());
-      
+      // Parse with papaparse so quoted fields, embedded commas and real newlines
+      // (CRLF/LF) all work — the old code split on the literal string "\\n" and a
+      // naive comma, which broke every real CSV. Positional columns as documented:
+      // Name, Description, Category, Price, Currency, Tax Rate, Unit, Notes.
+      const parsed = Papa.parse<string[]>(text, { skipEmptyLines: true });
+      const rows = ((parsed.data as any[]) || []).filter(
+        (r) => Array.isArray(r) && r.some((c) => String(c).trim())
+      );
+      // Skip an optional header row (first cell looks like a "name" header).
+      if (rows.length && /^(name|item|product|service|title)$/i.test(String(rows[0][0] || '').trim())) {
+        rows.shift();
+      }
+
       const items = [];
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
-        if (values.length < 2) continue;
-        
-        const item = {
-          name: values[0] || '',
-          description: values[1] || '',
-          category: values[2] || 'GENERAL',
-          price: parseFloat(values[3]?.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0,
-          currency: values[4] || 'EUR',
-          taxRate: parseFloat(values[5]) || 19.00,
-          unit: values[6] || 'piece',
-          notes: values[7] || '',
-          isActive: true
-        };
-        
-        if (item.name && item.price > 0) {
-          items.push(item);
-        }
+      for (const cols of rows) {
+        const val = (i: number) => String(cols[i] ?? '').trim();
+        const name = val(0);
+        const price = parseFloat(val(3).replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+        if (!name || price <= 0) continue;
+        items.push({
+          name,
+          description: val(1),
+          category: val(2) || 'GENERAL',
+          price,
+          currency: val(4) || 'EUR',
+          taxRate: parseFloat(val(5)) || 19.00,
+          unit: val(6) || 'piece',
+          notes: val(7),
+          isActive: true,
+        });
       }
       
       if (items.length === 0) {

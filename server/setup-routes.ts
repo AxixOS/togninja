@@ -391,6 +391,53 @@ router.get('/status', async (_req: Request, res: Response) => {
   }
 });
 
+// ==================== ONBOARDING CLIENT IMPORT ====================
+// Bulk client import during onboarding. The admin CRM endpoint (/api/crm/clients)
+// is auth-gated, but onboarding has no session yet — this open setup endpoint lets
+// the wizard's CSV importer actually work. It's gated shut once setup completes
+// (see the /api/setup mount guard), and dedupes by email so a re-run is safe.
+router.post('/import-clients', async (req: Request, res: Response) => {
+  try {
+    const b = req.body || {};
+    const firstName = String(b.firstName || '').trim();
+    const email = String(b.email || '').trim();
+    if (!firstName) return res.status(400).json({ error: 'firstName is required' });
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return res.status(400).json({ error: `Invalid email address: ${email}` });
+    }
+    // Dedupe by email (case-insensitive) so importing the same list twice is a no-op.
+    if (email) {
+      const existing = await db
+        .select({ id: crmClients.id })
+        .from(crmClients)
+        .where(sql`lower(${crmClients.email}) = ${email.toLowerCase()}`)
+        .limit(1);
+      if (existing.length) return res.json({ skipped: true, reason: 'duplicate-email', id: existing[0].id });
+    }
+    const [created] = await db
+      .insert(crmClients)
+      .values({
+        firstName,
+        lastName: String(b.lastName || '').trim() || '',
+        email: email || null,
+        phone: b.phone || null,
+        address: b.address || null,
+        city: b.city || null,
+        state: b.state || null,
+        zip: b.zip || null,
+        country: b.country || null,
+        company: b.company || null,
+        notes: b.notes || null,
+        status: b.status || 'active',
+      } as any)
+      .returning({ id: crmClients.id });
+    return res.json({ id: created.id, created: true });
+  } catch (error: any) {
+    console.error('[setup] import-clients error:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to import client' });
+  }
+});
+
 // ==================== PHASE 1: BASICS ====================
 
 router.post('/basics', async (req: Request, res: Response) => {

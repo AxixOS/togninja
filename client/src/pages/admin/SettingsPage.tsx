@@ -18,7 +18,8 @@ import {
   Sparkles,
   HardDrive,
   MessageSquare,
-  CreditCard
+  CreditCard,
+  Calendar
 } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
@@ -111,6 +112,13 @@ const SettingsPage: React.FC = () => {
           description: 'Stripe keys for voucher sales and online payments (with test)',
           path: '/admin/settings/payments',
           color: 'bg-indigo-500'
+        },
+        {
+          icon: Calendar,
+          title: 'Google Calendar',
+          description: 'Connect your Google Calendar to sync bookings both ways',
+          path: '/admin/calendar-sync',
+          color: 'bg-blue-500'
         }
       ]
     },

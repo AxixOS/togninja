@@ -55,7 +55,9 @@ interface Draft {
 export default function DraftsPhase({ onComplete }: DraftsPhaseProps) {
   const queryClient = useQueryClient();
   const [selectedDraft, setSelectedDraft] = useState<Draft | null>(null);
-  const [showCsvImport, setShowCsvImport] = useState(false);
+  // Default OPEN so studios actually find the client importer during onboarding
+  // (it used to be a collapsed accordion and was easy to miss).
+  const [showCsvImport, setShowCsvImport] = useState(true);
   const [editedContent, setEditedContent] = useState('');
   
   // Fetch drafts
@@ -305,7 +307,7 @@ export default function DraftsPhase({ onComplete }: DraftsPhaseProps) {
                   <p className="text-sm text-gray-500 mt-2">Loading CSV Importer...</p>
                 </div>
               }>
-                <SmartCSVImporter />
+                <SmartCSVImporter endpoint="/api/setup/import-clients" />
               </Suspense>
             </div>
           )}
