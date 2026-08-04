@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 
 interface LinkSpec {
   to: string;
@@ -230,6 +231,46 @@ export const ContextualLinks: React.FC<ContextualLinksProps> = ({ pathname, lang
   // Self-aware: honour the selected language even if a page forgets the prop.
   const { language: contextLanguage } = useLanguage();
   const language = languageProp ?? contextLanguage;
+  const { map, isCustom } = useAuthorityMap();
+
+  // Studios with their own Authority Map: build the in-body anchors from the matching
+  // pillar's siblings + conversion links. New Age (default seed) keeps its exact hand-
+  // written per-page prose below.
+  if (isCustom) {
+    const norm = (h: string) => (h.endsWith('/') ? h : `${h}/`);
+    const pillar = map.pillars.find((p) => norm(p.href) === norm(pathname));
+    const links = (pillar?.siblings || []).map((s) => ({ to: s.href, label: s.label }));
+    if (!links.length) return null;
+    const conv = (map.conversionLinks || []).slice(0, 2);
+    const anchor = 'text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium';
+    return (
+      <section className="py-8 bg-purple-50 border-y border-purple-100">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-base text-gray-700 leading-relaxed">
+            {language === 'de' ? 'Sehen Sie auch' : 'You may also like'}{' '}
+            {links.map((link, i) => (
+              <React.Fragment key={link.to}>
+                <Link to={link.to} className={anchor}>{link.label}</Link>
+                {i < links.length - 2 ? ', ' : i === links.length - 2 ? (language === 'de' ? ' und ' : ' and ') : '.'}
+              </React.Fragment>
+            ))}
+            {conv.length > 0 && (
+              <>
+                {' '}
+                {conv.map((c, i) => (
+                  <React.Fragment key={c.href}>
+                    <Link to={c.href} className={anchor}>{c.label}</Link>
+                    {i < conv.length - 1 ? (language === 'de' ? ' · ' : ' · ') : '.'}
+                  </React.Fragment>
+                ))}
+              </>
+            )}
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   const ctx = CONTEXTS[pathname];
   if (!ctx) return null;
 

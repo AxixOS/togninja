@@ -162,6 +162,12 @@ cron.schedule("0 * * * *", async () => {
         published++;
         jobLog('BLOG', `Published: "${post.title}" (${post.slug})`);
 
+        // Close the topical loop: register this cluster under its pillar (custom maps only).
+        try {
+          const { registerClusterForPost } = await import("../lib/authority-map.js");
+          await registerClusterForPost(post.slug, post.title);
+        } catch { /* best-effort */ }
+
         // Best-effort: push the post's Social Pack into Pulse (AxixOS) for social
         // distribution. Auto-generates the pack if missing. Gated by PULSE_AUTODISTRIBUTE
         // so it stays dormant until explicitly enabled; never blocks the publish.
