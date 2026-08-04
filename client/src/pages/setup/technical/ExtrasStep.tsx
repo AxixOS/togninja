@@ -21,8 +21,6 @@ interface Props {
 export default function ExtrasStep({ onComplete, onBack }: Props) {
   // AI
   const [openaiApiKey, setOpenaiApiKey] = useState('');
-  const [openaiAssistantId, setOpenaiAssistantId] = useState('');
-  const [anthropicApiKey, setAnthropicApiKey] = useState('');
   
   // Google
   const [googleClientId, setGoogleClientId] = useState('');
@@ -65,7 +63,6 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
   useEffect(() => {
     if (current?.extras) {
       const e = current.extras;
-      setOpenaiAssistantId(e.openaiAssistantId || '');
       setGoogleClientId(e.googleClientId || '');
       setGoogleCalendarId(e.googleCalendarId || '');
       setGa4MeasurementId(e.ga4MeasurementId || '');
@@ -86,8 +83,6 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           openaiApiKey: openaiApiKey || undefined,
-          openaiAssistantId: openaiAssistantId || undefined,
-          anthropicApiKey: anthropicApiKey || undefined,
           googleClientId: showGoogle ? googleClientId : undefined,
           googleClientSecret: showGoogle ? googleClientSecret : undefined,
           googleCalendarId: showGoogle ? googleCalendarId : undefined,
@@ -153,7 +148,7 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
         {/* AI Section */}
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
-            <Bot className="w-4 h-4" /> AI Assistants
+            <Bot className="w-4 h-4" /> AI
           </h3>
 
           <div className="space-y-2">
@@ -167,17 +162,6 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
               placeholder={current?.extras?.openaiKeySet ? '••••••••' : 'sk-...'}
               value={openaiApiKey}
               onChange={e => setOpenaiApiKey(e.target.value)}
-              className="font-mono text-sm"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="openaiAssistantId">OpenAI Assistant ID</Label>
-            <Input
-              id="openaiAssistantId"
-              placeholder="asst_..."
-              value={openaiAssistantId}
-              onChange={e => setOpenaiAssistantId(e.target.value)}
               className="font-mono text-sm"
             />
           </div>
@@ -202,20 +186,6 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="anthropicApiKey">
-              Anthropic API Key
-              {current?.extras?.anthropicKeySet && <span className="text-green-600 text-xs ml-2">(saved)</span>}
-            </Label>
-            <Input
-              id="anthropicApiKey"
-              type="password"
-              placeholder={current?.extras?.anthropicKeySet ? '••••••••' : 'sk-ant-...'}
-              value={anthropicApiKey}
-              onChange={e => setAnthropicApiKey(e.target.value)}
-              className="font-mono text-sm"
-            />
-          </div>
         </div>
 
         {/* Google Section (collapsible) */}
