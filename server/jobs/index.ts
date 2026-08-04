@@ -198,4 +198,14 @@ cron.schedule("0 * * * *", async () => {
   }
 }, { timezone: process.env.TZ || 'UTC' });
 
+/* ShootCleaner invoice.paid webhook — announce paid SC orders within ~1 min */
+cron.schedule("*/1 * * * *", async () => {
+  try {
+    const { sweepPaidInvoices } = await import("../lib/shootcleaner-webhook.js");
+    await sweepPaidInvoices(); // no-op unless a webhook is registered
+  } catch (err) {
+    jobLog('SC-WEBHOOK', 'invoice.paid sweep failed', err instanceof Error ? err.message : err);
+  }
+}, { timezone: process.env.TZ || 'UTC' });
+
 // NOTE: Supabase realtime/live update paths deprecated; hourly polling via Neon is now active.

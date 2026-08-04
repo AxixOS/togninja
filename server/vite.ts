@@ -242,11 +242,14 @@ async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
       const isLive = post && post.published === true &&
         (!post.publishedAt || new Date(post.publishedAt).getTime() <= Date.now());
       if (isLive) {
+        const studioName = await getStudioName();
         meta = {
           title: post.seoTitle || `${post.title} | New Age Fotografie Blog`,
           description: String(post.metaDescription || post.excerpt || post.title).slice(0, 160),
           canonical: `${SITE_ORIGIN}/blog/${slug}`,
-          bodyHtml: blogBodyHtml(post),
+          // Auto-embed JSON-LD (BlogPosting + FAQ + any ShootCleaner-supplied schema) so
+          // published posts are structured-data rich for search and AI-answer citations.
+          bodyHtml: blogBodyHtml(post) + blogJsonLd(post, studioName),
         };
       }
     } else if (voucherMatch) {
@@ -382,6 +385,69 @@ function blogBodyHtml(post: any): string {
     `</div>\n` +
     `</div>`
   );
+}
+
+// Studio name for JSON-LD publisher/author (multi-tenant), cached 5 min.
+let _studioNameCache: { value: string; at: number } | null = null;
+async function getStudioName(): Promise<string> {
+  if (_studioNameCache && Date.now() - _studioNameCache.at < 300_000) return _studioNameCache.value;
+  let name = '';
+  try {
+    const { pool } = await import("./db"); // pool isn't a module-level import in this file
+    const r = await pool.query('SELECT business_name, studio_name FROM studio_configs LIMIT 1');
+    name = (r.rows[0]?.business_name || r.rows[0]?.studio_name || '').trim();
+  } catch { /* studio_configs may not exist yet */ }
+  _studioNameCache = { value: name, at: Date.now() };
+  return name;
+}
+
+// Build JSON-LD <script> tags for a published blog post. Emits a baseline BlogPosting
+// (unless ShootCleaner already supplied Article/BlogPosting), a FAQPage from the SC FAQ
+// block, and any ready-made JSON-LD ShootCleaner shipped in idea_data.shootcleaner. The
+// JSON is `<`-escaped so a string containing "</script>" can't break out of the tag.
+function blogJsonLd(post: any, studioName: string): string {
+  const scripts: string[] = [];
+  const emit = (obj: any) => {
+    try { scripts.push(`<script type="application/ld+json">${JSON.stringify(obj).replace(/</g, "\\u003c")}</script>`); }
+    catch { /* skip unserializable */ }
+  };
+  const idea = (post.ideaData || post.idea_data || {}) as any;
+  const sc = (idea && idea.shootcleaner) || {};
+  const explicit = Array.isArray(sc.jsonld) ? sc.jsonld : (sc.jsonld && typeof sc.jsonld === "object" ? [sc.jsonld] : []);
+  const types = new Set(explicit.map((o: any) => o && o["@type"]).filter(Boolean));
+  const publisher = { "@type": "Organization", name: studioName || "New Age Fotografie" };
+
+  if (!types.has("BlogPosting") && !types.has("Article")) {
+    const published = post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined;
+    const modified = post.updatedAt ? new Date(post.updatedAt).toISOString() : published;
+    emit({
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      headline: String(post.title || "").slice(0, 110),
+      description: String(post.metaDescription || post.excerpt || "").slice(0, 300) || undefined,
+      image: post.imageUrl ? [String(post.imageUrl)] : undefined,
+      datePublished: published,
+      dateModified: modified,
+      author: publisher,
+      publisher,
+      mainEntityOfPage: { "@type": "WebPage", "@id": `${SITE_ORIGIN}/blog/${post.slug}` },
+    });
+  }
+
+  const faq = Array.isArray(sc.faq) ? sc.faq : [];
+  if (faq.length && !types.has("FAQPage")) {
+    const mainEntity = faq.map((f: any) => {
+      const q = f?.question ?? f?.q; const a = f?.answer ?? f?.a;
+      if (!q || !a) return null;
+      return { "@type": "Question", name: String(q), acceptedAnswer: { "@type": "Answer", text: String(a) } };
+    }).filter(Boolean);
+    if (mainEntity.length) emit({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity });
+  }
+
+  for (const o of explicit) {
+    if (o && typeof o === "object") emit(o["@context"] ? o : { "@context": "https://schema.org", ...o });
+  }
+  return scripts.length ? `\n${scripts.join("\n")}` : "";
 }
 
 function lpBodyHtml(page: any): string {

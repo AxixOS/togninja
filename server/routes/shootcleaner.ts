@@ -5,6 +5,7 @@ import { PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { pool } from '../db';
 import { getS3Client, getS3Config, buildPublicUrl } from '../services/s3-storage';
+import { getWebhookConfig, setWebhookUrl, clearWebhook, sweepPaidInvoices, WEBHOOK_EVENTS } from '../lib/shootcleaner-webhook';
 
 const router = Router();
 
@@ -136,7 +137,8 @@ function ensureExportSchema(): Promise<void> {
           external_ref text PRIMARY KEY,
           entity_type  text NOT NULL,
           entity_id    text NOT NULL,
-          created_at   timestamptz DEFAULT now()
+          created_at   timestamptz DEFAULT now(),
+          notified_at  timestamptz
         )
       `)
       .then(() => undefined)
@@ -324,6 +326,7 @@ router.get('/health', requireShootCleanerApiKey, async (req, res) => {
     const row = r.rows[0];
     if (row) { studioId = row.id; studioName = row.business_name || row.studio_name || null; }
   } catch { /* studio not configured yet */ }
+  const webhook = await getWebhookConfig();
   res.json({
     ok: true,
     service: 'shootcleaner',
@@ -331,7 +334,33 @@ router.get('/health', requireShootCleanerApiKey, async (req, res) => {
     studioId,
     studioName,
     scopes: ALL_SCOPES,
+    webhooks: { events: WEBHOOK_EVENTS, registered: !!webhook },
   });
+});
+
+// --- Outbound webhooks: register where TN POSTs invoice.paid --------------------
+router.get('/webhooks', requireScope('orders:write'), async (_req, res) => {
+  const cfg = await getWebhookConfig();
+  res.json({ url: cfg?.url || null, registered: !!cfg, events: WEBHOOK_EVENTS });
+});
+
+router.post('/webhooks', requireScope('orders:write'), async (req, res) => {
+  try {
+    const url = String(req.body?.url || '').trim();
+    if (!/^https:\/\//i.test(url)) return res.status(400).json({ error: 'url must be an https:// URL', code: 'invalid_request' });
+    const { secret, created } = await setWebhookUrl(url);
+    // The signing secret is returned ONCE on first registration (or when rotated). Verify
+    // the x-shootcleaner-signature header (sha256=HMAC-SHA256(rawBody, secret)) on delivery.
+    res.json({ url, events: WEBHOOK_EVENTS, secret: created ? secret : undefined, secretReturned: created });
+  } catch (error: any) {
+    console.error('[shootcleaner] webhook register failed:', error?.message || error);
+    res.status(500).json({ error: 'Failed to register webhook', code: 'webhook_register_failed' });
+  }
+});
+
+router.delete('/webhooks', requireScope('orders:write'), async (_req, res) => {
+  try { await clearWebhook(); res.json({ ok: true, registered: false }); }
+  catch (error: any) { res.status(500).json({ error: 'Failed to clear webhook', code: 'webhook_clear_failed' }); }
 });
 
 router.get('/galleries', requireShootCleanerApiKey, async (req, res) => {
@@ -1214,6 +1243,7 @@ router.post('/orders', requireScope('orders:write'), async (req, res) => {
         await pool.query('UPDATE crm_invoices SET status=$2, paid_amount=$3, total=$4, subtotal=$5, tax_amount=$6, currency=$7, updated_at=NOW() WHERE id=$1', [existing.entityId, invStatus, paidAmount, dec(total), dec(subtotal), dec(tax), currency]);
         const inv = await pool.query('SELECT id, invoice_number, status, total FROM crm_invoices WHERE id=$1', [existing.entityId]);
         const r0 = inv.rows[0];
+        void sweepPaidInvoices().catch(() => {}); // announce immediately if now paid (cron is the fallback)
         return res.json({ id: r0.id, invoiceNumber: r0.invoice_number, status: r0.status, total: r0.total, updated: true });
       }
     }
@@ -1235,6 +1265,7 @@ router.post('/orders', requireScope('orders:write'), async (req, res) => {
     }
     if (externalRef) await recordExternalRef(externalRef, 'invoice', invId);
     const r0 = ins.rows[0];
+    void sweepPaidInvoices().catch(() => {}); // announce immediately if created paid (cron is the fallback)
     return res.status(201).json({ id: r0.id, invoiceNumber: r0.invoice_number, status: r0.status, total: r0.total });
   } catch (error: any) {
     console.error('[shootcleaner] order create failed:', error?.message || error);

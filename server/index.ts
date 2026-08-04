@@ -575,6 +575,13 @@ app.use((req, res, next) => {
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS homepage_landing_slug TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS pricing_embed_url TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_api_key TEXT`);
+        // ShootCleaner outbound webhook (invoice.paid): where to POST + the HMAC secret.
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_webhook_url TEXT`);
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_webhook_secret TEXT`);
+        // Idempotency for outbound webhooks: stamp when a paid-invoice notice was delivered.
+        // (Table is normally created lazily on first ShootCleaner call — ensure it exists.)
+        await db.execute(sql`CREATE TABLE IF NOT EXISTS shootcleaner_exports (external_ref text PRIMARY KEY, entity_type text NOT NULL, entity_id text NOT NULL, created_at timestamptz DEFAULT now())`);
+        await db.execute(sql`ALTER TABLE shootcleaner_exports ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ`);
         console.log('✅ Onboarding columns migration completed');
       } catch (migrationError: any) {
         console.warn('⚠️ Onboarding columns migration already applied or failed:', migrationError.message);
