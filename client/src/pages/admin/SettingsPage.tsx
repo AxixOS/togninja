@@ -22,7 +22,8 @@ import {
   Calendar,
   BarChart3,
   Link2,
-  Server
+  Server,
+  Languages
 } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
@@ -170,6 +171,13 @@ const SettingsPage: React.FC = () => {
           description: 'Manage price list items and import CSV files',
           path: '/admin/settings/price-list',
           color: 'bg-emerald-500'
+        },
+        {
+          icon: Languages,
+          title: 'Languages',
+          description: 'Choose site languages + default; AI-translate French & Spanish',
+          path: '/admin/settings/languages',
+          color: 'bg-fuchsia-500'
         }
       ]
     }

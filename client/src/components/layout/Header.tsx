@@ -4,6 +4,7 @@ import { toEnglishPath, toGermanPath } from '../../config/localeRoutes';
 import { Menu, Globe, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import LanguageSelector from '../common/LanguageSelector';
 import { useManualPageContent } from '../../hooks/useManualPageContent';
 import { SITE } from '../../config/site';
 
@@ -178,14 +179,17 @@ const Header: React.FC = () => {
             )}
           </div>
 
-          <button
-            onClick={toggleLanguage}
-            className="text-gray-700 hover:text-purple-600 transition-colors flex items-center"
-            aria-label="Toggle language"
-          >
-            <Globe size={18} className="mr-1" />
-            <span className="uppercase">{language}</span>
-          </button>
+          <LanguageSelector
+            className="text-gray-700"
+            onSelect={(target) => {
+              setLanguage(target as any);
+              // en/de have paired localized URLs — move to the matching one.
+              if (target === 'en' || target === 'de') {
+                const localized = target === 'en' ? toEnglishPath(location.pathname) : toGermanPath(location.pathname);
+                if (localized && localized !== location.pathname) navigate(localized);
+              }
+            }}
+          />
 
           {/* Primary conversion CTA — the header's most-viewed real estate. */}
           <Link
@@ -299,16 +303,19 @@ const Header: React.FC = () => {
               )}
             </div>
 
-            <button
-              onClick={() => {
-                toggleLanguage();
-                setMenuOpen(false);
-              }}
-              className="py-2 text-left text-gray-700 hover:text-purple-600 transition-colors flex items-center"
-            >
-              <Globe size={18} className="mr-1" />
-              <span className="uppercase">{language}</span>
-            </button>
+            <div className="py-2">
+              <LanguageSelector
+                className="text-gray-700"
+                onSelect={(target) => {
+                  setLanguage(target as any);
+                  setMenuOpen(false);
+                  if (target === 'en' || target === 'de') {
+                    const localized = target === 'en' ? toEnglishPath(location.pathname) : toGermanPath(location.pathname);
+                    if (localized && localized !== location.pathname) navigate(localized);
+                  }
+                }}
+              />
+            </div>
           </div>
         </div>
       )}

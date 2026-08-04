@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { SITE } from '../config/site';
 
-type Language = 'en' | 'de';
+type Language = 'en' | 'de' | 'fr' | 'es';
+const SUPPORTED_LANGS: Language[] = ['en', 'de', 'fr', 'es'];
 
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language, persist?: boolean) => void;
   t: (key: string) => string;
+  enabledLanguages: Language[];
 }
 
 const translations = {
@@ -2342,6 +2344,10 @@ const translations = {
   }
 };
 
+// English source strings — the admin "Generate translations" action sends these to
+// the server for AI translation into French/Spanish.
+export const enTranslations = translations.en as Record<string, string>;
+
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -2354,7 +2360,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
       try { return localStorage.getItem('languageUserSet'); } catch { return null; }
     })();
 
-    if (userSet === 'true' && (savedLang === 'en' || savedLang === 'de')) {
+    if (userSet === 'true' && savedLang && (SUPPORTED_LANGS as string[]).includes(savedLang)) {
       return savedLang as Language;
     }
 
@@ -2406,18 +2412,61 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     return () => { cancelled = true; };
   }, [language]);
 
+  // Enabled languages + the studio's default (from /api/i18n/settings). English and
+  // German ship built-in; French/Spanish are AI-generated and cached server-side.
+  const [enabledLanguages, setEnabledLanguages] = useState<Language[]>(['en', 'de']);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/i18n/settings');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (Array.isArray(data.enabledLanguages) && data.enabledLanguages.length) {
+          setEnabledLanguages(data.enabledLanguages.filter((l: string) => (SUPPORTED_LANGS as string[]).includes(l)));
+        }
+        // Apply the studio default only if the user hasn't explicitly chosen a language.
+        const userSet = (() => { try { return localStorage.getItem('languageUserSet'); } catch { return null; } })();
+        if (userSet !== 'true' && data.defaultLanguage && (SUPPORTED_LANGS as string[]).includes(data.defaultLanguage)) {
+          _setLanguage(data.defaultLanguage);
+        }
+      } catch { /* keep en/de defaults */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Runtime translation map for AI-generated languages (fr/es). Empty for en/de.
+  const [runtimeTx, setRuntimeTx] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let cancelled = false;
+    if (language === 'en' || language === 'de') { setRuntimeTx({}); return; }
+    (async () => {
+      try {
+        const res = await fetch(`/api/i18n/${language}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data && typeof data === 'object') setRuntimeTx(data as Record<string, string>);
+      } catch { /* fall back to English per key */ }
+    })();
+    return () => { cancelled = true; };
+  }, [language]);
+
   const t = (key: string): string => {
-    // Published admin edits win, then current language, then English, then the key
+    // Published admin edits win, then AI translation (fr/es), then the built-in
+    // language string, then English, then the key itself.
     const override = manualOverrides[key];
     if (typeof override === 'string' && override.trim()) return override;
-    const current = (translations[language] as any)[key];
+    const runtime = runtimeTx[key];
+    if (typeof runtime === 'string' && runtime.trim()) return runtime;
+    const current = (translations[language] as any)?.[key];
     if (current) return current;
     const fallbackEn = (translations.en as any)[key];
     return fallbackEn || key;
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, enabledLanguages }}>
       {children}
     </LanguageContext.Provider>
   );

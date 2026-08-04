@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import LanguageSelector from '../common/LanguageSelector';
 import { useDateFormatSync } from '../../hooks/useDateFormatSync';
 import NotificationBell from './NotificationBell';
 import AgentChatWidget from './AgentChatWidget';
@@ -530,13 +531,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               <NotificationBell />
 
               {/* Language Switcher */}
-              <button
-                onClick={toggleLanguage}
-                className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-              >
-                <Globe size={16} className="mr-1" />
-                <span className="uppercase">{language}</span>
-              </button>
+              <LanguageSelector className="px-3 py-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100" />
 
               {/* View Website Button */}
               <a

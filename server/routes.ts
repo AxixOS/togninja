@@ -1929,6 +1929,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }, technicalSetupRoutes);
   console.log('✅ /api/setup/technical routes registered (mutations gated once an admin exists)');
 
+  // Multi-language UI translations (en/de built-in; fr/es AI-generated + cached).
+  // Dynamic import keeps this mount independent of the top-of-file import block.
+  try {
+    const i18nRoutes = (await import('./routes/i18n')).default;
+    app.use('/api', i18nRoutes);
+    console.log('✅ /api/i18n routes registered');
+  } catch (e: any) {
+    console.warn('⚠️ /api/i18n routes failed to register:', e?.message || e);
+  }
+
   // Health check endpoint for deployment
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
