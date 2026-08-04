@@ -160,6 +160,13 @@ const SettingsPage: React.FC = () => {
           description: 'Point your own domain at this studio — CNAME / A records + guide',
           path: '/admin/settings/custom-domain',
           color: 'bg-cyan-600'
+        },
+        {
+          icon: Camera,
+          title: 'ShootCleaner',
+          description: 'Connect ShootCleaner (culling, enhancement, case studies) — generate an API key',
+          path: '/admin/settings/shootcleaner',
+          color: 'bg-violet-600'
         }
       ]
     },

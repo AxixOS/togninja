@@ -370,7 +370,7 @@ import questionnairesRouter from './routes/questionnaires';
 import galleryShopRouter from './routes/gallery-shop';
 import authRoutes from './routes/auth';
 import filesRouter from './routes/files';
-import shootCleanerRoutes from './routes/shootcleaner';
+import shootCleanerRoutes, { invalidateShootCleanerKey } from './routes/shootcleaner';
 import prodigiRoutes from './routes/prodigi';
 import storageRoutes from './storage-routes';
 import fileRoutes from './file-routes';
@@ -18789,6 +18789,52 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
   app.use('/api/website-wizard', websiteWizardRoutes);
   app.use('/api/gallery', galleryShopRouter);
   app.use('/api/integrations/shootcleaner', shootCleanerRoutes);
+
+  // Admin: self-serve ShootCleaner API key (Settings → ShootCleaner). Studios
+  // generate/rotate their own key here and paste it into ShootCleaner.
+  app.get('/api/admin/integrations/shootcleaner', authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const rows = await runSql(`SELECT shootcleaner_api_key FROM studio_configs LIMIT 1`);
+      const key = (rows?.[0] as any)?.shootcleaner_api_key || '';
+      const envKey = (process.env.SHOOTCLEANER_API_KEY || '').trim();
+      const active = key || envKey;
+      const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+      res.json({
+        hasKey: !!active,
+        source: key ? 'generated' : (envKey ? 'env' : 'none'),
+        keyMasked: active ? `${active.slice(0, 6)}${'•'.repeat(8)}${active.slice(-4)}` : null,
+        instanceUrl: `${proto}://${req.get('host')}`,
+      });
+    } catch (e: any) {
+      console.error('shootcleaner key status error:', e?.message);
+      res.status(500).json({ error: 'Failed to read integration status' });
+    }
+  });
+
+  // Generate/rotate — returns the FULL key ONCE (copy it now).
+  app.post('/api/admin/integrations/shootcleaner/rotate', authenticateUser, async (_req: Request, res: Response) => {
+    try {
+      const key = `sc_${require('crypto').randomBytes(24).toString('hex')}`;
+      await pool.query(`UPDATE studio_configs SET shootcleaner_api_key = $1, updated_at = now() WHERE id = (SELECT id FROM studio_configs LIMIT 1)`, [key]);
+      invalidateShootCleanerKey();
+      res.json({ ok: true, apiKey: key });
+    } catch (e: any) {
+      console.error('shootcleaner key rotate error:', e?.message);
+      res.status(500).json({ error: 'Failed to generate key' });
+    }
+  });
+
+  // Disconnect — clears the generated key (env fallback, if any, still applies).
+  app.post('/api/admin/integrations/shootcleaner/revoke', authenticateUser, async (_req: Request, res: Response) => {
+    try {
+      await pool.query(`UPDATE studio_configs SET shootcleaner_api_key = NULL, updated_at = now() WHERE id = (SELECT id FROM studio_configs LIMIT 1)`);
+      invalidateShootCleanerKey();
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error('shootcleaner key revoke error:', e?.message);
+      res.status(500).json({ error: 'Failed to revoke key' });
+    }
+  });
   
   // Storage subscription routes
   app.use('/api/storage', storageRoutes);

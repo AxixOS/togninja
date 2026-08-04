@@ -8,8 +8,25 @@ import { getS3Client, getS3Config, buildPublicUrl } from '../services/s3-storage
 
 const router = Router();
 
-function getConfiguredApiKey(): string {
-  return (process.env.SHOOTCLEANER_API_KEY || '').trim();
+// The integration key resolves DB-first (studio-generated in Settings → ShootCleaner),
+// then falls back to the SHOOTCLEANER_API_KEY env var. Cached briefly so the auth hot
+// path stays cheap; invalidated when the studio rotates the key.
+let _keyCache: { value: string; at: number } | null = null;
+const KEY_CACHE_TTL = 30_000;
+export function invalidateShootCleanerKey(): void { _keyCache = null; }
+
+async function getConfiguredApiKey(): Promise<string> {
+  const envKey = (process.env.SHOOTCLEANER_API_KEY || '').trim();
+  if (_keyCache && Date.now() - _keyCache.at < KEY_CACHE_TTL) {
+    return _keyCache.value || envKey;
+  }
+  let dbKey = '';
+  try {
+    const r = await pool.query('SELECT shootcleaner_api_key FROM studio_configs LIMIT 1');
+    dbKey = (r.rows[0]?.shootcleaner_api_key || '').trim();
+  } catch { /* column may not exist yet on an old DB */ }
+  _keyCache = { value: dbKey, at: Date.now() };
+  return dbKey || envKey;
 }
 
 function getPresentedApiKey(req: Request): string {
@@ -26,8 +43,8 @@ function getPresentedApiKey(req: Request): string {
   return '';
 }
 
-function requireShootCleanerApiKey(req: Request, res: Response, next: NextFunction) {
-  const expectedApiKey = getConfiguredApiKey();
+async function requireShootCleanerApiKey(req: Request, res: Response, next: NextFunction) {
+  const expectedApiKey = await getConfiguredApiKey();
   if (!expectedApiKey) {
     return res.status(503).json({
       error: 'ShootCleaner integration is not configured',
@@ -93,8 +110,8 @@ const ALLOWED_FILE_TYPES = new Set([
 // single key that holds every scope; structured so a separate write-scoped key
 // can be added later without changing the routes.
 function requireScope(scope: string) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const expectedApiKey = getConfiguredApiKey();
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const expectedApiKey = await getConfiguredApiKey();
     if (!expectedApiKey) {
       return res.status(503).json({ error: 'ShootCleaner integration is not configured', code: 'shootcleaner_not_configured' });
     }
