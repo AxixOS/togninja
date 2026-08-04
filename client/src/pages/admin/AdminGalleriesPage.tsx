@@ -246,7 +246,11 @@ const AdminGalleriesPage: React.FC = () => {
             >
               ADD NEW
             </button>
-            <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-1.5 rounded text-sm font-medium border border-gray-300">
+            <button
+              onClick={() => window.open('/galleries', '_blank', 'noopener')}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-1.5 rounded text-sm font-medium border border-gray-300"
+              title="Open the public gallery catalog (as clients see it)"
+            >
               VIEW CATALOG
             </button>
           </div>

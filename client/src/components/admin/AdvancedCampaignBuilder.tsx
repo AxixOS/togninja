@@ -329,8 +329,16 @@ const AdvancedCampaignBuilder: React.FC<AdvancedCampaignBuilderProps> = ({
                 design_template: template.id
               })}
             >
-              <div className="aspect-video bg-gray-100 rounded mb-2 flex items-center justify-center">
-                <Palette size={24} className="text-gray-400" />
+              <div className={`aspect-video rounded mb-2 flex items-center justify-center text-white bg-gradient-to-br ${
+                /welcome/i.test(template.category || '') ? 'from-emerald-400 to-teal-500'
+                : /booking|confirm/i.test(template.category || '') ? 'from-blue-400 to-indigo-500'
+                : /news|promo|offer/i.test(template.category || '') ? 'from-amber-400 to-orange-500'
+                : 'from-purple-400 to-pink-500'
+              }`}>
+                <div className="text-center px-2">
+                  <Palette size={22} className="mx-auto mb-1 opacity-90" />
+                  <span className="text-xs font-semibold line-clamp-1">{template.name}</span>
+                </div>
               </div>
               <h4 className="font-medium text-sm">{template.name}</h4>
               <p className="text-xs text-gray-500 capitalize">{template.category}</p>
