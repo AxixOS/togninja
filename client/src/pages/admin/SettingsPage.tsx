@@ -24,7 +24,8 @@ import {
   Link2,
   Server,
   Languages,
-  Calculator
+  Calculator,
+  Share2
 } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
@@ -186,6 +187,13 @@ const SettingsPage: React.FC = () => {
           description: 'Your PricingEmbed.com calculator shown on the homepage',
           path: '/admin/settings/calculator',
           color: 'bg-orange-500'
+        },
+        {
+          icon: Share2,
+          title: 'Pulse — Social Posting',
+          description: 'Connect AxixOS Social to auto-post your blog to social media',
+          path: '/admin/settings/pulse',
+          color: 'bg-pink-500'
         }
       ]
     }

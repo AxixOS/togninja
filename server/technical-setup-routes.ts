@@ -639,6 +639,8 @@ router.get('/current', async (_req: Request, res: Response) => {
         ga4MeasurementId: sc?.ga4MeasurementId || '',
         metaPixelId: sc?.metaPixelId || '',
         pricingEmbedUrl: sc?.pricingEmbedUrl || '',
+        pulseKeySet: !!si?.pulse_api_key_encrypted,
+        pulseMode: si?.pulse_mode || 'draft',
         smsProvider: si?.sms_provider || '',
         smsAccountSid: si?.sms_account_sid || '',
         smsAuthTokenSet: !!si?.sms_auth_token_encrypted,
