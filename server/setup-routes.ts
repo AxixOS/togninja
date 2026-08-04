@@ -551,6 +551,9 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     try { await db.execute(sql`UPDATE studio_configs SET creative_setup_complete = false, technical_setup_complete = false, onboarding_state = NULL`); } catch {}
     try { await db.execute(sql`UPDATE studio_configs SET homepage_gen_state = NULL, homepage_landing_slug = NULL, homepage_draft_landing_id = NULL, pricing_embed_url = NULL`); } catch {}
     try { await db.execute(sql`UPDATE studio_configs SET business_name = NULL, logo_url = NULL, meta_description = NULL, address = NULL, phone = NULL, website = NULL, latitude = NULL, longitude = NULL`); } catch {}
+    // Revert Authority Map to the default seed + drop ShootCleaner creds, so a fresh test
+    // starts truly clean (these post-date the original reset).
+    try { await db.execute(sql`UPDATE studio_configs SET authority_map = NULL, shootcleaner_api_key = NULL, shootcleaner_webhook_url = NULL, shootcleaner_webhook_secret = NULL`); } catch {}
     return res.json({ ok: true, message: 'Demo data cleared. Open /setup to start onboarding again.' });
   } catch (error: any) {
     console.error('[reset-demo] error:', error?.message || error);
