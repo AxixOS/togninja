@@ -25,7 +25,8 @@ import {
   FileText,
   Users,
   Package,
-  Sparkles
+  Sparkles,
+  Globe
 } from 'lucide-react';
 
 interface ScanningPhaseProps {
@@ -107,6 +108,46 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
     }
   }, [statusData]);
   
+  // --- AI homepage generation (from the studio's existing website) ---
+  // Runs independently of the content scan: kicks off once on mount if a website
+  // URL was captured in Basics, then polls the pipeline and previews the draft.
+  const [hpKicked, setHpKicked] = useState(false);
+  const [hpPolling, setHpPolling] = useState(true);
+  const { data: hp } = useQuery<any>({
+    queryKey: ['homepage-gen-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/setup/homepage/status');
+      if (!res.ok) throw new Error('status failed');
+      return res.json();
+    },
+    refetchInterval: hpPolling ? 2500 : false,
+  });
+
+  useEffect(() => {
+    if (!hp) return;
+    if (!hpKicked && hp.status === 'idle' && hp.hasWebsite) {
+      setHpKicked(true);
+      fetch('/api/setup/homepage/generate', { method: 'POST' }).catch(() => {});
+    }
+    if (hp.status === 'ready' || hp.status === 'error' || hp.status === 'skipped') {
+      setHpPolling(false);
+    }
+    if (hp.status === 'idle' && hp.hasWebsite === false) {
+      setHpPolling(false);
+    }
+  }, [hp, hpKicked]);
+
+  const hpStageLabel = (stage?: string) => {
+    switch (stage) {
+      case 'crawling': return 'Reading your existing website…';
+      case 'distilling': return 'Understanding your content…';
+      case 'writing': return 'Writing your new homepage…';
+      case 'ready': return 'Your new homepage is ready';
+      default: return 'Preparing…';
+    }
+  };
+  const hpInProgress = hp && (hp.status === 'running' || (hp.status === 'idle' && hp.hasWebsite));
+
   // Complete phase mutation
   const completeMutation = useMutation({
     mutationFn: async () => {
@@ -154,6 +195,50 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
       </CardHeader>
       
       <CardContent className="space-y-6">
+        {/* AI homepage generation from the studio's existing website */}
+        {hpInProgress && (
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-indigo-600" />
+                  Building your new homepage
+                </h3>
+                <p className="text-sm text-gray-600">{hpStageLabel(hp?.stage)}</p>
+                {typeof hp?.pagesCrawled === 'number' && hp.pagesCrawled > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">Read {hp.pagesCrawled} page{hp.pagesCrawled === 1 ? '' : 's'} from your site</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {hp?.status === 'ready' && hp?.previewUrl && (
+          <div className="border border-indigo-200 rounded-2xl overflow-hidden">
+            <div className="bg-indigo-50 px-5 py-3 flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-indigo-600" />
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">Your new homepage draft is ready</p>
+                <p className="text-xs text-gray-600">You'll review, edit and publish it from your dashboard after setup.</p>
+              </div>
+            </div>
+            <iframe
+              src={hp.previewUrl}
+              title="New homepage preview"
+              className="w-full h-[420px] bg-white"
+            />
+          </div>
+        )}
+
+        {hp?.status === 'error' && (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+            We couldn't auto-generate a homepage from your website this time — you can create one anytime from your dashboard. This won't hold up your setup.
+          </div>
+        )}
+
         {scanState.status === 'idle' && (
           <>
             <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl p-6">

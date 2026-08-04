@@ -563,6 +563,10 @@ app.use((req, res, next) => {
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS ga4_measurement_id TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS meta_pixel_id TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS date_format TEXT DEFAULT 'auto'`);
+        // AI homepage generation (crawl existing site -> landing page -> set as "/").
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS homepage_gen_state JSONB`);
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS homepage_draft_landing_id UUID`);
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS homepage_landing_slug TEXT`);
         console.log('✅ Onboarding columns migration completed');
       } catch (migrationError: any) {
         console.warn('⚠️ Onboarding columns migration already applied or failed:', migrationError.message);

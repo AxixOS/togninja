@@ -1,5 +1,6 @@
 import express from "express";
 import { pool } from "../db";
+import { crawlSite } from "../lib/site-crawler";
 
 const router = express.Router();
 
@@ -110,7 +111,7 @@ async function parseSitemapXml(u: string): Promise<string[]> {
 
 // Ensure all onboarding-related tables exist (idempotent)
 let onboardingEnsured = false;
-async function ensureOnboardingSchema() {
+export async function ensureOnboardingSchema() {
   if (onboardingEnsured) return;
   const client = await pool.connect();
   try {
@@ -259,76 +260,9 @@ router.post("/run-crawl", async (req, res) => {
     if (!j.rows.length) return res.status(404).json({ error: "crawl job not found" });
     const jobId: string = j.rows[0].id;
 
-    await pool.query(`UPDATE crawl_jobs SET status = 'running', started_at = now(), error = NULL WHERE id = $1`, [jobId]);
-
-    const queue: string[] = [normalizeUrl(startUrl)];
-    const visited = new Set<string>();
-    let crawled = 0;
-    let discovered = 1;
-    const origin = new URL(startUrl).toString();
-
-    while (queue.length && crawled < maxPages) {
-      const current = queue.shift()!;
-      if (!current || visited.has(current)) continue;
-      visited.add(current);
-      try {
-        const resp = await fetchWithTimeout(current, 12000);
-        const ct = String(resp.headers.get("content-type") || "");
-        const http_status = resp.status;
-        let html = "";
-        if (ct.includes("text/html")) html = await resp.text();
-        const { title, links, assets, meta } = html
-          ? extractTitleAndLinks(html, current)
-          : { title: null, links: [] as string[], assets: [] as string[], meta: {} as Record<string, string> };
-        const text_content = html
-          ? html
-              .replace(/<script[\s\S]*?<\/script>/gi, " ")
-              .replace(/<style[\s\S]*?<\/style>/gi, " ")
-              .replace(/<[^>]+>/g, " ")
-              .replace(/\s+/g, " ")
-              .trim()
-              .slice(0, 20000)
-          : null;
-        const trimmedHtml = html ? html.slice(0, 200000) : null;
-        await pool.query(
-          `INSERT INTO website_pages(crawl_job_id, url, status, http_status, content_type, title, html, text_content, links, assets, meta)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb)`,
-          [
-            jobId,
-            current,
-            http_status >= 200 && http_status < 400 ? "ok" : "error",
-            http_status,
-            ct,
-            title,
-            trimmedHtml,
-            text_content,
-            JSON.stringify(links),
-            JSON.stringify(assets),
-            JSON.stringify(meta)
-          ]
-        );
-        crawled++;
-        for (const link of links) {
-          if (!sameHost(link, origin)) continue;
-          const n = normalizeUrl(link);
-          if (!visited.has(n) && queue.length + crawled < maxPages * 2) {
-            queue.push(n);
-            discovered++;
-          }
-        }
-      } catch (err) {
-        await pool.query(
-          `INSERT INTO website_pages(crawl_job_id, url, status, http_status, content_type, title, html, text_content, links, assets)
-           VALUES ($1, $2, 'error', $3, NULL, NULL, NULL, NULL, '[]'::jsonb, '[]'::jsonb)`,
-          [jobId, current, null]
-        );
-      }
-    }
-
-    await pool.query(
-      `UPDATE crawl_jobs SET status = 'completed', pages_discovered = $2, pages_crawled = $3, completed_at = now(), updated_at = now() WHERE id = $1`,
-      [jobId, discovered, crawled]
-    );
+    // The BFS crawl loop lives in server/lib/site-crawler.ts so the onboarding
+    // homepage pipeline can reuse it in-process. This route keeps its contract.
+    const { crawled, discovered } = await crawlSite({ jobId, startUrl, maxPages });
     await pool.query(`UPDATE onboarding_sessions SET crawl_status = 'completed', updated_at = now() WHERE id = $1`, [sid]);
 
     return res.json({ ok: true, session_id: sid, job_id: jobId, crawled, discovered });

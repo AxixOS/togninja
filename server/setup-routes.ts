@@ -28,6 +28,7 @@ import { eq, sql, count } from 'drizzle-orm';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
+import { runHomepagePipeline, type HomepageGenState } from './lib/homepage-pipeline';
 
 const router = Router();
 
@@ -388,6 +389,68 @@ router.get('/status', async (_req: Request, res: Response) => {
   } catch (error) {
     console.error('Setup status error:', error);
     res.status(500).json({ error: 'Failed to get setup status' });
+  }
+});
+
+// ==================== AI HOMEPAGE GENERATION ====================
+// Crawl the studio's existing website -> AI -> a DRAFT landing page the owner later
+// edits + publishes + sets as their homepage. Runs on the OPEN setup surface because
+// the user has no session yet during onboarding. See server/lib/homepage-pipeline.ts.
+
+router.post('/homepage/generate', async (req: Request, res: Response) => {
+  try {
+    const config = await getConfigRow();
+    if (!config) return res.json({ started: false, skipped: true, reason: 'no-config' });
+    const website = String((config as any).website || (config as any).frontendUrl || '').trim();
+    if (!website) return res.json({ started: false, skipped: true, reason: 'no-website' });
+
+    const force = String((req.query.force ?? (req.body && req.body.force)) || '') === '1' || req.query.force === 'true';
+    const current: HomepageGenState | null = (config as any).homepageGenState || null;
+
+    // Idempotency: don't double-fire a running job unless forced.
+    if (current?.status === 'running' && !force) {
+      return res.json({ started: true, already: true });
+    }
+
+    // On force, delete the old draft if it's still a draft (avoids orphans).
+    if (force && current?.draftId) {
+      try {
+        const neonDb = require('../database.js');
+        const prev = await neonDb.getLandingPage(current.draftId);
+        if (prev && prev.status === 'draft') await neonDb.deleteLandingPage(current.draftId);
+      } catch { /* best effort */ }
+    }
+
+    // Fire-and-forget — the pipeline writes progress to homepage_gen_state.
+    runHomepagePipeline(config).catch((e: any) => console.error('[setup] homepage pipeline error:', e?.message || e));
+    return res.json({ started: true });
+  } catch (error: any) {
+    console.error('Homepage generate error:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to start homepage generation' });
+  }
+});
+
+router.get('/homepage/status', async (_req: Request, res: Response) => {
+  try {
+    const config = await getConfigRow();
+    const st: HomepageGenState | null = (config as any)?.homepageGenState || null;
+    if (!st) {
+      const hasWebsite = !!String((config as any)?.website || '').trim();
+      return res.json({ status: 'idle', stage: null, pagesCrawled: 0, previewUrl: null, draftId: null, hasWebsite });
+    }
+    const previewUrl = st.slug && st.previewToken ? `/lp/${st.slug}?preview=${st.previewToken}` : null;
+    return res.json({
+      status: st.status,
+      stage: st.stage,
+      pagesCrawled: st.pagesCrawled || 0,
+      previewUrl,
+      draftId: st.draftId,
+      slug: st.slug,
+      error: st.error || null,
+    });
+  } catch (error: any) {
+    console.error('Homepage status error:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to read homepage status' });
   }
 });
 

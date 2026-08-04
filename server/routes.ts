@@ -365,6 +365,7 @@ let lastCalendarImportStatus: {
 import workflowWizardRoutes from './routes/workflow-wizard';
 import setupRoutes from './setup-routes';
 import technicalSetupRoutes from './technical-setup-routes';
+import { generateLandingContent } from './lib/landing-generator';
 import questionnairesRouter from './routes/questionnaires';
 import galleryShopRouter from './routes/gallery-shop';
 import authRoutes from './routes/auth';
@@ -18866,6 +18867,30 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
     }
   });
 
+  // GET the AI-generated homepage draft from onboarding, for the post-login dashboard
+  // banner ("Your AI homepage draft is ready → Review & edit"). Returns null once the
+  // draft no longer exists. isHomepage tells the client whether it's already live at "/".
+  app.get("/api/admin/homepage-draft", authenticateUser, async (_req: Request, res: Response) => {
+    try {
+      const rows = await runSql(`SELECT homepage_draft_landing_id AS draft_id, homepage_landing_slug AS home_slug FROM studio_configs LIMIT 1`);
+      const draftId = (rows?.[0] as any)?.draft_id || null;
+      const homeSlug = (rows?.[0] as any)?.home_slug || null;
+      if (!draftId) return res.json({ draftId: null });
+      const page = await neonDb.getLandingPage(draftId);
+      if (!page) return res.json({ draftId: null });
+      res.json({
+        draftId,
+        slug: page.slug,
+        title: page.title,
+        status: page.status,
+        isHomepage: !!(homeSlug && page.slug === homeSlug),
+      });
+    } catch (error: any) {
+      console.error('Error reading homepage draft:', error?.message);
+      res.status(500).json({ error: 'Failed to read homepage draft' });
+    }
+  });
+
   // GET single landing page (admin)
   app.get("/api/admin/landing-pages/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
@@ -19091,131 +19116,12 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
   // POST AI generate landing page content
   app.post("/api/admin/landing-pages/generate", authenticateUser, async (req: Request, res: Response) => {
     try {
-      const context = req.body;
-      
-      const OpenAI = (await import('openai')).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
-
-      const systemPrompt = `You are an expert landing page copywriter specializing in photography studios and creative businesses. You write high-converting, emotionally compelling landing page copy that balances warmth with persuasion.
-
-Your output must be a valid JSON object with this exact structure:
-{
-  "hero": {
-    "headline": "Main headline (powerful, benefit-driven)",
-    "subheadline": "Supporting text (2-3 sentences, emotional hook)",
-    "ctaText": "Call-to-action button text"
-  },
-  "trustBar": {
-    "items": ["Trust signal 1", "Trust signal 2", "Trust signal 3", "Trust signal 4"]
-  },
-  "problemSection": {
-    "headline": "Agitation headline",
-    "description": "Describe the pain point the audience faces (2-3 sentences)",
-    "painPoints": ["Pain point 1", "Pain point 2", "Pain point 3"]
-  },
-  "offerSection": {
-    "headline": "Offer headline",
-    "description": "Describe the offer compellingly",
-    "price": "Price or pricing hint if provided",
-    "urgency": "Urgency text if applicable",
-    "inclusions": ["What's included 1", "What's included 2", "What's included 3"]
-  },
-  "benefits": [
-    {"title": "Benefit 1 title", "description": "Benefit 1 detail"},
-    {"title": "Benefit 2 title", "description": "Benefit 2 detail"},
-    {"title": "Benefit 3 title", "description": "Benefit 3 detail"}
-  ],
-  "whyChooseUs": {
-    "headline": "Why choose us headline",
-    "reasons": [
-      {"title": "Reason 1", "description": "Detail"},
-      {"title": "Reason 2", "description": "Detail"},
-      {"title": "Reason 3", "description": "Detail"}
-    ]
-  },
-  "testimonials": [
-    {"quote": "Testimonial text", "author": "Name", "role": "Context"}
-  ],
-  "faq": [
-    {"question": "FAQ question 1", "answer": "Answer 1"},
-    {"question": "FAQ question 2", "answer": "Answer 2"},
-    {"question": "FAQ question 3", "answer": "Answer 3"}
-  ],
-  "finalCta": {
-    "headline": "Final closing headline",
-    "description": "Final persuasive text",
-    "ctaText": "Final CTA button text"
-  },
-  "seo": {
-    "title": "SEO page title (under 60 chars)",
-    "metaDescription": "Meta description (under 160 chars)",
-    "slug": "suggested-url-slug"
-  }
-}
-
-Rules:
-- Write copy that sounds natural, warm, and human — not robotic
-- Include local relevance when city/area is provided
-- Use emotional triggers appropriate for the audience
-- Create urgency where deadline or limited availability is mentioned
-- All copy must be in the same language as the user's input
-- If input is in German, write ALL output in German
-- Generate believable but compelling testimonials if none are provided
-- Keep headlines concise and impactful
-- Return ONLY the JSON object, no markdown, no code fences`;
-
-      const userPrompt = `Generate a high-converting landing page for a photography studio with these details:
-
-Service Type: ${context.primaryService || 'Photography'}
-Target Audience: ${context.targetAudience || 'General'}
-City/Area: ${context.city || 'Not specified'}
-Tone: ${context.tone || 'warm'}
-Page Purpose: ${context.pageType || 'leads'}
-
-Offer Details:
-${context.offerSummary || 'Professional photography services'}
-
-Pain Points:
-${context.painPoints || 'Finding a trustworthy photographer who captures authentic moments'}
-
-Trust Signals:
-${context.trustSignals || 'Years of experience, professional equipment, hundreds of happy clients'}
-
-CTA Action: ${context.ctaAction || 'Book Now'}
-CTA Text: ${context.ctaText || 'Book Now'}
-
-${context.urgency ? `Urgency/Deadline: ${context.urgency}` : ''}
-${context.testimonials ? `Existing Testimonials: ${context.testimonials}` : ''}
-${context.keywords ? `Target Keywords: ${context.keywords}` : ''}
-${context.extras || ''}`;
-
-      const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_LANDING_MODEL || process.env.OPENAI_PRICE_MODEL || 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.8,
-        max_tokens: 3000,
-        response_format: { type: "json_object" }
-      });
-
-      const responseText = completion.choices[0]?.message?.content || '{}';
-      let generatedContent;
-      try {
-        generatedContent = JSON.parse(responseText);
-      } catch {
-        console.error('Failed to parse AI response:', responseText.substring(0, 200));
-        return res.status(500).json({ error: 'AI returned invalid JSON' });
-      }
-
-      res.json({
-        content: generatedContent,
-        usage: completion.usage,
-        model: completion.model
-      });
+      // Prompt-building + OpenAI call now live in server/lib/landing-generator.ts so
+      // the onboarding homepage pipeline can reuse the exact same generation.
+      const result = await generateLandingContent(req.body || {});
+      res.json(result);
     } catch (error: any) {
-      console.error('Error generating landing page:', error.message);
+      console.error('Error generating landing page:', error?.message);
       res.status(500).json({ error: 'Failed to generate landing page content' });
     }
   });

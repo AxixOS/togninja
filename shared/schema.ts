@@ -92,7 +92,12 @@ export const studioConfigs = pgTable("studio_configs", {
   // Durable progress for the creative setup wizard (phase flags, applied/skipped
   // fix ids, published/skipped draft ids). Everything else is derived from the DB.
   onboardingState: jsonb("onboarding_state"),
-  
+  // AI-generated homepage (from the studio's existing website, during onboarding):
+  // progress state, the generated draft landing page, and the slug currently live at "/".
+  homepageGenState: jsonb("homepage_gen_state"),
+  homepageDraftLandingId: uuid("homepage_draft_landing_id"),
+  homepageLandingSlug: text("homepage_landing_slug"),
+
   // Status
   isActive: boolean("is_active").default(true),
   subscriptionStatus: text("subscription_status").default("trial"),
