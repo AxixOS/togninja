@@ -72,7 +72,7 @@ function buildB2Url(key: string): string | null {
 // ---------------------------------------------------------------------------
 
 const READ_SCOPES = ['galleries:read', 'gallery-images:read', 'digital-files:read', 'clients:read', 'questionnaires:read', 'studio:read'];
-const WRITE_SCOPES = ['galleries:write', 'gallery-images:write', 'digital-files:write'];
+const WRITE_SCOPES = ['galleries:write', 'gallery-images:write', 'digital-files:write', 'blog:write', 'orders:write'];
 const ALL_SCOPES = [...READ_SCOPES, ...WRITE_SCOPES];
 
 const MAX_FILES_PER_CALL = 100;
@@ -296,10 +296,23 @@ async function fetchDigitalFileById(id: string, req: Request): Promise<any | nul
   return row ? mapDigitalFileRow(row, req) : null;
 }
 
-router.get('/health', requireShootCleanerApiKey, (_req, res) => {
+// Connection test + identity: returns which studio/instance this key belongs to so
+// ShootCleaner can validate the key instantly and show the connected account. This is
+// the single field a studio needs — enter the instance URL + key, we confirm both.
+router.get('/health', requireShootCleanerApiKey, async (req, res) => {
+  let studioName: string | null = null;
+  let studioId: string | null = null;
+  try {
+    const r = await pool.query('SELECT id, business_name, studio_name FROM studio_configs LIMIT 1');
+    const row = r.rows[0];
+    if (row) { studioId = row.id; studioName = row.business_name || row.studio_name || null; }
+  } catch { /* studio not configured yet */ }
   res.json({
     ok: true,
     service: 'shootcleaner',
+    instanceUrl: getBaseUrl(req),
+    studioId,
+    studioName,
     scopes: ALL_SCOPES,
   });
 });
@@ -1040,6 +1053,216 @@ router.get('/studio', requireShootCleanerApiKey, async (_req, res) => {
   } catch (error) {
     console.error('[shootcleaner] Failed to fetch studio profile:', error);
     res.status(500).json({ error: 'Failed to fetch studio profile' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Blog publish (3.1) — ShootCleaner hands over a FINISHED case study; TN owns
+// scheduling + delivery. We do not generate anything.
+// ---------------------------------------------------------------------------
+
+// Minimal Markdown -> HTML (headings, bold, italic, links, bullet lists, paragraphs).
+// SC may also send pre-rendered `contentHtml` to bypass this.
+function mdToHtml(md: string): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inline = (t: string) => esc(t)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>');
+  const lines = String(md || '').split(/\r?\n/);
+  let html = ''; let inList = false;
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    const li = line.match(/^[-*]\s+(.*)$/);
+    if (h) { if (inList) { html += '</ul>'; inList = false; } const lvl = h[1].length; html += `<h${lvl}>${inline(h[2])}</h${lvl}>`; continue; }
+    if (li) { if (!inList) { html += '<ul>'; inList = true; } html += `<li>${inline(li[1])}</li>`; continue; }
+    if (!line) { if (inList) { html += '</ul>'; inList = false; } continue; }
+    if (inList) { html += '</ul>'; inList = false; }
+    html += `<p>${inline(line)}</p>`;
+  }
+  if (inList) html += '</ul>';
+  return html;
+}
+
+async function ensureUniqueBlogSlug(base: string): Promise<string> {
+  const seed = base || 'post'; let candidate = seed; let n = 1;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const r = await pool.query('SELECT 1 FROM blog_posts WHERE slug = $1 LIMIT 1', [candidate]);
+    if (!r.rows[0]) return candidate;
+    n += 1; candidate = `${seed}-${n}`;
+  }
+}
+
+router.post('/blog/posts', requireScope('blog:write'), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const title = String(b.title || '').trim();
+    if (!title) return res.status(400).json({ error: 'title is required', code: 'invalid_request' });
+
+    const contentMarkdown = String(b.contentMarkdown || '');
+    const contentHtml = b.contentHtml ? String(b.contentHtml) : mdToHtml(contentMarkdown);
+    const excerpt = (b.excerpt ? String(b.excerpt) : contentMarkdown).replace(/[#*_>`]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+    const metaDescription = String(b.metaDescription || excerpt).slice(0, 160);
+    const tags = Array.isArray(b.tags) ? b.tags.map(String) : [];
+    const images = Array.isArray(b.images) ? b.images : [];
+    const hero = images.find((i: any) => i?.role === 'hero') || images[0] || null;
+    const inlineImgs = images.filter((i: any) => i !== hero).slice(0, 2);
+    // Keep the SC extras we must NOT drop (FAQ + ready-made JSON-LD for AI citations).
+    const ideaData = JSON.stringify({ shootcleaner: { jsonld: b.jsonld ?? null, faq: Array.isArray(b.faq) ? b.faq : [], categories: Array.isArray(b.categories) ? b.categories : [], sourceRef: b.sourceRef ?? null } });
+
+    let status = String(b.status || 'draft').toLowerCase();
+    let published = false; let publishedAt: Date | null = null; let scheduledFor: Date | null = null; let dbStatus = 'DRAFT';
+    if (status === 'publish') { published = true; publishedAt = new Date(); dbStatus = 'PUBLISHED'; }
+    else if (status === 'schedule') {
+      const when = b.scheduledFor ? new Date(b.scheduledFor) : null;
+      if (!when || isNaN(when.getTime())) return res.status(400).json({ error: 'scheduledFor is required for status=schedule', code: 'invalid_request' });
+      if (when.getTime() <= Date.now()) { dbStatus = 'DRAFT'; status = 'draft'; } // past schedule downgrades to draft
+      else { scheduledFor = when; dbStatus = 'SCHEDULED'; }
+    }
+
+    const caseStudyId = String(b.sourceRef?.caseStudyId || '').trim();
+    const externalRef = caseStudyId ? `caseStudy:${caseStudyId}` : '';
+    const cols = [title, contentMarkdown, contentHtml, excerpt, hero?.url || null, inlineImgs[0]?.url || null, inlineImgs[1]?.url || null, tags, metaDescription, title.slice(0, 60), published, publishedAt, scheduledFor, dbStatus, ideaData];
+
+    // Idempotent: re-posting the same caseStudyId updates rather than duplicates.
+    if (externalRef) {
+      const existing = await lookupExternalRef(externalRef);
+      if (existing && existing.entityType === 'blog_post') {
+        const upd = await pool.query(
+          `UPDATE blog_posts SET title=$2, content=$3, content_html=$4, excerpt=$5, image_url=$6, image_url_2=$7, image_url_3=$8, tags=$9, meta_description=$10, seo_title=$11, published=$12, published_at=$13, scheduled_for=$14, status=$15, idea_data=$16::jsonb, updated_at=NOW() WHERE id=$1 RETURNING id, slug, scheduled_for`,
+          [existing.entityId, ...cols],
+        );
+        const r0 = upd.rows[0];
+        return res.json({ id: r0.id, status: dbStatus.toLowerCase(), url: `${getBaseUrl(req)}/blog/${r0.slug}`, scheduledFor: r0.scheduled_for });
+      }
+    }
+
+    const slug = await ensureUniqueBlogSlug(slugify(String(b.slug || title)));
+    const ins = await pool.query(
+      `INSERT INTO blog_posts (title, slug, content, content_html, excerpt, image_url, image_url_2, image_url_3, tags, meta_description, seo_title, published, published_at, scheduled_for, status, idea_data, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,NOW(),NOW()) RETURNING id, slug`,
+      [title, slug, ...cols.slice(1)], // cols[0] is title; slug replaces it as $2
+    );
+    const row = ins.rows[0];
+    if (externalRef) await recordExternalRef(externalRef, 'blog_post', row.id);
+    return res.status(201).json({ id: row.id, status: dbStatus.toLowerCase(), url: `${getBaseUrl(req)}/blog/${row.slug}`, scheduledFor });
+  } catch (error: any) {
+    console.error('[shootcleaner] blog publish failed:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to publish blog post', code: 'blog_publish_failed' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Orders / invoices (3.2) — SC produces the order; TN is the system of record.
+// TN issues the invoice number (accepts SC's orderNumber when unique) and keeps
+// SC's ref. Re-posting the same order updates the invoice.
+// ---------------------------------------------------------------------------
+async function nextInvoiceNumber(preferred?: string): Promise<string> {
+  const p = String(preferred || '').trim();
+  if (p) { const r = await pool.query('SELECT 1 FROM crm_invoices WHERE invoice_number = $1 LIMIT 1', [p]); if (!r.rows[0]) return p; }
+  const c = await pool.query('SELECT COUNT(*)::int AS c FROM crm_invoices');
+  let n = (c.rows[0]?.c || 0) + 1; let candidate = `SC-${String(n).padStart(5, '0')}`;
+  // eslint-disable-next-line no-await-in-loop
+  while ((await pool.query('SELECT 1 FROM crm_invoices WHERE invoice_number = $1 LIMIT 1', [candidate])).rows[0]) { n += 1; candidate = `SC-${String(n).padStart(5, '0')}`; }
+  return candidate;
+}
+
+router.post('/orders', requireScope('orders:write'), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const clientId = String(b.clientId || '').trim();
+    if (!clientId) return res.status(400).json({ error: 'clientId is required', code: 'invalid_request' });
+    if (!(await clientExists(clientId))) return res.status(400).json({ error: 'clientId not found', code: 'invalid_client_id' });
+    const items = Array.isArray(b.items) ? b.items : [];
+    if (!items.length) return res.status(400).json({ error: 'items[] is required', code: 'invalid_request' });
+
+    const cents = (n: any) => Number(n || 0);
+    const dec = (c: number) => (c / 100).toFixed(2);
+    const subtotal = b.subtotalCents != null ? cents(b.subtotalCents) : items.reduce((s: number, it: any) => s + cents(it.unitPriceCents) * Number(it.qty || 1), 0);
+    const tax = cents(b.taxCents);
+    const total = b.totalCents != null ? cents(b.totalCents) : subtotal + tax;
+    const currency = String(b.currency || 'EUR');
+    const scStatus = String(b.status || 'pending').toLowerCase();
+    const invStatus = scStatus === 'paid' ? 'paid' : scStatus === 'invoiced' ? 'sent' : 'draft';
+    const paidAmount = invStatus === 'paid' ? dec(total) : '0';
+
+    const orderId = String(b.sourceRef?.orderId ?? '').trim();
+    const externalRef = orderId ? `order:${orderId}` : (b.orderNumber ? `order:${b.orderNumber}` : '');
+
+    if (externalRef) {
+      const existing = await lookupExternalRef(externalRef);
+      if (existing && existing.entityType === 'invoice') {
+        await pool.query('UPDATE crm_invoices SET status=$2, paid_amount=$3, total=$4, subtotal=$5, tax_amount=$6, currency=$7, updated_at=NOW() WHERE id=$1', [existing.entityId, invStatus, paidAmount, dec(total), dec(subtotal), dec(tax), currency]);
+        const inv = await pool.query('SELECT id, invoice_number, status, total FROM crm_invoices WHERE id=$1', [existing.entityId]);
+        const r0 = inv.rows[0];
+        return res.json({ id: r0.id, invoiceNumber: r0.invoice_number, status: r0.status, total: r0.total, updated: true });
+      }
+    }
+
+    const invoiceNumber = await nextInvoiceNumber(b.orderNumber);
+    const issue = new Date().toISOString().slice(0, 10);
+    const due = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    const notes = `ShootCleaner order ${b.orderNumber || orderId || ''}`.trim();
+    const ins = await pool.query(
+      `INSERT INTO crm_invoices (invoice_number, client_id, issue_date, due_date, subtotal, tax_amount, total, paid_amount, currency, status, document_type, notes, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'invoice',$11,NOW(),NOW()) RETURNING id, invoice_number, status, total`,
+      [invoiceNumber, clientId, issue, due, dec(subtotal), dec(tax), dec(total), paidAmount, currency, invStatus, notes],
+    );
+    const invId = ins.rows[0].id;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      await pool.query('INSERT INTO crm_invoice_items (invoice_id, description, quantity, unit_price, sort_order, created_at) VALUES ($1,$2,$3,$4,$5,NOW())',
+        [invId, String(it.description || it.sku || 'Item'), String(Number(it.qty || 1)), dec(cents(it.unitPriceCents)), i]);
+    }
+    if (externalRef) await recordExternalRef(externalRef, 'invoice', invId);
+    const r0 = ins.rows[0];
+    return res.status(201).json({ id: r0.id, invoiceNumber: r0.invoice_number, status: r0.status, total: r0.total });
+  } catch (error: any) {
+    console.error('[shootcleaner] order create failed:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to create order', code: 'order_create_failed' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Gallery images by URL (3.3 option b) — SC keeps the images in its own storage
+// and hands TN a manifest of URLs; TN links (does not re-host). The presign/commit
+// path above is option (a) if you'd rather push the bytes to TN.
+// ---------------------------------------------------------------------------
+router.post('/galleries/:id/images/link', requireScope('gallery-images:write'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const gq = await pool.query('SELECT id FROM galleries WHERE id = $1 LIMIT 1', [id]);
+    if (!gq.rows[0]) return res.status(404).json({ error: 'Gallery not found', code: 'gallery_not_found' });
+    const images = req.body?.images;
+    if (!Array.isArray(images) || !images.length) return res.status(400).json({ error: 'images[] is required', code: 'invalid_request' });
+    if (images.length > MAX_FILES_PER_CALL) return res.status(400).json({ error: `Maximum ${MAX_FILES_PER_CALL} images per call`, code: 'too_many_files' });
+
+    const data: any[] = [];
+    for (const img of images) {
+      const url = String(img?.url || '').trim();
+      if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: 'each image needs an http(s) url', code: 'invalid_request' });
+      const externalRef = String(img?.externalRef || '').trim();
+      if (externalRef) { const ex = await lookupExternalRef(externalRef); if (ex && ex.entityType === 'gallery_image') { const f = await fetchGalleryImageById(ex.entityId); if (f) { data.push(f); continue; } } }
+      let filename = 'image';
+      try { filename = sanitizeFilename(String(img.filename || path.basename(new URL(url).pathname) || 'image')); } catch { /* keep default */ }
+      const sortOrder = Number.isFinite(Number(img.sortOrder)) ? Number(img.sortOrder) : 0;
+      const metadata = JSON.stringify({ source: 'shootcleaner', linkedUrl: url, externalRef: externalRef || null });
+      const insimg = await pool.query(
+        `INSERT INTO gallery_images (gallery_id, filename, url, title, description, sort_order, size_bytes, content_type, metadata, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NOW()) RETURNING id`,
+        [id, filename, url, img.alt ?? img.title ?? null, img.description ?? null, sortOrder, Number(img.sizeBytes || 0), img.contentType ?? null, metadata],
+      );
+      const newId = insimg.rows[0].id;
+      if (externalRef) await recordExternalRef(externalRef, 'gallery_image', newId);
+      const created = await fetchGalleryImageById(newId);
+      if (created) data.push(created);
+    }
+    return res.status(201).json({ data });
+  } catch (error: any) {
+    console.error('[shootcleaner] gallery link failed:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to link images', code: 'link_failed' });
   }
 });
 
