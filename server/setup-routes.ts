@@ -554,6 +554,16 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // Revert Authority Map to the default seed + drop ShootCleaner creds, so a fresh test
     // starts truly clean (these post-date the original reset).
     try { await db.execute(sql`UPDATE studio_configs SET authority_map = NULL, shootcleaner_api_key = NULL, shootcleaner_webhook_url = NULL, shootcleaner_webhook_secret = NULL`); } catch {}
+    // Clear tenant-entered STORAGE credentials so a fresh test falls back to the instance's
+    // env storage. A stale/invalid stored key (e.g. a Supabase publishable key pasted in a
+    // prior run) otherwise overrides the valid env creds and fails uploads (InvalidAccessKeyId).
+    try { await db.execute(sql`UPDATE studio_integrations SET storage_access_key_id = NULL, storage_secret_key_encrypted = NULL, storage_bucket = NULL, storage_endpoint = NULL`); } catch {}
+    try {
+      const { config } = await import('./config-reader');
+      config.invalidate();
+      const { invalidateStorageConfig } = await import('./services/s3-storage');
+      invalidateStorageConfig();
+    } catch { /* cache refresh is best-effort */ }
     return res.json({ ok: true, message: 'Demo data cleared. Open /setup to start onboarding again.' });
   } catch (error: any) {
     console.error('[reset-demo] error:', error?.message || error);

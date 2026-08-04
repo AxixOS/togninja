@@ -301,7 +301,7 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
               <Label htmlFor="businessTypeOther">What kind of photography do you do? *</Label>
               <Input
                 id="businessTypeOther"
-                placeholder="e.g., Boudoir Photographer"
+                placeholder="e.g., Equine Photographer"
                 value={businessTypeOther}
                 onChange={(e) => {
                   setBusinessTypeOther(e.target.value);
@@ -310,8 +310,8 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
                 className={errors.businessTypeOther ? 'border-red-500' : ''}
               />
               <p className="text-xs text-gray-500">
-                We use this to write your website copy, so be specific — e.g. &ldquo;Boudoir
-                Photographer&rdquo; or &ldquo;Equine Photographer&rdquo;.
+                We use this to write your website copy, so be specific — e.g. &ldquo;Equine
+                Photographer&rdquo; or &ldquo;Pet Photographer&rdquo;.
               </p>
               {errors.businessTypeOther && (
                 <p className="text-sm text-red-500">{errors.businessTypeOther}</p>

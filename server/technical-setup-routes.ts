@@ -439,17 +439,27 @@ router.post('/complete', async (req: Request, res: Response) => {
 // POST /api/setup/test/smtp — Send a test email
 router.post('/test/smtp', async (req: Request, res: Response) => {
   try {
-    const { smtpHost, smtpPort, smtpUser, smtpPass, smtpSecure, fromEmail, toEmail } = req.body;
-    
+    const { smtpHost, smtpPort, smtpUser, smtpSecure, fromEmail, toEmail } = req.body;
+
+    // The password field shows "(saved)" and is NOT resent by the client once stored, so
+    // fall back to the decrypted saved password — otherwise Test authenticates with a blank
+    // password and fails even though the saved config is correct.
+    let smtpPass = req.body.smtpPass;
+    if (!smtpPass) {
+      try { const { config } = await import('./config-reader'); smtpPass = await config.get('smtp_pass'); } catch { /* ignore */ }
+    }
+
     if (!smtpHost || !smtpUser || !smtpPass) {
       return res.status(400).json({ error: 'SMTP host, user, and password are required' });
     }
 
+    const port = parseInt(smtpPort) || 587;
     const nodemailer = await import('nodemailer');
     const transport = nodemailer.createTransport({
       host: smtpHost,
-      port: parseInt(smtpPort) || 587,
-      secure: smtpSecure === true || smtpSecure === 'true',
+      port,
+      // Port 465 is implicit TLS — force secure so a toggle left off doesn't fail the handshake.
+      secure: smtpSecure === true || smtpSecure === 'true' || port === 465,
       auth: { user: smtpUser, pass: smtpPass },
       connectionTimeout: 10000,
       greetingTimeout: 10000,
