@@ -578,6 +578,21 @@ app.use((req, res, next) => {
         // Authority Map — per-studio topical-cluster + internal-link structure (falls back
         // to the New Age seed in shared/authorityMap.ts when null).
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS authority_map JSONB`);
+        // Homepage & portfolio image managers (Website Studio → Customise). These were only
+        // ever created ad hoc on the New Age DB; create them on every instance so a fresh
+        // studio's homepage image list doesn't 500 and the managers work.
+        await db.execute(sql`CREATE TABLE IF NOT EXISTS homepage_images (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          section text NOT NULL, url text NOT NULL, alt text, title text,
+          sort_order integer DEFAULT 0, is_active boolean DEFAULT true,
+          created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+        )`);
+        await db.execute(sql`CREATE TABLE IF NOT EXISTS portfolio_images (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          category text NOT NULL, url text NOT NULL, alt text, title text, description text,
+          sort_order integer DEFAULT 0, is_active boolean DEFAULT true,
+          created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+        )`);
         // ShootCleaner outbound webhook (invoice.paid): where to POST + the HMAC secret.
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_webhook_url TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_webhook_secret TEXT`);

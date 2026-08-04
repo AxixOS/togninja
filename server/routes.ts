@@ -13694,8 +13694,12 @@ ${getBizName()} CRM System
       res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
       res.json(images);
     } catch (error) {
+      // Never 500 the homepage over its image list — degrade to defaults (empty list).
+      // On a fresh instance the table may not exist yet (created at boot); either way the
+      // front-end falls back to its built-in default images.
       console.error("Error fetching homepage images:", error);
-      res.status(500).json({ error: "Internal server error" });
+      res.set('Cache-Control', 'no-store');
+      res.json([]);
     }
   });
 
@@ -13913,8 +13917,10 @@ ${getBizName()} CRM System
       res.set('Cache-Control', 'no-store');
       res.json(images);
     } catch (error) {
+      // Degrade gracefully (empty list) rather than 500 — table may be absent on a fresh DB.
       console.error("Error fetching portfolio images:", error);
-      res.status(500).json({ error: "Internal server error" });
+      res.set('Cache-Control', 'no-store');
+      res.json([]);
     }
   });
 
