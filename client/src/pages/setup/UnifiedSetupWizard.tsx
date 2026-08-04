@@ -32,6 +32,8 @@ import ExtrasStep from './technical/ExtrasStep';
 import SecurityStep from './technical/SecurityStep';
 // Creative phases
 import BasicsPhase from './phases/BasicsPhase';
+import CalendarPhase from './phases/CalendarPhase';
+import LeadSourcesPhase from './phases/LeadSourcesPhase';
 import IntegrationsPhase from './phases/IntegrationsPhase';
 import ScanningPhase from './phases/ScanningPhase';
 import FixFirstPhase from './phases/FixFirstPhase';
@@ -87,7 +89,9 @@ export default function UnifiedSetupWizard() {
     { key: 'stripe', group: 'Infrastructure', label: 'Payments', render: () => <StripeStep onComplete={goNext} onBack={goBack} /> },
     { key: 'storage', group: 'Infrastructure', label: 'File storage', render: () => <StorageStep onComplete={goNext} onBack={goBack} /> },
     { key: 'extras', group: 'Infrastructure', label: 'AI & extras', render: () => <ExtrasStep onComplete={goNext} onBack={goBack} /> },
+    { key: 'calendar', group: 'Infrastructure', label: 'Calendar', render: () => <CalendarPhase onComplete={goNext} /> },
     { key: 'security', group: 'Account', label: 'Admin account', render: () => <SecurityStep onComplete={goNext} onBack={goBack} /> },
+    { key: 'lead_sources', group: 'Content', label: 'Lead sources', render: () => <LeadSourcesPhase onComplete={goNext} /> },
     { key: 'integrations', group: 'Content', label: 'Integrations', render: () => <IntegrationsPhase status={setupStatus?.phases?.integrations} features={setupStatus?.features} onComplete={goNext} /> },
     { key: 'scanning', group: 'Content', label: 'Scan content', render: () => <ScanningPhase onComplete={goNext} /> },
     { key: 'fix_first', group: 'Content', label: 'Fix-first', render: () => <FixFirstPhase onComplete={goNext} /> },

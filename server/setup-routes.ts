@@ -505,6 +505,27 @@ router.post('/import-clients', async (req: Request, res: Response) => {
   }
 });
 
+// ==================== ONBOARDING LEAD SOURCES ====================
+// Save the studio's lead-source channels during onboarding (the admin CRM endpoint
+// is auth-gated). Open while onboarding is in progress; gated shut after setup.
+router.post('/lead-sources', async (req: Request, res: Response) => {
+  try {
+    const names: string[] = Array.isArray(req.body?.names) ? req.body.names : [];
+    const clean = Array.from(new Set(names.map((n) => String(n || '').trim()).filter(Boolean))).slice(0, 40);
+    let added = 0;
+    for (let i = 0; i < clean.length; i++) {
+      try {
+        await db.execute(sql`INSERT INTO lead_sources (name, is_active, sort_order) VALUES (${clean[i]}, true, ${i}) ON CONFLICT (name) DO NOTHING`);
+        added++;
+      } catch { /* skip a bad row, keep going */ }
+    }
+    return res.json({ ok: true, added });
+  } catch (error: any) {
+    console.error('[setup] lead-sources error:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to save lead sources' });
+  }
+});
+
 // ==================== DEMO DATA SEED ====================
 // Populate a fresh instance with realistic sample data (clients + paid invoices +
 // leads) so a demo CRM shows no blanks and lifetime-value / revenue / top-clients /
