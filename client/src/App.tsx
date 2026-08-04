@@ -94,6 +94,7 @@ const AnalyticsSettingsPage = lazyWithRetry(() => import('./pages/admin/settings
 const DomainSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/DomainSettingsPage'));
 const CustomDomainSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/CustomDomainSettingsPage'));
 const LanguageSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/LanguageSettingsPage'));
+const CalculatorSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/CalculatorSettingsPage'));
 const ManualWebsiteUpdatePage = lazyWithRetry(() => import('./pages/admin/ManualWebsiteUpdatePage'));
 import GewerblicheFotografieWienPage from './pages/GewerblicheFotografieWienPage';
 import WarumNewAgePage from './pages/WarumNewAgePage';
@@ -756,6 +757,14 @@ function App() {
                   element={
                     <NeonProtectedRoute>
                       <LanguageSettingsPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/settings/calculator"
+                  element={
+                    <NeonProtectedRoute>
+                      <CalculatorSettingsPage />
                     </NeonProtectedRoute>
                   }
                 />

@@ -97,6 +97,8 @@ export const studioConfigs = pgTable("studio_configs", {
   homepageGenState: jsonb("homepage_gen_state"),
   homepageDraftLandingId: uuid("homepage_draft_landing_id"),
   homepageLandingSlug: text("homepage_landing_slug"),
+  // Studio's own PricingEmbed.com calculator embed URL (homepage price calculator).
+  pricingEmbedUrl: text("pricing_embed_url"),
 
   // Status
   isActive: boolean("is_active").default(true),

@@ -19,6 +19,7 @@ import {
   studioConfigs,
   studioIntegrations,
   blogPosts,
+  galleries,
   galleryImages,
   voucherProducts,
   crmClients,
@@ -616,7 +617,58 @@ router.post('/seed-demo', async (req: Request, res: Response) => {
       leads++;
     }
 
-    return res.json({ seeded: true, clients, invoices, leads, revenue: Math.round(revenue) });
+    // Three sample galleries with visibly different cover templates so studios can
+    // see the possibilities. Images are reliable external placeholders (picsum).
+    const galleryDefs = [
+      {
+        title: 'Sample — Family Session', slug: 'sample-family-session', seed: 'famgal',
+        cover: { templateId: 'classic-center', textPosition: 'center', textAlignment: 'center', overlay: 'dark', titleSize: 'large', showSubtitle: true, showButton: true, buttonStyle: 'outline', fontStyle: 'elegant', imageStyle: 'full', subtitle: 'A warm family shoot' },
+      },
+      {
+        title: 'Sample — Wedding Highlights', slug: 'sample-wedding-highlights', seed: 'weddgal',
+        cover: { templateId: 'magazine-left', textPosition: 'bottom-left', textAlignment: 'left', overlay: 'gradient', titleSize: 'xlarge', showSubtitle: true, showButton: false, buttonStyle: 'solid', fontStyle: 'serif', imageStyle: 'full', subtitle: 'The big day' },
+      },
+      {
+        title: 'Sample — Newborn Studio', slug: 'sample-newborn-studio', seed: 'newborngal',
+        cover: { templateId: 'minimal-top', textPosition: 'top', textAlignment: 'center', overlay: 'light', titleSize: 'medium', showSubtitle: false, showButton: true, buttonStyle: 'outline', fontStyle: 'modern', imageStyle: 'framed', subtitle: '' },
+      },
+    ];
+    let galleryCount = 0;
+    for (const g of galleryDefs) {
+      const existsG = await db.select({ id: galleries.id }).from(galleries).where(eq(galleries.slug, g.slug)).limit(1);
+      let galleryId: string;
+      if (existsG.length) {
+        galleryId = existsG[0].id;
+      } else {
+        const [row] = await db.insert(galleries).values({
+          title: g.title,
+          slug: g.slug,
+          description: 'A sample gallery to preview what your client galleries can look like.',
+          coverImage: `https://picsum.photos/seed/${g.seed}-cover/1200/800`,
+          coverTemplate: g.cover as any,
+          isPublic: true,
+          status: 'ACTIVE',
+        } as any).returning({ id: galleries.id });
+        galleryId = row.id;
+        galleryCount++;
+      }
+      // Add a handful of images if the gallery has none.
+      const imgCount = await countRows(galleryImages, eq(galleryImages.galleryId, galleryId));
+      if (imgCount === 0) {
+        for (let k = 0; k < 8; k++) {
+          await db.insert(galleryImages).values({
+            galleryId,
+            filename: `${g.seed}-${k + 1}.jpg`,
+            url: `https://picsum.photos/seed/${g.seed}-${k + 1}/1200/800`,
+            title: `Sample photo ${k + 1}`,
+            sortOrder: k,
+            contentType: 'image/jpeg',
+          } as any);
+        }
+      }
+    }
+
+    return res.json({ seeded: true, clients, invoices, leads, galleries: galleryCount, revenue: Math.round(revenue) });
   } catch (error: any) {
     console.error('[setup] seed-demo error:', error?.message || error);
     return res.status(500).json({ error: 'Failed to seed demo data', detail: String(error?.message || error).slice(0, 200) });

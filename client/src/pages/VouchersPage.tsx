@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Layout from '../components/layout/Layout';
+import { voucherThumbnail } from '../lib/voucherThumbnail';
 import CategoryFilter from '../components/vouchers/CategoryFilter';
 import { useAppContext } from '../context/AppContext';
 import { Search, Gift } from 'lucide-react';
@@ -63,8 +64,7 @@ const VouchersPage: React.FC = () => {
     return apiProducts
       .filter((p: any) => p.isActive !== false && p.is_active !== false)
       .map((p: any) => {
-        const imageUrl = p.imageUrl || p.image_url || p.thumbnailUrl || p.thumbnail_url;
-        console.log(`📷 Product: ${p.name}, imageUrl:`, imageUrl);
+        const imageUrl = voucherThumbnail(p);
         const rawDescription = p.description || '';
         return {
           id: p.id,

@@ -68,7 +68,7 @@ export default function DraftsPhase({ onComplete }: DraftsPhaseProps) {
       if (!res.ok) throw new Error(d.error || 'Failed');
       setSeedStatus(d.alreadySeeded
         ? 'Sample data already loaded.'
-        : `Loaded ${d.clients} clients, ${d.invoices} paid invoices and ${d.leads} leads (≈ €${d.revenue?.toLocaleString?.() || d.revenue} revenue).`);
+        : `Loaded ${d.clients} clients, ${d.invoices} paid invoices, ${d.leads} leads and ${d.galleries ?? 0} sample galleries (≈ €${d.revenue?.toLocaleString?.() || d.revenue} revenue).`);
     } catch (e: any) {
       setSeedStatus(`Could not load sample data: ${e?.message || 'error'}`);
     } finally { setSeeding(false); }

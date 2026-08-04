@@ -23,7 +23,8 @@ import {
   BarChart3,
   Link2,
   Server,
-  Languages
+  Languages,
+  Calculator
 } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
@@ -178,6 +179,13 @@ const SettingsPage: React.FC = () => {
           description: 'Choose site languages + default; AI-translate French & Spanish',
           path: '/admin/settings/languages',
           color: 'bg-fuchsia-500'
+        },
+        {
+          icon: Calculator,
+          title: 'Price Calculator',
+          description: 'Your PricingEmbed.com calculator shown on the homepage',
+          path: '/admin/settings/calculator',
+          color: 'bg-orange-500'
         }
       ]
     }

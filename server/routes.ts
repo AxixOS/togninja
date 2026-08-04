@@ -6989,6 +6989,8 @@ Bitte versuchen Sie es später noch einmal.`;
       }
       // The AI-generated homepage: when set, "/" renders this landing page slug.
       studioConfig.homepageLandingSlug = dbConfig?.homepageLandingSlug || null;
+      // The studio's own PricingEmbed calculator (homepage price calculator).
+      studioConfig.pricingEmbedUrl = dbConfig?.pricingEmbedUrl || null;
     } catch (error) {
       console.warn('Could not fetch studio config from database, using defaults:', (error as any)?.message);
       // Continue with defaults

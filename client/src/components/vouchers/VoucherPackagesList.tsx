@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCart } from '../../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
+import { voucherThumbnail } from '../../lib/voucherThumbnail';
 
 type Voucher = {
   id: string;
@@ -37,7 +38,7 @@ const VoucherPackagesList: React.FC<{ category?: string; limit?: number; feature
       description: p.description || p.detailedDescription || p.detailed_description || '',
       price: typeof p.price === 'string' ? parseFloat(p.price) : (p.price || 0),
       originalPrice: p.originalPrice || p.original_price || undefined,
-      image: p.thumbnailUrl || p.thumbnail_url || p.imageUrl || p.image_url || undefined,
+      image: voucherThumbnail(p),
       category: (p.category || p.sessionType || '').toString(),
       route: `/gutschein/${p.slug || p.id}`,
       slug: p.slug || p.id,

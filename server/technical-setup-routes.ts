@@ -297,7 +297,7 @@ router.post('/extras', async (req: Request, res: Response) => {
       openaiApiKey, openaiAssistantId,
       anthropicApiKey,
       googleClientId, googleClientSecret, googleCalendarId,
-      ga4MeasurementId, metaPixelId,
+      ga4MeasurementId, metaPixelId, pricingEmbedUrl,
       smsProvider, smsAccountSid, smsAuthToken, smsFromNumber,
       // Social & Reviews — each studio connects its OWN accounts here.
       googlePlacesApiKey, googlePlacesPlaceId,
@@ -343,6 +343,7 @@ router.post('/extras', async (req: Request, res: Response) => {
     const scUpdate: Record<string, any> = {};
     if (ga4MeasurementId !== undefined) scUpdate.ga4MeasurementId = ga4MeasurementId || null;
     if (metaPixelId !== undefined) scUpdate.metaPixelId = metaPixelId || null;
+    if (pricingEmbedUrl !== undefined) scUpdate.pricingEmbedUrl = pricingEmbedUrl || null;
 
     if (Object.keys(scUpdate).length > 0) {
       await db.update(studioConfigs).set(scUpdate).where(eq(studioConfigs.id, scId));
@@ -633,6 +634,7 @@ router.get('/current', async (_req: Request, res: Response) => {
         googleCalendarId: si?.google_calendar_id || '',
         ga4MeasurementId: sc?.ga4MeasurementId || '',
         metaPixelId: sc?.metaPixelId || '',
+        pricingEmbedUrl: sc?.pricingEmbedUrl || '',
         smsProvider: si?.sms_provider || '',
         smsAccountSid: si?.sms_account_sid || '',
         smsAuthTokenSet: !!si?.sms_auth_token_encrypted,

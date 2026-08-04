@@ -173,7 +173,14 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const pricingEmbedUrl = PRICING_EMBED_URLS[language];
+  // Per-studio PricingEmbed calculator (set in Settings → Price Calculator). Falls
+  // back to the build-time env / default so existing sites keep working.
+  const { data: studioConfigData } = useQuery<any>({
+    queryKey: ['/api/studio-config'],
+    queryFn: async () => (await fetch('/api/studio-config')).json(),
+    staleTime: 300_000,
+  });
+  const pricingEmbedUrl = studioConfigData?.pricingEmbedUrl || PRICING_EMBED_URLS[language];
   const pricingCalculatorCopy = language === 'en'
     ? {
         heading: 'Find your perfect photoshoot package',
