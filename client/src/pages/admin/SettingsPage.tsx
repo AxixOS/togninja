@@ -19,7 +19,10 @@ import {
   HardDrive,
   MessageSquare,
   CreditCard,
-  Calendar
+  Calendar,
+  BarChart3,
+  Link2,
+  Server
 } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
@@ -78,6 +81,13 @@ const SettingsPage: React.FC = () => {
           description: 'Monitor the CRM AI agent: usage, performance and full audit trail',
           path: '/admin/agent-console',
           color: 'bg-violet-500'
+        },
+        {
+          icon: Key,
+          title: 'AI & API Keys',
+          description: 'OpenAI / Anthropic keys for the assistant, blog writer and homepage generator',
+          path: '/admin/settings/ai',
+          color: 'bg-purple-500'
         }
       ]
     },
@@ -119,6 +129,34 @@ const SettingsPage: React.FC = () => {
           description: 'Connect your Google Calendar to sync bookings both ways',
           path: '/admin/calendar-sync',
           color: 'bg-blue-500'
+        },
+        {
+          icon: Globe,
+          title: 'Google API',
+          description: 'Google OAuth client credentials used for Calendar sync',
+          path: '/admin/settings/google',
+          color: 'bg-red-400'
+        },
+        {
+          icon: BarChart3,
+          title: 'Analytics',
+          description: 'Google Analytics 4 and Meta Pixel IDs for your public website',
+          path: '/admin/settings/analytics',
+          color: 'bg-amber-500'
+        },
+        {
+          icon: Link2,
+          title: 'Domain & URLs',
+          description: 'The website / admin / public addresses used in emails and links',
+          path: '/admin/settings/domain',
+          color: 'bg-slate-500'
+        },
+        {
+          icon: Server,
+          title: 'Custom Domain',
+          description: 'Point your own domain at this studio — CNAME / A records + guide',
+          path: '/admin/settings/custom-domain',
+          color: 'bg-cyan-600'
         }
       ]
     },

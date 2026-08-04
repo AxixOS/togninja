@@ -42,6 +42,21 @@ const EmailSettingsPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [provider, setProvider] = useState('');
+
+  // One-click host/port presets. Gmail/Outlook studios just pick the provider and
+  // enter their address + (Gmail) app password — no need to know host names/ports.
+  const PRESETS: Record<string, Partial<EmailState>> = {
+    gmail: { smtpHost: 'smtp.gmail.com', smtpPort: '465', smtpSecure: true, imapHost: 'imap.gmail.com', imapPort: '993', imapTls: true },
+    outlook: { smtpHost: 'smtp.office365.com', smtpPort: '587', smtpSecure: false, imapHost: 'outlook.office365.com', imapPort: '993', imapTls: true },
+  };
+  const applyPreset = (key: string) => {
+    setProvider(key);
+    const p = PRESETS[key];
+    if (!p) return;
+    setS(prev => ({ ...prev, ...p }));
+    setShowImap(true);
+  };
 
   useEffect(() => {
     (async () => {
@@ -164,6 +179,19 @@ const EmailSettingsPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center mb-4"><Settings size={20} className="text-purple-600 mr-2" /><h2 className="text-lg font-semibold text-gray-900">SMTP (outgoing)</h2></div>
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email provider</label>
+                <select value={provider} onChange={e => applyPreset(e.target.value)} className={field}>
+                  <option value="">Custom / other</option>
+                  <option value="gmail">Gmail</option>
+                  <option value="outlook">Outlook / Microsoft 365</option>
+                </select>
+                {provider === 'gmail' && (
+                  <p className="text-xs text-amber-700 mt-1">
+                    Gmail needs an <strong>App Password</strong> (Google Account → Security → 2-Step Verification → App passwords), not your normal password. Use your Gmail address as the username.
+                  </p>
+                )}
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">From email address</label>
                 <input type="email" value={s.fromEmail} onChange={e => setS(p => ({ ...p, fromEmail: e.target.value }))} className={field} placeholder="hello@yourstudio.com" />

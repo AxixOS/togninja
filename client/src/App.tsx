@@ -88,6 +88,11 @@ const PriceListSettingsPage = lazyWithRetry(() => import('./pages/admin/settings
 const StorageSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/StorageSettingsPage'));
 const SmsSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/SmsSettingsPage'));
 const StripeSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/StripeSettingsPage'));
+const AiSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/AiSettingsPage'));
+const GoogleSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/GoogleSettingsPage'));
+const AnalyticsSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/AnalyticsSettingsPage'));
+const DomainSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/DomainSettingsPage'));
+const CustomDomainSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/CustomDomainSettingsPage'));
 const ManualWebsiteUpdatePage = lazyWithRetry(() => import('./pages/admin/ManualWebsiteUpdatePage'));
 import GewerblicheFotografieWienPage from './pages/GewerblicheFotografieWienPage';
 import WarumNewAgePage from './pages/WarumNewAgePage';
@@ -683,6 +688,46 @@ function App() {
                   element={
                     <NeonProtectedRoute>
                       <StripeSettingsPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/settings/ai"
+                  element={
+                    <NeonProtectedRoute>
+                      <AiSettingsPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/settings/google"
+                  element={
+                    <NeonProtectedRoute>
+                      <GoogleSettingsPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/settings/analytics"
+                  element={
+                    <NeonProtectedRoute>
+                      <AnalyticsSettingsPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/settings/domain"
+                  element={
+                    <NeonProtectedRoute>
+                      <DomainSettingsPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/settings/custom-domain"
+                  element={
+                    <NeonProtectedRoute>
+                      <CustomDomainSettingsPage />
                     </NeonProtectedRoute>
                   }
                 />
