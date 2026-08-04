@@ -310,6 +310,10 @@ router.post('/extras', async (req: Request, res: Response) => {
 
     if (openaiApiKey) siUpdate.openai_api_key_encrypted = encrypt(openaiApiKey);
     if (openaiAssistantId) siUpdate.openai_assistant_id = openaiAssistantId;
+    // Make new keys live immediately for env-reading features (agent, autoblog,
+    // AI scans) without waiting for a restart to re-hydrate env from the DB.
+    if (openaiApiKey) process.env.OPENAI_API_KEY = openaiApiKey;
+    if (anthropicApiKey) process.env.ANTHROPIC_API_KEY = anthropicApiKey;
     if (anthropicApiKey) siUpdate.anthropic_api_key_encrypted = encrypt(anthropicApiKey);
     if (googleClientId) siUpdate.google_client_id = googleClientId;
     if (googleClientSecret) siUpdate.google_client_secret_encrypted = encrypt(googleClientSecret);

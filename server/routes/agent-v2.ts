@@ -25,10 +25,20 @@ import "../../agent/v2/tools/index";
 
 const router = express.Router();
 
-// OpenAI client
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' })
-  : null;
+// Resolve the OpenAI client PER REQUEST. The previous module-level client was built
+// once at boot and stayed null if the key wasn't in the environment then — so a key
+// saved later in Settings → AI & API Keys never took effect (every message failed)
+// until a restart. This reads the live env, then the DB-backed config as a fallback.
+async function getOpenAI(): Promise<OpenAI | null> {
+  let key = process.env.OPENAI_API_KEY;
+  if (!key) {
+    try {
+      const { config } = await import("../config-reader");
+      key = (await config.get("openai_api_key")) as string;
+    } catch { /* ignore — treated as not configured */ }
+  }
+  return key ? new OpenAI({ apiKey: key }) : null;
+}
 
 /**
  * POST /api/agent/v2/chat
@@ -47,7 +57,10 @@ router.post("/chat", async (req: Request, res: Response) => {
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "Message is required" });
     }
-    
+
+    // Resolve the OpenAI client for this request (picks up a key saved post-boot).
+    const openai = await getOpenAI();
+
     // Get user context from JWT
     const userId = (req as any).user?.id || "demo_user";
     const studioId = (req as any).user?.studioId || "demo_studio";

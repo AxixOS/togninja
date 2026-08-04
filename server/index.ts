@@ -530,6 +530,12 @@ app.use((req, res, next) => {
       // has no linked CRM product (e.g. in-person payment-link sales). Additive.
       try {
         await db.execute(sql`ALTER TABLE voucher_sales ADD COLUMN IF NOT EXISTS resolved_product_name TEXT`);
+        // Stripe linkage + PDF columns are written via raw SQL (not declared in the
+        // Drizzle schema), so a fresh DB lacks them and the sales sync fails with
+        // "column stripe_session_id does not exist". Ensure they exist here.
+        await db.execute(sql`ALTER TABLE voucher_sales ADD COLUMN IF NOT EXISTS stripe_session_id TEXT`);
+        await db.execute(sql`ALTER TABLE voucher_sales ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT`);
+        await db.execute(sql`ALTER TABLE voucher_sales ADD COLUMN IF NOT EXISTS pdf_url TEXT`);
         console.log('✅ voucher_sales.resolved_product_name column ensured');
       } catch (migrationError: any) {
         console.warn('⚠️ voucher_sales resolved_product_name migration failed:', migrationError.message);

@@ -11585,18 +11585,43 @@ Ihr Team von {{studioName}}`,
 
   app.post("/api/admin/email/campaigns", authenticateUser, async (req: Request, res: Response) => {
     try {
-      const userId = req.session?.userId;
-      const campaignData = {
-        ...req.body,
+      const b = req.body || {};
+      // user_id is a FK to users.id, but admins live in admin_users — a session id
+      // may not be a valid users row (fresh instance) and would violate the FK. Only
+      // set it when it actually exists; otherwise leave null.
+      let userId: string | null = null;
+      const sid = (req.session as any)?.userId;
+      if (sid) {
+        try {
+          const r = await pool.query('SELECT 1 FROM users WHERE id = $1 LIMIT 1', [sid]);
+          if (r.rows.length) userId = sid;
+        } catch { /* ignore */ }
+      }
+      // Whitelist known columns + satisfy NOT NULL (name/subject/content) so a
+      // half-filled "Send Test" doesn't 500, and stray form fields don't break insert.
+      const values: Record<string, any> = {
         userId,
-        status: req.body.status || 'draft',
+        name: String(b.name || 'Untitled campaign').slice(0, 255),
+        type: b.type || 'broadcast',
+        status: b.status || 'draft',
+        subject: String(b.subject || b.name || 'No subject'),
+        content: (b.content && String(b.content).trim()) ? b.content : '<p></p>',
       };
-      
-      const [campaign] = await db.insert(emailCampaigns).values(campaignData).returning();
+      if (b.previewText ?? b.preview_text) values.previewText = b.previewText ?? b.preview_text;
+      if (b.senderName ?? b.sender_name) values.senderName = b.senderName ?? b.sender_name;
+      if (b.senderEmail ?? b.sender_email) values.senderEmail = b.senderEmail ?? b.sender_email;
+      if (b.replyTo ?? b.reply_to) values.replyTo = b.replyTo ?? b.reply_to;
+      if (Array.isArray(b.segments)) values.segments = b.segments;
+      const extraSettings = (b.sendTimeOptimization !== undefined || b.frequencyCapping !== undefined)
+        ? { sendTimeOptimization: b.sendTimeOptimization, frequencyCapping: b.frequencyCapping }
+        : undefined;
+      if (b.settings || extraSettings) values.settings = { ...(b.settings || {}), ...(extraSettings || {}) };
+
+      const [campaign] = await db.insert(emailCampaigns).values(values as any).returning();
       res.status(201).json(campaign);
     } catch (error) {
       console.error('Error creating campaign:', error);
-      res.status(500).json({ error: 'Failed to create campaign' });
+      res.status(500).json({ error: 'Failed to create campaign', detail: (error as Error).message });
     }
   });
 
