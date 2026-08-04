@@ -243,13 +243,17 @@ async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
         (!post.publishedAt || new Date(post.publishedAt).getTime() <= Date.now());
       if (isLive) {
         const studioName = await getStudioName();
+        // Resolve the studio's Authority Map for the cluster→pillar uplinks.
+        const { getAuthorityMap } = await import("./lib/authority-map");
+        const { pillarForTopic } = await import("../shared/authorityMap.js");
+        const authority = pillarForTopic(await getAuthorityMap(), `${post.title || ""} ${post.slug || ""} ${post.excerpt || ""}`);
         meta = {
           title: post.seoTitle || `${post.title} | New Age Fotografie Blog`,
           description: String(post.metaDescription || post.excerpt || post.title).slice(0, 160),
           canonical: `${SITE_ORIGIN}/blog/${slug}`,
           // Auto-embed JSON-LD (BlogPosting + FAQ + any ShootCleaner-supplied schema) so
           // published posts are structured-data rich for search and AI-answer citations.
-          bodyHtml: blogBodyHtml(post) + blogJsonLd(post, studioName),
+          bodyHtml: blogBodyHtml(post, authority) + blogJsonLd(post, studioName),
         };
       }
     } else if (voucherMatch) {
@@ -313,34 +317,10 @@ const htmlEsc = (s: string) =>
 // inject it into the root at serve time. The client uses createRoot().render()
 // (not hydrateRoot), so React simply replaces this content on mount.
 
-// Mirror of BlogPostPage's topic-matched cluster→pillar uplinks — keep in sync.
-const BLOG_PILLARS: Array<{ match: RegExp; pillar: [string, string]; siblings: [string, string][] }> = [
-  { match: /hochzeit|braut|trauung|standesamt/i,
-    pillar: ["/hochzeitsfotografie-wien/", "Hochzeitsfotografie Wien"],
-    siblings: [["/schwangerschaftsfotos-wien/", "Paar- & Babybauch-Shooting"], ["/gewerbliche-fotografie-wien/", "Eventfotografie & mehr"]] },
-  { match: /neugeboren|newborn/i,
-    pillar: ["/neugeborenenfotos-wien/", "Neugeborenenfotos Wien"],
-    siblings: [["/babyfotos-wien/", "Babyfotos Wien"], ["/familienfotos-wien/", "Familienfotos Wien"]] },
-  { match: /schwanger|babybauch|maternity/i,
-    pillar: ["/schwangerschaftsfotos-wien/", "Schwangerschaftsfotos Wien"],
-    siblings: [["/neugeborenenfotos-wien/", "Neugeborenenfotos Wien"], ["/familienfotos-wien/", "Familienfotos Wien"]] },
-  { match: /\bbaby|babyfoto/i,
-    pillar: ["/babyfotos-wien/", "Babyfotos Wien (3–12 Monate)"],
-    siblings: [["/neugeborenenfotos-wien/", "Neugeborenenfotos Wien"], ["/kinder-fotografie-wien/", "Kinder-Fotografie Wien"]] },
-  { match: /kinder|kids/i,
-    pillar: ["/kinder-fotografie-wien/", "Kinder-Fotografie Wien"],
-    siblings: [["/familienfotos-wien/", "Familienfotos Wien"], ["/babyfotos-wien/", "Babyfotos Wien"]] },
-  { match: /business|bewerbung|linkedin|portrait|headshot|team/i,
-    pillar: ["/business-portrait-wien/", "Business Portraits Wien"],
-    siblings: [["/gewerbliche-fotografie-wien/", "Gewerbliche Fotografie Wien"], ["/teamfotos-wien/", "Teamfotos Wien"]] },
-  { match: /produkt|immobilie|event|firmen/i,
-    pillar: ["/gewerbliche-fotografie-wien/", "Gewerbliche Fotografie Wien"],
-    siblings: [["/business-portrait-wien/", "Business Portraits Wien"], ["/teamfotos-wien/", "Teamfotos Wien"]] },
-];
-const DEFAULT_BLOG_PILLAR = {
-  pillar: ["/familienfotos-wien/", "Familienfotos Wien"] as [string, string],
-  siblings: [["/babyfotos-wien/", "Babyfotos Wien"], ["/schwangerschaftsfotos-wien/", "Schwangerschaftsfotos Wien"]] as [string, string][],
-};
+// Cluster→pillar uplinks now come from the studio's Authority Map (shared/authorityMap.ts,
+// resolved via ./lib/authority-map). The New Age seed there is byte-identical to the map
+// that used to live here; other studios get their own generated map.
+type BlogAuthority = { pillar: { href: string; label: string }; siblings: { href: string; label: string }[] };
 
 // Legacy posts store raw Markdown in `content` (contentHtml empty). Minimal
 // conversion — headings + paragraphs — is enough for crawlable text.
@@ -357,9 +337,8 @@ function markdownishToHtml(md: string): string {
   }).filter(Boolean).join("\n");
 }
 
-function blogBodyHtml(post: any): string {
-  const haystack = `${post.title || ""} ${post.slug || ""} ${post.excerpt || ""}`;
-  const { pillar, siblings } = BLOG_PILLARS.find((p) => p.match.test(haystack)) || DEFAULT_BLOG_PILLAR;
+function blogBodyHtml(post: any, authority: BlogAuthority): string {
+  const { pillar, siblings } = authority;
   const published = post.publishedAt ? new Date(post.publishedAt).toISOString().slice(0, 10) : "";
   const content = post.contentHtml && String(post.contentHtml).trim()
     ? String(post.contentHtml)
@@ -367,8 +346,8 @@ function blogBodyHtml(post: any): string {
   const cover = post.imageUrl
     ? `<img src="${htmlEsc(String(post.imageUrl))}" alt="${htmlEsc(String(post.title || ""))}" class="w-full rounded-xl mb-8" />\n`
     : "";
-  const siblingLinks = siblings.map(([to, label]) =>
-    `<li><a href="${to}" class="text-purple-700 underline underline-offset-2">${htmlEsc(label)}</a></li>`).join("\n");
+  const siblingLinks = siblings.map((s) =>
+    `<li><a href="${s.href}" class="text-purple-700 underline underline-offset-2">${htmlEsc(s.label)}</a></li>`).join("\n");
   return (
     `<div class="max-w-3xl mx-auto px-4 py-12">\n` +
     `<article>\n` +
@@ -379,7 +358,7 @@ function blogBodyHtml(post: any): string {
     `</article>\n` +
     `<div class="mt-10 bg-purple-50 border border-purple-100 rounded-xl p-6">\n` +
     `<h3 class="text-xl font-bold text-gray-900 mb-4">Passendes Fotoshooting</h3>\n` +
-    `<a href="${pillar[0]}" class="block bg-purple-600 text-white font-semibold rounded-lg px-5 py-3 mb-4">→ ${htmlEsc(pillar[1])}: Infos, Pakete &amp; Beispiele</a>\n` +
+    `<a href="${pillar.href}" class="block bg-purple-600 text-white font-semibold rounded-lg px-5 py-3 mb-4">→ ${htmlEsc(pillar.label)}: Infos, Pakete &amp; Beispiele</a>\n` +
     `<ul class="grid sm:grid-cols-3 gap-3 mb-4">\n${siblingLinks}\n</ul>\n` +
     `<p class="text-gray-700">Alle <a href="/preise/" class="underline">Preise &amp; Pakete</a> · <a href="/kundenstimmen/" class="underline">Kundenstimmen</a> · <a href="/kontakt" class="underline">Termin anfragen</a> · <a href="/vouchers" class="underline">Gutscheine</a></p>\n` +
     `</div>\n` +

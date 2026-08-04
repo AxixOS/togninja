@@ -74,9 +74,16 @@ body {
   overflow: hidden;
 }
 
-/* Dark sidebar scrollbar */
+/* Sidebar scrollbar — always visible so the long nav is obviously scrollable.
+   Firefox uses scrollbar-width/color; WebKit/Blink use the ::-webkit rules. */
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+  scrollbar-gutter: stable;
+}
+
 .sidebar-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 10px;
 }
 
 .sidebar-scrollbar::-webkit-scrollbar-track {
@@ -84,12 +91,13 @@ body {
 }
 
 .sidebar-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: #94a3b8;
+  border-radius: 5px;
+  border: 2px solid #f1f5f9;
 }
 
 .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #64748b;
 }
 
 @layer base {

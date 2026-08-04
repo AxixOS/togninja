@@ -172,9 +172,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       path: '/admin/settings',
       subItems: [
         { icon: Palette, label: t('nav.studioTemplates'), path: '/admin/studio-templates' },
-        { icon: Wand2, label: t('nav.websiteWizard'), path: '/admin/website-wizard' },
-        { icon: Search, label: t('nav.websiteAnalyzer'), path: '/admin/website-analyzer' },
-        { icon: FileText, label: 'Manual Website Update', path: '/admin/manual-website-update' },
+        // Website Wizard + Website Analyzer + Manual Website Update consolidated here.
+        { icon: Globe, label: 'Website Studio', path: '/admin/website-studio' },
         { icon: BookOpen, label: t('nav.knowledgeBase'), path: '/admin/knowledge-base' },
         { icon: Activity, label: 'Agent Console', path: '/admin/agent-console' },
       ]

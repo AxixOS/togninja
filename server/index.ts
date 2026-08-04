@@ -575,6 +575,9 @@ app.use((req, res, next) => {
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS homepage_landing_slug TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS pricing_embed_url TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_api_key TEXT`);
+        // Authority Map — per-studio topical-cluster + internal-link structure (falls back
+        // to the New Age seed in shared/authorityMap.ts when null).
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS authority_map JSONB`);
         // ShootCleaner outbound webhook (invoice.paid): where to POST + the HMAC secret.
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_webhook_url TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_webhook_secret TEXT`);

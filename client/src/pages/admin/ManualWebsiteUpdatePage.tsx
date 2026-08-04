@@ -1136,7 +1136,7 @@ const PortfolioImagesManager: React.FC = () => {
   );
 };
 
-const ManualWebsiteUpdatePage: React.FC = () => {
+const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const [selectedPage, setSelectedPage] = useState<ManualPageDefinition | null>(manualPageManifest[0] || null);
   const [language, setLanguage] = useState<'de' | 'en'>('de');
   const [editedContent, setEditedContent] = useState<Record<string, string>>({});
@@ -1715,8 +1715,10 @@ const ManualWebsiteUpdatePage: React.FC = () => {
     );
   };
 
-  return (
-    <AdminLayout>
+  // When hosted inside the Website Studio tabs, skip the inner AdminLayout (the Studio
+  // provides it) — using a stable `inner` const so children never remount on re-render.
+  const inner = (
+    <>
       <div className="flex h-[calc(100vh-4rem)]">
         {/* Sidebar - Page List */}
         <div className="w-80 bg-gray-50 border-r border-gray-200 overflow-y-auto">
@@ -2084,8 +2086,9 @@ const ManualWebsiteUpdatePage: React.FC = () => {
         </div>
       </div>
     )}
-    </AdminLayout>
+    </>
   );
+  return embedded ? inner : <AdminLayout>{inner}</AdminLayout>;
 };
 
 export default ManualWebsiteUpdatePage;

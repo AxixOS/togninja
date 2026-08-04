@@ -98,6 +98,7 @@ const CalculatorSettingsPage = lazyWithRetry(() => import('./pages/admin/setting
 const PulseSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/PulseSettingsPage'));
 const ShootCleanerSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/ShootCleanerSettingsPage'));
 const ManualWebsiteUpdatePage = lazyWithRetry(() => import('./pages/admin/ManualWebsiteUpdatePage'));
+const WebsiteStudioPage = lazyWithRetry(() => import('./pages/admin/WebsiteStudioPage'));
 import GewerblicheFotografieWienPage from './pages/GewerblicheFotografieWienPage';
 import WarumNewAgePage from './pages/WarumNewAgePage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -810,22 +811,18 @@ function App() {
                     </NeonProtectedRoute>
                   }
                 />
+                {/* Website Studio — one home for Analyse / Customise / Themes. */}
                 <Route
-                  path="/admin/website-analyzer"
+                  path="/admin/website-studio"
                   element={
                     <NeonProtectedRoute>
-                      <WebsiteWizard />
+                      <WebsiteStudioPage />
                     </NeonProtectedRoute>
                   }
                 />
-                <Route
-                  path="/admin/manual-website-update"
-                  element={
-                    <NeonProtectedRoute>
-                      <ManualWebsiteUpdatePage />
-                    </NeonProtectedRoute>
-                  }
-                />
+                {/* Old tool routes now redirect into the Studio tabs (no dead links). */}
+                <Route path="/admin/website-analyzer" element={<Navigate to="/admin/website-studio?tab=analyse" replace />} />
+                <Route path="/admin/manual-website-update" element={<Navigate to="/admin/website-studio?tab=customise" replace />} />
                 {/* Public onboarding wizard entry */}
                 <Route path="/onboarding" element={<WebsiteWizard />} />
                 

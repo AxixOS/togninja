@@ -6905,6 +6905,32 @@ Bitte versuchen Sie es später noch einmal.`;
   });
 
   // ==================== STUDIO CONFIG FOR INVOICES ====================
+  // Authority Map — the studio's topical-cluster + internal-link structure. Public GET
+  // (SEO components read it) + authed PUT (Website Studio edits it). Falls back to the
+  // New Age seed when the studio hasn't customised it.
+  app.get("/api/authority-map", async (_req: Request, res: Response) => {
+    try {
+      const { getAuthorityMap } = await import('./lib/authority-map');
+      res.json(await getAuthorityMap());
+    } catch (e: any) {
+      const { DEFAULT_AUTHORITY_MAP } = await import('../shared/authorityMap.js');
+      res.json(DEFAULT_AUTHORITY_MAP);
+    }
+  });
+
+  app.put("/api/authority-map", authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const { normalizeAuthorityMap } = await import('../shared/authorityMap.js');
+      const map = normalizeAuthorityMap(req.body);
+      if (!map) return res.status(400).json({ error: 'Invalid authority map: expected { pillars[], defaultPillar }' });
+      const { saveAuthorityMap } = await import('./lib/authority-map');
+      await saveAuthorityMap(map);
+      res.json({ ok: true, map });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to save authority map' });
+    }
+  });
+
   app.get("/api/studio-config", async (req: Request, res: Response) => {
     // Return defaults - this endpoint will be enhanced when CMS is ready
     const studioConfig: any = {
