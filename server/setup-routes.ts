@@ -22,6 +22,9 @@ import {
   galleryImages,
   voucherProducts,
   crmClients,
+  crmLeads,
+  crmInvoices,
+  crmInvoiceItems,
   emailTemplates,
 } from '../shared/schema';
 import { eq, sql, count } from 'drizzle-orm';
@@ -498,6 +501,125 @@ router.post('/import-clients', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[setup] import-clients error:', error?.message || error);
     return res.status(500).json({ error: 'Failed to import client' });
+  }
+});
+
+// ==================== DEMO DATA SEED ====================
+// Populate a fresh instance with realistic sample data (clients + paid invoices +
+// leads) so a demo CRM shows no blanks and lifetime-value / revenue / top-clients /
+// lead-source analytics all render. Open during onboarding (gated shut after setup
+// completes). Idempotent: skips if demo rows already exist unless ?force=1. Demo rows
+// use clientId 'DEMO-####' + invoiceNumber 'DEMO-####' so they're easy to remove.
+router.post('/seed-demo', async (req: Request, res: Response) => {
+  try {
+    const force = String((req.query.force ?? (req.body && req.body.force)) || '') === '1' || req.query.force === 'true';
+    const already = await db.select({ id: crmClients.id }).from(crmClients).where(sql`client_id LIKE 'DEMO-%'`).limit(1);
+    if (already.length && !force) return res.json({ alreadySeeded: true });
+
+    const firstNames = ['Emma', 'Liam', 'Sophie', 'Lukas', 'Marie', 'Paul', 'Anna', 'Max', 'Léa', 'Hugo', 'Lucía', 'Mateo', 'Chloé', 'Louis', 'Sofía', 'Diego', 'Laura', 'Felix', 'Julia', 'Noah'];
+    const lastNames = ['Müller', 'Schmidt', 'Dubois', 'García', 'Rossi', 'Novak', 'Smith', 'Wagner', 'Martin', 'López', 'Weber', 'Bernard', 'Fernández', 'Fischer', 'Moreau', 'Romero', 'Becker', 'Laurent', 'Sánchez', 'Hoffmann'];
+    const places = [
+      { city: 'Vienna', country: 'Austria', state: 'Wien', zp: '10' },
+      { city: 'Berlin', country: 'Germany', state: 'Berlin', zp: '10' },
+      { city: 'Paris', country: 'France', state: 'Île-de-France', zp: '75' },
+      { city: 'Madrid', country: 'Spain', state: 'Madrid', zp: '28' },
+      { city: 'Munich', country: 'Germany', state: 'Bavaria', zp: '80' },
+      { city: 'Lyon', country: 'France', state: 'Rhône', zp: '69' },
+      { city: 'Barcelona', country: 'Spain', state: 'Catalonia', zp: '08' },
+      { city: 'Hamburg', country: 'Germany', state: 'Hamburg', zp: '20' },
+    ];
+    const streets = ['Hauptstraße', 'Rue de la Paix', 'Calle Mayor', 'Bahnhofstraße', 'Avenue Victor Hugo', 'Gran Vía', 'Lindenweg', 'Rue Lafayette', 'Kirchgasse', 'Paseo del Prado'];
+    const companies = ['Aurora Studios', 'Meridian GmbH', 'Bright Media', 'Nord Consulting', 'Lumière SARL', 'Vista Group', 'Kernel Labs', 'Atlas Ventures'];
+    const sources = ['Google', 'Instagram', 'Facebook', 'Referral', 'Website', 'Newsletter', 'Walk-in'];
+    const sessionTypes = [
+      { name: 'Family Photoshoot', price: 299 }, { name: 'Newborn Session', price: 399 },
+      { name: 'Maternity Session', price: 249 }, { name: 'Business Portrait', price: 199 },
+      { name: 'Wedding Coverage', price: 1200 }, { name: 'Event Photography', price: 650 },
+      { name: 'Baby (3-12mo)', price: 279 }, { name: 'Team Photos', price: 450 },
+    ];
+    const pick = <T,>(arr: T[], i: number): T => arr[((i % arr.length) + arr.length) % arr.length];
+    const rnd = (n: number) => Math.floor(Math.random() * n);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+    let clients = 0, invoices = 0, leads = 0, revenue = 0;
+
+    for (let i = 0; i < 100; i++) {
+      const fn = pick(firstNames, i * 7 + 3);
+      const ln = pick(lastNames, i * 3 + 1);
+      const place = pick(places, i);
+      const [client] = await db.insert(crmClients).values({
+        firstName: fn,
+        lastName: ln,
+        clientId: `DEMO-${String(i + 1).padStart(4, '0')}`,
+        email: `${fn}.${ln}${i}`.toLowerCase().replace(/[^a-z0-9.]/g, '') + '@example.com',
+        phone: `+43 1 ${String(2000000 + ((i * 137) % 7000000)).slice(0, 7)}`,
+        address: `${1 + rnd(200)} ${pick(streets, i)}`,
+        city: place.city,
+        state: place.state,
+        zip: `${place.zp}${String(100 + rnd(899))}`,
+        country: place.country,
+        company: i % 3 === 0 ? pick(companies, i) : null,
+        leadSource: pick(sources, i),
+        status: 'active',
+        notes: `Sample client — ${pick(sessionTypes, i).name} customer.`,
+      } as any).returning({ id: crmClients.id });
+      clients++;
+
+      // ~70% of clients have 1-3 paid invoices (drives revenue + lifetime value).
+      if (i % 10 < 7) {
+        const numInv = 1 + rnd(3);
+        for (let j = 0; j < numInv; j++) {
+          const st = pick(sessionTypes, i + j * 3);
+          const subtotal = st.price;
+          const tax = Math.round(subtotal * 0.2 * 100) / 100;
+          const total = Math.round((subtotal + tax) * 100) / 100;
+          const issue = new Date(Date.now() - (30 + rnd(400)) * 86400000);
+          const due = new Date(issue.getTime() + 30 * 86400000);
+          const [inv] = await db.insert(crmInvoices).values({
+            invoiceNumber: `DEMO-${String(invoices + 1).padStart(4, '0')}`,
+            clientId: client.id,
+            issueDate: iso(issue),
+            dueDate: iso(due),
+            subtotal: String(subtotal),
+            taxAmount: String(tax),
+            total: String(total),
+            paidAmount: String(total),
+            currency: 'EUR',
+            status: 'paid',
+            documentType: 'invoice',
+          } as any).returning({ id: crmInvoices.id });
+          await db.insert(crmInvoiceItems).values({
+            invoiceId: inv.id, description: st.name, quantity: '1', unitPrice: String(subtotal), taxRate: '20',
+          } as any);
+          invoices++;
+          revenue += total;
+        }
+      }
+    }
+
+    // A handful of open leads across sources so New Leads / Lead Sources aren't blank.
+    for (let i = 0; i < 18; i++) {
+      const fn = pick(firstNames, i * 5 + 2);
+      const ln = pick(lastNames, i * 2 + 4);
+      const st = pick(sessionTypes, i);
+      await db.insert(crmLeads).values({
+        name: `${fn} ${ln}`,
+        email: `${fn}.${ln}.lead${i}`.toLowerCase().replace(/[^a-z0-9.]/g, '') + '@example.com',
+        phone: `+43 660 ${String(1000000 + ((i * 211) % 8000000)).slice(0, 7)}`,
+        company: i % 4 === 0 ? pick(companies, i) : null,
+        message: `Interested in a ${st.name}. Please get in touch about availability and pricing.`,
+        source: pick(sources, i),
+        status: pick(['new', 'contacted', 'qualified', 'new', 'new'], i),
+        priority: pick(['low', 'medium', 'high', 'medium'], i),
+        value: String(st.price),
+      } as any);
+      leads++;
+    }
+
+    return res.json({ seeded: true, clients, invoices, leads, revenue: Math.round(revenue) });
+  } catch (error: any) {
+    console.error('[setup] seed-demo error:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to seed demo data', detail: String(error?.message || error).slice(0, 200) });
   }
 });
 

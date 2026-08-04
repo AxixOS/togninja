@@ -58,6 +58,21 @@ export default function DraftsPhase({ onComplete }: DraftsPhaseProps) {
   // Default OPEN so studios actually find the client importer during onboarding
   // (it used to be a collapsed accordion and was easy to miss).
   const [showCsvImport, setShowCsvImport] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [seedStatus, setSeedStatus] = useState('');
+  const handleSeedDemo = async () => {
+    setSeeding(true); setSeedStatus('');
+    try {
+      const res = await fetch('/api/setup/seed-demo', { method: 'POST' });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Failed');
+      setSeedStatus(d.alreadySeeded
+        ? 'Sample data already loaded.'
+        : `Loaded ${d.clients} clients, ${d.invoices} paid invoices and ${d.leads} leads (≈ €${d.revenue?.toLocaleString?.() || d.revenue} revenue).`);
+    } catch (e: any) {
+      setSeedStatus(`Could not load sample data: ${e?.message || 'error'}`);
+    } finally { setSeeding(false); }
+  };
   const [editedContent, setEditedContent] = useState('');
   
   // Fetch drafts
@@ -312,7 +327,21 @@ export default function DraftsPhase({ onComplete }: DraftsPhaseProps) {
             </div>
           )}
         </div>
-        
+
+        {/* Demo / testing: load sample data so the CRM isn't blank */}
+        <div className="border border-dashed rounded-xl p-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-medium text-gray-900 text-sm">Load sample data <Badge variant="secondary" className="text-xs ml-1">Demo</Badge></h3>
+            <p className="text-xs text-gray-500">
+              Populate the CRM with 100 sample clients, paid invoices and leads so you can explore a fully-filled dashboard. For demos/testing — skip on a real studio.
+            </p>
+            {seedStatus && <p className="text-xs text-emerald-600 mt-1">{seedStatus}</p>}
+          </div>
+          <Button type="button" variant="outline" size="sm" disabled={seeding} onClick={handleSeedDemo}>
+            {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Load sample data'}
+          </Button>
+        </div>
+
         {/* Draft List */}
         {pendingDrafts.length > 0 ? (
           <div className="space-y-3">
