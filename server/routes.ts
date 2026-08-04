@@ -6947,6 +6947,18 @@ Bitte versuchen Sie es später noch einmal.`;
     }
   });
 
+  // Phase 2: scaffold a draft landing page for each pillar in the Authority Map.
+  app.post("/api/authority-map/scaffold", authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const { scaffoldPillarPages } = await import('./lib/authority-scaffold');
+      const out = await scaffoldPillarPages({ city: req.body?.city, limit: req.body?.limit });
+      res.json({ ok: true, ...out });
+    } catch (e: any) {
+      const noai = e?.name === 'NoOpenAIError';
+      res.status(noai ? 400 : 500).json({ error: noai ? 'OpenAI is not configured (set OPENAI_API_KEY) to build pillar pages.' : (e?.message || 'Failed to scaffold pillar pages') });
+    }
+  });
+
   app.get("/api/studio-config", async (req: Request, res: Response) => {
     // Return defaults - this endpoint will be enhanced when CMS is ready
     const studioConfig: any = {

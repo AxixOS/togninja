@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Sparkles, Save, Check, AlertCircle, Network, ArrowRight, RefreshCw, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Sparkles, Save, Check, AlertCircle, Network, ArrowRight, RefreshCw, Pencil, Plus, Trash2, X, LayoutTemplate } from 'lucide-react';
 import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 import type { AuthorityMap, AuthorityPillar } from '../../../../shared/authorityMap';
 
@@ -20,6 +20,8 @@ const AuthorityMapPanel: React.FC = () => {
   const [working, setWorking] = useState<AuthorityMap | null>(null); // editable draft (from Generate or Edit)
   const [busy, setBusy] = useState<'generate' | 'save' | null>(null);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [building, setBuilding] = useState(false);
+  const [scaffold, setScaffold] = useState<{ results: any[]; created: number; skipped: number; remaining: number } | null>(null);
 
   const setField = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -52,6 +54,20 @@ const AuthorityMapPanel: React.FC = () => {
       setMsg({ type: 'success', text: 'Saved — your site now uses this authority structure.' });
     } catch (e: any) { setMsg({ type: 'error', text: e?.message || 'Save failed' }); }
     finally { setBusy(null); }
+  };
+
+  const buildPages = async () => {
+    setBuilding(true); setMsg(null); setScaffold(null);
+    try {
+      const r = await fetch('/api/authority-map/scaffold', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ city: form.city }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Build failed');
+      setScaffold(d);
+      setMsg({ type: 'success', text: `Built ${d.created} page(s)${d.skipped ? `, skipped ${d.skipped} existing` : ''}${d.remaining ? `, ${d.remaining} remaining — click Build again` : ''}.` });
+    } catch (e: any) { setMsg({ type: 'error', text: e?.message || 'Build failed' }); }
+    finally { setBuilding(false); }
   };
 
   // --- editing helpers (operate on `working`) --------------------------------
@@ -194,6 +210,41 @@ const AuthorityMapPanel: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Phase 2: build a draft landing page per pillar */}
+      {isCustom && !working && (
+        <div className="mt-5 border-t border-gray-100 pt-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Pillar pages</p>
+              <p className="text-xs text-gray-500">Generate a draft landing page for each pillar — review &amp; publish each from the editor.</p>
+            </div>
+            <button onClick={buildPages} disabled={building}
+              className="inline-flex items-center gap-2 border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+              {building ? <RefreshCw size={16} className="animate-spin" /> : <LayoutTemplate size={16} />}
+              {building ? 'Building…' : 'Build pillar pages'}
+            </button>
+          </div>
+          {scaffold && scaffold.results.length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {scaffold.results.map((r) => (
+                <li key={r.slug} className="text-xs flex items-center gap-2">
+                  <span className={`px-1.5 py-0.5 rounded ${r.status === 'created' ? 'bg-green-100 text-green-700' : r.status === 'skipped' ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-700'}`}>{r.status}</span>
+                  <span className="text-gray-700">{r.pillar}</span>
+                  {r.status === 'created' && (
+                    <>
+                      <a href={r.editUrl} className="text-purple-600 underline">edit</a>
+                      <a href={r.previewUrl} target="_blank" rel="noreferrer" className="text-purple-600 underline">preview</a>
+                    </>
+                  )}
+                  {r.status === 'error' && <span className="text-red-500">{r.error}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[11px] text-gray-400 mt-2">Pages are created as drafts at <code>/lp/&lt;slug&gt;</code>. Serving them at their pillar paths is the next step.</p>
+        </div>
+      )}
     </div>
   );
 };
