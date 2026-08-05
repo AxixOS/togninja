@@ -682,35 +682,69 @@ async function renderVoucherPdf(doc: any, data: any): Promise<void> {
   doc.restore();
   y += 24;
 
-  // 2. PRODUCT TITLE
-  doc.fillColor('#1a1a1a').font(bold).fontSize(21).text(data.title || 'Gutschein', pageMargin, y, { width: contentWidth });
-  y = doc.y + 5;
+  // ── MIDDLE BLOCK (title · für/von · message · inclusions) ────────────────────
+  // Measure the whole block, then place it vertically balanced in the gap between
+  // the ribbon and the pinned footer. Short vouchers used to leave a big empty band;
+  // centring removes it. The inclusions sit in a soft framed card so they read as a
+  // defined element rather than bullets floating in white space.
+  const zoneTop = y;
+  const zoneBottom = (pageHeight - 155) - 16; // leave a little air above the footer divider
+  const zoneH = Math.max(0, zoneBottom - zoneTop);
 
-  // 3. RECIPIENT + PERSONAL MESSAGE
+  const vTitle = data.title || 'Gutschein';
   const bits: string[] = [];
   if (data.recipientName && data.recipientName !== 'Beschenkte/r') bits.push(`Für: ${data.recipientName}`);
   if (data.fromName && data.fromName !== '—') bits.push(`Von: ${data.fromName}`);
-  if (bits.length) {
-    doc.font(reg).fontSize(10.5).fillColor('#888888').text(bits.join('      '), pageMargin, y, { width: contentWidth });
-    y = doc.y + 4;
-  }
-  if (data.message && String(data.message).trim()) {
-    doc.font('Helvetica-Oblique').fontSize(12.5).fillColor('#444444').text(`„${String(data.message).trim()}“`, pageMargin, y, { width: contentWidth });
-    y = doc.y + 12;
-  } else {
-    y += 6;
-  }
-
-  // 4. INCLUSIONS as a clean bulleted list (split the description on ; • or newline)
+  const meta = bits.join('      ');
+  const subtitle = (data.message && String(data.message).trim()) ? `„${String(data.message).trim()}“` : '';
   const inc = (data.inclusions || '').toString().trim();
-  if (inc) {
-    doc.font(bold).fontSize(11).fillColor(bannerColor).text('Inkludierte Leistungen', pageMargin, y, { width: contentWidth });
-    y = doc.y + 6;
-    const items = inc.split(/\s*[;•\n]\s*/).map((s: string) => s.trim()).filter(Boolean);
+  const items = inc ? inc.split(/\s*[;•\n]\s*/).map((s: string) => s.trim()).filter(Boolean) : [];
+
+  const cardPad = 16, headerGap = 8, lineGap = 6, gapBeforeCard = 12;
+  const cardInnerW = contentWidth - cardPad * 2;
+
+  // Measure each part at the exact font/size it will be drawn with.
+  doc.font(bold).fontSize(21);
+  const hTitle = doc.heightOfString(vTitle, { width: contentWidth }) + 3;
+  let hMeta = 0;
+  if (meta) { doc.font(reg).fontSize(10.5); hMeta = doc.heightOfString(meta, { width: contentWidth }) + 4; }
+  let hSub = 0;
+  if (subtitle) { doc.font('Helvetica-Oblique').fontSize(13); hSub = doc.heightOfString(subtitle, { width: contentWidth }) + 10; }
+  let cardH = 0;
+  if (items.length) {
+    doc.font(bold).fontSize(11);
+    let inner = doc.heightOfString('Inkludierte Leistungen', { width: cardInnerW }) + headerGap;
+    doc.font(reg).fontSize(10.5);
+    for (const it of items) inner += doc.heightOfString('•   ' + it, { width: cardInnerW - 4 }) + lineGap;
+    cardH = (inner - lineGap) + cardPad * 2;
+  }
+  const blockH = hTitle + hMeta + hSub + (cardH ? gapBeforeCard + cardH : 0);
+
+  // Bias slightly above true centre (0.42) so the block reads anchored, not floating.
+  let by = zoneTop + Math.max(6, (zoneH - blockH) * 0.42);
+
+  // TITLE
+  doc.fillColor('#1a1a1a').font(bold).fontSize(21).text(vTitle, pageMargin, by, { width: contentWidth });
+  by = doc.y + 3;
+  // FÜR / VON
+  if (meta) { doc.font(reg).fontSize(10.5).fillColor('#888888').text(meta, pageMargin, by, { width: contentWidth }); by = doc.y + 4; }
+  // PERSONAL MESSAGE
+  if (subtitle) { doc.font('Helvetica-Oblique').fontSize(13).fillColor('#444444').text(subtitle, pageMargin, by, { width: contentWidth }); by = doc.y + 10; }
+
+  // INCLUSIONS CARD
+  if (items.length) {
+    const cardTop = by + gapBeforeCard;
+    doc.save();
+    doc.roundedRect(pageMargin, cardTop, contentWidth, cardH, 8).fill('#f8f8f9');
+    doc.roundedRect(pageMargin, cardTop, contentWidth, cardH, 8).lineWidth(0.8).strokeColor('#ececed').stroke();
+    doc.restore();
+    let cy = cardTop + cardPad;
+    doc.font(bold).fontSize(11).fillColor(bannerColor).text('Inkludierte Leistungen', pageMargin + cardPad, cy, { width: cardInnerW });
+    cy = doc.y + headerGap;
     doc.font(reg).fontSize(10.5).fillColor('#333333');
     for (const it of items) {
-      doc.text('•   ' + it, pageMargin + 4, doc.y, { width: contentWidth - 8 });
-      doc.moveDown(0.2);
+      doc.text('•   ' + it, pageMargin + cardPad, cy, { width: cardInnerW - 4 });
+      cy = doc.y + lineGap;
     }
   }
 
