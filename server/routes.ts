@@ -371,6 +371,7 @@ import galleryShopRouter from './routes/gallery-shop';
 import authRoutes from './routes/auth';
 import filesRouter from './routes/files';
 import shootCleanerRoutes, { invalidateShootCleanerKey } from './routes/shootcleaner';
+import bundleRoutes from './routes/bundle';
 import prodigiRoutes from './routes/prodigi';
 import storageRoutes from './storage-routes';
 import fileRoutes from './file-routes';
@@ -18930,6 +18931,7 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
   app.use('/api/website-wizard', websiteWizardRoutes);
   app.use('/api/gallery', galleryShopRouter);
   app.use('/api/integrations/shootcleaner', shootCleanerRoutes);
+  app.use('/api/bundle', bundleRoutes);
 
   // Admin: self-serve ShootCleaner API key (Settings → ShootCleaner). Studios
   // generate/rotate their own key here and paste it into ShootCleaner.

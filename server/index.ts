@@ -614,6 +614,14 @@ app.use((req, res, next) => {
         // Gmail via OAuth (one-click "Connect Gmail") — the connected address + refresh token.
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS gmail_email TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS gmail_refresh_token_encrypted TEXT`);
+        // Bundle fulfilment (TogNinja + ShootCleaner package delivery).
+        await db.execute(sql`CREATE TABLE IF NOT EXISTS bundle_deliveries (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          token text UNIQUE NOT NULL, customer_name text, customer_email text,
+          status text NOT NULL DEFAULT 'pending', instance_url text,
+          shootcleaner_api_key text, shootcleaner_download_url text, stripe_session_id text, notes text,
+          created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(), delivered_at timestamptz
+        )`);
         // Homepage & portfolio image managers (Website Studio → Customise). These were only
         // ever created ad hoc on the New Age DB; create them on every instance so a fresh
         // studio's homepage image list doesn't 500 and the managers work.

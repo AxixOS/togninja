@@ -41,6 +41,7 @@ import {
   ChevronRight,
   Calculator,
   Activity,
+  Package,
   Tags,
   TrendingUp,
   Zap,
@@ -176,6 +177,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         { icon: Globe, label: 'Website Studio', path: '/admin/website-studio' },
         { icon: BookOpen, label: t('nav.knowledgeBase'), path: '/admin/knowledge-base' },
         { icon: Activity, label: 'Agent Console', path: '/admin/agent-console' },
+        { icon: Package, label: 'Bundle Deliveries', path: '/admin/bundle-deliveries' },
       ]
     },
   ];

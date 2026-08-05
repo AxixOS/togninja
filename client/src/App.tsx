@@ -15,6 +15,9 @@ import ConsentScripts from './components/ConsentScripts';
 import HomePage from './pages/HomePage';
 import FotoshootingsPage from './pages/FotoshootingsPage';
 import PortfolioPage from './pages/PortfolioPage';
+import BundlePage from './pages/BundlePage';
+import BundleThankYouPage from './pages/BundleThankYouPage';
+import BundleDeliveryPage from './pages/BundleDeliveryPage';
 import GutscheinPage from './pages/GutscheinPage';
 import BlogPage from './pages/BlogPage';
 import BlogPostPage from './pages/BlogPostPage';
@@ -80,6 +83,7 @@ const CRMOperationsAssistant = lazyWithRetry(() => import('./pages/admin/CRMOper
 const AgentV2Page = lazyWithRetry(() => import('./pages/admin/AgentV2Page'));
 const AgentConsolePage = lazyWithRetry(() => import('./pages/admin/AgentConsolePage'));
 const AdminLandingPagesPage = lazyWithRetry(() => import('./pages/admin/AdminLandingPagesPage'));
+const BundleDeliveriesPage = lazyWithRetry(() => import('./pages/admin/BundleDeliveriesPage'));
 const AdminLandingPageNewPage = lazyWithRetry(() => import('./pages/admin/AdminLandingPageNewPage'));
 const AdminLandingPageEditorPage = lazyWithRetry(() => import('./pages/admin/AdminLandingPageEditorPage'));
 import PublicLandingPage from './pages/PublicLandingPage';
@@ -253,6 +257,11 @@ function App() {
               <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/" element={<RootHome />} />
+
+                {/* TogNinja + ShootCleaner bundle: buy → thank-you (claim) → delivery */}
+                <Route path="/bundle" element={<BundlePage />} />
+                <Route path="/bundle/thankyou" element={<BundleThankYouPage />} />
+                <Route path="/deliver/:token" element={<BundleDeliveryPage />} />
 
                 {/* English (EN) URLs — separately indexable English pages that
                     render the same components with the language forced to EN via
@@ -648,6 +657,14 @@ function App() {
                   element={
                     <NeonProtectedRoute>
                       <AdminLandingPageEditorPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/bundle-deliveries"
+                  element={
+                    <NeonProtectedRoute>
+                      <BundleDeliveriesPage />
                     </NeonProtectedRoute>
                   }
                 />
