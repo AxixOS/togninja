@@ -269,6 +269,16 @@ async function fetchGalleryById(id: string, req: Request): Promise<any | null> {
   };
 }
 
+// externalRef is persisted inside gallery_images.metadata (jsonb) on commit/link.
+// Surface it on reads so ShootCleaner can reconcile its image ids against ours.
+function externalRefFromMetadata(metadata: any): string | null {
+  if (!metadata) return null;
+  try {
+    const m = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    return (m && m.externalRef) || null;
+  } catch { return null; }
+}
+
 async function fetchGalleryImageById(imageId: string): Promise<any | null> {
   const r = await pool.query(
     `
@@ -277,14 +287,18 @@ async function fetchGalleryImageById(imageId: string): Promise<any | null> {
         g.slug AS "gallerySlug", g.title AS "galleryTitle",
         gi.filename, gi.url, gi.title, gi.description,
         gi.sort_order AS "sortOrder", gi.size_bytes AS "sizeBytes",
-        gi.content_type AS "contentType", gi.created_at AS "createdAt"
+        gi.content_type AS "contentType", gi.created_at AS "createdAt",
+        gi.metadata
       FROM gallery_images gi
       INNER JOIN galleries g ON g.id = gi.gallery_id
       WHERE gi.id = $1
     `,
     [imageId],
   );
-  return r.rows[0] || null;
+  const row = r.rows[0];
+  if (!row) return null;
+  const { metadata, ...rest } = row;
+  return { ...rest, externalRef: externalRefFromMetadata(metadata) };
 }
 
 function mapDigitalFileRow(row: any, req: Request): any {
@@ -490,6 +504,7 @@ router.get('/galleries/:id/images', requireShootCleanerApiKey, async (req, res) 
           gi.size_bytes,
           gi.content_type,
           gi.created_at,
+          gi.metadata,
           g.slug AS gallery_slug,
           g.title AS gallery_title
         FROM gallery_images gi
@@ -513,6 +528,7 @@ router.get('/galleries/:id/images', requireShootCleanerApiKey, async (req, res) 
         sortOrder: row.sort_order,
         sizeBytes: row.size_bytes,
         contentType: row.content_type,
+        externalRef: externalRefFromMetadata(row.metadata),
         createdAt: row.created_at,
       })),
     });
