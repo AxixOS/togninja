@@ -37,14 +37,14 @@ cron.schedule("0 7 * * *", async () => {
 
 /* hourly inbox sync (top of hour) */
 cron.schedule("0 * * * *", async () => {
-  const IMAP_HOST = process.env.INBOX_IMAP_HOST || process.env.IMAP_HOST;
-  const IMAP_USER = process.env.INBOX_IMAP_USER || process.env.IMAP_USER;
-  const IMAP_PASS = process.env.INBOX_IMAP_PASS || process.env.IMAP_PASS;
-  const IMAP_PORT = parseInt(process.env.INBOX_IMAP_PORT || process.env.IMAP_PORT || '993', 10);
-  const IMAP_TLS  = (process.env.INBOX_IMAP_TLS || process.env.IMAP_TLS || 'true').toLowerCase() !== 'false';
+  // Resolve IMAP from the wizard config (DB) first, env fallback — so auto-sync works for
+  // studios that set up email in the wizard, not only env-configured instances.
+  const { getImapConfig } = await import("../utils/smtp-helper.js");
+  const imap = await getImapConfig();
+  const IMAP_HOST = imap.host, IMAP_USER = imap.user, IMAP_PASS = imap.password, IMAP_PORT = imap.port, IMAP_TLS = imap.tls;
 
   if (!IMAP_HOST || !IMAP_USER || !IMAP_PASS) {
-    jobLog('INBOX', 'Skipped hourly sync - IMAP env vars missing');
+    jobLog('INBOX', 'Skipped hourly sync - IMAP not configured');
     return;
   }
 

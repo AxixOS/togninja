@@ -92,11 +92,18 @@ export function invalidateTransporter(): void {
  * Get IMAP connection config from DB/env.
  */
 export async function getImapConfig() {
+  // Most providers (easyname included) use the SAME mailbox login for IMAP as SMTP, so when
+  // no IMAP-specific creds are configured, fall back to the SMTP user/pass and derive the
+  // host (smtp.x → imap.x). This makes inbox sync work when only SMTP was set up.
+  const smtpUser = await config.get('smtp_user');
+  const smtpPass = await config.get('smtp_pass');
+  const smtpHost = await config.getOrDefault('smtp_host', '');
+  const derivedImapHost = smtpHost ? smtpHost.replace(/^smtp\./i, 'imap.') : '';
   return {
-    host: await config.getOrDefault('imap_host', process.env.IMAP_HOST || process.env.INBOX_IMAP_HOST || 'imap.easyname.com'),
+    host: (await config.get('imap_host')) || derivedImapHost || process.env.IMAP_HOST || process.env.INBOX_IMAP_HOST || 'imap.easyname.com',
     port: await config.getNumber('imap_port', parseInt(process.env.IMAP_PORT || process.env.INBOX_IMAP_PORT || '993')),
-    user: await config.get('imap_user') || process.env.IMAP_USER || process.env.INBOX_IMAP_USER || process.env.BUSINESS_MAILBOX_USER || '',
-    password: await config.get('imap_pass') || process.env.IMAP_PASS || process.env.INBOX_IMAP_PASS || process.env.EMAIL_PASSWORD || '',
+    user: (await config.get('imap_user')) || smtpUser || process.env.IMAP_USER || process.env.INBOX_IMAP_USER || process.env.BUSINESS_MAILBOX_USER || '',
+    password: (await config.get('imap_pass')) || smtpPass || process.env.IMAP_PASS || process.env.INBOX_IMAP_PASS || process.env.EMAIL_PASSWORD || '',
     tls: await config.getBoolean('imap_tls', true),
   };
 }

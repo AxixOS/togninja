@@ -9,7 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import crypto from 'crypto';
-import { getS3Client, getS3Config } from '../services/s3-storage';
+import { getS3Client, getS3Config, buildPublicUrl } from '../services/s3-storage';
 // removed unused imports
 
 const router = Router();
@@ -18,17 +18,12 @@ const router = Router();
 // then AWS_* env, via the shared config-aware helpers — so wizard-configured
 // storage works, not just env.
 
-// Helper to build public B2 URL with proper URL encoding for spaces and special chars
+// Build a browser-loadable public URL. Delegates to the shared, provider-aware helper so
+// Supabase gets the public object path (/storage/v1/object/public/…) rather than the
+// auth-only S3 endpoint (/storage/v1/s3/…), which a browser <img> can't load.
 const buildB2Url = (key: string): string => {
   const cfg = getS3Config();
-  const bucket = cfg.bucket;
-  const endpoint = cfg.endpoint;
-  // URL encode the key path, preserving slashes
-  const encodedKey = key.split('/').map(part => encodeURIComponent(part)).join('/');
-  if (endpoint.includes('backblazeb2.com')) {
-    return `https://${bucket}.${endpoint.replace('https://', '').replace(/\/$/, '')}/${encodedKey}`;
-  }
-  return `${endpoint.replace(/\/$/, '')}/${bucket}/${encodedKey}`;
+  return buildPublicUrl(cfg.bucket, cfg.endpoint, key);
 };
 
 // Debug route to test router is mounted
