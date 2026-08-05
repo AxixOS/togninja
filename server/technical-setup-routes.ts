@@ -646,6 +646,10 @@ router.get('/current', async (_req: Request, res: Response) => {
         googleClientId: si?.google_client_id || '',
         googleClientSecretSet: !!si?.google_client_secret_encrypted,
         googleCalendarId: si?.google_calendar_id || '',
+        // When the host provides a SHARED Google OAuth app via env, studios don't need to
+        // create their own — the wizard hides the technical Client ID/Secret fields and
+        // they just click "Connect Google Calendar" after login.
+        googleOAuthManaged: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID.trim()),
         ga4MeasurementId: sc?.ga4MeasurementId || '',
         metaPixelId: sc?.metaPixelId || '',
         pricingEmbedUrl: sc?.pricingEmbedUrl || '',

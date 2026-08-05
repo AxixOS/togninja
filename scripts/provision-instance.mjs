@@ -118,7 +118,16 @@ const envVars = [
   { key: 'AWS_REGION', value: process.env.AWS_REGION || 'eu-central-1' },
   { key: 'SESSION_SECRET', value: SESSION_SECRET },
   { key: 'ENCRYPTION_KEY', value: ENCRYPTION_KEY },
+  // Absolute base URL — needed for OAuth redirect URIs (Google Calendar connect) and any
+  // absolute-link building. Render serves the service at <name>.onrender.com.
+  { key: 'APP_URL', value: process.env.APP_URL || `https://${SERVICE_NAME}.onrender.com` },
 ];
+// SHARED Google OAuth app (optional): set these so the studio never creates their own
+// Google Cloud project — the wizard hides the Client ID/Secret fields and they just click
+// "Connect Google Calendar". Remember to add this instance's callback URI to the OAuth
+// client (printed at the end).
+if (process.env.GOOGLE_CLIENT_ID) envVars.push({ key: 'GOOGLE_CLIENT_ID', value: process.env.GOOGLE_CLIENT_ID });
+if (process.env.GOOGLE_CLIENT_SECRET) envVars.push({ key: 'GOOGLE_CLIENT_SECRET', value: process.env.GOOGLE_CLIENT_SECRET });
 if (process.env.OPENAI_API_KEY) envVars.push({ key: 'OPENAI_API_KEY', value: process.env.OPENAI_API_KEY });
 if (process.env.PROTECTED_DB_HOSTS) envVars.push({ key: 'PROTECTED_DB_HOSTS', value: process.env.PROTECTED_DB_HOSTS });
 // Transaction-mode pooler allows more clients → give the app pools more headroom.
@@ -172,6 +181,23 @@ async function main() {
   console.log('\n🔑 SAVE these (needed to decrypt this instance\'s stored secrets):');
   console.log('   SESSION_SECRET =', SESSION_SECRET);
   console.log('   ENCRYPTION_KEY =', ENCRYPTION_KEY);
+
+  // Google Calendar (shared OAuth app) — the one manual step, done by YOU (the provider),
+  // not the studio: register this instance's callback in the shared OAuth client.
+  const callback = `${url}/api/auth/google/callback`;
+  console.log('\n📅 GOOGLE CALENDAR — one-time action required:');
+  if (process.env.GOOGLE_CLIENT_ID) {
+    console.log('   Add this Authorised redirect URI to your shared Google OAuth client');
+    console.log('   (Google Cloud Console → APIs & Services → Credentials → your OAuth client):');
+    console.log(`      ${callback}`);
+    console.log('   Then studios just click "Connect Google Calendar" — no keys to enter.');
+  } else {
+    console.log('   No shared GOOGLE_CLIENT_ID set — studios would each need their own Google');
+    console.log('   Cloud OAuth app (technical). To make calendar self-serve, re-provision with');
+    console.log('   GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET set, then register this redirect URI:');
+    console.log(`      ${callback}`);
+  }
+
   console.log('\nNext: wait for the build, then open', `${url}/setup`, 'and configure the studio.');
 }
 

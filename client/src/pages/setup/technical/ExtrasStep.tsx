@@ -70,7 +70,7 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
       setSmsProvider(e.smsProvider || '');
       setSmsAccountSid(e.smsAccountSid || '');
       setSmsFromNumber(e.smsFromNumber || '');
-      if (e.googleClientId) setShowGoogle(true);
+      if (e.googleClientId || e.googleOAuthManaged) setShowGoogle(true);
       if (e.ga4MeasurementId || e.metaPixelId) setShowAnalytics(true);
       if (e.smsProvider) setShowSms(true);
     }
@@ -201,39 +201,47 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
           </button>
           {showGoogle && (
             <div className="p-4 pt-0 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="googleClientId">Client ID</Label>
-                  <Input
-                    id="googleClientId"
-                    placeholder="...apps.googleusercontent.com"
-                    value={googleClientId}
-                    onChange={e => setGoogleClientId(e.target.value)}
-                    className="font-mono text-xs"
-                  />
+              {current?.extras?.googleOAuthManaged ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                  ✓ <strong>Google sign-in is managed for you — no keys needed.</strong> After you finish setup and log in,
+                  open <strong>Calendar → Connect Google Calendar</strong> and sign in once. Your events then sync automatically.
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="googleClientSecret">
-                    Client Secret
-                    {current?.extras?.googleClientSecretSet && <span className="text-green-600 text-xs ml-2">(saved)</span>}
-                  </Label>
-                  <Input
-                    id="googleClientSecret"
-                    type="password"
-                    placeholder={current?.extras?.googleClientSecretSet ? '••••••••' : 'GOCSPX-...'}
-                    value={googleClientSecret}
-                    onChange={e => setGoogleClientSecret(e.target.value)}
-                  />
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="googleClientId">Client ID</Label>
+                    <Input
+                      id="googleClientId"
+                      placeholder="...apps.googleusercontent.com"
+                      value={googleClientId}
+                      onChange={e => setGoogleClientId(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="googleClientSecret">
+                      Client Secret
+                      {current?.extras?.googleClientSecretSet && <span className="text-green-600 text-xs ml-2">(saved)</span>}
+                    </Label>
+                    <Input
+                      id="googleClientSecret"
+                      type="password"
+                      placeholder={current?.extras?.googleClientSecretSet ? '••••••••' : 'GOCSPX-...'}
+                      value={googleClientSecret}
+                      onChange={e => setGoogleClientSecret(e.target.value)}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="space-y-2">
-                <Label htmlFor="googleCalendarId">Google Calendar ID</Label>
+                <Label htmlFor="googleCalendarId">Google Calendar ID <span className="text-slate-400 text-xs">(optional)</span></Label>
                 <Input
                   id="googleCalendarId"
                   placeholder="primary or calendar@group.calendar.google.com"
                   value={googleCalendarId}
                   onChange={e => setGoogleCalendarId(e.target.value)}
                 />
+                <p className="text-xs text-slate-500">Leave blank to use your main calendar — set this only to sync a specific shared calendar.</p>
               </div>
             </div>
           )}
