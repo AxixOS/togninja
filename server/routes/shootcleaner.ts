@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { PutObjectCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { PutObjectCommand, HeadObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { pool } from '../db';
 import { getS3Client, getS3Config, buildPublicUrl } from '../services/s3-storage';
@@ -334,18 +334,28 @@ router.get('/health', requireShootCleanerApiKey, async (req, res) => {
   } catch { /* studio not configured yet */ }
   const webhook = await getWebhookConfig();
 
-  // Storage readiness: the presign → PUT → commit upload path only works if this
-  // instance's S3 credentials actually resolve at the storage provider. A live
-  // ListObjects here means the dev can confirm "storage.ready" BEFORE uploading,
-  // instead of getting a 200 presign followed by a 403 InvalidAccessKeyId on the PUT.
+  // Storage readiness — derived from the SAME operation the upload path uses, so it can
+  // never report ready:true while presign is broken. We build a real presigned PUT (exactly
+  // like presignPut), report the bucket + access-key-id THAT url carries (not just config),
+  // then actually PUT a probe object. ready:true ⇒ a real upload just succeeded.
   const cfg = getS3Config();
   const storage: any = { configured: cfg.isConfigured, bucket: cfg.bucket || null, ready: false };
   if (cfg.isConfigured) {
+    const probeKey = `health/probe-${randomUUID()}.txt`;
     try {
-      await getS3Client().send(new ListObjectsV2Command({ Bucket: cfg.bucket, MaxKeys: 1 }));
-      storage.ready = true;
+      const signedUrl = await presignPut(probeKey, 'text/plain');
+      try {
+        const u = new URL(signedUrl);
+        // Path-style url is …/s3/<bucket>/<key>; X-Amz-Credential starts with the access-key-id.
+        storage.presignBucket = decodeURIComponent((u.pathname.split('/s3/')[1] || '').split('/')[0] || '') || null;
+        storage.presignAccessKeyId = (u.searchParams.get('X-Amz-Credential') || '').split('/')[0] || null;
+      } catch { /* url parse best-effort */ }
+      const put = await fetch(signedUrl, { method: 'PUT', headers: { 'content-type': 'text/plain' }, body: 'ok' });
+      storage.ready = put.ok;
+      if (!put.ok) storage.error = `PUT ${put.status} — ${(await put.text().catch(() => '')).slice(0, 200)}`;
+      else { try { await getS3Client().send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: probeKey })); } catch { /* cleanup best-effort */ } }
     } catch (e: any) {
-      storage.error = e?.name || e?.Code || e?.message || 'storage_check_failed';
+      storage.error = e?.name || e?.message || 'probe_failed';
     }
   } else {
     storage.error = 'storage_not_configured';

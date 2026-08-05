@@ -288,7 +288,9 @@ router.post('/storage', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (error) {
     console.error('[technical-setup] Storage save error:', error);
-    res.status(500).json({ error: 'Failed to save storage settings' });
+    // Surface the real reason — a generic message hid why saves 500 (e.g. a missing
+    // ENCRYPTION_KEY breaking encrypt(), or a missing studio_integrations column).
+    res.status(500).json({ error: `Failed to save storage settings: ${(error as Error)?.message || String(error)}` });
   }
 });
 
