@@ -41,9 +41,10 @@ export default function CalendarPhase({ onComplete }: { onComplete: () => void }
           </ol>
         </div>
 
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 flex items-start gap-2">
-          <ExternalLink size={18} className="mt-0.5 flex-shrink-0" />
-          <span>Want <strong>two-way sync</strong> (bookings you make in Google flow back into the CRM)? Finish that in <strong>Settings → Google Calendar</strong> after you log in — it needs a one-time Google sign-in.</span>
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 space-y-1.5">
+          <p className="font-medium flex items-center gap-2"><ExternalLink size={16} /> Two-way sync needs a one-time connection</p>
+          <p>To see your <strong>real Google Calendar events inside the CRM</strong> (and push bookings back to Google), you must <strong>authorise once</strong> after you log in — entering keys alone won't sync anything.</p>
+          <p>After setup: open <strong>Calendar</strong> → click <strong>Connect Google Calendar</strong> → sign in with Google. That's it.</p>
         </div>
       </CardContent>
 
