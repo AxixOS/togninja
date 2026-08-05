@@ -36,6 +36,8 @@
  *     PROTECTED_DB_HOSTS    comma list of DB hosts that must never be auto-inited
  *     SESSION_SECRET        auto-generated if omitted
  *     ENCRYPTION_KEY        auto-generated if omitted (KEEP STABLE for an instance)
+ *     SHOOTCLEANER_API_KEY  auto-generated if omitted; printed at the end to hand to
+ *                           ShootCleaner (with the studio URL) for the bundled package
  *     DRY_RUN=1             print the request without creating anything
  * ──────────────────────────────────────────────────────────────────────────────
  */
@@ -76,6 +78,10 @@ const RENDER_REGION = process.env.RENDER_REGION || 'frankfurt';
 const RENDER_PLAN = process.env.RENDER_PLAN || 'starter';
 const SESSION_SECRET = process.env.SESSION_SECRET || gen();
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || gen();
+// ShootCleaner package: every instance is minted with its OWN unique integration key so
+// the bundle (ShootCleaner + TogNinja) works out of the box — hand this key + the studio
+// URL to ShootCleaner. The studio can still rotate it later in Settings → ShootCleaner.
+const SHOOTCLEANER_API_KEY = process.env.SHOOTCLEANER_API_KEY || `sc_${crypto.randomBytes(24).toString('hex')}`;
 
 async function api(path, method = 'GET', body) {
   const res = await fetch(`${API}${path}`, {
@@ -118,6 +124,7 @@ const envVars = [
   { key: 'AWS_REGION', value: process.env.AWS_REGION || 'eu-central-1' },
   { key: 'SESSION_SECRET', value: SESSION_SECRET },
   { key: 'ENCRYPTION_KEY', value: ENCRYPTION_KEY },
+  { key: 'SHOOTCLEANER_API_KEY', value: SHOOTCLEANER_API_KEY },
   // Absolute base URL — needed for OAuth redirect URIs (Google Calendar connect) and any
   // absolute-link building. Render serves the service at <name>.onrender.com.
   { key: 'APP_URL', value: process.env.APP_URL || `https://${SERVICE_NAME}.onrender.com` },
@@ -168,6 +175,9 @@ async function main() {
   if (process.env.DRY_RUN === '1') {
     console.log('\n(DRY_RUN) Would POST /services with:\n', JSON.stringify({ ...payload, envVars: '[…redacted…]' }, null, 2));
     console.log('\nGenerated (save these!):\n  SESSION_SECRET =', SESSION_SECRET, '\n  ENCRYPTION_KEY =', ENCRYPTION_KEY);
+    console.log('\n🎞 ShootCleaner package credentials (would be set):');
+    console.log('   TogNinja studio URL =', `https://${SERVICE_NAME}.onrender.com`);
+    console.log('   SHOOTCLEANER_API_KEY =', SHOOTCLEANER_API_KEY);
     return;
   }
 
@@ -181,6 +191,12 @@ async function main() {
   console.log('\n🔑 SAVE these (needed to decrypt this instance\'s stored secrets):');
   console.log('   SESSION_SECRET =', SESSION_SECRET);
   console.log('   ENCRYPTION_KEY =', ENCRYPTION_KEY);
+
+  // The two values ShootCleaner needs for the bundled package.
+  console.log('\n🎞 SHOOTCLEANER PACKAGE — give these two to ShootCleaner:');
+  console.log('   TogNinja studio URL :', url);
+  console.log('   API key             :', SHOOTCLEANER_API_KEY);
+  console.log('   (Studio can rotate the key later in Settings → ShootCleaner.)');
 
   // Google Calendar (shared OAuth app) — the one manual step, done by YOU (the provider),
   // not the studio: register this instance's callback in the shared OAuth client.
