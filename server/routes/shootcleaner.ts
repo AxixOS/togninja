@@ -1273,6 +1273,65 @@ router.post('/orders', requireScope('orders:write'), async (req, res) => {
   }
 });
 
+// List SC-originated orders for payment reconciliation (ShootCleaner polls this on launch).
+// Filters: ?since=<ISO> (only invoices changed since — the light delta call), ?sourceRef=<id>
+// (a single order), ?limit=. Only orders SC created are returned (never other CRM activity).
+router.get('/orders', requireShootCleanerApiKey, async (req, res) => {
+  try {
+    await ensureExportSchema();
+    const sourceRef = String(req.query.sourceRef || '').trim();
+    const sinceRaw = String(req.query.since || '').trim();
+    const limitRaw = Number.parseInt(String(req.query.limit || '200'), 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 500) : 200;
+
+    const where: string[] = [`e.entity_type = 'invoice'`];
+    const params: any[] = [];
+    if (sourceRef) { params.push(`order:${sourceRef}`); where.push(`e.external_ref = $${params.length}`); }
+    if (sinceRaw) {
+      const since = new Date(sinceRaw);
+      if (!isNaN(since.getTime())) { params.push(since.toISOString()); where.push(`i.updated_at > $${params.length}`); }
+    }
+    params.push(limit);
+
+    const q = await pool.query(
+      `SELECT e.external_ref, i.id, i.invoice_number, i.status, i.total, i.paid_amount, i.currency, i.updated_at
+       FROM shootcleaner_exports e
+       JOIN crm_invoices i ON i.id::text = e.entity_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY i.updated_at DESC
+       LIMIT $${params.length}`,
+      params,
+    );
+
+    const toCents = (v: any) => Math.round(Number(v || 0) * 100);
+    const data = (q.rows || []).map((r) => {
+      const totalCents = toCents(r.total);
+      const amountPaidCents = toCents(r.paid_amount);
+      const paymentStatus = r.status === 'paid'
+        ? 'paid'
+        : (amountPaidCents > 0 && amountPaidCents < totalCents ? 'partial' : 'unpaid');
+      return {
+        id: r.id,
+        invoiceNumber: r.invoice_number,
+        orderRef: String(r.external_ref || '').replace(/^order:/, ''),
+        paymentStatus,
+        status: r.status,
+        totalCents,
+        amountPaidCents,
+        amountOutstandingCents: Math.max(0, totalCents - amountPaidCents),
+        currency: r.currency || 'EUR',
+        // No dedicated paid_at column yet — best-effort proxy (the last update once paid).
+        paidAt: r.status === 'paid' ? r.updated_at : null,
+        updatedAt: r.updated_at,
+      };
+    });
+    res.json({ data });
+  } catch (error: any) {
+    console.error('[shootcleaner] list orders failed:', error?.message || error);
+    res.status(500).json({ error: 'Failed to list orders', code: 'orders_list_failed' });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Gallery images by URL (3.3 option b) — SC keeps the images in its own storage
 // and hands TN a manifest of URLs; TN links (does not re-host). The presign/commit
