@@ -133,6 +133,11 @@ const DB_FIELD_MAP: Record<string, { table: 'studio_configs' | 'studio_integrati
   smtp_user: { table: 'studio_integrations', column: 'smtp_user' },
   smtp_pass: { table: 'studio_integrations', column: 'smtp_pass_encrypted' },
   smtp_from: { table: 'studio_integrations', column: 'default_from_email' },
+  // The onboarding "From Email"/"From Name" land in these columns; getFromAddress() reads
+  // from_email / email_from_name, so they must be mapped or outbound mail falls back to
+  // no-reply@localhost (which most SMTP providers reject).
+  from_email: { table: 'studio_integrations', column: 'default_from_email' },
+  email_from_name: { table: 'studio_integrations', column: 'email_from_name' },
   stripe_publishable_key: { table: 'studio_integrations', column: 'stripe_publishable_key' },
   stripe_secret_key: { table: 'studio_integrations', column: 'stripe_secret_key_encrypted' },
   stripe_account_id: { table: 'studio_integrations', column: 'stripe_account_id' },

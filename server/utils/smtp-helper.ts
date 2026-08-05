@@ -63,8 +63,12 @@ export async function getSmtpTransporter(): Promise<nodemailer.Transporter> {
 export async function getFromAddress(): Promise<string> {
   const fromEmail = await config.get('from_email')
     || await config.get('studio_notify_email')
+    // Fall back to the authenticated SMTP user, never a bare no-reply@localhost — most
+    // providers (easyname included) reject a From that isn't the authenticated account.
+    || await config.get('smtp_user')
     || process.env.SMTP_FROM
     || process.env.STUDIO_NOTIFY_EMAIL
+    || process.env.SMTP_USER
     || 'no-reply@localhost';
 
   const fromName = await config.get('email_from_name')
