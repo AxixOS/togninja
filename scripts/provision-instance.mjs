@@ -188,33 +188,37 @@ async function main() {
   console.log('   id:        ', svc.id);
   console.log('   dashboard: ', svc.dashboardUrl || `https://dashboard.render.com`);
   console.log('   url:       ', url, '(live once the first build finishes)');
-  console.log('\n🔑 SAVE these (needed to decrypt this instance\'s stored secrets):');
+  // Operator-only secrets — store securely; NOT part of the customer handover.
+  console.log('\n🔑 OPERATOR SECRETS — store securely (needed to decrypt this instance):');
   console.log('   SESSION_SECRET =', SESSION_SECRET);
   console.log('   ENCRYPTION_KEY =', ENCRYPTION_KEY);
 
-  // The two values ShootCleaner needs for the bundled package.
-  console.log('\n🎞 SHOOTCLEANER PACKAGE — give these two to ShootCleaner:');
-  console.log('   TogNinja studio URL :', url);
-  console.log('   API key             :', SHOOTCLEANER_API_KEY);
-  console.log('   (Studio can rotate the key later in Settings → ShootCleaner.)');
-
-  // Google Calendar (shared OAuth app) — the one manual step, done by YOU (the provider),
-  // not the studio: register this instance's callback in the shared OAuth client.
+  // One copyable handover sheet per new studio.
   const callback = `${url}/api/auth/google/callback`;
-  console.log('\n📅 GOOGLE CALENDAR — one-time action required:');
-  if (process.env.GOOGLE_CLIENT_ID) {
-    console.log('   Add this Authorised redirect URI to your shared Google OAuth client');
-    console.log('   (Google Cloud Console → APIs & Services → Credentials → your OAuth client):');
-    console.log(`      ${callback}`);
-    console.log('   Then studios just click "Connect Google Calendar" — no keys to enter.');
-  } else {
-    console.log('   No shared GOOGLE_CLIENT_ID set — studios would each need their own Google');
-    console.log('   Cloud OAuth app (technical). To make calendar self-serve, re-provision with');
-    console.log('   GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET set, then register this redirect URI:');
-    console.log(`      ${callback}`);
-  }
+  const oauthLine = process.env.GOOGLE_CLIENT_ID
+    ? 'Shared GOOGLE_CLIENT_ID is set — studios just click "Connect Google Calendar".'
+    : 'No shared GOOGLE_CLIENT_ID — set one + re-provision to make calendar self-serve.';
+  console.log(`
+────────────────────────────────────────────────────────────────────
+ NEW STUDIO HANDOVER — ${SERVICE_NAME}
+────────────────────────────────────────────────────────────────────
 
-  console.log('\nNext: wait for the build, then open', `${url}/setup`, 'and configure the studio.');
+ 1. Finish setup (studio, or you on their behalf)
+      ${url}/setup
+
+ 2. ShootCleaner (bundled package) — enter in ShootCleaner → Connect TogNinja
+      TogNinja studio URL : ${url}
+      API key             : ${SHOOTCLEANER_API_KEY}
+      (Studio can rotate this later in Settings → ShootCleaner.)
+
+ 3. Google Calendar — one action for YOU (the provider)
+      Add this Authorised redirect URI to the shared Google OAuth client
+      (Google Cloud Console → APIs & Services → Credentials → OAuth client):
+      ${callback}
+      ${oauthLine}
+────────────────────────────────────────────────────────────────────
+`);
+  console.log('Next: wait for the build to finish, then open', `${url}/setup`);
 }
 
 main().catch((e) => { console.error('❌', e?.message || e); process.exit(1); });
