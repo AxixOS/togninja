@@ -1163,6 +1163,15 @@ router.post('/complete', async (_req: Request, res: Response) => {
         .where(eq(studioConfigs.id, config.id));
     }
 
+    // Give a brand-new studio its OWN branded homepage automatically — unless one is already
+    // set (e.g. New Age's hand-coded page). Fire-and-forget so it never blocks completion.
+    try {
+      if (config && !(config as any).homepageLandingSlug) {
+        const { generateStarterHomepage } = await import('./lib/starter-homepage');
+        generateStarterHomepage({}).catch((e: any) => console.error('[setup] starter homepage failed:', e?.message || e));
+      }
+    } catch { /* best-effort */ }
+
     if (hubIntegration.isConfigured()) {
       await hubIntegration.completeOnboarding();
     }

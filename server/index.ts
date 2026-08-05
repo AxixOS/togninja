@@ -467,6 +467,34 @@ app.use((req, res, next) => {
           )`);
         await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_lpe_page ON landing_page_events(landing_page_id)`);
         await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_lpe_occurred ON landing_page_events(occurred_at)`);
+        // landing_pages / landing_page_revisions base tables — historically created by a
+        // manual migration, so ABSENT on a fresh DB; the ALTERs below then failed and the
+        // whole landing-page / homepage / theme feature 500'd ("relation landing_pages does
+        // not exist"). Create them here so every instance has them.
+        await db.execute(sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+        await db.execute(sql`CREATE TABLE IF NOT EXISTS landing_pages (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          user_id TEXT, title TEXT NOT NULL, slug TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
+          page_type TEXT DEFAULT 'general', primary_service TEXT, target_audience TEXT,
+          offer_summary TEXT, city TEXT, tone TEXT DEFAULT 'warm',
+          seo_title TEXT, meta_description TEXT, hero_headline TEXT, hero_subheadline TEXT,
+          cta_text TEXT DEFAULT 'Book Now', cta_action TEXT DEFAULT 'book_now',
+          schema_type TEXT DEFAULT 'LocalBusiness',
+          content_json JSONB DEFAULT '{}', generation_prompt_json JSONB DEFAULT '{}',
+          generation_context_json JSONB DEFAULT '{}', preview_image_url TEXT, published_url TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), published_at TIMESTAMPTZ
+        )`);
+        await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_landing_pages_slug ON landing_pages(slug)`);
+        await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_landing_pages_status ON landing_pages(status)`);
+        await db.execute(sql`CREATE TABLE IF NOT EXISTS landing_page_revisions (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          landing_page_id UUID NOT NULL REFERENCES landing_pages(id) ON DELETE CASCADE,
+          version_number INT NOT NULL DEFAULT 1,
+          content_json JSONB DEFAULT '{}', generation_context_json JSONB DEFAULT '{}',
+          created_at TIMESTAMPTZ DEFAULT NOW(), created_by TEXT
+        )`);
+        await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_lpr_page ON landing_page_revisions(landing_page_id)`);
         await db.execute(sql`ALTER TABLE landing_pages ADD COLUMN IF NOT EXISTS preview_token TEXT`);
         await db.execute(sql`ALTER TABLE landing_pages ADD COLUMN IF NOT EXISTS preview_token_expires_at TIMESTAMPTZ`);
         await db.execute(sql`ALTER TABLE landing_pages ADD COLUMN IF NOT EXISTS canonical_url TEXT`);
