@@ -405,18 +405,17 @@ const AdminInboxPage: React.FC = () => {
         headers: { 'Content-Type': 'application/json' }
       });
       
+      const result = await response.json().catch(() => ({} as any));
       if (response.ok) {
-        const result = await response.json();
-        // console.log removed
         await fetchMessages(); // Reload messages
         await fetchFolderCounts(); // Reload folder counts
-        alert(`Email refresh completed: ${result.newEmails} new emails imported`);
+        alert(`Email refresh completed: ${result.newEmails ?? 0} new emails imported`);
       } else {
-        throw new Error('Failed to refresh emails');
+        // Surface the real reason (e.g. the IMAP auth error) instead of a generic message.
+        alert(result.error || 'Failed to refresh emails. Please try again.');
       }
-    } catch (error) {
-      // console.error removed
-      alert('Failed to refresh emails. Please try again.');
+    } catch (error: any) {
+      alert(`Failed to refresh emails: ${error?.message || 'network error'}`);
     } finally {
       setIsRefreshing(false);
     }
