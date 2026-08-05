@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { pool } from '../db';
 import { getS3Client, getS3Config, buildPublicUrl } from '../services/s3-storage';
@@ -333,6 +333,24 @@ router.get('/health', requireShootCleanerApiKey, async (req, res) => {
     if (row) { studioId = row.id; studioName = row.business_name || row.studio_name || null; }
   } catch { /* studio not configured yet */ }
   const webhook = await getWebhookConfig();
+
+  // Storage readiness: the presign → PUT → commit upload path only works if this
+  // instance's S3 credentials actually resolve at the storage provider. A live
+  // ListObjects here means the dev can confirm "storage.ready" BEFORE uploading,
+  // instead of getting a 200 presign followed by a 403 InvalidAccessKeyId on the PUT.
+  const cfg = getS3Config();
+  const storage: any = { configured: cfg.isConfigured, bucket: cfg.bucket || null, ready: false };
+  if (cfg.isConfigured) {
+    try {
+      await getS3Client().send(new ListObjectsV2Command({ Bucket: cfg.bucket, MaxKeys: 1 }));
+      storage.ready = true;
+    } catch (e: any) {
+      storage.error = e?.name || e?.Code || e?.message || 'storage_check_failed';
+    }
+  } else {
+    storage.error = 'storage_not_configured';
+  }
+
   res.json({
     ok: true,
     service: 'shootcleaner',
@@ -341,6 +359,7 @@ router.get('/health', requireShootCleanerApiKey, async (req, res) => {
     studioName,
     scopes: ALL_SCOPES,
     webhooks: { events: WEBHOOK_EVENTS, registered: !!webhook },
+    storage,
   });
 });
 
