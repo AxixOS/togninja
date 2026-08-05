@@ -11308,10 +11308,34 @@ Ihr Team von {{studioName}}`,
       };
       
       await storage.saveEmailSettings(settingsData);
-      
-      res.json({ 
-        success: true, 
-        message: 'Email settings saved successfully' 
+
+      // ALSO write the authoritative integration store (studio_integrations) — the table
+      // above only holds signature/OOO extras; send + IMAP sync read studio_integrations via
+      // config-reader. Without this, changing the account here had no effect on sending or sync.
+      try {
+        const { encrypt } = await import('./utils/encryption');
+        const port = parseInt(smtpPort) || 587;
+        const secure = port === 465;
+        const imapHost = smtpHost ? String(smtpHost).replace(/^smtp\./i, 'imap.') : null;
+        const exists = await runSql('SELECT 1 FROM studio_integrations LIMIT 1');
+        if (!exists.length) await runSql('INSERT INTO studio_integrations DEFAULT VALUES');
+        await runSql(
+          `UPDATE studio_integrations SET smtp_host=$1, smtp_port=$2, smtp_user=$3, smtp_secure=$4,
+             default_from_email=$5, email_from_name=$6, imap_host=$7, imap_user=$8, imap_port=$9, imap_tls=$10`,
+          [smtpHost || null, port, smtpUser || null, secure, fromEmail || smtpUser || null, fromName || null, imapHost, smtpUser || null, 993, true],
+        );
+        if (smtpPass) {
+          await runSql('UPDATE studio_integrations SET smtp_pass_encrypted=$1, imap_pass_encrypted=$1', [encrypt(smtpPass)]);
+        }
+        const { config } = await import('./config-reader'); config.invalidate();
+        const { invalidateTransporter } = await import('./utils/smtp-helper'); invalidateTransporter();
+      } catch (e: any) {
+        console.warn('[email settings] studio_integrations sync failed:', e?.message || e);
+      }
+
+      res.json({
+        success: true,
+        message: 'Email settings saved successfully'
       });
     } catch (error) {
       console.error('Error saving email settings:', error);
@@ -11319,6 +11343,24 @@ Ihr Team von {{studioName}}`,
         success: false, 
         error: 'Failed to save email settings: ' + (error as Error).message 
       });
+    }
+  });
+
+  // Remove / disconnect the configured email account — clears both stores so send + sync
+  // stop, and the wizard/settings show no account.
+  app.post("/api/email/disconnect", authenticateUser, async (_req: Request, res: Response) => {
+    try {
+      await runSql(
+        `UPDATE studio_integrations SET smtp_host=NULL, smtp_user=NULL, smtp_pass_encrypted=NULL, smtp_secure=NULL,
+           default_from_email=NULL, email_from_name=NULL, imap_host=NULL, imap_user=NULL, imap_pass_encrypted=NULL WHERE TRUE`,
+      ).catch(() => {});
+      try { await storage.saveEmailSettings({ smtp_host: null, smtp_port: null, smtp_user: null, smtp_pass: null, from_email: null, from_name: null, updated_at: new Date().toISOString() } as any); } catch { /* ignore */ }
+      try { const { config } = await import('./config-reader'); config.invalidate(); } catch { /* ignore */ }
+      try { const { invalidateTransporter } = await import('./utils/smtp-helper'); invalidateTransporter(); } catch { /* ignore */ }
+      res.json({ success: true, message: 'Email account removed.' });
+    } catch (error: any) {
+      console.error('Error disconnecting email:', error?.message || error);
+      res.status(500).json({ success: false, error: 'Failed to remove email account' });
     }
   });
 

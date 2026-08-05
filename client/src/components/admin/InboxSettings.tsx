@@ -61,6 +61,23 @@ const InboxSettings: React.FC<InboxSettingsProps> = ({
   const [importing, setImporting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  const handleRemoveAccount = async () => {
+    if (!window.confirm('Remove this email account? Sending and inbox sync will stop until you add an account again.')) return;
+    setRemoving(true);
+    try {
+      const res = await fetch('/api/email/disconnect', { method: 'POST', credentials: 'include' });
+      if (!res.ok) throw new Error('Failed');
+      // Clear the form fields so the modal reflects the disconnected state.
+      setSettings(prev => ({ ...prev, smtpHost: '', username: '', password: '', fromEmail: '', fromName: '' }));
+      setTestResult({ success: true, message: 'Email account removed.' });
+    } catch {
+      setTestResult({ success: false, message: 'Could not remove the email account. Please try again.' });
+    } finally {
+      setRemoving(false);
+    }
+  };
 
   const handleProviderChange = (provider: 'gmail' | 'outlook' | 'smtp') => {
     const providerDefaults = {
@@ -670,20 +687,30 @@ Web: ${SITE.url.replace(/^https?:\/\//, '')}`}
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200 flex items-center justify-end space-x-3">
+        <div className="p-6 border-t border-gray-200 flex items-center justify-between">
           <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            onClick={handleRemoveAccount}
+            disabled={removing}
+            className="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
+            title="Disconnect this email account — stops sending and inbox sync"
           >
-            Cancel
+            {removing ? 'Removing…' : 'Remove email account'}
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !settings.username || !settings.smtpHost}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Saving...' : 'Save Settings'}
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || !settings.username || !settings.smtpHost}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
