@@ -47,10 +47,11 @@ export async function importEmailsFromIMAP(config: any) {
           fetchCriteria = ['SINCE', sinceDate];
           console.log(`Fetching emails since ${sinceDate.toISOString()}`);
         } else {
-          // Fetch recent emails (last 10 only for live updates)
-          const recent = Math.max(1, box.messages.total - 9);
+          // No since date (manual "Sync") — pull a meaningful first batch, not just 10, so a
+          // full mailbox actually populates. Cap at the last 50 most-recent messages.
+          const recent = Math.max(1, box.messages.total - 49);
           fetchCriteria = `${recent}:${box.messages.total}`;
-          console.log(`Fetching recent emails ${fetchCriteria}`);
+          console.log(`Fetching recent emails ${fetchCriteria} (of ${box.messages.total})`);
         }
         
         const fetch = connection.fetch(fetchCriteria, {
