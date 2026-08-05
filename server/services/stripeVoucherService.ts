@@ -387,6 +387,8 @@ export class StripeVoucherService {
       const designImage = String(personalization.selectedDesign?.image || '').trim();
       const designTemplateId = String(personalization.selectedDesign?.id || '').trim();
       const customImage = String(personalization.customImageUrl || '').trim();
+      // Gift purchase: hide the price ("Wert") on the generated voucher PDF.
+      const hideValue = personalization.hideValue === true || ['1', 'true', 'yes'].includes(String(personalization.hideValue || (data as any).hideValue || '').toLowerCase());
       const productHeroImage = String(personalization.productHeroImage || '').trim(); // Product default image fallback
       const productDescription = String(personalization.productDescription || '').trim();
 
@@ -417,6 +419,8 @@ export class StripeVoucherService {
         custom_image: customImage,
         product_hero_image: productHeroImage, // Fallback to product's default hero image
         product_description: productDescription.substring(0, 1200),
+        // Gift: suppress the "Wert" line on the PDF (read back in /voucher/pdf/:id).
+        hide_value: hideValue ? 'true' : '',
         // Email→order attribution: campaign that drove this purchase (if any).
         campaign_id: String((data as any).campaignId || (data as any).campaign_id || '').substring(0, 64),
       };

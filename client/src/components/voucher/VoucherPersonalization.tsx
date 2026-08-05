@@ -35,6 +35,8 @@ export interface VoucherPersonalizationData {
   personalMessage: string;
   recipientName?: string;
   senderName?: string;
+  /** Gift: hide the price ("Wert") on the generated voucher PDF. */
+  hideValue?: boolean;
   shippingAddress?: {
     address1: string;
     address2?: string;
@@ -76,6 +78,7 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
   const [personalMessage, setPersonalMessage] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [senderName, setSenderName] = useState('');
+  const [hideValue, setHideValue] = useState(false);
   const [shippingAddress, setShippingAddress] = useState({
     address1: '',
     address2: '',
@@ -265,6 +268,7 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
         personalMessage,
         recipientName,
         senderName,
+        hideValue,
         shippingAddress: (selectedDelivery.price > 0 || selectedDelivery.id.startsWith('post-')) ? {
           address1: shippingAddress.address1.trim(),
           address2: shippingAddress.address2?.trim() || undefined,
@@ -709,6 +713,26 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+
+            {/* Gift: hide the price on the printed voucher so the recipient never sees it. */}
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hideValue}
+                onChange={(e) => setHideValue(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">
+                <span className="font-medium">
+                  {language === 'en' ? 'This is a gift — hide the price on the voucher' : 'Dies ist ein Geschenk – Preis auf dem Gutschein ausblenden'}
+                </span>
+                <span className="block text-gray-500">
+                  {language === 'en'
+                    ? 'The “Value” line is removed so the recipient won’t see what was paid.'
+                    : 'Die Zeile „Wert“ wird entfernt, damit der/die Beschenkte den bezahlten Betrag nicht sieht.'}
+                </span>
+              </span>
+            </label>
 
             {/* Shipping Address for postal delivery */}
             {selectedDelivery && (selectedDelivery.price > 0 || selectedDelivery.id.startsWith('post-')) && (

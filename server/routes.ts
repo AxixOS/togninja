@@ -736,7 +736,8 @@ async function renderVoucherPdf(doc: any, data: any): Promise<void> {
   const fpW = (pageWidth - pageMargin - 128) - fpX;
   doc.font(bold).fontSize(8).fillColor('#333333').text(`Gutschein-ID: ${data.voucherId || ''}`, fpX, footerTop + 12, { width: fpW });
   const metaLine = [
-    data.paidAmount ? `Wert: ${data.paidAmount}` : '',
+    // Gift vouchers hide the price so the recipient never sees what was paid.
+    (data.paidAmount && !data.hideValue) ? `Wert: ${data.paidAmount}` : '',
     data.purchaseDate ? `Datum: ${data.purchaseDate}` : '',
     data.expiry ? `Gültig bis: ${data.expiry}` : '',
   ].filter(Boolean).join('   ·   ');
@@ -16564,6 +16565,8 @@ Return ONLY a valid JSON object with EXACTLY these keys:
         footerPhone: tplFooterPhone,
         paidAmount: paidReal,
         purchaseDate: dateReal,
+        // Gift: buyer chose to hide the price on the voucher (set at checkout).
+        hideValue: String(m.hide_value || '').toLowerCase() === 'true',
       });
 
       doc.end();
@@ -16695,6 +16698,8 @@ Return ONLY a valid JSON object with EXACTLY these keys:
         footerPhone: pvFooterPhone,
         paidAmount: paidPv,
         purchaseDate: datePv,
+        // Preview the gift layout with ?gift=1 (or ?hide_value=1).
+        hideValue: ['1', 'true', 'yes'].includes(String(qp.gift || qp.hide_value || '').toLowerCase()),
       });
 
       doc.end();
