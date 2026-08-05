@@ -251,7 +251,11 @@ router.post('/stripe', async (req: Request, res: Response) => {
 // ──────────────────────────────────────────────────────────────
 router.post('/storage', async (req: Request, res: Response) => {
   try {
-    const { provider, accessKeyId, secretKey, bucket, endpoint, region } = req.body;
+    // Trim every field — pasted creds routinely carry a trailing space/newline, and a
+    // bucket like "Onboarding " fails with a misleading NoSuchBucket ("Bucket not found").
+    const t = (v: any) => (typeof v === 'string' ? v.trim() : v);
+    const provider = t(req.body.provider), accessKeyId = t(req.body.accessKeyId), secretKey = t(req.body.secretKey);
+    const bucket = t(req.body.bucket), endpoint = t(req.body.endpoint), region = t(req.body.region);
 
     if (!accessKeyId || !bucket) {
       return res.status(400).json({ error: 'Access key and bucket are required' });
@@ -521,7 +525,11 @@ router.post('/test/stripe', async (req: Request, res: Response) => {
 // POST /api/setup/test/storage — Verify S3-compatible storage
 router.post('/test/storage', async (req: Request, res: Response) => {
   try {
-    const { accessKeyId, secretKey, bucket, endpoint, region } = req.body;
+    // Trim to match the save path — otherwise a pasted trailing space makes Test fail
+    // with NoSuchBucket even though the credentials are correct.
+    const t = (v: any) => (typeof v === 'string' ? v.trim() : v);
+    const accessKeyId = t(req.body.accessKeyId), secretKey = t(req.body.secretKey);
+    const bucket = t(req.body.bucket), endpoint = t(req.body.endpoint), region = t(req.body.region);
 
     if (!accessKeyId || !secretKey || !bucket) {
       return res.status(400).json({ error: 'Access key, secret key, and bucket are required' });
