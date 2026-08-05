@@ -12978,27 +12978,35 @@ Ihr Team von {{studioName}}`,
     try {
       console.log('Starting email refresh...');
 
-      // Resolve IMAP from the wizard config (DB) first, env fallback — and fall back to the
-      // SMTP login when no IMAP-specific creds are set (was env-only, so studios that set up
-      // email in the wizard got a 500).
-      const { getImapConfig } = await import('./utils/smtp-helper');
-      const imap = await getImapConfig();
+      // Gmail via OAuth (one-click) takes priority — read through the Gmail API, no IMAP.
+      let importedEmails: any[];
+      const { getGmailConnection, listRecentGmail } = await import('./services/gmailService');
+      const gmailConn = await getGmailConnection();
+      if (gmailConn) {
+        importedEmails = await listRecentGmail(50);
+      } else {
+        // Resolve IMAP from the wizard config (DB) first, env fallback — and fall back to the
+        // SMTP login when no IMAP-specific creds are set (was env-only, so studios that set up
+        // email in the wizard got a 500).
+        const { getImapConfig } = await import('./utils/smtp-helper');
+        const imap = await getImapConfig();
 
-      if (!imap.user || !imap.password) {
-        console.error('IMAP credentials missing (no wizard config or env).');
-        return res.status(400).json({
-          success: false,
-          error: 'Email inbox is not configured yet. Add your email account in Inbox → Settings (or the onboarding Email step).'
+        if (!imap.user || !imap.password) {
+          console.error('IMAP credentials missing (no wizard config or env).');
+          return res.status(400).json({
+            success: false,
+            error: 'Email inbox is not configured yet. Add your email account in Inbox → Settings (or connect Gmail).'
+          });
+        }
+
+        importedEmails = await importEmailsFromIMAP({
+          host: imap.host,
+          port: imap.port,
+          username: imap.user,
+          password: imap.password,
+          useTLS: imap.tls,
         });
       }
-
-      const importedEmails = await importEmailsFromIMAP({
-        host: imap.host,
-        port: imap.port,
-        username: imap.user,
-        password: imap.password,
-        useTLS: imap.tls,
-      });
 
       console.log(`Successfully fetched ${importedEmails.length} emails from business account`);
 

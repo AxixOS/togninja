@@ -10,6 +10,7 @@ import { calendarSyncSettings, calendarSyncLogs } from '@shared/schema';
 import { eq, desc } from 'drizzle-orm';
 import { requireAuth } from '../auth';
 import { importGoogleCalendarEvents } from '../services/calendarService';
+import { GMAIL_SCOPES, makeOAuthClient, getConnectedEmail, saveGmailConnection, clearGmailConnection, getGmailConnection } from '../services/gmailService';
 
 const router = Router();
 
@@ -70,6 +71,39 @@ router.get('/google/connect', requireAuth, (req: Request, res: Response) => {
 });
 
 /**
+ * Start Gmail OAuth — same shared Google app, Gmail scopes. One-click alternative to
+ * Custom SMTP/IMAP (no app password, no enabling IMAP). Reuses the /google/callback URI;
+ * the `gmail:` state prefix routes it to the Gmail branch there.
+ */
+router.get('/google/gmail/connect', requireAuth, (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id as string | undefined;
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    if (!process.env.GOOGLE_CLIENT_ID) return res.status(400).json({ error: 'Google sign-in is not configured on this instance (GOOGLE_CLIENT_ID missing).' });
+    const authUrl = makeOAuthClient().generateAuthUrl({
+      access_type: 'offline',
+      scope: GMAIL_SCOPES,
+      state: `gmail:${userId}`,
+      prompt: 'consent',
+    });
+    res.json({ authUrl });
+  } catch (error: any) {
+    console.error('[GMAIL-OAUTH] connect error:', error?.message || error);
+    res.status(500).json({ error: 'Failed to generate Gmail authorization URL' });
+  }
+});
+
+router.get('/google/gmail/status', requireAuth, async (_req: Request, res: Response) => {
+  const conn = await getGmailConnection();
+  res.json({ connected: !!conn, email: conn?.email || null });
+});
+
+router.post('/google/gmail/disconnect', requireAuth, async (_req: Request, res: Response) => {
+  try { await clearGmailConnection(); res.json({ success: true }); }
+  catch { res.status(500).json({ error: 'Failed to disconnect Gmail' }); }
+});
+
+/**
  * OAuth callback - exchange code for tokens
  */
 router.get('/google/callback', async (req: Request, res: Response) => {
@@ -78,6 +112,19 @@ router.get('/google/callback', async (req: Request, res: Response) => {
 
     if (!code || typeof code !== 'string') {
       return res.status(400).send('Missing authorization code');
+    }
+
+    // Gmail branch — state is "gmail:<userId>". Store the mail connection and finish.
+    if (typeof state === 'string' && state.startsWith('gmail:')) {
+      const gmailAuth = makeOAuthClient();
+      const { tokens } = await gmailAuth.getToken(code);
+      if (!tokens.refresh_token) return res.status(400).send('No refresh token received. Please disconnect and reconnect.');
+      gmailAuth.setCredentials(tokens);
+      const email = await getConnectedEmail(gmailAuth);
+      await saveGmailConnection(email, tokens.refresh_token);
+      try { const { config } = await import('../config-reader'); config.invalidate(); } catch { /* ignore */ }
+      try { const { invalidateTransporter } = await import('../utils/smtp-helper'); invalidateTransporter(); } catch { /* ignore */ }
+      return res.send(`<!DOCTYPE html><html><head><title>Gmail Connected</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:linear-gradient(135deg,#ea4335,#fbbc05)}.card{background:#fff;padding:2rem;border-radius:1rem;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;max-width:400px}</style></head><body><div class="card"><div style="font-size:3rem">✅</div><h1>Gmail Connected</h1><p>${email} is now connected — your inbox will sync and email sends through Gmail. No password needed.</p><button onclick="window.close()">Close</button><script>setTimeout(()=>{if(window.opener){window.opener.postMessage({type:'GMAIL_CONNECTED'},'*');setTimeout(()=>window.close(),800);}},1500);</script></div></body></html>`);
     }
 
   const userId = state as string;

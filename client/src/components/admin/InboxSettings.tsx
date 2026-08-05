@@ -63,6 +63,32 @@ const InboxSettings: React.FC<InboxSettingsProps> = ({
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
 
+  // Gmail via OAuth (one-click) — no password/IMAP setup.
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email: string | null }>({ connected: false, email: null });
+  const [gmailBusy, setGmailBusy] = useState(false);
+  const fetchGmailStatus = async () => {
+    try { const r = await fetch('/api/auth/google/gmail/status', { credentials: 'include' }); if (r.ok) setGmailStatus(await r.json()); } catch { /* ignore */ }
+  };
+  useEffect(() => { fetchGmailStatus(); }, []);
+
+  const handleConnectGmail = async () => {
+    setGmailBusy(true);
+    try {
+      const r = await fetch('/api/auth/google/gmail/connect', { credentials: 'include' });
+      const d = await r.json();
+      if (!r.ok || !d.authUrl) throw new Error(d.error || 'Could not start Google sign-in');
+      const popup = window.open(d.authUrl, 'Connect Gmail', 'width=600,height=700,left=200,top=100');
+      if (!popup) { alert('Please allow popups to connect Gmail.'); setGmailBusy(false); return; }
+      const onMsg = (e: MessageEvent) => { if (e.data?.type === 'GMAIL_CONNECTED') { window.removeEventListener('message', onMsg); setGmailBusy(false); fetchGmailStatus(); } };
+      window.addEventListener('message', onMsg);
+      const poll = setInterval(() => { if (popup.closed) { clearInterval(poll); setGmailBusy(false); fetchGmailStatus(); } }, 1000);
+    } catch (e: any) { alert(e?.message || 'Failed to connect Gmail'); setGmailBusy(false); }
+  };
+  const handleDisconnectGmail = async () => {
+    if (!window.confirm('Disconnect Gmail? Sending and inbox sync via Google will stop.')) return;
+    try { await fetch('/api/auth/google/gmail/disconnect', { method: 'POST', credentials: 'include' }); await fetchGmailStatus(); } catch { /* ignore */ }
+  };
+
   const handleRemoveAccount = async () => {
     if (!window.confirm('Remove this email account? Sending and inbox sync will stop until you add an account again.')) return;
     setRemoving(true);
@@ -344,6 +370,26 @@ const InboxSettings: React.FC<InboxSettingsProps> = ({
               ))}
             </div>
           </div>
+
+          {/* One-click Gmail (OAuth) — shown when Gmail is the provider */}
+          {settings.provider === 'gmail' && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+              {gmailStatus.connected ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm text-emerald-800"><CheckCircle className="inline h-4 w-4 mr-1" /> Connected as <strong>{gmailStatus.email}</strong> — no password needed.</div>
+                  <button onClick={handleDisconnectGmail} className="text-sm font-medium text-red-600 hover:text-red-800">Disconnect</button>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900 mb-1">One-click Gmail (recommended)</p>
+                  <p className="text-xs text-emerald-800 mb-3">Sign in with Google to send &amp; sync — no app password, no IMAP setup. The SMTP fields below are only needed if you skip this.</p>
+                  <button onClick={handleConnectGmail} disabled={gmailBusy} className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+                    {gmailBusy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Connect Gmail
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* SMTP Configuration */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

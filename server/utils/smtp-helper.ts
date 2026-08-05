@@ -27,6 +27,27 @@ export async function getSmtpTransporter(): Promise<nodemailer.Transporter> {
     return cachedTransporter;
   }
 
+  // Gmail via OAuth (one-click "Connect Gmail") takes priority when connected — nodemailer
+  // authenticates with the stored refresh token (XOAUTH2), no password anywhere.
+  try {
+    const { getGmailConnection } = await import('../services/gmailService');
+    const gmail = await getGmailConnection();
+    if (gmail && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+      cachedTransporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com', port: 465, secure: true,
+        auth: {
+          type: 'OAuth2',
+          user: gmail.email,
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          refreshToken: gmail.refreshToken,
+        },
+      } as any);
+      transporterCreatedAt = now;
+      return cachedTransporter;
+    }
+  } catch { /* fall through to SMTP */ }
+
   const host = await config.getOrDefault('smtp_host', process.env.SMTP_HOST || 'smtp.easyname.com');
   // Default to 465 (implicit SSL) — the port the studio's working automations use
   // for easyname. 587/STARTTLS was the default and silently failed → demo mode →
@@ -61,6 +82,16 @@ export async function getSmtpTransporter(): Promise<nodemailer.Transporter> {
  * Returns "Display Name <email>" format when from_name is set.
  */
 export async function getFromAddress(): Promise<string> {
+  // When Gmail is connected, send as the connected account (Gmail requires the From to match).
+  try {
+    const { getGmailConnection } = await import('../services/gmailService');
+    const gmail = await getGmailConnection();
+    if (gmail?.email) {
+      const fromName = await config.get('email_from_name') || process.env.EMAIL_FROM_NAME;
+      return fromName ? `"${fromName}" <${gmail.email}>` : gmail.email;
+    }
+  } catch { /* fall through */ }
+
   const fromEmail = await config.get('from_email')
     || await config.get('studio_notify_email')
     // Fall back to the authenticated SMTP user, never a bare no-reply@localhost — most
