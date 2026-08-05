@@ -235,6 +235,7 @@ async function fetchGalleryById(id: string, req: Request): Promise<any | null> {
       SELECT
         g.id, g.title, g.slug, g.description, g.cover_image,
         g.is_public, g.is_password_protected, g.client_id,
+        g.download_enabled, g.visible_watermark, g.invisible_watermark, g.expires_at,
         g.created_at, g.updated_at,
         COALESCE(COUNT(gi.id), 0)::int AS image_count
       FROM galleries g
@@ -255,6 +256,11 @@ async function fetchGalleryById(id: string, req: Request): Promise<any | null> {
     coverImageUrl: row.cover_image,
     isPublic: row.is_public,
     isPasswordProtected: row.is_password_protected,
+    // Echo back the delivery controls so "applied vs ignored" is verifiable from the response.
+    downloadEnabled: row.download_enabled,
+    visibleWatermark: row.visible_watermark,
+    invisibleWatermark: row.invisible_watermark,
+    expiresAt: row.expires_at,
     clientId: row.client_id,
     imageCount: row.image_count,
     galleryUrl: `${baseUrl}/gallery/${row.slug}`,
@@ -613,7 +619,11 @@ router.post('/galleries', requireScope('galleries:write'), async (req, res) => {
       return res.status(400).json({ error: 'title is required', code: 'invalid_request' });
     }
 
-    const externalRef = String(body.externalRef || '').trim();
+    // Idempotency: accept either a top-level externalRef OR a sourceRef (galleryId/id),
+    // matching how blog posts and orders take sourceRef. A retry then returns the existing
+    // gallery instead of creating a duplicate (which is what produced three empty galleries).
+    const srcId = String(body.sourceRef?.galleryId ?? body.sourceRef?.id ?? '').trim();
+    const externalRef = String(body.externalRef || '').trim() || (srcId ? `gallery:${srcId}` : '');
     if (externalRef) {
       const existing = await lookupExternalRef(externalRef);
       if (existing && existing.entityType === 'gallery') {
@@ -631,15 +641,22 @@ router.post('/galleries', requireScope('galleries:write'), async (req, res) => {
     const password = isPasswordProtected && body.password ? String(body.password) : null;
     const isPublic = body.isPublic === true; // default false for exports
     const description = body.description != null ? String(body.description) : null;
+    // Delivery controls — now actually applied (were silently ignored before).
+    const downloadEnabled = body.downloadEnabled === false ? false : true; // default true
+    const visibleWatermark = body.visibleWatermark === true;
+    const invisibleWatermark = body.invisibleWatermark === true;
+    let expiresAt: Date | null = null;
+    if (body.expiresAt) { const d = new Date(body.expiresAt); if (!isNaN(d.getTime())) expiresAt = d; }
     const slug = await ensureUniqueSlug(slugify(String(body.slug || title)));
 
     const insert = await pool.query(
       `
-        INSERT INTO galleries (title, slug, description, is_public, is_password_protected, password, client_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+        INSERT INTO galleries (title, slug, description, is_public, is_password_protected, password, client_id,
+          download_enabled, visible_watermark, invisible_watermark, expires_at, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
         RETURNING id
       `,
-      [title, slug, description, isPublic, isPasswordProtected, password, clientId],
+      [title, slug, description, isPublic, isPasswordProtected, password, clientId, downloadEnabled, visibleWatermark, invisibleWatermark, expiresAt],
     );
     const galleryId = insert.rows[0].id;
     if (externalRef) await recordExternalRef(externalRef, 'gallery', galleryId);
