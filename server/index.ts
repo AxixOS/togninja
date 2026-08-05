@@ -609,6 +609,8 @@ app.use((req, res, next) => {
         // Site theme preset (token-based) for the public site / generated homepage.
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS site_theme_preset TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS site_theme_tokens JSONB`);
+        // When an invoice was paid — reconciled by ShootCleaner's GET /orders poll.
+        await db.execute(sql`ALTER TABLE crm_invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`);
         // Homepage & portfolio image managers (Website Studio → Customise). These were only
         // ever created ad hoc on the New Age DB; create them on every instance so a fresh
         // studio's homepage image list doesn't 500 and the managers work.

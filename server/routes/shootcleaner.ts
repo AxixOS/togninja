@@ -1240,7 +1240,8 @@ router.post('/orders', requireScope('orders:write'), async (req, res) => {
     if (externalRef) {
       const existing = await lookupExternalRef(externalRef);
       if (existing && existing.entityType === 'invoice') {
-        await pool.query('UPDATE crm_invoices SET status=$2, paid_amount=$3, total=$4, subtotal=$5, tax_amount=$6, currency=$7, updated_at=NOW() WHERE id=$1', [existing.entityId, invStatus, paidAmount, dec(total), dec(subtotal), dec(tax), currency]);
+        // Stamp paid_at on the transition to paid (preserve it if already set).
+        await pool.query("UPDATE crm_invoices SET status=$2, paid_amount=$3, total=$4, subtotal=$5, tax_amount=$6, currency=$7, updated_at=NOW(), paid_at=CASE WHEN $2='paid' AND paid_at IS NULL THEN NOW() ELSE paid_at END WHERE id=$1", [existing.entityId, invStatus, paidAmount, dec(total), dec(subtotal), dec(tax), currency]);
         const inv = await pool.query('SELECT id, invoice_number, status, total FROM crm_invoices WHERE id=$1', [existing.entityId]);
         const r0 = inv.rows[0];
         void sweepPaidInvoices().catch(() => {}); // announce immediately if now paid (cron is the fallback)
@@ -1253,8 +1254,8 @@ router.post('/orders', requireScope('orders:write'), async (req, res) => {
     const due = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
     const notes = `ShootCleaner order ${b.orderNumber || orderId || ''}`.trim();
     const ins = await pool.query(
-      `INSERT INTO crm_invoices (invoice_number, client_id, issue_date, due_date, subtotal, tax_amount, total, paid_amount, currency, status, document_type, notes, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'invoice',$11,NOW(),NOW()) RETURNING id, invoice_number, status, total`,
+      `INSERT INTO crm_invoices (invoice_number, client_id, issue_date, due_date, subtotal, tax_amount, total, paid_amount, currency, status, document_type, notes, created_at, updated_at, paid_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'invoice',$11,NOW(),NOW(), CASE WHEN $10='paid' THEN NOW() ELSE NULL END) RETURNING id, invoice_number, status, total`,
       [invoiceNumber, clientId, issue, due, dec(subtotal), dec(tax), dec(total), paidAmount, currency, invStatus, notes],
     );
     const invId = ins.rows[0].id;
@@ -1294,7 +1295,7 @@ router.get('/orders', requireShootCleanerApiKey, async (req, res) => {
     params.push(limit);
 
     const q = await pool.query(
-      `SELECT e.external_ref, i.id, i.invoice_number, i.status, i.total, i.paid_amount, i.currency, i.updated_at
+      `SELECT e.external_ref, i.id, i.invoice_number, i.status, i.total, i.paid_amount, i.currency, i.updated_at, i.paid_at
        FROM shootcleaner_exports e
        JOIN crm_invoices i ON i.id::text = e.entity_id
        WHERE ${where.join(' AND ')}
@@ -1320,8 +1321,8 @@ router.get('/orders', requireShootCleanerApiKey, async (req, res) => {
         amountPaidCents,
         amountOutstandingCents: Math.max(0, totalCents - amountPaidCents),
         currency: r.currency || 'EUR',
-        // No dedicated paid_at column yet — best-effort proxy (the last update once paid).
-        paidAt: r.status === 'paid' ? r.updated_at : null,
+        // Real paid timestamp; legacy rows paid before the column existed fall back to updated_at.
+        paidAt: r.paid_at || (r.status === 'paid' ? r.updated_at : null),
         updatedAt: r.updated_at,
       };
     });

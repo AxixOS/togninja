@@ -7194,7 +7194,7 @@ Bitte versuchen Sie es später noch einmal.`;
         return res.status(400).json({ ok: false, error: 'Missing invoice_id or status' });
       }
       
-      await runSql('UPDATE crm_invoices SET status = $1, updated_at = NOW() WHERE id = $2::uuid', [status, invoice_id]);
+      await runSql("UPDATE crm_invoices SET status = $1, updated_at = NOW(), paid_at = CASE WHEN $1='paid' AND paid_at IS NULL THEN NOW() ELSE paid_at END WHERE id = $2::uuid", [status, invoice_id]);
       
       res.json({ ok: true, success: true });
     } catch (error) {
@@ -7532,7 +7532,7 @@ Bitte versuchen Sie es später noch einmal.`;
       if (invoice.status === 'draft') {
         const invoiceTotal = parseFloat(invoice.total || '0');
         const newStatus = invoiceTotal === 0 ? 'paid' : 'sent';
-        await runSql('UPDATE crm_invoices SET status = $1, updated_at = NOW() WHERE id = $2::uuid', [newStatus, invoice_id]);
+        await runSql("UPDATE crm_invoices SET status = $1, updated_at = NOW(), paid_at = CASE WHEN $1='paid' AND paid_at IS NULL THEN NOW() ELSE paid_at END WHERE id = $2::uuid", [newStatus, invoice_id]);
       }
       
       res.json({ ok: true, link });
