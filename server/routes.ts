@@ -13548,6 +13548,13 @@ ${getBizName()} CRM System
         const endpoint = s3cfg.endpoint;
         // URL encode each path segment, preserving slashes
         const encodedKey = key.split('/').map(part => encodeURIComponent(part)).join('/');
+        // Supabase Storage: the S3 endpoint (…/storage/v1/s3) is auth-only — a browser
+        // <img> can't load from it. Public objects are served from a different path:
+        // …/storage/v1/object/public/<bucket>/<key> (bucket must be marked Public).
+        if (endpoint.includes('supabase')) {
+          const host = endpoint.replace(/\/storage\/v1\/s3$/, '');
+          return `${host}/storage/v1/object/public/${bucket}/${encodedKey}`;
+        }
         if (endpoint.includes('backblazeb2.com')) {
           return `https://${bucket}.${endpoint.replace('https://', '').replace(/\/$/, '')}/${encodedKey}`;
         }

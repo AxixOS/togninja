@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import TemplateSelector from '../../components/admin/TemplateSelector';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Palette, 
-  Settings, 
-  Globe, 
-  Camera, 
-  Phone, 
-  Mail, 
+  Palette,
+  Settings,
+  Globe,
+  Camera,
+  Phone,
+  Mail,
   MapPin,
+  ArrowLeft,
   Save,
   Eye,
   RefreshCw
@@ -34,6 +36,7 @@ interface StudioConfig {
 }
 
 const StudioCustomization: React.FC = () => {
+  const navigate = useNavigate();
   const [config, setConfig] = useState<StudioConfig>({
     studioName: SITE.name,
     ownerEmail: SITE.email,
@@ -181,6 +184,13 @@ const StudioCustomization: React.FC = () => {
           
           {/* Header */}
           <div className="mb-8">
+            <button
+              onClick={() => navigate('/admin')}
+              className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-4 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </button>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Studio Customization
             </h1>
