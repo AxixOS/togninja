@@ -14,6 +14,7 @@ import {
   Mail,
   MapPin,
   ArrowLeft,
+  CheckCircle,
   Save,
   Eye,
   RefreshCw
@@ -55,6 +56,7 @@ const StudioCustomization: React.FC = () => {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [activeTab, setActiveTab] = useState('template');
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -137,6 +139,8 @@ const StudioCustomization: React.FC = () => {
     try {
       await persistBranding(config);
       setStatusMsg({ type: 'success', text: 'Saved. Your logo and business details are now live on the website and invoices.' });
+      setJustSaved(true);
+      window.setTimeout(() => setJustSaved(false), 3000);
     } catch (error: any) {
       setStatusMsg({ type: 'error', text: error?.message || 'Could not save. Please try again.' });
     } finally {
@@ -542,8 +546,9 @@ const StudioCustomization: React.FC = () => {
           <div className="flex items-center justify-end gap-4 mt-8">
             {statusMsg && (
               <span
-                className={`text-sm ${statusMsg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}
+                className={`text-sm font-medium inline-flex items-center gap-1.5 ${statusMsg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}
               >
+                {statusMsg.type === 'success' && <CheckCircle className="h-4 w-4" />}
                 {statusMsg.text}
               </span>
             )}
@@ -551,11 +556,17 @@ const StudioCustomization: React.FC = () => {
               onClick={handleSaveConfig}
               disabled={saving}
               size="lg"
+              className={justSaved ? 'bg-green-600 hover:bg-green-600 text-white' : ''}
             >
               {saving ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   Saving...
+                </>
+              ) : justSaved ? (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Saved!
                 </>
               ) : (
                 <>

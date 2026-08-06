@@ -588,7 +588,14 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoice, showPayButto
             color: '#666'
           }}>
             <span>{(() => {
-              const rate = invoice.items?.[0]?.tax_rate || (invoice.tax_amount > 0 ? 20 : 0);
+              // Show the ACTUAL effective rate. Prefer the line-item rate; otherwise derive
+              // it from tax_amount / subtotal (was hardcoded to 20%, which mislabelled e.g.
+              // an €7.20 tax on a €90 subtotal as "20%" when it is really 8%).
+              const itemRate = invoice.items?.[0]?.tax_rate || 0;
+              const derived = invoice.subtotal_amount > 0 && invoice.tax_amount > 0
+                ? Math.round((invoice.tax_amount / invoice.subtotal_amount) * 100)
+                : 0;
+              const rate = itemRate || derived;
               return language === 'en' ? `VAT (${rate}%):` : `USt. (${rate}%):`;
             })()}</span>
             <span style={{ fontWeight: '500', color: '#2c3e50' }}>
