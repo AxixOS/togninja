@@ -1354,8 +1354,11 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
     }
   };
 
-  // Small AI toolbar rendered under editable text fields.
+  // Small AI toolbar rendered under editable text fields. AI copy tools only make sense on
+  // prose — not on a URL/link field (e.g. the Reviews page URL, where real reviews pull from
+  // the studio's Google listing), an image slot, or an image-manager (richText) field.
   const renderAiTools = (field: ManualPageField) => {
+    if (field.type === 'url' || field.type === 'image' || field.type === 'richText') return null;
     const key = field.translationKey;
     const busy = aiFieldBusy[key];
     const tips = aiFieldTips[key];

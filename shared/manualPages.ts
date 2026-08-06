@@ -1,4 +1,4 @@
-export type ManualPageFieldType = 'shortText' | 'longForm' | 'richText' | 'image';
+export type ManualPageFieldType = 'shortText' | 'longForm' | 'richText' | 'image' | 'url';
 
 export interface ManualPageField {
   id: string;
@@ -72,7 +72,7 @@ export const manualPageManifest: ManualPageDefinition[] = [
         label: 'Reviews',
         description: 'The review page visitors are sent to (Google, Facebook or a citation site). Used by the "read/write a review" links across the site.',
         fields: [
-          makeField('site-review-url', 'Reviews page URL', 'reviews.googleUrl', 'shortText', 'e.g. your Google Business review link (https://maps.app.goo.gl/…)'),
+          makeField('site-review-url', 'Reviews page URL', 'reviews.googleUrl', 'url', 'e.g. your Google Business review link (https://maps.app.goo.gl/…)'),
         ],
       }
     ]
@@ -125,7 +125,7 @@ export const manualPageManifest: ManualPageDefinition[] = [
         fields: [
           makeField('reviews-title', 'Section Title', 'reviews.sectionTitle'),
           makeField('reviews-rating', 'Google Rating Summary', 'reviews.ratingSummary'),
-          makeField('reviews-google-url', 'Google Reviews URL', 'reviews.googleUrl')
+          makeField('reviews-google-url', 'Google Reviews URL', 'reviews.googleUrl', 'url')
         ]
       },
       {
