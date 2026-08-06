@@ -649,6 +649,46 @@ app.use((req, res, next) => {
         console.warn('⚠️ Onboarding columns migration already applied or failed:', migrationError.message);
       }
 
+      // Critical tables — ensured INDEPENDENTLY (each in its own try) so one failure can't
+      // suppress the others. The block above bundles CREATEs behind ~25 ALTERs in a single
+      // try; if an early ALTER throws on a fresh DB, those CREATEs silently never run
+      // (that's why publish 500'd and homepage images showed "(0)" on new instances).
+      const ensureTable = async (label: string, stmt: any) => {
+        try { await db.execute(stmt); }
+        catch (e: any) { console.warn(`⚠️ ensureTable [${label}] failed:`, e?.message || e); }
+      };
+      // Website Studio "Customise" page content (draft/published). Was only ever created by
+      // an ad-hoc script on the New Age DB → publish 500'd on fresh instances. NO FK on
+      // studio_id (matches the proven ad-hoc DDL) so an insert can't violate a missing
+      // studio_configs row when getStudioId falls back to the canonical id.
+      await ensureTable('manual_page_content', sql`CREATE TABLE IF NOT EXISTS manual_page_content (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        studio_id uuid NOT NULL,
+        page_id text NOT NULL,
+        language text NOT NULL DEFAULT 'de',
+        draft_content jsonb DEFAULT '{}'::jsonb,
+        published_content jsonb DEFAULT '{}'::jsonb,
+        status text DEFAULT 'draft',
+        published_at timestamptz,
+        created_at timestamptz DEFAULT now(),
+        updated_at timestamptz DEFAULT now(),
+        CONSTRAINT manual_page_content_unique UNIQUE (studio_id, page_id, language)
+      )`);
+      // Homepage & portfolio image managers — re-ensured here in case the bundled block
+      // above aborted before reaching their CREATEs.
+      await ensureTable('homepage_images', sql`CREATE TABLE IF NOT EXISTS homepage_images (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        section text NOT NULL, url text NOT NULL, alt text, title text,
+        sort_order integer DEFAULT 0, is_active boolean DEFAULT true,
+        created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('portfolio_images', sql`CREATE TABLE IF NOT EXISTS portfolio_images (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        category text NOT NULL, url text NOT NULL, alt text, title text, description text,
+        sort_order integer DEFAULT 0, is_active boolean DEFAULT true,
+        created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+      )`);
+
       // Seed a single studio_configs row if none exists, so the Studio
       // Customization page (GET/PUT /api/studio/branding) and the singleton
       // LIMIT-1 reads elsewhere always have a row to read/update. Use the
