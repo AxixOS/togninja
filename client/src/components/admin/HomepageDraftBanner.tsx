@@ -18,11 +18,23 @@ export default function HomepageDraftBanner() {
     (async () => {
       try {
         const res = await fetch('/api/admin/homepage-draft');
-        if (res.ok && !cancelled) setDraft(await res.json());
+        if (res.ok && !cancelled) {
+          const d = await res.json();
+          setDraft(d);
+          // Dismissal persists per-draft: a re-generated draft (new id) shows again.
+          if (d?.draftId && localStorage.getItem(`homepageDraftDismissed:${d.draftId}`)) {
+            setDismissed(true);
+          }
+        }
       } catch { /* no-op */ }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    if (draft?.draftId) localStorage.setItem(`homepageDraftDismissed:${draft.draftId}`, '1');
+  };
 
   if (dismissed || !draft?.draftId) return null;
   if (draft.status === 'published' && draft.isHomepage) return null;
@@ -48,7 +60,7 @@ export default function HomepageDraftBanner() {
         >
           Review &amp; edit <ArrowRight className="w-4 h-4" />
         </Link>
-        <button onClick={() => setDismissed(true)} className="text-gray-400 hover:text-gray-600 p-1" aria-label="Dismiss">
+        <button onClick={handleDismiss} className="text-gray-400 hover:text-gray-600 p-1" aria-label="Dismiss">
           <X className="w-4 h-4" />
         </button>
       </div>

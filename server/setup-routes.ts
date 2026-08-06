@@ -32,7 +32,7 @@ import { eq, sql, count } from 'drizzle-orm';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import { runHomepagePipeline, type HomepageGenState } from './lib/homepage-pipeline';
+import { runHomepagePipeline, normalizeWebsiteUrl, type HomepageGenState } from './lib/homepage-pipeline';
 
 const router = Router();
 
@@ -406,7 +406,7 @@ router.post('/homepage/generate', async (req: Request, res: Response) => {
   try {
     const config = await getConfigRow();
     if (!config) return res.json({ started: false, skipped: true, reason: 'no-config' });
-    const website = String((config as any).website || (config as any).frontendUrl || '').trim();
+    const website = normalizeWebsiteUrl((config as any).website || (config as any).frontendUrl || '');
     if (!website) return res.json({ started: false, skipped: true, reason: 'no-website' });
 
     const force = String((req.query.force ?? (req.body && req.body.force)) || '') === '1' || req.query.force === 'true';
@@ -453,7 +453,7 @@ router.get('/homepage/status', async (_req: Request, res: Response) => {
     const config = await getConfigRow();
     const st: HomepageGenState | null = (config as any)?.homepageGenState || null;
     if (!st) {
-      const hasWebsite = !!String((config as any)?.website || '').trim();
+      const hasWebsite = !!normalizeWebsiteUrl((config as any)?.website || (config as any)?.frontendUrl || '');
       return res.json({ status: 'idle', stage: null, pagesCrawled: 0, previewUrl: null, draftId: null, hasWebsite });
     }
     const previewUrl = st.slug && st.previewToken ? `/lp/${st.slug}?preview=${st.previewToken}` : null;

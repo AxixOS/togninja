@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useLandingPageEditor } from '../../features/landing-pages/hooks/useLandingPageEditor';
 import { useDuplicateLandingPage } from '../../features/landing-pages/hooks/useDuplicateLandingPage';
 import { useRegenerateLandingPageSection } from '../../features/landing-pages/hooks/useRegenerateLandingPageSection';
@@ -153,6 +153,18 @@ export default function AdminLandingPageEditorPage() {
   }, [id, requestPreviewLink, toast]);
 
   const [homepageState, setHomepageState] = useState<'idle' | 'setting' | 'set'>('idle');
+  // On load, reflect whether THIS page is already the live homepage, so the control
+  // shows the current state (and offers "Remove as homepage") rather than always "idle".
+  const pageSlug = editor.page?.slug;
+  useEffect(() => {
+    if (!pageSlug) return;
+    let cancelled = false;
+    fetch('/api/studio-config')
+      .then(r => r.json())
+      .then(d => { if (!cancelled && d?.homepageLandingSlug && d.homepageLandingSlug === pageSlug) setHomepageState('set'); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [pageSlug]);
   const handleSetAsHomepage = useCallback(async () => {
     if (!id) return;
     setHomepageState('setting');
@@ -168,6 +180,20 @@ export default function AdminLandingPageEditorPage() {
       toast({ title: 'Could not set homepage', description: e?.message || 'Failed', variant: 'destructive' });
     }
   }, [id, toast]);
+  const handleUnsetHomepage = useCallback(async () => {
+    setHomepageState('setting');
+    try {
+      const res = await fetch('/api/admin/landing-pages/unset-homepage', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed');
+      setHomepageState('idle');
+      toast({ title: 'Homepage cleared', description: 'Your site now shows the built-in homepage at /.' });
+    } catch (e: any) {
+      setHomepageState('set');
+      toast({ title: 'Could not clear homepage', description: e?.message || 'Failed', variant: 'destructive' });
+    }
+  }, [toast]);
 
   if (editor.isLoading) {
     return (
@@ -199,15 +225,24 @@ export default function AdminLandingPageEditorPage() {
   return (
     <>
     {editor.page.status === 'published' && (
-      <div className="fixed bottom-4 right-4 z-40">
+      <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-1.5">
         <button
           onClick={handleSetAsHomepage}
-          disabled={homepageState === 'setting'}
-          className="shadow-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-full disabled:opacity-60"
+          disabled={homepageState === 'setting' || homepageState === 'set'}
+          className="shadow-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-full disabled:opacity-60 disabled:cursor-default"
           title="Make this published page your public homepage (/)"
         >
-          {homepageState === 'set' ? '✓ Set as homepage' : homepageState === 'setting' ? 'Setting…' : '🏠 Set as homepage'}
+          {homepageState === 'set' ? '✓ Live at your homepage (/)' : homepageState === 'setting' ? 'Working…' : '🏠 Set as homepage'}
         </button>
+        {homepageState === 'set' && (
+          <button
+            onClick={handleUnsetHomepage}
+            className="text-xs text-gray-600 hover:text-gray-900 underline bg-white/80 rounded px-2 py-0.5"
+            title="Revert / to the built-in homepage"
+          >
+            Remove as homepage
+          </button>
+        )}
       </div>
     )}
     <LandingPageEditorLayout

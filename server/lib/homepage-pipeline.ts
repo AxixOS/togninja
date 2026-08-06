@@ -88,6 +88,24 @@ function buildContext(config: any, rows: Array<{ url: string; title: string | nu
   };
 }
 
+/**
+ * Normalize a user-entered website into a crawlable absolute URL. Studios often type
+ * "susangracehinman.com" with no scheme — `new URL()` then throws and the whole crawl
+ * silently errors. Prepend https:// when there's no scheme; return '' if unusable.
+ */
+export function normalizeWebsiteUrl(raw: string): string {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  const withScheme = /^https?:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, '')}`;
+  try {
+    const u = new URL(withScheme);
+    if (!u.hostname.includes('.')) return ''; // not a real domain
+    return u.toString();
+  } catch {
+    return '';
+  }
+}
+
 async function uniqueSlug(base: string): Promise<string> {
   let slug = base || 'home';
   let n = 1;
@@ -105,7 +123,7 @@ async function uniqueSlug(base: string): Promise<string> {
  * throws to the caller — all failures are captured into homepage_gen_state.
  */
 export async function runHomepagePipeline(config: any): Promise<void> {
-  const website = String(config?.website || config?.frontendUrl || '').trim();
+  const website = normalizeWebsiteUrl(config?.website || config?.frontendUrl || '');
   const state: HomepageGenState = {
     status: 'running', stage: 'crawling', pagesCrawled: 0,
     draftId: null, slug: null, previewToken: null, error: null,

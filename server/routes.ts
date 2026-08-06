@@ -19279,6 +19279,14 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
         published_url: null
       });
       if (!updated) return res.status(404).json({ error: 'Landing page not found' });
+      // If this page was the live homepage, clear the pointer so "/" reverts to the
+      // built-in HomePage instead of 404-ing on the now-unpublished slug.
+      if (updated.slug) {
+        await pool.query(
+          `UPDATE studio_configs SET homepage_landing_slug = NULL, updated_at = now() WHERE homepage_landing_slug = $1`,
+          [updated.slug],
+        );
+      }
       res.json(updated);
     } catch (error) {
       console.error('Error unpublishing landing page:', error);
@@ -19402,6 +19410,16 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
     try {
       const page = await neonDb.deleteLandingPage(req.params.id);
       if (!page) return res.status(404).json({ error: 'Landing page not found' });
+      // Clear any studio_configs pointers to this page so "/" and the dashboard banner
+      // don't reference a deleted row.
+      await pool.query(
+        `UPDATE studio_configs SET
+           homepage_landing_slug = CASE WHEN homepage_landing_slug = $1 THEN NULL ELSE homepage_landing_slug END,
+           homepage_draft_landing_id = CASE WHEN homepage_draft_landing_id = $2 THEN NULL ELSE homepage_draft_landing_id END,
+           updated_at = now()
+         WHERE homepage_landing_slug = $1 OR homepage_draft_landing_id = $2`,
+        [page.slug || null, req.params.id],
+      );
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting landing page:', error);

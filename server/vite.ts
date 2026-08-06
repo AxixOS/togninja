@@ -196,7 +196,9 @@ async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
     // AI-generated homepage: when a studio has set a landing page as its homepage,
     // serve that page's meta + prerendered body at "/" (canonical "/", not /lp/slug)
     // so crawlers see the real homepage. Falls through to the built-in meta on any error.
-    if (staticKey === "/" || staticKey === "/en") {
+    // Only "/" — the client renders the custom homepage at "/" (RootHome), while "/en"
+    // renders the built-in HomePage; matching that here avoids SSR/client cloaking.
+    if (staticKey === "/") {
       try {
         const { pool } = await import("./db");
         const { rows } = await pool.query(`SELECT homepage_landing_slug FROM studio_configs LIMIT 1`);
