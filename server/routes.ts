@@ -16779,7 +16779,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
         description: item.description,
         price: parseFloat(item.price),
         currency: item.currency,
-        taxRate: item.taxRate ? parseFloat(item.taxRate) : 19,
+        taxRate: item.taxRate ? parseFloat(item.taxRate) : 0, // studio sets its own rate; no German default
         sku: item.sku,
         productCode: item.productCode,
         unit: item.unit,
@@ -16846,7 +16846,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
         category: item.category || item.Category || 'GENERAL',
         price: item.price || item.Price || '0',
         currency: item.currency || item.Currency || 'EUR',
-        taxRate: item.taxRate || item.TaxRate || '19.00',
+        taxRate: item.taxRate || item.TaxRate || '0.00', // studio sets its own rate; no German default
         sku: item.sku || item.SKU || '',
         productCode: item.productCode || item.ProductCode || '',
         unit: item.unit || item.Unit || 'piece',

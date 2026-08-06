@@ -90,6 +90,7 @@ interface StudioConfig {
   phone: string;
   email: string;
   openingHours: string;
+  taxLabel?: string;
 }
 
 interface InvoiceTemplateProps {
@@ -149,11 +150,12 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoice, showPayButto
   const [studioConfig, setStudioConfig] = useState<StudioConfig>({
     logo: null,
     studioName: SITE.name,
-    address: 'Wehrgasse 11A/2+5, 1050 Wien',
+    address: '',
     addressNote: '',
-    phone: '+43 699 194 77 607',
+    phone: '',
     email: SITE.email,
-    openingHours: 'Termine nach Vereinbarung'
+    openingHours: '',
+    taxLabel: 'VAT'
   });
   const [configLoaded, setConfigLoaded] = useState(false);
   
@@ -596,7 +598,9 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoice, showPayButto
                 ? Math.round((invoice.tax_amount / invoice.subtotal_amount) * 100)
                 : 0;
               const rate = itemRate || derived;
-              return language === 'en' ? `VAT (${rate}%):` : `USt. (${rate}%):`;
+              // Use the studio's own configured tax label (VAT / USt. / Sales Tax / GST).
+              const label = studioConfig.taxLabel || (language === 'en' ? 'VAT' : 'USt.');
+              return `${label} (${rate}%):`;
             })()}</span>
             <span style={{ fontWeight: '500', color: '#2c3e50' }}>
               {formatCurrency(invoice.tax_amount, invoice.currency)}

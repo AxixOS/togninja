@@ -102,10 +102,15 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
   const [documentType, setDocumentType] = useState<'invoice' | 'quote' | 'estimate'>('invoice');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // The studio's configured default tax rate (Studio Customization → Settings).
+  // Used as the fallback when the browser has no remembered "last used" rate yet,
+  // so a fresh studio's invoices default to THEIR country's rate — not 0 or 19%.
+  const [studioDefaultTaxRate, setStudioDefaultTaxRate] = useState<number>(0);
+
   // VAT memory functionality
   const getLastUsedVatRate = (): number => {
     const saved = localStorage.getItem('lastUsedVatRate');
-    return saved ? parseFloat(saved) : 0;
+    return saved !== null ? parseFloat(saved) : studioDefaultTaxRate;
   };
 
   const saveLastUsedVatRate = (rate: number): void => {
@@ -229,6 +234,33 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
       fetchPriceList();
     }
   }, [isOpen]);
+
+  // Load the studio's configured default tax rate once, so new invoices default to it.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/studio-config');
+        if (!res.ok) return;
+        const cfg = await res.json();
+        const rate = parseFloat(cfg?.defaultTaxRate ?? cfg?.default_tax_rate ?? '0');
+        if (!cancelled && Number.isFinite(rate)) setStudioDefaultTaxRate(rate);
+      } catch { /* keep 0 on failure */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // When the studio default arrives, apply it to a fresh invoice's blank line(s) —
+  // only if the browser has no remembered rate and we're NOT editing an existing invoice.
+  useEffect(() => {
+    if (!isOpen || editingInvoice) return;
+    if (studioDefaultTaxRate <= 0) return;
+    if (localStorage.getItem('lastUsedVatRate') !== null) return;
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map(it => (it.tax_rate ? it : { ...it, tax_rate: studioDefaultTaxRate })),
+    }));
+  }, [studioDefaultTaxRate, isOpen, editingInvoice]);
 
   // Load invoice data once clients are loaded (for editing)
   useEffect(() => {
@@ -1765,7 +1797,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
                       description: editableDescription,
                       quantity: 1,
                       unit_price: pendingPriceItem.price || 0,
-                      tax_rate: pendingPriceItem.tax_rate || 0
+                      tax_rate: pendingPriceItem.tax_rate || getLastUsedVatRate()
                     };
                     setFormData(prev => ({...prev, items: [...prev.items, newItem]}));
                     setShowEditDescriptionModal(false);
