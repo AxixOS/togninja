@@ -25,8 +25,15 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
   const f = theme.fonts;
 
   const css = `
-.tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-surface:${c.surface};background:${c.bg};color:${c.text};font-family:${f.body};}
+.tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-bg:${c.bg};--tn-surface:${c.surface};--tn-heading:${c.heading};--tn-muted:${c.muted};background:${c.bg};color:${c.text};font-family:${f.body};}
 .tn-theme h1,.tn-theme h2,.tn-theme h3,.tn-theme h4{font-family:${f.heading};color:${c.heading};}
+/* Neutral surfaces + text → theme tokens, so a dark/tinted theme reskins whole sections,
+   not just the accents. For a white-bg theme these resolve back to white/near-default, so
+   the existing light presets are unchanged (backward compatible). Scoped to public pages. */
+.tn-theme .bg-white{background-color:var(--tn-bg)!important;}
+.tn-theme .bg-gray-50,.tn-theme .bg-gray-100{background-color:var(--tn-surface)!important;}
+.tn-theme .text-gray-900,.tn-theme .text-gray-800{color:var(--tn-heading)!important;}
+.tn-theme .text-gray-700,.tn-theme .text-gray-600,.tn-theme .text-gray-500{color:var(--tn-muted)!important;}
 .tn-theme .bg-purple-500,.tn-theme .bg-purple-600,.tn-theme .bg-purple-700{background-color:var(--tn-primary)!important;}
 .tn-theme .hover\\:bg-purple-700:hover,.tn-theme .hover\\:bg-purple-800:hover{background-color:var(--tn-primary-d)!important;}
 .tn-theme .text-purple-600,.tn-theme .text-purple-700,.tn-theme .text-purple-800,.tn-theme .text-purple-900{color:var(--tn-primary)!important;}

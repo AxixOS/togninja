@@ -75,6 +75,30 @@ export const THEME_PRESETS: ThemePreset[] = [
     fonts: { heading: SERIF, body: SANS },
     radius: '0.625rem',
   },
+  {
+    id: 'mono',
+    name: 'Modern Mono',
+    description: 'Near-black on white with a single restrained grey accent — pure and minimal.',
+    colors: { primary: '#171717', primaryDark: '#000000', accent: '#737373', bg: '#ffffff', surface: '#fafafa', text: '#262626', heading: '#0a0a0a', muted: '#737373' },
+    fonts: { heading: SANS, body: SANS },
+    radius: '0.125rem',
+  },
+  {
+    id: 'terracotta',
+    name: 'Terracotta',
+    description: 'Burnt sienna & mustard on warm cream with serif headings — retro and inviting.',
+    colors: { primary: '#b45309', primaryDark: '#92400e', accent: '#ca8a04', bg: '#fffdf7', surface: '#fdf4e7', text: '#44403c', heading: '#292524', muted: '#78716c' },
+    fonts: { heading: SERIF, body: SANS },
+    radius: '0.5rem',
+  },
+  {
+    id: 'onyx',
+    name: 'Onyx (Dark)',
+    description: 'Deep slate with violet & pink accents — a bold dark-mode look.',
+    colors: { primary: '#a78bfa', primaryDark: '#8b5cf6', accent: '#f472b6', bg: '#0f172a', surface: '#1e293b', text: '#e2e8f0', heading: '#f8fafc', muted: '#94a3b8' },
+    fonts: { heading: SANS, body: SANS },
+    radius: '0.5rem',
+  },
 ];
 
 export const DEFAULT_THEME_ID = 'aurora';
