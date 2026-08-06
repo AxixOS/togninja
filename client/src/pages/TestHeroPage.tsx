@@ -313,19 +313,19 @@ export default function TestHeroPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 className="text-2xl font-bold text-center mb-8">Verwandte Services</h2>
             <div className="grid md:grid-cols-3 gap-6">
-              <Link to="/business-portrait-wien/" className="block bg-purple-50 rounded-xl p-6 hover:shadow-lg transition-shadow">
+              <Link to="/fotoshootings" className="block bg-purple-50 rounded-xl p-6 hover:shadow-lg transition-shadow">
                 <Camera className="h-10 w-10 text-purple-600 mb-4" />
                 <h3 className="font-semibold text-lg mb-2 text-gray-900">Business-Portraits</h3>
                 <p className="text-gray-600 text-sm mb-4">Team & CEO – einheitlicher Look für Web & PR</p>
                 <span className="text-purple-600 font-semibold">Mehr erfahren →</span>
               </Link>
-              <Link to="/bewerbungsfotos-wien/" className="block bg-purple-50 rounded-xl p-6 hover:shadow-lg transition-shadow">
+              <Link to="/fotoshootings" className="block bg-purple-50 rounded-xl p-6 hover:shadow-lg transition-shadow">
                 <SlidersHorizontal className="h-10 w-10 text-purple-600 mb-4" />
                 <h3 className="font-semibold text-lg mb-2 text-gray-900">Bewerbungsfotos</h3>
                 <p className="text-gray-600 text-sm mb-4">LinkedIn/PR Portraits – schnell & markenschonend</p>
                 <span className="text-purple-600 font-semibold">Mehr erfahren →</span>
               </Link>
-              <Link to="/eventfotografie-wien/" className="block bg-purple-50 rounded-xl p-6 hover:shadow-lg transition-shadow">
+              <Link to="/fotoshootings" className="block bg-purple-50 rounded-xl p-6 hover:shadow-lg transition-shadow">
                 <Layers className="h-10 w-10 text-purple-600 mb-4" />
                 <h3 className="font-semibold text-lg mb-2 text-gray-900">Eventfotografie</h3>
                 <p className="text-gray-600 text-sm mb-4">Launches & PR – Assets, die sofort nutzbar sind</p>

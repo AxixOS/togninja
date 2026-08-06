@@ -103,8 +103,6 @@ const PulseSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/Pul
 const ShootCleanerSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/ShootCleanerSettingsPage'));
 const ManualWebsiteUpdatePage = lazyWithRetry(() => import('./pages/admin/ManualWebsiteUpdatePage'));
 const WebsiteStudioPage = lazyWithRetry(() => import('./pages/admin/WebsiteStudioPage'));
-import GewerblicheFotografieWienPage from './pages/GewerblicheFotografieWienPage';
-import WarumNewAgePage from './pages/WarumNewAgePage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import NeonProtectedRoute from './components/auth/NeonProtectedRoute';
 import VoucherThankYouPage from './pages/VoucherThankYouPage';
@@ -112,27 +110,7 @@ import CartPage from './pages/CartPage';
 import FamilyGutscheinPage from './pages/gutschein/FamilyGutscheinPage';
 import NewbornGutscheinPage from './pages/gutschein/NewbornGutscheinPage';
 import MaternityGutscheinPage from './pages/gutschein/MaternityGutscheinPage';
-import BusinessFotoshootingPage from './pages/fotoshootings/BusinessFotoshootingPage';
-import EventFotoshootingPage from './pages/fotoshootings/EventFotoshootingPage';
-import WeddingFotoshootingPage from './pages/fotoshootings/WeddingFotoshootingPage';
-import FamilienFotoshootingWienPage from './pages/fotoshootings/FamilienFotoshootingWienPage';
-import FamilienfotosWienPage from './pages/fotoshootings/FamilienfotosWienPage';
-import NeugeborenenfotosWienPage from './pages/fotoshootings/NeugeborenenfotosWienPage';
-import BabyfotosWienPage from './pages/fotoshootings/BabyfotosWienPage';
-import BabyFotografieWienPage from './pages/fotoshootings/BabyFotografieWienPage';
-import SchwangerschaftsfotosWienPage from './pages/fotoshootings/SchwangerschaftsfotosWienPage';
-import BusinessPortraitWienPage from './pages/fotoshootings/BusinessPortraitWienPage';
-import TeamfotosWienPage from './pages/fotoshootings/TeamfotosWienPage';
-import BewerbungsfotosWienPage from './pages/fotoshootings/BewerbungsfotosWienPage';
-import EventfotografieWienPage from './pages/fotoshootings/EventfotografieWienPage';
-import HochzeitsfotografieWienPage from './pages/fotoshootings/HochzeitsfotografieWienPage';
-import ProduktfotografieWienPage from './pages/fotoshootings/ProduktfotografieWienPage';
-import ImmobilienfotografieWienPage from './pages/fotoshootings/ImmobilienfotografieWienPage';
-import StudioFotografieWienPage from './pages/fotoshootings/StudioFotografieWienPage';
 import TestHeroPage from './pages/TestHeroPage';
-import KinderFotografieWienPage from './pages/fotoshootings/KinderFotografieWienPage';
-import PortraitfotografieWienPage from './pages/fotoshootings/PortraitfotografieWienPage';
-import SchulfotografieWienPage from './pages/fotoshootings/SchulfotografieWienPage';
 import UeberUnsPage from './pages/support/UeberUnsPage';
 import PreisePage from './pages/support/PreisePage';
 import FAQPage from './pages/support/FAQPage';
@@ -268,15 +246,7 @@ function App() {
                     LanguageRouteSync. See client/src/config/localeRoutes.ts. */}
                 <Route path="/en" element={<HomePage />} />
                 <Route path="/en/" element={<HomePage />} />
-                <Route path="/en/family-photography-vienna/" element={<FamilienfotosWienPage />} />
-                <Route path="/en/newborn-photography-vienna/" element={<NeugeborenenfotosWienPage />} />
-                <Route path="/en/maternity-photography-vienna/" element={<SchwangerschaftsfotosWienPage />} />
-                <Route path="/en/business-portraits-vienna/" element={<BusinessPortraitWienPage />} />
                 <Route path="/en/case-studies/" element={<CaseStudiesPage />} />
-                <Route path="/en/application-photos-vienna/" element={<BewerbungsfotosWienPage />} />
-                <Route path="/en/wedding-photography-vienna/" element={<HochzeitsfotografieWienPage />} />
-                <Route path="/en/baby-photos-vienna/" element={<BabyfotosWienPage />} />
-                <Route path="/en/portrait-photography-vienna/" element={<PortraitfotografieWienPage />} />
                 <Route path="/en/pricing/" element={<PreisePage />} />
                 <Route path="/en/vouchers/" element={<VouchersPage />} />
                 <Route path="/en/contact/" element={<KontaktPage />} />
@@ -285,31 +255,11 @@ function App() {
 
                 <Route path="/portfolio" element={<PortfolioPage />} />
                 <Route path="/fotoshootings" element={<FotoshootingsPage />} />
-                <Route path="/fotoshootings/business" element={<BusinessFotoshootingPage />} />
-                <Route path="/fotoshootings/event" element={<EventFotoshootingPage />} />
-                <Route path="/fotoshootings/wedding" element={<WeddingFotoshootingPage />} />
                 
                 {/* SEO Cornerstone Pages */}
-                <Route path="/familienfotos-wien/" element={<FamilienfotosWienPage />} />
-                <Route path="/neugeborenenfotos-wien/" element={<NeugeborenenfotosWienPage />} />
-                <Route path="/babyfotos-wien/" element={<BabyfotosWienPage />} />
-                <Route path="/teamfotos-wien/" element={<TeamfotosWienPage />} />
-                <Route path="/bewerbungsfotos-wien/" element={<BewerbungsfotosWienPage />} />
-                <Route path="/eventfotografie-wien/" element={<EventfotografieWienPage />} />
-                <Route path="/hochzeitsfotografie-wien/" element={<HochzeitsfotografieWienPage />} />
-                <Route path="/produkt-fotografie-wien/" element={<ProduktfotografieWienPage />} />
                 <Route path="/test-hero" element={<TestHeroPage />} />
-                <Route path="/immobilien-fotografie-wien/" element={<ImmobilienfotografieWienPage />} />
-                <Route path="/studio-fotografie-wien/" element={<StudioFotografieWienPage />} />
-                <Route path="/familien-fotoshooting-wien/" element={<FamilienFotoshootingWienPage />} />
-                <Route path="/baby-fotografie-wien/" element={<BabyFotografieWienPage />} />
-                <Route path="/schwangerschaftsfotos-wien/" element={<SchwangerschaftsfotosWienPage />} />
-                <Route path="/business-portrait-wien/" element={<BusinessPortraitWienPage />} />
                 
                 {/* SEO Pillar Pages */}
-                <Route path="/kinder-fotografie-wien/" element={<KinderFotografieWienPage />} />
-                <Route path="/portrait-fotografie-wien/" element={<PortraitfotografieWienPage />} />
-                <Route path="/schul-und-hochschulfotografie-wien/" element={<SchulfotografieWienPage />} />
                 
                 {/* Support Pages */}
                 <Route path="/ueber-uns/" element={<UeberUnsPage />} />
@@ -324,8 +274,6 @@ function App() {
                 <Route path="/datenschutz/" element={<DatenschutzPage />} />
                 <Route path="/model-release/" element={<ModelReleasePage />} />
                 {/* SEO pillar hubs (July 2026 audit) */}
-                <Route path="/gewerbliche-fotografie-wien/" element={<GewerblicheFotografieWienPage />} />
-                <Route path="/warum-new-age-fotografie/" element={<WarumNewAgePage />} />
                 
                 <Route path="/gutschein" element={<GutscheinPage />} />
                 <Route path="/gutschein/family" element={<FamilyGutscheinPage />} />

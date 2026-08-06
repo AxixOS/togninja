@@ -91,18 +91,18 @@ const WartelistePage: React.FC = () => {
             {language === 'de' ? (
               <>
                 Unsere Warteliste gilt für alle Shootings, darunter{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">Familienfotos</Link>,{' '}
-                <Link to="/babyfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">Babyfotografie</Link>{' '}
+                <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">Familienfotos</Link>,{' '}
+                <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">Babyfotografie</Link>{' '}
                 und{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">Business Portraits</Link>.
+                <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">Business Portraits</Link>.
               </>
             ) : (
               <>
                 Our waitlist covers all shoots, including{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">family photos</Link>,{' '}
-                <Link to="/babyfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">baby photography</Link>{' '}
+                <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">family photos</Link>,{' '}
+                <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">baby photography</Link>{' '}
                 and{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">business portraits</Link>.
+                <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2">business portraits</Link>.
               </>
             )}
           </p>
@@ -117,16 +117,16 @@ const WartelistePage: React.FC = () => {
             {language === 'de' ? (
               <>
                 Bereit für zeitlose Erinnerungen? Buchen Sie Ihr{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-700 underline hover:text-purple-900">Familienfotoshooting</Link>, Ihre{' '}
-                <Link to="/neugeborenenfotos-wien/" className="text-purple-700 underline hover:text-purple-900">Neugeborenen-Session</Link>{' '}oder{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-700 underline hover:text-purple-900">Business Portraits</Link>{' '}in unserem Wiener Studio. Flexible Termine inkl. Wochenende – wir begleiten Sie durch jeden Schritt.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Familienfotoshooting</Link>, Ihre{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Neugeborenen-Session</Link>{' '}oder{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Business Portraits</Link>{' '}in unserem Wiener Studio. Flexible Termine inkl. Wochenende – wir begleiten Sie durch jeden Schritt.
               </>
             ) : (
               <>
                 Ready to create timeless memories? Book your{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-700 underline hover:text-purple-900">family photoshoot</Link>,{' '}
-                <Link to="/neugeborenenfotos-wien/" className="text-purple-700 underline hover:text-purple-900">newborn session</Link>, or{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-700 underline hover:text-purple-900">business portraits</Link>{' '}with our Vienna studio. We offer flexible appointments, including weekends, and guide you through every step of the experience.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">family photoshoot</Link>,{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">newborn session</Link>, or{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">business portraits</Link>{' '}with our Vienna studio. We offer flexible appointments, including weekends, and guide you through every step of the experience.
               </>
             )}
           </p>
@@ -263,15 +263,15 @@ const WartelistePage: React.FC = () => {
         <div className="max-w-4xl mx-auto mt-12">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">{language === 'de' ? 'Während Sie warten – Entdecken Sie unsere Services' : 'While You Wait – Discover Our Services'}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link to="/familienfotos-wien/" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
+            <Link to="/fotoshootings" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
               <Camera className="w-8 h-8 text-purple-600 mx-auto mb-2" />
               <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Familienfotos' : 'Family Photos'}</h3>
             </Link>
-            <Link to="/neugeborenenfotos-wien/" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
+            <Link to="/fotoshootings" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
               <Camera className="w-8 h-8 text-purple-600 mx-auto mb-2" />
               <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Neugeborene' : 'Newborn'}</h3>
             </Link>
-            <Link to="/schwangerschaftsfotos-wien/" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
+            <Link to="/fotoshootings" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
               <Camera className="w-8 h-8 text-purple-600 mx-auto mb-2" />
               <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Schwangerschaft' : 'Maternity'}</h3>
             </Link>
@@ -293,22 +293,22 @@ const WartelistePage: React.FC = () => {
             </h3>
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
               <li>
-                <Link to="/familienfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
+                <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
                   {language === 'de' ? 'Familienfotos Wien' : 'Family Photography Vienna'}
                 </Link>
               </li>
               <li>
-                <Link to="/neugeborenenfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
+                <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
                   {language === 'de' ? 'Neugeborenenfotos Wien' : 'Newborn Photography Vienna'}
                 </Link>
               </li>
               <li>
-                <Link to="/schwangerschaftsfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
+                <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
                   {language === 'de' ? 'Schwangerschaftsfotos Wien' : 'Maternity Photoshoots Vienna'}
                 </Link>
               </li>
               <li>
-                <Link to="/business-portrait-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
+                <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
                   {language === 'de' ? 'Business Portraits Wien' : 'Business Headshots Vienna'}
                 </Link>
               </li>

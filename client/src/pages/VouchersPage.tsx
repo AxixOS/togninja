@@ -307,16 +307,16 @@ const VouchersPage: React.FC = () => {
             {language === 'de' ? (
               <>
                 Auf der Suche nach der perfekten Geschenkidee in Wien? Unsere professionellen Fotoshooting Gutscheine reichen von{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-700 underline hover:text-purple-900">Familienfotografie</Link>{' '}und{' '}
-                <Link to="/neugeborenenfotos-wien/" className="text-purple-700 underline hover:text-purple-900">Neugeborenen-Sessions</Link>{' '}bis hin zu{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-700 underline hover:text-purple-900">Business Headshots</Link>{' '}und besonderen Events. Jeder Gutschein steht für bleibende Erinnerungen mit hochwertiger Studio- oder Outdoor-Fotografie.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Familienfotografie</Link>{' '}und{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Neugeborenen-Sessions</Link>{' '}bis hin zu{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Business Headshots</Link>{' '}und besonderen Events. Jeder Gutschein steht für bleibende Erinnerungen mit hochwertiger Studio- oder Outdoor-Fotografie.
               </>
             ) : (
               <>
                 Looking for the perfect gift idea in Vienna? Our professional photoshoot vouchers cover everything from{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-700 underline hover:text-purple-900">family photography</Link>{' '}and{' '}
-                <Link to="/neugeborenenfotos-wien/" className="text-purple-700 underline hover:text-purple-900">newborn sessions</Link>{' '}to{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-700 underline hover:text-purple-900">business headshots</Link>{' '}and special events. Each voucher is designed to create lasting memories with high-quality studio or outdoor photography.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">family photography</Link>{' '}and{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">newborn sessions</Link>{' '}to{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">business headshots</Link>{' '}and special events. Each voucher is designed to create lasting memories with high-quality studio or outdoor photography.
               </>
             )}
           </p>
@@ -447,14 +447,14 @@ const VouchersPage: React.FC = () => {
             {language === 'de' ? (
               <>
                 Ob Sie ein{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-700 underline hover:text-purple-900">Familienfotoshooting</Link>{' '}verschenken, ein Neugeborenes feiern oder Ihr professionelles Auftreten mit{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-700 underline hover:text-purple-900">Business Portraits</Link>{' '}aufwerten möchten – unsere Wiener Fotografie-Gutscheine bieten Flexibilität und Premium-Qualität.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Familienfotoshooting</Link>{' '}verschenken, ein Neugeborenes feiern oder Ihr professionelles Auftreten mit{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Business Portraits</Link>{' '}aufwerten möchten – unsere Wiener Fotografie-Gutscheine bieten Flexibilität und Premium-Qualität.
               </>
             ) : (
               <>
                 Whether you're gifting a{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-700 underline hover:text-purple-900">family photoshoot</Link>, celebrating a newborn, or upgrading your professional image with{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-700 underline hover:text-purple-900">business portraits</Link>, our Vienna photography vouchers offer flexibility and premium quality.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">family photoshoot</Link>, celebrating a newborn, or upgrading your professional image with{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">business portraits</Link>, our Vienna photography vouchers offer flexibility and premium quality.
               </>
             )}
           </p>
@@ -469,22 +469,22 @@ const VouchersPage: React.FC = () => {
           </h3>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-center">
             <li>
-              <Link to="/familienfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
+              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
                 {language === 'de' ? 'Familienfotos Wien' : 'Family Photography Vienna'}
               </Link>
             </li>
             <li>
-              <Link to="/neugeborenenfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
+              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
                 {language === 'de' ? 'Neugeborenenfotos Wien' : 'Newborn Photography Vienna'}
               </Link>
             </li>
             <li>
-              <Link to="/schwangerschaftsfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
+              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
                 {language === 'de' ? 'Schwangerschaftsfotos Wien' : 'Maternity Photography Vienna'}
               </Link>
             </li>
             <li>
-              <Link to="/business-portrait-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
+              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
                 {language === 'de' ? 'Business Portraits Wien' : 'Business Headshots Vienna'}
               </Link>
             </li>

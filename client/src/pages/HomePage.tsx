@@ -783,7 +783,7 @@ const HomePage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Family Portraits */}
             <Link 
-              to="/familien-fotoshooting-wien/"
+              to="/fotoshootings"
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
@@ -810,7 +810,7 @@ const HomePage: React.FC = () => {
 
             {/* Pregnancy Photography */}
             <Link 
-              to="/schwangerschaftsfotos-wien/"
+              to="/fotoshootings"
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
@@ -839,7 +839,7 @@ const HomePage: React.FC = () => {
 
             {/* Newborn Photography */}
             <Link 
-              to="/baby-fotografie-wien/"
+              to="/fotoshootings"
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
@@ -868,7 +868,7 @@ const HomePage: React.FC = () => {
 
             {/* Business Photography */}
             <Link 
-              to="/business-portrait-wien/"
+              to="/fotoshootings"
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
@@ -895,7 +895,7 @@ const HomePage: React.FC = () => {
 
             {/* Event Photography */}
             <Link 
-              to="/eventfotografie-wien/"
+              to="/fotoshootings"
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
@@ -922,7 +922,7 @@ const HomePage: React.FC = () => {
 
             {/* Product Photography */}
             <Link 
-              to="/produkt-fotografie-wien/"
+              to="/fotoshootings"
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
@@ -1078,67 +1078,6 @@ const HomePage: React.FC = () => {
 
       {/* FAQ / Confidence Section */}
       <HomepageConfidenceSection />
-
-      {/* Additive geo signal block – "Ihr Fotostudio in Wien" */}
-      <section className="py-12 bg-purple-50/30 border-t border-gray-100" aria-labelledby="studio-geo-heading">
-        <div className="container mx-auto px-4 max-w-4xl">
-          <h2 id="studio-geo-heading" className="text-2xl md:text-3xl font-bold text-center text-purple-900 mb-4">
-            {language === 'en' ? 'Your Photo Studio in Vienna' : 'Ihr Fotostudio in Wien'}
-          </h2>
-          <p className="text-center text-gray-700 max-w-2xl mx-auto mb-6 leading-relaxed">
-            {language === 'en'
-              ? `${SITE.name} is your family photographer in Vienna 1050. Our studio in Wien-Margareten (Wehrgasse 11A/2+5) offers daylight rooms, calm posing areas for newborns, and a clean backdrop wall for business headshots – all within walking distance of public transport.`
-              : `${SITE.name} ist Ihr Familienfotograf Wien 1050. Unser Fotostudio in Wien-Margareten (Wehrgasse 11A/2+5) bietet Tageslicht-Räume, ruhige Pose-Bereiche für Neugeborene und eine saubere Hintergrundwand für Business-Headshots – fußläufig zu allen öffentlichen Verkehrsmitteln.`}
-          </p>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-sm text-center">
-            <li>
-              <Link to="/familienfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-100 hover:text-purple-900 font-medium transition-colors">
-                {language === 'en' ? 'Family Photographer Vienna 1050' : 'Familienfotograf Wien 1050'}
-              </Link>
-            </li>
-            <li>
-              <Link to="/babyfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-100 hover:text-purple-900 font-medium transition-colors">
-                {language === 'en' ? 'Baby Photo Studio Vienna' : 'Baby Fotostudio Wien'}
-              </Link>
-            </li>
-            <li>
-              <Link to="/business-portrait-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-100 hover:text-purple-900 font-medium transition-colors">
-                {language === 'en' ? 'Business Photo Studio Vienna' : 'Business Fotostudio Wien'}
-              </Link>
-            </li>
-            <li>
-              <Link to="/hochzeitsfotografie-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-100 hover:text-purple-900 font-medium transition-colors">
-                {language === 'en' ? 'Wedding Photography Vienna' : 'Hochzeitsfotografie Wien'}
-              </Link>
-            </li>
-            <li>
-              <Link to="/gewerbliche-fotografie-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-100 hover:text-purple-900 font-medium transition-colors">
-                {language === 'en' ? 'Commercial Photography Vienna' : 'Gewerbliche Fotografie Wien'}
-              </Link>
-            </li>
-            <li>
-              <Link to="/warum-new-age-fotografie/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-100 hover:text-purple-900 font-medium transition-colors">
-                {language === 'en' ? `Why ${SITE.name}?` : `Warum ${SITE.name}?`}
-              </Link>
-            </li>
-            <li>
-              <Link to="/preise/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-100 hover:text-purple-900 font-medium transition-colors">
-                {language === 'en' ? 'Photoshoot Pricing Vienna' : 'Fotoshooting Preise Wien'}
-              </Link>
-            </li>
-            <li>
-              <Link to="/kontakt" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-100 hover:text-purple-900 font-medium transition-colors">
-                {language === 'en' ? 'Contact our Vienna studio' : 'Kontakt zum Studio in Wien'}
-              </Link>
-            </li>
-            <li>
-              <Link to="/warteliste" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-100 hover:text-purple-900 font-medium transition-colors">
-                {language === 'en' ? 'Reserve a date in Vienna' : 'Termin in Wien sichern'}
-              </Link>
-            </li>
-          </ul>
-        </div>
-      </section>
 
     </Layout>
   );

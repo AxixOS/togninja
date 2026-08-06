@@ -37,24 +37,6 @@ const FotoshootingsPage: React.FC = () => {
       image: 'https://i.postimg.cc/43YQ9VD4/4-S8-A4770-105-1024x683-Copy.jpg',
       link: '/gutschein/newborn'
     },
-    {
-      title: t('photoshoots.businessTitle'),
-      description: t('photoshoots.businessDescription'),
-      image: 'https://i.postimg.cc/RZjf8FsX/Whats-App-Image-2025-05-24-at-2-38-45-PM-1.jpg',
-      link: '/fotoshootings/business'
-    },
-    {
-      title: t('photoshoots.eventTitle'),
-      description: t('photoshoots.eventDescription'),
-      image: 'https://i.postimg.cc/907tz7nR/21469528-10155302675513124-226449768-n.jpg',
-      link: '/fotoshootings/event'
-    },
-    {
-      title: t('photoshoots.weddingTitle'),
-      description: t('photoshoots.weddingDescription'),
-      image: 'https://i.postimg.cc/j50XzC6p/4S8A7207.jpg',
-      link: '/fotoshootings/wedding'
-    }
   ];
 
   // Animation variants

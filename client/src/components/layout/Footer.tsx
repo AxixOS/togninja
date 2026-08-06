@@ -95,139 +95,6 @@ const Footer: React.FC = () => {
             </div>
           </div>
           
-          {/* Photography Services */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">{t('footer.photoshoots')}</h3>
-            <ul className="space-y-2">
-              <li>
-                <Link 
-                  to="/familienfotos-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.familyPhotos')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/neugeborenenfotos-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.newbornPhotos')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/babyfotos-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.babyPhotos')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/schwangerschaftsfotos-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.maternityPhotos')}
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/business-portrait-wien/"
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.businessPortraits')}
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/schul-und-hochschulfotografie-wien/"
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.schoolPhotography')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/teamfotos-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.teamPhotos')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/bewerbungsfotos-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.applicationPhotos')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/portrait-fotografie-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.portraitPhotography')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/produkt-fotografie-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.productPhotography')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/immobilien-fotografie-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.realEstatePhotography')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/studio-fotografie-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.studioPhotography')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/hochzeitsfotografie-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.weddingPhotography')}
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/eventfotografie-wien/" 
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {t('footer.eventPhotography')}
-                </Link>
-              </li>
-            </ul>
-          </div>
-          
           {/* Support & Info */}
           <div>
             <h3 className="text-lg font-semibold mb-4">{t('footer.supportInfo')}</h3>
@@ -345,20 +212,11 @@ const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/warum-new-age-fotografie/"
+                  to="/fotoshootings"
                   onClick={scrollToTop}
                   className="text-gray-300 hover:text-white transition-colors text-sm"
                 >
                   {language === 'de' ? `Warum ${SITE.name}?` : `Why ${SITE.name}?`}
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/gewerbliche-fotografie-wien/"
-                  onClick={scrollToTop}
-                  className="text-gray-300 hover:text-white transition-colors text-sm"
-                >
-                  {language === 'de' ? 'Gewerbliche Fotografie Wien' : 'Commercial Photography Vienna'}
                 </Link>
               </li>
             </ul>

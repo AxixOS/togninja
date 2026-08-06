@@ -433,16 +433,16 @@ const BlogPage: React.FC = () => {
             {language === 'de' ? (
               <>
                 Unser Fotografie-Blog bietet Experten-Tipps rund um{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-700 underline hover:text-purple-900">Familienfotoshootings</Link>,{' '}
-                <Link to="/neugeborenenfotos-wien/" className="text-purple-700 underline hover:text-purple-900">Neugeborenenfotografie</Link>, Schwangerschafts-Sessions und{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-700 underline hover:text-purple-900">professionelle Headshots</Link>{' '}in Wien. Ob Sie sich auf Ihr erstes Shooting vorbereiten oder Inspiration suchen – hier finden Sie praxisnahe Tipps und Beispiele aus unserem Studio.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Familienfotoshootings</Link>,{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Neugeborenenfotografie</Link>, Schwangerschafts-Sessions und{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">professionelle Headshots</Link>{' '}in Wien. Ob Sie sich auf Ihr erstes Shooting vorbereiten oder Inspiration suchen – hier finden Sie praxisnahe Tipps und Beispiele aus unserem Studio.
               </>
             ) : (
               <>
                 Our photography blog covers expert advice on{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-700 underline hover:text-purple-900">family photoshoots</Link>,{' '}
-                <Link to="/neugeborenenfotos-wien/" className="text-purple-700 underline hover:text-purple-900">newborn photography</Link>, maternity sessions, and{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-700 underline hover:text-purple-900">professional headshots</Link>{' '}in Vienna. Whether you're preparing for your first shoot or looking for inspiration, you'll find practical tips and real examples from our studio.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">family photoshoots</Link>,{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">newborn photography</Link>, maternity sessions, and{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">professional headshots</Link>{' '}in Vienna. Whether you're preparing for your first shoot or looking for inspiration, you'll find practical tips and real examples from our studio.
               </>
             )}
           </p>
@@ -452,22 +452,22 @@ const BlogPage: React.FC = () => {
           </h2>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <li>
-              <Link to="/familienfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
+              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
                 {language === 'de' ? 'Tipps für Familienfotografie' : 'Family Photography Tips'}
               </Link>
             </li>
             <li>
-              <Link to="/neugeborenenfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
+              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
                 {language === 'de' ? 'Ratgeber Neugeborenenfotografie' : 'Newborn Photography Advice'}
               </Link>
             </li>
             <li>
-              <Link to="/schwangerschaftsfotos-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
+              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
                 {language === 'de' ? 'Ideen für Schwangerschaftsfotos' : 'Maternity Photoshoot Ideas'}
               </Link>
             </li>
             <li>
-              <Link to="/business-portrait-wien/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
+              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
                 {language === 'de' ? 'Guides für Business Headshots' : 'Business Headshot Guides'}
               </Link>
             </li>
@@ -725,31 +725,31 @@ const BlogPage: React.FC = () => {
               <h2 className="text-xl font-bold text-gray-800 mb-4">{language === 'de' ? 'Beliebte Services' : 'Popular Services'}</h2>
               <ul className="space-y-3">
                 <li>
-                  <Link to="/familienfotos-wien/" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
+                  <Link to="/fotoshootings" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
                     <ChevronRight size={16} className="mr-2 text-purple-600" />
                     {language === 'de' ? 'Familienfotos Wien' : 'Family Photos Vienna'}
                   </Link>
                 </li>
                 <li>
-                  <Link to="/neugeborenenfotos-wien/" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
+                  <Link to="/fotoshootings" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
                     <ChevronRight size={16} className="mr-2 text-purple-600" />
                     {language === 'de' ? 'Neugeborenenfotos' : 'Newborn Photos'}
                   </Link>
                 </li>
                 <li>
-                  <Link to="/babyfotos-wien/" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
+                  <Link to="/fotoshootings" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
                     <ChevronRight size={16} className="mr-2 text-purple-600" />
                     {language === 'de' ? 'Babyfotos Wien' : 'Baby Photos Vienna'}
                   </Link>
                 </li>
                 <li>
-                  <Link to="/business-portrait-wien/" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
+                  <Link to="/fotoshootings" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
                     <ChevronRight size={16} className="mr-2 text-purple-600" />
                     Business Portraits
                   </Link>
                 </li>
                 <li>
-                  <Link to="/hochzeitsfotografie-wien/" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
+                  <Link to="/fotoshootings" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
                     <ChevronRight size={16} className="mr-2 text-purple-600" />
                     {language === 'de' ? 'Hochzeitsfotografie' : 'Wedding Photography'}
                   </Link>

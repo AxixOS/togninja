@@ -31,7 +31,6 @@ const LABELS: Record<string, { de: string; en: string }> = {
   'galleries': { de: 'Galerien', en: 'Galleries' },
   'faq': { de: 'FAQ', en: 'FAQ' },
   'kundenstimmen': { de: 'Kundenstimmen', en: 'Reviews' },
-  'warum-new-age-fotografie': { de: 'Warum New Age Fotografie?', en: 'Why New Age Fotografie?' },
 };
 
 const SKIP_PREFIXES = ['/admin', '/checkout', '/cart', '/gallery/', '/invoice/', '/account', '/my-archive', '/order-complete'];

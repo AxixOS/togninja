@@ -270,7 +270,7 @@ const KontaktPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">{language === 'de' ? 'Unsere Beliebten Services' : 'Our Popular Services'}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Link to="/familienfotos-wien/" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
+            <Link to="/fotoshootings" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex items-center mb-3">
                 <Camera className="w-6 h-6 text-purple-600 mr-3" />
                 <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Familienfotos' : 'Family Photos'}</h3>
@@ -278,7 +278,7 @@ const KontaktPage: React.FC = () => {
               <p className="text-gray-600 text-sm mb-2">{language === 'de' ? 'Professionelle Familienportraits in Wien' : 'Professional family portraits in Vienna'}</p>
               <span className="text-purple-600 text-sm flex items-center">{language === 'de' ? 'Mehr erfahren' : 'Learn more'} <ChevronRight className="w-4 h-4 ml-1" /></span>
             </Link>
-            <Link to="/neugeborenenfotos-wien/" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
+            <Link to="/fotoshootings" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex items-center mb-3">
                 <Camera className="w-6 h-6 text-purple-600 mr-3" />
                 <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Neugeborenenfotos' : 'Newborn Photos'}</h3>
@@ -286,7 +286,7 @@ const KontaktPage: React.FC = () => {
               <p className="text-gray-600 text-sm mb-2">{language === 'de' ? 'Zarte Babyfotografie für die ersten Tage' : 'Gentle baby photography for the first days'}</p>
               <span className="text-purple-600 text-sm flex items-center">{language === 'de' ? 'Mehr erfahren' : 'Learn more'} <ChevronRight className="w-4 h-4 ml-1" /></span>
             </Link>
-            <Link to="/business-portrait-wien/" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
+            <Link to="/fotoshootings" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex items-center mb-3">
                 <Camera className="w-6 h-6 text-purple-600 mr-3" />
                 <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">Business Portraits</h3>

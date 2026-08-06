@@ -243,22 +243,22 @@ const PreisePage: React.FC = () => {
               {de ? (
                 <>
                   Hier finden Sie alle Preise für unsere Fotoshootings in Wien – von{' '}
-                  <Link to="/familienfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Familienfotos Wien</Link> über{' '}
-                  <Link to="/babyfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Babyfotografie Wien</Link>{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Familienfotos Wien</Link> über{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Babyfotografie Wien</Link>{' '}
                   und{' '}
-                  <Link to="/neugeborenenfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Neugeborenenfotografie Wien</Link>{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Neugeborenenfotografie Wien</Link>{' '}
                   bis hin zu{' '}
-                  <Link to="/business-portrait-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Business Portraits</Link>.
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Business Portraits</Link>.
                 </>
               ) : (
                 <>
                   Here you will find all the prices for our photo shoots in Vienna – from{' '}
-                  <Link to="/familienfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Family Photos Vienna</Link> and{' '}
-                  <Link to="/babyfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Baby Photography Vienna</Link>{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Family Photos Vienna</Link> and{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Baby Photography Vienna</Link>{' '}
                   to{' '}
-                  <Link to="/neugeborenenfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Newborn Photography Vienna</Link>{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Newborn Photography Vienna</Link>{' '}
                   and{' '}
-                  <Link to="/business-portrait-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Business Portraits</Link>.
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Business Portraits</Link>.
                 </>
               )}
             </p>
@@ -266,17 +266,17 @@ const PreisePage: React.FC = () => {
               {de ? (
                 <>
                   Jedes Shooting ist individuell. Viele Kunden kombinieren mehrere Shootings wie{' '}
-                  <Link to="/schwangerschaftsfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Schwangerschaftsfotos Wien</Link>{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Schwangerschaftsfotos Wien</Link>{' '}
                   und{' '}
-                  <Link to="/babyfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Babyfotos Wien</Link>, oder
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Babyfotos Wien</Link>, oder
                   buchen ergänzend{' '}
-                  <Link to="/kinder-fotografie-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Kinderfotografie Wien</Link>{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Kinderfotografie Wien</Link>{' '}
                   und{' '}
-                  <Link to="/hochzeitsfotografie-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Hochzeitsfotografie Wien</Link>.
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Hochzeitsfotografie Wien</Link>.
                   Für Teams empfehlen wir{' '}
-                  <Link to="/teamfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Teamfotos Wien</Link>{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Teamfotos Wien</Link>{' '}
                   oder{' '}
-                  <Link to="/bewerbungsfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Bewerbungsfotos Wien</Link>.
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Bewerbungsfotos Wien</Link>.
                   Jetzt{' '}
                   <Link to="/warteliste/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Termin sichern</Link>{' '}
                   oder ins{' '}
@@ -286,17 +286,17 @@ const PreisePage: React.FC = () => {
               ) : (
                 <>
                   Every shoot is individual. Many clients combine several shoots, such as{' '}
-                  <Link to="/schwangerschaftsfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Maternity Photos Vienna</Link>{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Maternity Photos Vienna</Link>{' '}
                   and{' '}
-                  <Link to="/babyfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Baby Photos Vienna</Link>, or
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Baby Photos Vienna</Link>, or
                   add on{' '}
-                  <Link to="/kinder-fotografie-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Children's Photography Vienna</Link>{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Children's Photography Vienna</Link>{' '}
                   and{' '}
-                  <Link to="/hochzeitsfotografie-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Wedding Photography Vienna</Link>.
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Wedding Photography Vienna</Link>.
                   For teams we recommend{' '}
-                  <Link to="/teamfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Team Photos Vienna</Link>{' '}
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Team Photos Vienna</Link>{' '}
                   or{' '}
-                  <Link to="/bewerbungsfotos-wien/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Application Photos Vienna</Link>.
+                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Application Photos Vienna</Link>.
                   Now{' '}
                   <Link to="/warteliste/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">reserve a date</Link>{' '}
                   or take a look at our{' '}
@@ -515,22 +515,22 @@ const PreisePage: React.FC = () => {
           </h3>
           <ul className="grid sm:grid-cols-2 gap-3 mb-6 max-w-2xl mx-auto">
             <li>
-              <Link to="/familienfotos-wien/" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
+              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
                 {de ? 'Familienfotos Wien' : 'Family Photos Vienna'}
               </Link>
             </li>
             <li>
-              <Link to="/babyfotos-wien/" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
+              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
                 {de ? 'Babyfotografie Wien' : 'Baby Photography Vienna'}
               </Link>
             </li>
             <li>
-              <Link to="/bewerbungsfotos-wien/" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
+              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
                 {de ? 'Bewerbungsfotos Wien' : 'Application Photos Vienna'}
               </Link>
             </li>
             <li>
-              <Link to="/business-portrait-wien/" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
+              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
                 {de ? 'Business Portrait Wien' : 'Business Portrait Vienna'}
               </Link>
             </li>

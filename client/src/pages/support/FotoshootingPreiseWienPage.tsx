@@ -142,21 +142,21 @@ const FotoshootingPreiseWienPage: React.FC = () => {
             {isDe ? (
               <>
                 Wir glauben an transparente Preise. Auf dieser Seite finden Sie einen Überblick über die Kosten unserer{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-700 underline hover:text-purple-900">Familienfotografie</Link>,{' '}
-                <Link to="/babyfotos-wien/" className="text-purple-700 underline hover:text-purple-900">Babyfotografie</Link>,{' '}
-                <Link to="/schwangerschaftsfotos-wien/" className="text-purple-700 underline hover:text-purple-900">Schwangerschaftsshootings</Link>{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Familienfotografie</Link>,{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Babyfotografie</Link>,{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Schwangerschaftsshootings</Link>{' '}
                 und{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-700 underline hover:text-purple-900">Business Portraits</Link>{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Business Portraits</Link>{' '}
                 in Wien. Die vollständige Preisliste mit allen Paketen und Add-ons finden Sie auf unserer{' '}
                 <Link to="/preise/" className="text-purple-700 underline hover:text-purple-900">Preise-Seite</Link>.
               </>
             ) : (
               <>
                 We believe in transparent pricing. This page gives you an overview of the cost of our{' '}
-                <Link to="/familienfotos-wien/" className="text-purple-700 underline hover:text-purple-900">family photography</Link>,{' '}
-                <Link to="/babyfotos-wien/" className="text-purple-700 underline hover:text-purple-900">baby photography</Link>,{' '}
-                <Link to="/schwangerschaftsfotos-wien/" className="text-purple-700 underline hover:text-purple-900">maternity sessions</Link>{' '}and{' '}
-                <Link to="/business-portrait-wien/" className="text-purple-700 underline hover:text-purple-900">business portraits</Link>{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">family photography</Link>,{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">baby photography</Link>,{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">maternity sessions</Link>{' '}and{' '}
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">business portraits</Link>{' '}
                 in Vienna. The full price list with all packages and add-ons is available on our{' '}
                 <Link to="/preise/" className="text-purple-700 underline hover:text-purple-900">Pricing page</Link>.
               </>

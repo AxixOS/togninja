@@ -26,13 +26,15 @@ interface PortfolioImage {
 }
 
 // Category configuration (static - only images come from API)
+// Category "view more" links point at the services overview (the bespoke Vienna service
+// pages were removed for the neutral master). A studio can wire these to its own pages.
 const categoryConfig = [
-  { id: 'family', icon: Users, link: '/familien-fotoshooting-wien/' },
-  { id: 'newborn', icon: Baby, link: '/baby-fotografie-wien/' },
-  { id: 'maternity', icon: Heart, link: '/schwangerschaftsfotos-wien/' },
-  { id: 'wedding', icon: Sparkles, link: '/fotoshootings/wedding' },
-  { id: 'business', icon: Briefcase, link: '/fotoshootings/business' },
-  { id: 'event', icon: Camera, link: '/fotoshootings/event' },
+  { id: 'family', icon: Users, link: '/fotoshootings' },
+  { id: 'newborn', icon: Baby, link: '/fotoshootings' },
+  { id: 'maternity', icon: Heart, link: '/fotoshootings' },
+  { id: 'wedding', icon: Sparkles, link: '/fotoshootings' },
+  { id: 'business', icon: Briefcase, link: '/fotoshootings' },
+  { id: 'event', icon: Camera, link: '/fotoshootings' },
 ];
 
 const categoryTitles: Record<string, { en: string; de: string }> = {
@@ -401,18 +403,18 @@ const PortfolioPage: React.FC = () => {
               {language === 'de' ? (
                 <>
                   Entdecken Sie Beispiele aus unseren{' '}
-                  <Link to="/familienfotos-wien/" className="text-pink-200 hover:text-white underline underline-offset-2">Familienfotos</Link>,{' '}
-                  <Link to="/babyfotos-wien/" className="text-pink-200 hover:text-white underline underline-offset-2">Babyfotografie</Link>{' '}
+                  <Link to="/fotoshootings" className="text-pink-200 hover:text-white underline underline-offset-2">Familienfotos</Link>,{' '}
+                  <Link to="/fotoshootings" className="text-pink-200 hover:text-white underline underline-offset-2">Babyfotografie</Link>{' '}
                   und{' '}
-                  <Link to="/business-portrait-wien/" className="text-pink-200 hover:text-white underline underline-offset-2">Business Portrait Shootings</Link>.
+                  <Link to="/fotoshootings" className="text-pink-200 hover:text-white underline underline-offset-2">Business Portrait Shootings</Link>.
                 </>
               ) : (
                 <>
                   Explore examples from our{' '}
-                  <Link to="/familienfotos-wien/" className="text-pink-200 hover:text-white underline underline-offset-2">family photos</Link>,{' '}
-                  <Link to="/babyfotos-wien/" className="text-pink-200 hover:text-white underline underline-offset-2">baby photography</Link>{' '}
+                  <Link to="/fotoshootings" className="text-pink-200 hover:text-white underline underline-offset-2">family photos</Link>,{' '}
+                  <Link to="/fotoshootings" className="text-pink-200 hover:text-white underline underline-offset-2">baby photography</Link>{' '}
                   and{' '}
-                  <Link to="/business-portrait-wien/" className="text-pink-200 hover:text-white underline underline-offset-2">business portrait shoots</Link>.
+                  <Link to="/fotoshootings" className="text-pink-200 hover:text-white underline underline-offset-2">business portrait shoots</Link>.
                 </>
               )}
             </p>
@@ -529,17 +531,17 @@ const PortfolioPage: React.FC = () => {
           </h3>
           <ul className="grid sm:grid-cols-3 gap-3 mb-6 max-w-2xl mx-auto">
             <li className="text-center">
-              <Link to="/familienfotos-wien/" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
+              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
                 {language === 'de' ? 'Familienfotos Wien' : 'Family Photos Vienna'}
               </Link>
             </li>
             <li className="text-center">
-              <Link to="/babyfotos-wien/" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
+              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
                 {language === 'de' ? 'Babyfotografie Wien' : 'Baby Photography Vienna'}
               </Link>
             </li>
             <li className="text-center">
-              <Link to="/business-portrait-wien/" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
+              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
                 {language === 'de' ? 'Business Portrait Wien' : 'Business Portrait Vienna'}
               </Link>
             </li>
