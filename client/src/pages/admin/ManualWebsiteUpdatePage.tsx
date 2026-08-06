@@ -4,7 +4,12 @@ import AdminLayout from '../../components/admin/AdminLayout';
 import { useLanguage } from '../../context/LanguageContext';
 import { Save, Eye, RotateCcw, FileText, Globe, Check, X, Upload, Trash2, Image as ImageIcon, Sparkles, TrendingUp, Wand2 } from 'lucide-react';
 import { manualPageManifest, type ManualPageDefinition, type ManualPageSection, type ManualPageField } from '../../../../shared/manualPages';
+import { SITE } from '../../config/site';
 import Cropper, { Area } from 'react-easy-crop';
+
+// Default the editor's language to the studio's own locale (window.__SITE_CONFIG__ →
+// SITE.lang) rather than always German, so an English-market studio starts in English.
+const DEFAULT_EDITOR_LANG: 'de' | 'en' = (SITE.lang || '').toLowerCase().startsWith('de') ? 'de' : 'en';
 
 interface PageContent {
   id?: string;
@@ -1138,7 +1143,7 @@ const PortfolioImagesManager: React.FC = () => {
 
 const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const [selectedPage, setSelectedPage] = useState<ManualPageDefinition | null>(manualPageManifest[0] || null);
-  const [language, setLanguage] = useState<'de' | 'en'>('de');
+  const [language, setLanguage] = useState<'de' | 'en'>(DEFAULT_EDITOR_LANG);
   const [editedContent, setEditedContent] = useState<Record<string, string>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});

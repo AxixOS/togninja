@@ -3,6 +3,8 @@ import { db } from '../db';
 import { manualPageContent } from '../../shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../auth';
+import { getSiteIdentity } from '../lib/siteIdentity';
+import { config as appConfig } from '../config-reader';
 
 const router = express.Router();
 
@@ -10,6 +12,30 @@ const router = express.Router();
 const getStudioId = (req: any): string => {
   return req.user?.studioId || (process.env.STUDIO_ID || '550e8400-e29b-41d4-a716-446655440000');
 };
+
+// Build the studio's brand + locale context for AI copy from the TENANT'S OWN identity
+// (env/config via siteIdentity) — never a hardcoded studio. Neutral when unconfigured, so
+// a boudoir studio in the UK doesn't get "New Age Fotografie in Vienna" or German.
+async function buildStudioContext(reqLanguage: string) {
+  const id = getSiteIdentity();
+  let name = id.name;
+  try { name = (await appConfig.get('business_name')) || (await appConfig.get('studio_name')) || id.name; } catch { /* env fallback */ }
+  const description = (id.description || '').trim();
+  const city = (id.address?.city || '').trim();
+  const country = (id.address?.country || '').trim();
+  const location = [city, country].filter(Boolean).join(', ');
+  const studioName = name && name !== 'My Studio' ? name : 'the studio';
+  const persona = description
+    ? `${studioName} — ${description}${location ? ` (based in ${location})` : ''}.`
+    : `${studioName}, a professional photography studio${location ? ` in ${location}` : ''}.`;
+  const brand = `${persona} Warm, human, confident but never salesy; short, natural sentences.`;
+  // Honour the editor's toggle (it now defaults to the studio's language); fall back to the
+  // studio's configured locale rather than assuming German.
+  const lang = reqLanguage === 'en' ? 'English'
+    : reqLanguage === 'de' ? 'German'
+    : (id.lang || 'en').toLowerCase().startsWith('de') ? 'German' : 'English';
+  return { brand, lang, city, location };
+}
 
 // GET /api/manual-pages - List all manual page content records for this studio
 router.get('/', requireAuth, async (req, res) => {
@@ -149,8 +175,9 @@ router.post('/enhance-field', requireAuth, async (req, res) => {
     const OpenAI = (await import('openai')).default;
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
 
-    const lang = language === 'en' ? 'English' : 'German';
-    const brand = 'New Age Fotografie — a warm, modern photography studio in Vienna. Friendly, human, confident but never salesy; short, natural sentences.';
+    const { brand, lang, city, location } = await buildStudioContext(language);
+    const localePhrase = location ? ` in ${location}` : '';
+    const cityKeyword = city ? ` plus "${city}"` : '';
 
     // Compact, safe rendering of the page's other fields so generated copy stays
     // coherent with what's already on the page.
@@ -166,10 +193,10 @@ router.post('/enhance-field', requireAuth, async (req, res) => {
     let system: string;
     let userContent: string;
     if (mode === 'generate') {
-      system = `You are a senior website copywriter for ${brand} Write ONE website field from scratch, in ${lang}, that is high-converting and SEO-aware for local photography search in Vienna. Match the length and format to the field type implied by its label: a "title/heading" is one short punchy line (no period); a "subtitle/tagline" is a single short line; a "description" is 2–3 warm, concrete sentences; an FAQ "question" is a short natural question; an FAQ "answer" is 1–3 helpful sentences; a CTA/button is 2–4 words. Naturally include a relevant keyword (e.g. the service named in the label + "Wien") without keyword-stuffing. Do NOT invent specific prices, dates, awards or guarantees. Output plain text only (no markdown, no surrounding quotes). Return ONLY a JSON object: {"result": "the generated text", "tips": ["2-4 very short tips on what makes this copy convert"]}.`;
+      system = `You are a senior website copywriter for ${brand} Write ONE website field from scratch, in ${lang}, that is high-converting and SEO-aware for local photography search${localePhrase}. Match the length and format to the field type implied by its label: a "title/heading" is one short punchy line (no period); a "subtitle/tagline" is a single short line; a "description" is 2–3 warm, concrete sentences; an FAQ "question" is a short natural question; an FAQ "answer" is 1–3 helpful sentences; a CTA/button is 2–4 words. Naturally include a relevant keyword (e.g. the service named in the label${cityKeyword}) without keyword-stuffing. Do NOT invent specific prices, dates, awards or guarantees. Output plain text only (no markdown, no surrounding quotes). Return ONLY a JSON object: {"result": "the generated text", "tips": ["2-4 very short tips on what makes this copy convert"]}.`;
       userContent = `Field label: "${label}"${helperText ? `\nField purpose: "${helperText}"` : ''}\nPage: "${pageName}"\nLanguage: ${lang}${contextBlock}\n\nWrite the "${label}" field now.`;
     } else if (mode === 'seo') {
-      system = `You are an SEO copywriter for ${brand} Rewrite the given website field so it ranks better for local photography search in Vienna, while keeping the SAME meaning, the SAME language (${lang}) and the author's warm tone. Naturally weave in relevant keywords (e.g. Fotostudio Wien and the service named in the field label) without keyword-stuffing. Keep it concise and human. Return ONLY a JSON object: {"result": "the improved text", "tips": ["2-4 very short SEO tips"]}.`;
+      system = `You are an SEO copywriter for ${brand} Rewrite the given website field so it ranks better for local photography search${localePhrase}, while keeping the SAME meaning, the SAME language (${lang}) and the author's warm tone. Naturally weave in relevant keywords (e.g. the service named in the field label${cityKeyword}) without keyword-stuffing. Keep it concise and human. Return ONLY a JSON object: {"result": "the improved text", "tips": ["2-4 very short SEO tips"]}.`;
       userContent = `Field label: "${label}"\nPage: "${pageName}"\nLanguage: ${lang}${contextBlock}\n\nText to SEO-optimise:\n${text}`;
     } else {
       system = `You are a copy editor for ${brand} Refine the given website field: fix grammar and flow and make it warm and natural in the studio's tone, keeping the SAME meaning and the SAME language (${lang}). Do NOT invent new facts, prices or claims, and keep roughly the same length. Return ONLY a JSON object: {"result": "the improved text"}.`;

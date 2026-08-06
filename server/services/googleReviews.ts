@@ -2,14 +2,14 @@
 //
 // Config:
 //   GOOGLE_PLACES_API_KEY   — server-side key, API-restricted to Places API (New)
-//   GOOGLE_PLACES_PLACE_ID  — optional; defaults to the New Age Fotografie place
+//   GOOGLE_PLACES_PLACE_ID  — the studio's OWN Google Business Profile place id (required
+//                             for reviews; no default — never falls back to another studio)
 //
 // Results are cached in-process for CACHE_TTL_MS so we make at most a couple of
 // Places calls per hour regardless of site traffic. Every failure path returns
 // the last good cache (or null) so the public site always renders.
 
 const PLACE_DETAILS_URL = 'https://places.googleapis.com/v1/places';
-const DEFAULT_PLACE_ID = 'ChIJe0ixLcgHbUcR9YJWIq0GuO4'; // New Age Fotografie, Wehrgasse 11A, 1050 Wien
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 export interface GoogleReview {
@@ -46,11 +46,12 @@ async function getPlaceId(): Promise<string> {
     const fromDb = await config.get('google_places_place_id');
     if (fromDb) return String(fromDb).trim();
   } catch { /* fall through to env */ }
-  return (process.env.GOOGLE_PLACES_PLACE_ID || DEFAULT_PLACE_ID).trim();
+  return (process.env.GOOGLE_PLACES_PLACE_ID || '').trim();
 }
 
 export async function isGoogleReviewsConfigured(): Promise<boolean> {
-  return !!(await getPlacesKey());
+  // Require BOTH the key and the studio's own place id — never show another studio's reviews.
+  return !!(await getPlacesKey()) && !!(await getPlaceId());
 }
 
 let cache: { at: number; data: GoogleReviewsData | null } | null = null;
@@ -79,6 +80,8 @@ export async function getGoogleReviews(force = false): Promise<GoogleReviewsData
     ].join(',');
 
     const placeId = await getPlaceId();
+    // No studio place id configured → no reviews (never fall back to another studio's).
+    if (!placeId) return null;
     const res = await fetch(`${PLACE_DETAILS_URL}/${encodeURIComponent(placeId)}?languageCode=en`, {
       headers: {
         'X-Goog-Api-Key': key,
