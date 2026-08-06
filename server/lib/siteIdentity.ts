@@ -33,7 +33,7 @@ function env(name: string): string {
 }
 
 export function getSiteIdentity(): SiteIdentity {
-  const url = (env('PUBLIC_SITE_URL') || 'https://www.newagefotografie.com').replace(/\/+$/, '');
+  const url = (env('PUBLIC_SITE_URL') || env('APP_URL') || '').replace(/\/+$/, '');
   const locale = env('SITE_LOCALE') || 'de_AT';
   return {
     name: env('BUSINESS_NAME') || 'My Studio',

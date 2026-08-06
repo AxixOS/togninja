@@ -25,7 +25,7 @@ const DemoModeIndicator: React.FC = () => {
         
         <div className="hidden md:flex items-center space-x-4">
           <div className="text-xs opacity-75">
-            <span>Admin: demo@newagefotografie.com</span>
+            <span>Admin: demo@example.com</span>
             <span className="mx-2">•</span>
             <span>Client: client@demo.com</span>
           </div>

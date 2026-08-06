@@ -446,14 +446,9 @@ const HomePage: React.FC = () => {
                 }
               ]
             },
-            // Verified profiles — helps Google's Knowledge Graph connect and
-            // trust the business entity across platforms.
-            sameAs: [
-              'https://www.facebook.com/NewAgeFotografie',
-              'https://www.instagram.com/newagefotografie/',
-              'https://www.linkedin.com/in/simon-parrott-192b5867/',
-              'https://maps.app.goo.gl/L5EFKkMSK7FaiRVa8'
-            ],
+            // Verified profiles (tenant's SOCIAL_LINKS) — helps Google's Knowledge
+            // Graph connect the business entity across platforms.
+            sameAs: SITE.social,
             aggregateRating: {
               '@type': 'AggregateRating',
               ratingValue,
@@ -1123,7 +1118,7 @@ const HomePage: React.FC = () => {
             </li>
             <li>
               <Link to="/warum-new-age-fotografie/" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-100 hover:text-purple-900 font-medium transition-colors">
-                {language === 'en' ? 'Why New Age Fotografie?' : 'Warum New Age Fotografie?'}
+                {language === 'en' ? `Why ${SITE.name}?` : `Warum ${SITE.name}?`}
               </Link>
             </li>
             <li>

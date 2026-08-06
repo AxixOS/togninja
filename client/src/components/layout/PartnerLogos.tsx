@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLanguage } from '../../context/LanguageContext';
+import { SITE } from '../../config/site';
 
 /**
  * "Our Clients" logo wall — brands New Age Fotografie has photographed for.
@@ -48,8 +49,8 @@ const PartnerLogos: React.FC = () => {
 
   const altFor = (name: string) =>
     language === 'de'
-      ? `Firmenlogo ${name} – Kunde von New Age Fotografie`
-      : `Company logo ${name} – client of New Age Fotografie`;
+      ? `Firmenlogo ${name} – Kunde von ${SITE.name}`
+      : `Company logo ${name} – client of ${SITE.name}`;
 
   return (
     <section className="bg-gray-50 py-16">

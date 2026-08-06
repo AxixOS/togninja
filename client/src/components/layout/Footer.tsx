@@ -13,16 +13,12 @@ const Footer: React.FC = () => {
   // Known active profiles — used when the tenant's SOCIAL_LINKS env doesn't
   // already provide them, so the footer icons always render. A configured
   // SOCIAL_LINKS entry still takes precedence.
-  const SOCIAL_FALLBACK: Record<string, string> = {
-    facebook: 'https://www.facebook.com/NewAgeFotografie',
-    instagram: 'https://www.instagram.com/newagefotografie/',
-  };
-  // Match a configured social link by platform keyword; fall back to the known
-  // profile (empty string → icon hidden).
+  // No hardcoded profiles — a tenant's socials come purely from SOCIAL_LINKS
+  // (SITE.social). Unconfigured → the icon is hidden (empty string).
   const socialUrl = (kw: string) =>
-    SITE.social.find((u) => u.toLowerCase().includes(kw)) || SOCIAL_FALLBACK[kw] || '';
-  // Known studio phone (Google Business Profile); env SITE.phone overrides.
-  const phone = SITE.phone || '+43 677 63399210';
+    SITE.social.find((u) => u.toLowerCase().includes(kw)) || '';
+  // Phone comes from BUSINESS_PHONE (SITE.phone); unconfigured → hidden.
+  const phone = SITE.phone || '';
   const phoneDigits = phone.replace(/[^0-9]/g, '');
 
   const scrollToTop = () => {
@@ -353,7 +349,7 @@ const Footer: React.FC = () => {
                   onClick={scrollToTop}
                   className="text-gray-300 hover:text-white transition-colors text-sm"
                 >
-                  {language === 'de' ? 'Warum New Age Fotografie?' : 'Why New Age Fotografie?'}
+                  {language === 'de' ? `Warum ${SITE.name}?` : `Why ${SITE.name}?`}
                 </Link>
               </li>
               <li>
@@ -378,24 +374,28 @@ const Footer: React.FC = () => {
               <li className="text-sm">
                 {t('contact.addressNote')}
               </li>
-              <li>
-                <a
-                  href={`tel:${phone.replace(/[^0-9+]/g, '')}`}
-                  className="text-sm hover:text-purple-300 transition-colors"
-                >
-                  {language === 'de' ? 'Telefon' : 'Phone'}: {phone}
-                </a>
-              </li>
-              <li>
-                <a
-                  href={`https://wa.me/${phoneDigits}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm hover:text-purple-300 transition-colors"
-                >
-                  WhatsApp: {phone}
-                </a>
-              </li>
+              {phone && (
+                <li>
+                  <a
+                    href={`tel:${phone.replace(/[^0-9+]/g, '')}`}
+                    className="text-sm hover:text-purple-300 transition-colors"
+                  >
+                    {language === 'de' ? 'Telefon' : 'Phone'}: {phone}
+                  </a>
+                </li>
+              )}
+              {phoneDigits && (
+                <li>
+                  <a
+                    href={`https://wa.me/${phoneDigits}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm hover:text-purple-300 transition-colors"
+                  >
+                    WhatsApp: {phone}
+                  </a>
+                </li>
+              )}
               {SITE.email && (
                 <li>
                   <a

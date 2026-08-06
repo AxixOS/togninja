@@ -11,7 +11,7 @@ import { SITE } from '../../config/site';
  * works on every service page / blog post / case study with no per-page wiring.
  * Hidden on the homepage and on app/utility routes.
  */
-const ORIGIN = (SITE.url || 'https://www.newagefotografie.com').replace(/\/+$/, '');
+const ORIGIN = (SITE.url || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/+$/, '');
 
 // Nice labels for known segments; unknown slugs are prettified from the URL.
 const LABELS: Record<string, { de: string; en: string }> = {

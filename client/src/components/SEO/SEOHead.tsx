@@ -33,7 +33,7 @@ export function SEOHead({
   // per-tenant config hasn't populated SITE.url yet (e.g. during the build-time
   // prerender) — otherwise canonical/og:image render as RELATIVE paths and every
   // social share gets no preview image (the single highest-impact SEO bug).
-  const origin = (SITE.url || 'https://www.newagefotografie.com').replace(/\/+$/, '');
+  const origin = (SITE.url || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/+$/, '');
   const abs = (u?: string): string | undefined => {
     if (!u) return undefined;
     if (/^https?:\/\//i.test(u)) return u;
