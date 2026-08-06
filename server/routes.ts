@@ -7113,7 +7113,15 @@ Bitte versuchen Sie es später noch einmal.`;
       console.warn('Could not fetch studio config from database, using defaults:', (error as any)?.message);
       // Continue with defaults
     }
-    
+
+    // Normalize a Supabase S3-endpoint URL (auth-only, …/storage/v1/s3/<bucket>/<key>) to the
+    // public object URL (…/storage/v1/object/public/<bucket>/<key>) a browser can actually
+    // load. Older uploads stored the S3 form, which rendered as a broken logo on the invoice/
+    // header. Fixing on read repairs every consumer without needing a re-upload.
+    if (studioConfig.logo && typeof studioConfig.logo === 'string') {
+      studioConfig.logo = studioConfig.logo.replace('/storage/v1/s3/', '/storage/v1/object/public/');
+    }
+
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.json(studioConfig);
   });
