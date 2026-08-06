@@ -34,7 +34,10 @@ function env(name: string): string {
 
 export function getSiteIdentity(): SiteIdentity {
   const url = (env('PUBLIC_SITE_URL') || env('APP_URL') || '').replace(/\/+$/, '');
-  const locale = env('SITE_LOCALE') || 'de_AT';
+  // Neutral default (was the NAF-specific de_AT). A studio sets SITE_LOCALE — or, once
+  // onboarding captures it, the studio's country — to localise; the product default is
+  // English so a non-German studio (e.g. a UK studio) isn't pushed into German.
+  const locale = env('SITE_LOCALE') || 'en_US';
   return {
     name: env('BUSINESS_NAME') || 'My Studio',
     url,
