@@ -105,6 +105,8 @@ export const studioConfigs = pgTable("studio_configs", {
   subscriptionStatus: text("subscription_status").default("trial"),
   currency: text("currency").default("EUR"), // studio billing currency (invoices, vouchers)
   vatNumber: text("vat_number"),             // studio VAT / tax id (invoices)
+  defaultTaxRate: decimal("default_tax_rate", { precision: 5, scale: 2 }).default("0"), // studio's country tax/VAT %
+  taxLabel: text("tax_label").default("VAT"), // label shown on invoices: VAT / USt. / Sales Tax / GST
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

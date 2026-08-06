@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Layout from '../../components/layout/Layout';
+import AdminLayout from '../../components/admin/AdminLayout';
 import TemplateSelector from '../../components/admin/TemplateSelector';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,9 @@ interface StudioConfig {
   city: string;
   phone: string;
   email: string;
+  defaultTaxRate: string;
+  taxLabel: string;
+  vatNumber: string;
 }
 
 const StudioCustomization: React.FC = () => {
@@ -45,10 +48,13 @@ const StudioCustomization: React.FC = () => {
     primaryColor: '#7C3AED',
     secondaryColor: '#F59E0B',
     businessName: SITE.name,
-    address: 'Schönbrunner Str. 25',
-    city: 'Wien',
+    address: '',
+    city: '',
     phone: SITE.phone,
-    email: SITE.email
+    email: SITE.email,
+    defaultTaxRate: '0',
+    taxLabel: 'VAT',
+    vatNumber: ''
   });
 
   const [loading, setLoading] = useState(false);
@@ -73,7 +79,7 @@ const StudioCustomization: React.FC = () => {
     metaDescription.setAttribute('content', 'Customize your photography studio website with professional templates, branding, and business settings.');
 
     return () => {
-      document.title = `${SITE.name} - Familienfotograf Wien`;
+      document.title = SITE.name;
     };
   }, []);
 
@@ -98,6 +104,9 @@ const StudioCustomization: React.FC = () => {
             primaryColor: data.primaryColor || prev.primaryColor,
             secondaryColor: data.secondaryColor || prev.secondaryColor,
             activeTemplate: data.activeTemplate || prev.activeTemplate,
+            defaultTaxRate: data.defaultTaxRate ?? prev.defaultTaxRate,
+            taxLabel: data.taxLabel || prev.taxLabel,
+            vatNumber: data.vatNumber ?? prev.vatNumber,
           }));
         }
       } catch {
@@ -182,7 +191,7 @@ const StudioCustomization: React.FC = () => {
   };
 
   return (
-    <Layout>
+    <AdminLayout>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           
@@ -529,13 +538,51 @@ const StudioCustomization: React.FC = () => {
               <div className="mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Advanced Settings</CardTitle>
+                    <CardTitle>Tax settings</CardTitle>
                     <CardDescription>
-                      Additional configuration options for your studio website
+                      Set the tax rate that applies in your country. It's used as the default on new invoices and print orders.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-gray-600">Advanced settings coming soon...</p>
+                    <div className="grid md:grid-cols-2 gap-6 max-w-2xl">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Default tax rate (%)</label>
+                        <input
+                          type="number" min="0" max="100" step="0.01"
+                          value={config.defaultTaxRate}
+                          onChange={(e) => handleInputChange('defaultTaxRate', e.target.value)}
+                          placeholder="e.g. 20"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">UK VAT 20% · Germany 19% · Ireland 23% · US varies by state</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Tax label</label>
+                        <select
+                          value={config.taxLabel}
+                          onChange={(e) => handleInputChange('taxLabel', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        >
+                          <option value="VAT">VAT</option>
+                          <option value="USt.">USt. (German)</option>
+                          <option value="Sales Tax">Sales Tax</option>
+                          <option value="GST">GST</option>
+                          <option value="Tax">Tax</option>
+                        </select>
+                        <p className="text-xs text-gray-400 mt-1">How the tax line is labelled on invoices.</p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Tax / VAT number (optional)</label>
+                        <input
+                          type="text"
+                          value={config.vatNumber}
+                          onChange={(e) => handleInputChange('vatNumber', e.target.value)}
+                          placeholder="e.g. GB123456789"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Shown on invoices where required.</p>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -579,7 +626,7 @@ const StudioCustomization: React.FC = () => {
 
         </div>
       </div>
-    </Layout>
+    </AdminLayout>
   );
 };
 

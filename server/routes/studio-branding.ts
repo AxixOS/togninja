@@ -52,6 +52,10 @@ router.get('/branding', requireAuth, async (_req, res) => {
       primaryColor: sc?.primaryColor || '#7C3AED',
       secondaryColor: sc?.secondaryColor || '#F59E0B',
       activeTemplate: sc?.activeTemplate || 'template-01-modern-minimal',
+      // Tax settings (Settings tab)
+      defaultTaxRate: sc?.defaultTaxRate != null ? String(sc.defaultTaxRate) : '0',
+      taxLabel: sc?.taxLabel || 'VAT',
+      vatNumber: sc?.vatNumber || '',
     });
   } catch (error: any) {
     console.error('[studio-branding] GET failed:', error);
@@ -95,6 +99,9 @@ router.put('/branding', requireAuth, async (req, res) => {
       primaryColor,
       secondaryColor,
       activeTemplate,
+      defaultTaxRate,
+      taxLabel,
+      vatNumber,
     } = req.body || {};
 
     const set: any = { updatedAt: new Date() };
@@ -108,6 +115,13 @@ router.put('/branding', requireAuth, async (req, res) => {
     if (primaryColor !== undefined) set.primaryColor = primaryColor;
     if (secondaryColor !== undefined) set.secondaryColor = secondaryColor;
     if (activeTemplate !== undefined) set.activeTemplate = activeTemplate;
+    // Tax settings — clamp the rate to a sane 0–100 and default the label.
+    if (defaultTaxRate !== undefined) {
+      const n = parseFloat(String(defaultTaxRate));
+      set.defaultTaxRate = (Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0).toFixed(2);
+    }
+    if (taxLabel !== undefined) set.taxLabel = String(taxLabel || 'VAT').slice(0, 40) || 'VAT';
+    if (vatNumber !== undefined) set.vatNumber = vatNumber;
 
     const existing = await getSingleton();
     if (existing) {

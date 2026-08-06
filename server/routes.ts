@@ -7103,6 +7103,10 @@ Bitte versuchen Sie es später noch einmal.`;
       if (dbConfig?.address) {
         studioConfig.address = dbConfig.city ? `${dbConfig.address}, ${dbConfig.city}` : dbConfig.address;
       }
+      // Studio tax settings — so invoices/orders can apply the studio's own rate + label.
+      studioConfig.defaultTaxRate = dbConfig?.defaultTaxRate != null ? Number(dbConfig.defaultTaxRate) : 0;
+      studioConfig.taxLabel = dbConfig?.taxLabel || 'VAT';
+      studioConfig.vatNumber = dbConfig?.vatNumber || '';
       // The AI-generated homepage: when set, "/" renders this landing page slug.
       studioConfig.homepageLandingSlug = dbConfig?.homepageLandingSlug || null;
       // The studio's own PricingEmbed calculator (homepage price calculator).

@@ -609,6 +609,10 @@ app.use((req, res, next) => {
         // Site theme preset (token-based) for the public site / generated homepage.
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS site_theme_preset TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS site_theme_tokens JSONB`);
+        // Studio tax settings (Studio Customization → Settings): the studio's country tax/VAT
+        // rate + label, applied to invoices so a UK studio charges 20% VAT, a DE studio 19% USt.
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS default_tax_rate NUMERIC(5,2) DEFAULT 0`);
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS tax_label TEXT DEFAULT 'VAT'`);
         // When an invoice was paid — reconciled by ShootCleaner's GET /orders poll.
         await db.execute(sql`ALTER TABLE crm_invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`);
         // Gmail via OAuth (one-click "Connect Gmail") — the connected address + refresh token.
