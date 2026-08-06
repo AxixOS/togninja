@@ -265,6 +265,12 @@ router.post("/run-crawl", async (req, res) => {
     const { crawled, discovered } = await crawlSite({ jobId, startUrl, maxPages });
     await pool.query(`UPDATE onboarding_sessions SET crawl_status = 'completed', updated_at = now() WHERE id = $1`, [sid]);
 
+    // Analysis → Authority Map (P2a): distil a profile from the crawl and populate the
+    // studio's authority map. Fire-and-forget so it never blocks the crawl response.
+    import('../lib/authority-from-crawl.js')
+      .then((m) => m.generateAuthorityMapFromCrawl(jobId))
+      .catch((err) => console.warn('authority-from-crawl kickoff failed:', err?.message || err));
+
     return res.json({ ok: true, session_id: sid, job_id: jobId, crawled, discovered });
   } catch (e: any) {
     console.error("/onboarding/run-crawl error:", e);
