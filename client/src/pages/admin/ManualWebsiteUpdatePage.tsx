@@ -73,7 +73,7 @@ const HomepageImagesManager: React.FC = () => {
   const [newImageUrl, setNewImageUrl] = useState('');
   const [newImageSection, setNewImageSection] = useState('hero');
   const [uploadMethod, setUploadMethod] = useState<'url' | 'file'>('file');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [replacingImage, setReplacingImage] = useState<any | null>(null);
   const [replaceMethod, setReplaceMethod] = useState<'url' | 'file'>('file');
@@ -117,28 +117,30 @@ const HomepageImagesManager: React.FC = () => {
     }
   });
 
-  // Upload image file mutation
+  // Upload image file mutation — supports selecting multiple files at once.
   const uploadImageMutation = useMutation({
-    mutationFn: async (data: { file: File; section: string }) => {
-      const formData = new FormData();
-      formData.append('image', data.file);
-      formData.append('section', data.section);
+    mutationFn: async (data: { files: File[]; section: string }) => {
+      for (const file of data.files) {
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('section', data.section);
 
-      const res = await fetch('/api/homepage/images/upload', {
-        method: 'POST',
-        credentials: 'include',
-        headers: withAdminHeaders(),
-        body: formData
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || 'Failed to upload image');
+        const res = await fetch('/api/homepage/images/upload', {
+          method: 'POST',
+          credentials: 'include',
+          headers: withAdminHeaders(),
+          body: formData
+        });
+        if (!res.ok) {
+          const error = await res.json().catch(() => ({}));
+          throw new Error(error.message || `Failed to upload ${file.name}`);
+        }
       }
-      return res.json();
+      return { ok: true };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/homepage/images'] });
-      setSelectedFile(null);
+      setSelectedFiles([]);
       setUploadProgress(0);
     }
   });
@@ -167,9 +169,9 @@ const HomepageImagesManager: React.FC = () => {
         url: newImageUrl.trim()
       });
     } else {
-      if (!selectedFile) return;
+      if (!selectedFiles.length) return;
       uploadImageMutation.mutate({
-        file: selectedFile,
+        files: selectedFiles,
         section: newImageSection
       });
     }
@@ -177,8 +179,8 @@ const HomepageImagesManager: React.FC = () => {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files && files[0]) {
-      setSelectedFile(files[0]);
+    if (files && files.length) {
+      setSelectedFiles(Array.from(files));
     }
   };
 
@@ -291,19 +293,20 @@ const HomepageImagesManager: React.FC = () => {
               <div className="flex items-center gap-3">
                 <input
                   type="file"
+                  multiple
                   accept="image/jpeg,image/jpg,image/png,image/webp"
                   onChange={handleFileSelect}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
-                {selectedFile && (
+                {selectedFiles.length > 0 && (
                   <div className="text-sm text-green-600 flex items-center gap-1">
                     <Check size={16} />
-                    {selectedFile.name}
+                    {selectedFiles.length === 1 ? selectedFiles[0].name : `${selectedFiles.length} images selected`}
                   </div>
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                JPG, PNG, or WebP • Max 20MB • Will be optimized and stored in Backblaze B2
+                JPG, PNG, or WebP • Max 20MB each • You can select several files at once
               </p>
             </div>
           ) : (
@@ -344,7 +347,7 @@ const HomepageImagesManager: React.FC = () => {
             onClick={handleAddImage}
             disabled={
               (uploadMethod === 'url' && !newImageUrl.trim()) ||
-              (uploadMethod === 'file' && !selectedFile) ||
+              (uploadMethod === 'file' && !selectedFiles.length) ||
               addImageMutation.isPending ||
               uploadImageMutation.isPending
             }
