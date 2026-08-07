@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { ArrowLeft, Mail, Phone, MapPin, Building, Edit, Trash2, Calendar, Euro, MessageSquare, Plus, FileText, Inbox, ClipboardList, Eye, Download, Link, Share, Clock } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Building, Edit, Trash2, Calendar, Euro, MessageSquare, Plus, FileText, Inbox, ClipboardList, Eye, Download, Link, Share, Clock, Image as ImageIcon } from 'lucide-react';
 import { googleCalendarService } from '../../services/googleCalendarService';
 import SendQuestionnaireModal from '../../components/admin/SendQuestionnaireModal';
 import ViewEmailsModal from '../../components/admin/ViewEmailsModal';
@@ -43,14 +43,32 @@ const ClientDetailPage: React.FC = () => {
   const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false);
   const [showEmailsModal, setShowEmailsModal] = useState(false);
   const [showSurveysModal, setShowSurveysModal] = useState(false);
+  // Galleries delivered to this client. The client record had no link to them, so
+  // finding a client's gallery meant going to Galleries and searching by name.
+  const [clientGalleries, setClientGalleries] = useState<any[]>([]);
 
   useEffect(() => {
     if (id) {
       fetchClient(id);
       fetchClientInvoices(id);
       fetchClientSessions(id);
+      fetchClientGalleries(id);
     }
   }, [id]);
+
+  const fetchClientGalleries = async (clientId: string) => {
+    try {
+      // The admin list already supports filtering by client.
+      const res = await fetch(`/api/admin/galleries?clientId=${encodeURIComponent(clientId)}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setClientGalleries(Array.isArray(data) ? data : []);
+    } catch {
+      /* the rest of the client page must still render */
+    }
+  };
 
   const fetchClient = async (clientId: string) => {
     try {
@@ -513,6 +531,64 @@ const ClientDetailPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Galleries delivered to this client */}
+        <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Galleries</h3>
+            <button
+              onClick={() => navigate('/admin/galleries')}
+              className="text-sm text-purple-600 hover:text-purple-800"
+            >
+              All galleries →
+            </button>
+          </div>
+
+          {clientGalleries.length === 0 ? (
+            <div className="text-center py-8">
+              <ImageIcon className="mx-auto h-12 w-12 text-gray-400" />
+              <p className="mt-2 text-sm text-gray-500">No galleries linked to this client yet.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {clientGalleries.map((g: any) => (
+                <div key={g.id} className="flex items-center gap-3 py-3">
+                  <div className="w-12 h-12 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+                    {g.cover_image ? (
+                      <img src={g.cover_image} alt={g.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="w-5 h-5 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <button
+                      onClick={() => navigate(`/admin/galleries/${g.id}/edit`)}
+                      className="text-purple-600 hover:text-purple-800 font-medium truncate block text-left"
+                    >
+                      {g.title}
+                    </button>
+                    <p className="text-xs text-gray-500">
+                      {Number(g.image_count ?? 0)} photo{Number(g.image_count ?? 0) === 1 ? '' : 's'}
+                      {g.expires_at ? ` · expires ${new Date(g.expires_at).toLocaleDateString()}` : ''}
+                    </p>
+                  </div>
+                  {g.slug && (
+                    <a
+                      href={`/gallery/${g.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-gray-600 hover:text-gray-900 whitespace-nowrap"
+                    >
+                      Open ↗
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Invoice History */}

@@ -77,7 +77,34 @@ const AdminGalleriesPage: React.FC = () => {
   const [selectedGalleries, setSelectedGalleries] = useState<string[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  // Column sorting. Default newest-first, matching what the list did before.
+  const [sortBy, setSortBy] = useState<keyof Gallery>('createdAt');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const itemsPerPage = 15;
+
+  const toggleSort = (column: keyof Gallery) => {
+    if (sortBy === column) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(column);
+      // Dates read most usefully newest-first; text reads A→Z.
+      setSortDir(column === 'createdAt' || column === 'expiresAt' ? 'desc' : 'asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const SortHeader: React.FC<{ label: string; column: keyof Gallery }> = ({ label, column }) => (
+    <button
+      onClick={() => toggleSort(column)}
+      className="group inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-900"
+      title={`Sort by ${label}`}
+    >
+      {label}
+      <span className={sortBy === column ? 'text-gray-900' : 'text-gray-300 group-hover:text-gray-400'}>
+        {sortBy === column ? (sortDir === 'asc' ? '▲' : '▼') : '▲'}
+      </span>
+    </button>
+  );
 
   useEffect(() => {
     fetchAnalytics();
@@ -91,7 +118,7 @@ const AdminGalleriesPage: React.FC = () => {
 
   useEffect(() => {
     filterGalleries();
-  }, [galleries, searchTerm, statusFilter, showExpired]);
+  }, [galleries, searchTerm, statusFilter, showExpired, sortBy, sortDir]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -215,6 +242,26 @@ const AdminGalleriesPage: React.FC = () => {
           || (g as any).status === 'ARCHIVED';
       });
     }
+
+    // Sort last, so it applies to whatever survived the filters.
+    const dir = sortDir === 'asc' ? 1 : -1;
+    filtered = [...filtered].sort((a, b) => {
+      const av = a[sortBy];
+      const bv = b[sortBy];
+      // Rows missing the value always sort to the bottom, whichever direction —
+      // otherwise "no expiry" would fill the top half of an Expires sort.
+      const aEmpty = av === undefined || av === null || av === '';
+      const bEmpty = bv === undefined || bv === null || bv === '';
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;
+      if (bEmpty) return -1;
+
+      if (sortBy === 'createdAt' || sortBy === 'expiresAt') {
+        return (new Date(av as string).getTime() - new Date(bv as string).getTime()) * dir;
+      }
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' }) * dir;
+    });
 
     setFilteredGalleries(filtered);
     setCurrentPage(1);
@@ -450,28 +497,28 @@ const AdminGalleriesPage: React.FC = () => {
                   />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
+                  <SortHeader label="Name" column="title" />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Attached
+                  <SortHeader label="Attached" column="attachedShoot" />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
+                  <SortHeader label="User" column="clientName" />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Age
+                  <SortHeader label="Age" column="createdAt" />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Expires
+                  <SortHeader label="Expires" column="expiresAt" />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Brand
+                  <SortHeader label="Brand" column="brand" />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
+                  <SortHeader label="Type" column="type" />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  <SortHeader label="Status" column="status" />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   
