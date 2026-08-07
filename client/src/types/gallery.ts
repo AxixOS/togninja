@@ -132,7 +132,9 @@ export interface GalleryFormData {
   downloadEnabled: boolean;
   watermarkEnabled?: boolean;
   invisibleWatermarkEnabled?: boolean;
-  expiresAt?: string;
+  // null clears the sunset date; undefined leaves it untouched.
+  expiresAt?: string | null;
+  status?: 'ACTIVE' | 'ARCHIVED' | 'SHARED';
   clientEmail?: string;
   isFeatured?: boolean;
   sortOrder?: number;

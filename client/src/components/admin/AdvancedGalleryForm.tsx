@@ -108,14 +108,30 @@ const AdvancedGalleryForm: React.FC<GalleryFormProps> = ({ gallery, isEditing = 
     fetchClients();
   }, []);
 
+  // datetime-local needs "YYYY-MM-DDTHH:mm" in LOCAL time; a raw ISO string does not
+  // populate the input.
+  const toDateTimeLocal = (value?: string): string => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   useEffect(() => {
     if (gallery && isEditing) {
       setFormData({
         title: gallery.title || '',
-        description: '', // Gallery interface doesn't have description, handle separately
+        // These three were hardcoded to ''/'ACTIVE' when loading an existing gallery,
+        // so the form never showed the studio its OWN saved values: an expired gallery
+        // opened showing status ACTIVE and a blank expiry date, contradicting the
+        // banner above it and making "extend the expiry date below" impossible to act
+        // on. Saving then wrote those defaults back, silently discarding the sunset
+        // date the studio had deliberately set, and wiping the description.
+        description: (gallery as any).description || '',
         downloadEnabled: gallery.downloadEnabled,
-        status: 'ACTIVE', // Default status
-        expiresAt: '', // Handle expiration separately
+        status: ((gallery as any).status as FormState['status']) || 'ACTIVE',
+        expiresAt: toDateTimeLocal((gallery as any).expiresAt),
         clientId: (gallery as any).clientId || '',
       });
       setIsPasswordProtected(gallery.isPasswordProtected || false);
@@ -291,6 +307,13 @@ const AdvancedGalleryForm: React.FC<GalleryFormProps> = ({ gallery, isEditing = 
         coverTemplate: coverTemplate || undefined,
         isPublic: true,
         clientId: formData.clientId || undefined,
+        // The sunset date and status were never sent, so editing them did nothing —
+        // a studio could not extend an expiry or un-archive a gallery from this form,
+        // which is exactly what the expired-gallery banner asks it to do. The
+        // datetime-local value is local wall-clock time; send an absolute instant.
+        // null (not undefined) so clearing the field actually removes the expiry.
+        expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
+        status: formData.status,
       };
       
       let galleryId: string;
