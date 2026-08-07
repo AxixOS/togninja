@@ -3,6 +3,7 @@ import AdminLayout from '../../components/admin/AdminLayout';
 import EmbeddedCRMChat from '../../components/chat/EmbeddedCRMChat';
 import GCalStatusBanner from '../../components/admin/GCalStatusBanner';
 import HomepageDraftBanner from '../../components/admin/HomepageDraftBanner';
+import DemoResetButton from '../../components/admin/DemoResetButton';
 import { supabase } from '../../lib/supabase';
 import { 
   BarChart as BarChartIcon, 
@@ -694,6 +695,8 @@ const AdminDashboardPage: React.FC = () => {
       <div className="space-y-6">
         {/* Google Calendar health alert — shown only when sync is configured but failing */}
         <GCalStatusBanner />
+        {/* Demo-only: wipe + restart onboarding for A–Z testing (hidden on real studios) */}
+        <DemoResetButton />
         {/* AI homepage draft handoff — shown only when an unpublished/unset draft exists */}
         <HomepageDraftBanner />
         {/* Header */}

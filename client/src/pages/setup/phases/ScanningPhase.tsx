@@ -148,6 +148,13 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
   };
   const hpInProgress = hp && (hp.status === 'running' || (hp.status === 'idle' && hp.hasWebsite));
 
+  // Re-run generation from scratch (fresh crawl + AI). Uses the backend's force path,
+  // which clears the prior draft. Lets you regenerate if you're not happy with the draft.
+  const handleRegenerate = () => {
+    setHpPolling(true);
+    fetch('/api/setup/homepage/generate?force=1', { method: 'POST' }).catch(() => {});
+  };
+
   // Complete phase mutation
   const completeMutation = useMutation({
     mutationFn: async () => {
@@ -230,6 +237,16 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
               title="New homepage preview"
               className="w-full h-[420px] bg-white"
             />
+            <div className="bg-white px-5 py-3 border-t border-indigo-100 flex items-center justify-between">
+              <p className="text-xs text-gray-500">Not quite right? Regenerate a fresh draft from your website.</p>
+              <button
+                type="button"
+                onClick={handleRegenerate}
+                className="text-sm font-medium text-indigo-700 hover:text-indigo-900 underline"
+              >
+                Regenerate
+              </button>
+            </div>
           </div>
         )}
 
@@ -237,6 +254,13 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
           <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
             We couldn't auto-generate a homepage from your website this time — you can create one anytime from your dashboard. This won't hold up your setup.
             {hp?.error && <span className="block mt-1 text-xs text-amber-700">Reason: {hp.error}</span>}
+            <button
+              type="button"
+              onClick={handleRegenerate}
+              className="mt-2 block text-sm font-medium text-amber-900 hover:underline"
+            >
+              Try again
+            </button>
           </div>
         )}
 
