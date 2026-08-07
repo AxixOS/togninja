@@ -544,7 +544,9 @@ const HomePage: React.FC = () => {
                 />
               </span>
               <h1 className="text-xl sm:text-2xl md:text-4xl font-bold text-gray-900 tracking-tighter animate-fade-in-up">
-                {language === 'de' ? 'Professioneller Familienfotograf in Wien – Studio & Outdoor' : 'Professional Family Photographer in Vienna – Studio & Outdoor'}
+                {/* Was an inline hardcoded string, so no studio could change its own
+                    H1 from Website Studio — and it named Vienna. Now a normal key. */}
+                {t('home.heroHeading')}
               </h1>
               <p className="text-lg sm:text-xl text-gray-700 mt-2">
                 {t('home.heroDescription')}
@@ -729,7 +731,7 @@ const HomePage: React.FC = () => {
               <div className="aspect-square overflow-hidden rounded-lg shadow-lg">
                 <ZoomableImageV2 
                   src={imageForSection('content-1', photoGridImage)}
-                  alt="Familienfotografie Wien - Professionelle Familienporträts im Studio"
+                  alt="Professionelle Familienporträts im Studio"
                   className="w-full h-full object-cover"
                   priority={true}
                   width={400}
@@ -759,7 +761,7 @@ const HomePage: React.FC = () => {
               <div className="aspect-square max-w-sm mx-auto overflow-hidden rounded-lg shadow-lg">
                 <ZoomableImageV2
                   src={imageForSection('content-2', 'https://i.postimg.cc/RZjf8FsX/Whats-App-Image-2025-05-24-at-2-38-45-PM-1.jpg')}
-                  alt="Business Headshots Wien - Professionelle Businessfotografie im Studio"
+                  alt="Professionelle Businessfotografie im Studio"
                   className="w-full h-full object-cover object-top"
                   priority={true}
                   width={400}
@@ -804,7 +806,7 @@ const HomePage: React.FC = () => {
               <div className="aspect-[4/3] overflow-hidden relative">
                 <img 
                   src={imageForSection('services-family', photoGridImage)}
-                  alt="Familienporträts Wien - Natürliche Familienfotografie im Studio und Outdoor"
+                  alt="Natürliche Familienfotografie im Studio und Outdoor"
                   className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
                   loading="lazy"
                   width="400"
@@ -832,8 +834,8 @@ const HomePage: React.FC = () => {
                 <img 
                   src={imageForSection('services-pregnancy', photoGridImage)}
                   alt={language === 'en' 
-                    ? "Maternity Photography Vienna - Professional Pregnancy Photoshoot in Studio"
-                    : "Babybauch Fotografie Wien - Professionelle Schwangerschaftsfotos im Studio"}
+                    ? "Professional Pregnancy Photoshoot in Studio"
+                    : "Professionelle Schwangerschaftsfotos im Studio"}
                   className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
                   loading="lazy"
                   width="400"
@@ -861,8 +863,8 @@ const HomePage: React.FC = () => {
                 <img 
                   src={imageForSection('services-newborn', photoGridImage)}
                   alt={language === 'en'
-                    ? "Newborn Photography Vienna - Professional Baby Photoshoot in Studio"
-                    : "Neugeborenenfotos Wien - Professionelle Babyfotografie im Studio"}
+                    ? "Professional Baby Photoshoot in Studio"
+                    : "Professionelle Babyfotografie im Studio"}
                   className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
                   loading="lazy"
                   width="400"
@@ -889,7 +891,7 @@ const HomePage: React.FC = () => {
               <div className="aspect-[4/3] overflow-hidden relative">
                 <img
                   src={imageForSection('services-business', 'https://i.postimg.cc/6QqWdLLP/Whats-App-Image-2025-05-24-at-2-38-46-PM.jpg')}
-                  alt="Business Headshots Wien - Professionelle Businessfotografie im Studio"
+                  alt="Professionelle Businessfotografie im Studio"
                   className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
                   loading="lazy"
                   width="400"
@@ -916,7 +918,7 @@ const HomePage: React.FC = () => {
               <div className="aspect-[4/3] overflow-hidden relative">
                 <img 
                   src={imageForSection('services-event', photoGridImage)}
-                  alt="Eventfotografie Wien - Professionelle Event & Konferenzfotografie"
+                  alt="Professionelle Event & Konferenzfotografie"
                   className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
                   loading="lazy"
                   width="400"
@@ -943,7 +945,7 @@ const HomePage: React.FC = () => {
               <div className="aspect-[4/3] overflow-hidden relative">
                 <img 
                   src={imageForSection('services-product', photoGridImage)}
-                  alt="Produktfotografie Wien - E-Commerce & Amazon Produktfotos im Studio"
+                  alt="E-Commerce & Amazon Produktfotos im Studio"
                   className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
                   loading="lazy"
                   width="400"

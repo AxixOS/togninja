@@ -33,28 +33,28 @@ interface RelatedTopicsBlockProps {
 // Reusable anchor-rich link entries (German labels are keyword-rich)
 const FAMILIE: LinkItem = {
   to: '/familienfotos-wien/',
-  de: 'Familienfotografie Wien – Studio & Outdoor',
-  en: 'Family Photography Vienna – Studio & Outdoor',
+  de: 'Familienfotografie – Studio & Outdoor',
+  en: 'Family Photography – Studio & Outdoor',
 };
 const NEUGEBORENE: LinkItem = {
   to: '/neugeborenenfotos-wien/',
-  de: 'Neugeborenenfotos Wien – natürlich & sicher',
-  en: 'Newborn Photography Vienna – natural & safe',
+  de: 'Neugeborenenfotos – natürlich & sicher',
+  en: 'Newborn Photography – natural & safe',
 };
 const BABY: LinkItem = {
   to: '/babyfotos-wien/',
-  de: 'Babyfotografie Wien – die ersten Monate',
-  en: 'Baby Photography Vienna – the first months',
+  de: 'Babyfotografie – die ersten Monate',
+  en: 'Baby Photography – the first months',
 };
 const SCHWANGER: LinkItem = {
   to: '/schwangerschaftsfotos-wien/',
-  de: 'Schwangerschaftsfotos Wien – Babybauch-Shooting',
-  en: 'Maternity Photoshoots Vienna – baby bump session',
+  de: 'Schwangerschaftsfotos – Babybauch-Shooting',
+  en: 'Maternity Photoshoots – baby bump session',
 };
 const BUSINESS: LinkItem = {
   to: '/business-portrait-wien/',
-  de: 'Business Portraits Wien – LinkedIn & Bewerbung',
-  en: 'Business Headshots Vienna – LinkedIn & applications',
+  de: 'Business Portraits – LinkedIn & Bewerbung',
+  en: 'Business Headshots – LinkedIn & applications',
 };
 const PORTFOLIO: LinkItem = {
   to: '/portfolio',
@@ -70,8 +70,8 @@ const PREISE: LinkItem = {
 // pricing pages were splitting authority; July 2026 SEO audit).
 const PREISE_WIEN: LinkItem = {
   to: '/preise/',
-  de: 'Fotoshooting Preise Wien – transparenter Überblick',
-  en: 'Photoshoot Pricing Vienna – transparent overview',
+  de: 'Fotoshooting Preise – transparenter Überblick',
+  en: 'Photoshoot Pricing – transparent overview',
 };
 const KONTAKT: LinkItem = {
   to: '/kontakt',
@@ -90,8 +90,8 @@ const GUTSCHEIN: LinkItem = {
 };
 const KUNDENSTIMMEN: LinkItem = {
   to: '/kundenstimmen/',
-  de: 'Kundenstimmen – echte Bewertungen aus Wien',
-  en: 'Testimonials – real reviews from Vienna',
+  de: 'Kundenstimmen – echte Bewertungen',
+  en: 'Testimonials – real reviews',
 };
 const UEBER_UNS: LinkItem = {
   to: '/ueber-uns/',
@@ -100,8 +100,8 @@ const UEBER_UNS: LinkItem = {
 };
 const GEWERBLICH: LinkItem = {
   to: '/gewerbliche-fotografie-wien/',
-  de: 'Gewerbliche Fotografie Wien – Produkte, Immobilien & Events',
-  en: 'Commercial photography Vienna – products, real estate & events',
+  de: 'Gewerbliche Fotografie – Produkte, Immobilien & Events',
+  en: 'Commercial photography – products, real estate & events',
 };
 const WARUM: LinkItem = {
   to: '/warum-new-age-fotografie/',

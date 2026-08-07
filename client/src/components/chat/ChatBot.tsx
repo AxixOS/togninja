@@ -16,8 +16,8 @@ const ChatBot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { text: de
-        ? `Hallo! Ich bin Alex von ${SITE.name} Wien. 📸\n\nBevor wir starten, darf ich nach Ihrer WhatsApp Nummer oder E-Mail fragen? So kann ich Sie besser beraten und bei Interesse direkt kontaktieren.`
-        : `Hi! I’m Alex from ${SITE.name} Vienna. 📸\n\nBefore we start, may I ask for your WhatsApp number or email? That way I can advise you better and get in touch directly if you’re interested.`,
+        ? `Hallo! Ich bin Alex von ${SITE.name}. 📸\n\nBevor wir starten, darf ich nach Ihrer WhatsApp Nummer oder E-Mail fragen? So kann ich Sie besser beraten und bei Interesse direkt kontaktieren.`
+        : `Hi! I’m Alex from ${SITE.name}. 📸\n\nBefore we start, may I ask for your WhatsApp number or email? That way I can advise you better and get in touch directly if you’re interested.`,
       isUser: false }
   ]);
   const [inputText, setInputText] = useState('');
@@ -216,7 +216,7 @@ const ChatBot: React.FC = () => {
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-white font-semibold">Alex - Photo Consultant</h3>
-                  <p className="text-purple-100 text-sm">{SITE.name} Wien</p>
+                  <p className="text-purple-100 text-sm">{SITE.name}</p>
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}

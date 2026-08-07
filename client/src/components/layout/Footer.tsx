@@ -198,7 +198,7 @@ const Footer: React.FC = () => {
                   onClick={scrollToTop}
                   className="text-gray-300 hover:text-white transition-colors text-sm"
                 >
-                  {language === 'de' ? 'Fotoshooting Preise Wien' : 'Photoshoot Prices Vienna'}
+                  {language === 'de' ? 'Fotoshooting Preise' : 'Photoshoot Prices'}
                 </Link>
               </li>
               <li>

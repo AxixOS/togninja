@@ -28,8 +28,11 @@ export const SITE: SiteConfig = {
   email: injected.email || '',
   phone: injected.phone || '',
   logo: injected.logo || '',
-  locale: injected.locale || 'de_AT',
-  lang: injected.lang || 'de',
+  // Neutral defaults. These were 'de_AT' / 'de', so a studio that had not set a
+  // locale served its visitors German — and since the language default now derives
+  // from SITE.lang, that default is what every unconfigured instance inherits.
+  locale: injected.locale || 'en_US',
+  lang: injected.lang || 'en',
   address: {
     street: injected.address?.street || '',
     city: injected.address?.city || '',

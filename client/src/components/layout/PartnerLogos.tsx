@@ -3,7 +3,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
 
 /**
- * "Our Clients" logo wall — brands New Age Fotografie has photographed for.
+ * "Our Clients" logo wall — brands THIS studio has photographed for.
  *
  * All logos are SELF-HOSTED WebP under /clients/ (previously hot-linked from the
  * free host postimg.cc, which had no uptime guarantee). Collisions were removed:
@@ -13,44 +13,22 @@ import { SITE } from '../../config/site';
 const PartnerLogos: React.FC = () => {
   const { language } = useLanguage();
 
-  const clients = [
-    { file: 'erste-bank', name: 'Erste Bank', link: 'https://www.erstebank.at' },
-    { file: 'open-day', name: 'Open Day', link: 'https://www.openday.at' },
-    { file: 'bank-austria', name: 'Bank Austria', link: 'https://www.bankaustria.at' },
-    { file: 'kira-kinder', name: 'KIRA Kinder', link: 'https://www.kira.at' },
-    { file: 'mattel', name: 'Mattel', link: 'https://www.mattel.com' },
-    { file: 'remax', name: 'RE/MAX', link: 'https://www.remax.at' },
-    { file: 'vapiano', name: 'Vapiano', link: 'https://www.vapiano.at' },
-    { file: 'volksbank', name: 'Volksbank', link: 'https://www.volksbank.at' },
-    { file: 'trayport', name: 'Trayport', link: 'https://www.trayport.com' },
-    { file: 'canon', name: 'Canon', link: 'https://www.canon.at' },
-    { file: 'spar', name: 'SPAR', link: 'https://www.spar.at' },
-    { file: 'stadt-wien', name: 'Stadt Wien', link: 'https://www.wien.gv.at' },
-    { file: 'nielsen', name: 'Nielsen', link: 'https://www.nielsen.com' },
-    { file: 'wiener-musikverein', name: 'Wiener Musikverein', link: 'https://www.musikverein.at' },
-    { file: 'derenko', name: 'Derenko', link: 'https://www.derenko.at' },
-    { file: 'eurovision', name: 'Eurovision Song Contest', link: 'https://www.eurovision.tv' },
-    { file: 'google-trusted-photographer', name: 'Google Trusted Photographer', link: 'https://www.google.com/streetview/trusted' },
-    { file: 'igepha', name: 'IGEPHA', link: 'https://www.igepha.at' },
-    { file: 'q19', name: 'Q19', link: 'https://www.q19.at' },
-    { file: 'kieninger-lagler', name: 'Kieninger Lagler', link: 'https://www.kieninger-lagler.at' },
-    { file: 'kleine-herzen', name: 'Kleine Herzen', link: 'https://www.kleineherzen.at' },
-    { file: 'smartex', name: 'smartex', link: 'https://www.smartex.at' },
-    { file: 'porr', name: 'PORR', link: 'https://www.porr.at' },
-    { file: 'seeff-properties', name: 'Seeff Properties', link: 'https://www.seeff.com' },
-    { file: 'leier', name: 'Leier', link: 'https://www.leier.at' },
-    { file: 'liechtenstein-gruppe', name: 'Liechtenstein Gruppe', link: 'https://www.liechtensteingruppe.at' },
-    { file: 'oebb', name: 'ÖBB', link: 'https://www.oebb.at' },
-    { file: 'mydays', name: 'MyDays', link: 'https://www.mydays.at' },
-    { file: 'qualified-austrian-photographer', name: 'Qualified Austrian Photographer', link: 'https://www.wkw.at' },
-    { file: 'rih', name: 'RIH', link: 'https://www.rih.at' },
-    { file: 'stekovics', name: 'Stekovics', link: 'https://www.stekovics.at' },
-  ];
+  // The roster is per-studio and EMPTY by default. It used to hardcode one studio's
+  // client list — Erste Bank, Mattel, Canon, SPAR, OeBB, Eurovision, Stadt Wien and
+  // ~30 more — which every instance then published as its OWN clients, logos and all,
+  // with alt text reading "client of {studio name}". Naming third-party brands as
+  // customers of a business that has never worked with them is not a branding leak.
+  // Until a studio can manage its own roster, the wall stays empty and hidden.
+  const clients: { file: string; name: string; link: string }[] = [];
+
 
   const altFor = (name: string) =>
     language === 'de'
       ? `Firmenlogo ${name} – Kunde von ${SITE.name}`
       : `Company logo ${name} – client of ${SITE.name}`;
+
+  // Nothing to show → render nothing, rather than an empty "Our Clients" heading.
+  if (clients.length === 0) return null;
 
   return (
     <section className="bg-gray-50 py-16">

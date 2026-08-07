@@ -296,7 +296,7 @@ const KontaktPage: React.FC = () => {
                 <Camera className="w-6 h-6 text-purple-600 mr-3" />
                 <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Familienfotos' : 'Family Photos'}</h3>
               </div>
-              <p className="text-gray-600 text-sm mb-2">{language === 'de' ? 'Professionelle Familienportraits in Wien' : 'Professional family portraits in Vienna'}</p>
+              <p className="text-gray-600 text-sm mb-2">{language === 'de' ? 'Professionelle Familienportraits' : 'Professional family portraits'}</p>
               <span className="text-purple-600 text-sm flex items-center">{language === 'de' ? 'Mehr erfahren' : 'Learn more'} <ChevronRight className="w-4 h-4 ml-1" /></span>
             </Link>
             <Link to="/fotoshootings" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">

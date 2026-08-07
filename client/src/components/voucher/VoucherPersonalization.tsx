@@ -777,7 +777,7 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
                       value={shippingAddress.city}
                       onChange={(e) => setShippingAddress(prev => ({ ...prev, city: e.target.value }))}
                       className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${addressTouched && !shippingAddress.city.trim() ? 'border-red-500' : 'border-gray-300'}`}
-                      placeholder={language === 'en' ? 'e.g. Vienna' : 'z.B. Wien'}
+                      placeholder={language === 'en' ? 'e.g. your city' : 'z.B. Ihre Stadt'}
                     />
                   </div>
                 </div>
