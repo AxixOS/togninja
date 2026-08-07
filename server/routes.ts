@@ -6344,19 +6344,30 @@ Bitte versuchen Sie es später noch einmal.`;
       const protectedGalleriesResult = await runSql(`SELECT COUNT(*) as count FROM galleries WHERE is_password_protected = true`);
       const protectedGalleries = parseInt(protectedGalleriesResult[0]?.count || '0');
       
-      // Get total storage used by gallery images (size_bytes column)
+      // Storage used by gallery images. size_bytes was added later as a boot migration
+      // with DEFAULT 0 (server/index.ts), and some ingest paths never set it — so any
+      // image stored before that has a recorded size of 0 and the SUM silently
+      // understates the real total (0.57 MB across 227 photos, in practice). Report
+      // how many images actually have a size so the figure can be labelled honestly
+      // instead of presented as exact.
       const storageResult = await runSql(`
-        SELECT COALESCE(SUM(size_bytes), 0) as total_bytes 
+        SELECT
+          COALESCE(SUM(size_bytes), 0) as total_bytes,
+          COUNT(*) FILTER (WHERE size_bytes IS NOT NULL AND size_bytes > 0) as sized_images
         FROM gallery_images
       `);
       const totalStorageBytes = parseInt(storageResult[0]?.total_bytes || '0');
-      
+      const sizedImages = parseInt(storageResult[0]?.sized_images || '0');
+
       res.json({
         totalGalleries,
         totalImages,
         publicGalleries,
         protectedGalleries,
-        totalStorageBytes
+        totalStorageBytes,
+        // How much of the total the figure above is actually based on.
+        sizedImages,
+        storageComplete: sizedImages === totalImages
       });
     } catch (error) {
       console.error('Error fetching gallery analytics:', error);
@@ -6616,10 +6627,17 @@ Bitte versuchen Sie es später noch einmal.`;
     }
   });
 
-  app.get("/api/galleries/:id", authenticateUser, async (req: Request, res: Response) => {
+  // Admin gallery fetch. Registered at /api/admin/galleries/:id, NOT
+  // /api/galleries/:id — the public `GET /api/galleries/:slug` handler is registered
+  // ~1,300 lines earlier and Express matches first-registered, so this route was
+  // permanently shadowed and never ran. That is why the admin Edit page went through
+  // the public route and inherited its expiry gate: an expired or ARCHIVED gallery
+  // 410'd, leaving the studio unable to open the very galleries needing repair.
+  // Auth-gated, so no expiry gate belongs here at all.
+  app.get("/api/admin/galleries/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
       const galleryId = req.params.id;
-      
+
       const query = `
         SELECT 
           g.*,
@@ -6657,9 +6675,16 @@ Bitte versuchen Sie es später noch einmal.`;
         clientName: gallery.client_name,
         clientEmail: gallery.client_email,
         imageCount: gallery.image_count,
-        downloadEnabled: gallery.download_enabled ?? true
+        downloadEnabled: gallery.download_enabled ?? true,
+        expiresAt: gallery.expires_at,
+        // Staff can always open the gallery here; this only tells the UI to explain
+        // why CLIENTS currently cannot.
+        isExpired: Boolean(
+          (gallery.expires_at && new Date(gallery.expires_at).getTime() < Date.now())
+          || gallery.status === 'ARCHIVED'
+        )
       };
-      
+
       res.json(transformedGallery);
     } catch (error) {
       console.error('Error fetching gallery:', error);

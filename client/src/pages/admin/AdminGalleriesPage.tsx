@@ -56,6 +56,9 @@ interface GalleryAnalytics {
   publicGalleries: number;
   protectedGalleries: number;
   totalStorageBytes: number;
+  // Only images with a recorded size_bytes contribute to totalStorageBytes.
+  sizedImages?: number;
+  storageComplete?: boolean;
 }
 
 const AdminGalleriesPage: React.FC = () => {
@@ -318,8 +321,18 @@ const AdminGalleriesPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-indigo-100 text-sm font-medium mb-1">{tx('storage')}</p>
-                  <p className="text-3xl font-bold">{formatBytes(analytics?.totalStorageBytes || 0)}</p>
-                  <p className="text-indigo-100 text-xs mt-1">{tx('used')}</p>
+                  {/* The figure only counts images with a recorded size. Older images
+                      predate the size_bytes column, so showing the raw sum as if it
+                      were the total understated storage badly (0.57 MB for 227 photos). */}
+                  <p className="text-3xl font-bold">
+                    {analytics && !analytics.storageComplete ? '≥ ' : ''}
+                    {formatBytes(analytics?.totalStorageBytes || 0)}
+                  </p>
+                  <p className="text-indigo-100 text-xs mt-1">
+                    {analytics && !analytics.storageComplete
+                      ? `${tx('used')} — size known for ${analytics.sizedImages} of ${analytics.totalImages}`
+                      : tx('used')}
+                  </p>
                 </div>
                 <div className="bg-white/20 p-3 rounded-lg">
                   <HardDrive className="w-6 h-6" />

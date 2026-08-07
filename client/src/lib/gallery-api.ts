@@ -29,7 +29,12 @@ export async function getGalleries(): Promise<Gallery[]> {
 // Get a single gallery by ID (admin only)
 export async function getGalleryById(id: string): Promise<Gallery> {
   try {
-    const response = await fetch(`/api/galleries/${id}`, {
+    // Admin-only endpoint. This used to hit the PUBLIC /api/galleries/:slug route,
+    // which applies the client-facing expiry gate and 410s on expired/archived
+    // galleries — so the admin Edit page could not open them. credentials:'include'
+    // so the session cookie is sent explicitly rather than relying on the default.
+    const response = await fetch(`/api/admin/galleries/${id}`, {
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
