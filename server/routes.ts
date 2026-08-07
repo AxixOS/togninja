@@ -9642,6 +9642,27 @@ ${getBizName()} Team`;
     console.log('questionnaire_responses column check:', e?.message);
   }
 
+  // TEMP DIAGNOSTIC (unauthed) — reports the real cause of the responses 500. Remove after.
+  app.get("/api/debug/questionnaire-schema", async (_req: Request, res: Response) => {
+    const out: any = {};
+    const grab = async (label: string, sqlText: string) => {
+      try { out[label] = await runSql(sqlText); } catch (e: any) { out[label + '_error'] = String(e?.message || e); }
+    };
+    await grab('qr_columns', `SELECT column_name, data_type FROM information_schema.columns WHERE table_name='questionnaire_responses' ORDER BY ordinal_position`);
+    await grab('crm_clients_id', `SELECT data_type FROM information_schema.columns WHERE table_name='crm_clients' AND column_name='id'`);
+    await grab('surveys_id', `SELECT data_type FROM information_schema.columns WHERE table_name='surveys' AND column_name='id'`);
+    try {
+      await runSql(`SELECT qr.id, qr.client_id, qr.token, qr.template_slug, qr.answers, qr.submitted_at,
+        qr.client_name, qr.client_email, c.first_name, s.title
+        FROM questionnaire_responses qr
+        LEFT JOIN crm_clients c ON qr.client_id = c.id::text
+        LEFT JOIN surveys s ON qr.template_slug::text = s.id::text
+        ORDER BY qr.submitted_at DESC LIMIT 1`);
+      out.full_query = 'OK';
+    } catch (e: any) { out.full_query_error = String(e?.message || e); }
+    res.json(out);
+  });
+
   app.get("/api/admin/questionnaire-responses", authenticateUser, async (req: Request, res: Response) => {
     try {
       // Self-heal: the boot migration and database.js's (legacy, no client_name/email)
