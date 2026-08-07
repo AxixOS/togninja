@@ -125,7 +125,9 @@ const AdminGalleriesPage: React.FC = () => {
         description: g.description || '',
         clientName: g.client_name || 'No client assigned',
         clientId: g.client_id || '',
-        photoCount: g.photo_count || 0,
+        // The endpoint returns image_count; photo_count does not exist, so this was
+        // always 0 regardless of how many photos the gallery held.
+        photoCount: Number(g.image_count ?? g.photo_count ?? 0),
         coverImage: g.cover_image || g.coverImage || '',
         status: g.is_public ? 'active' : (g.status || 'draft'),
         createdAt: g.created_at || g.createdAt,

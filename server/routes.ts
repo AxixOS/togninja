@@ -5641,7 +5641,11 @@ Bitte versuchen Sie es später noch einmal.`;
           WHERE gi.id = $1`, [imageId]);
       if (!rows.length) return res.status(404).send('Image not found');
       const row = rows[0];
-      if ((row.expires_at && new Date(row.expires_at).getTime() < Date.now()) || row.status === 'ARCHIVED') {
+      // Expiry hides images from CLIENTS. Staff still need them — the admin gallery
+      // list uses this proxy for its thumbnails, so gating it unconditionally would
+      // blank out the thumbnail of every expired or archived gallery in the admin UI.
+      const isStaff = Boolean((req as any).user || (req as any).session?.userId);
+      if (!isStaff && ((row.expires_at && new Date(row.expires_at).getTime() < Date.now()) || row.status === 'ARCHIVED')) {
         return res.status(410).send('Gallery no longer available');
       }
       const url = row.url;
@@ -6393,7 +6397,16 @@ Bitte versuchen Sie es später noch einmal.`;
           g.updated_at,
           COALESCE(c.first_name || ' ' || c.last_name, 'Unknown Client') as client_name,
           c.email as client_email,
-          COUNT(gi.id) as image_count
+          COUNT(gi.id) as image_count,
+          -- Thumbnail fallback: most galleries never get an explicit cover_image set,
+          -- so the admin list showed a grey placeholder for every one of them despite
+          -- holding hundreds of photos. Fall back to the gallery's first image.
+          (
+            SELECT gi2.id FROM gallery_images gi2
+            WHERE gi2.gallery_id = g.id
+            ORDER BY gi2.sort_order ASC NULLS LAST, gi2.created_at ASC
+            LIMIT 1
+          ) as first_image_id
         FROM galleries g
         LEFT JOIN crm_clients c ON g.client_id = c.id
         LEFT JOIN gallery_images gi ON g.id = gi.gallery_id
@@ -6424,7 +6437,16 @@ Bitte versuchen Sie es später noch einmal.`;
       values.push(parseInt(limit as string));
       
   const galleries = await runSql(query, values);
-      res.json(galleries);
+      // Resolve the thumbnail server-side. The first-image fallback is served through
+      // the existing image proxy rather than the raw object URL, so it renders whether
+      // or not the studio's bucket allows public reads — the same route the gallery
+      // viewer already uses.
+      const withThumbs = galleries.map((g: any) => ({
+        ...g,
+        cover_image: g.cover_image
+          || (g.first_image_id ? `/api/galleries/image/${g.first_image_id}?w=200` : null),
+      }));
+      res.json(withThumbs);
     } catch (error) {
       console.error('Error fetching galleries:', error);
       res.status(500).json({ error: "Failed to fetch galleries" });
