@@ -9918,27 +9918,27 @@ ${getBizName()} Team`;
         const tpl = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
         return res.json(tpl);
       }
-      // Return defaults
+      // Return defaults (neutral English — studios can customise + translate here)
       res.json({
-        subject: 'Vielen Dank für Ihren Fragebogen',
-        body: `Liebe/r {{clientName}},
+        subject: 'Thank you for completing your questionnaire',
+        body: `Dear {{clientName}},
 
-vielen Dank, dass Sie unseren Fragebogen ausgefüllt haben!
+Thank you for completing our questionnaire!
 
-Wir haben Ihre Antworten erhalten und werden uns in Kürze bei Ihnen melden, um weitere Details für Ihr Fotoshooting zu besprechen.
+We've received your answers and will be in touch shortly to discuss the details of your photo session.
 
-Bei Fragen können Sie uns jederzeit kontaktieren.
+If you have any questions in the meantime, feel free to reach out.
 
-Mit freundlichen Grüßen,
-Ihr Team von {{studioName}}`,
+Kind regards,
+The {{studioName}} team`,
         footer: '{{studioName}} • {{siteUrl}}'
       });
     } catch (error) {
       console.error('Error fetching email template:', error);
       // Return defaults even on error (table may not exist)
       res.json({
-        subject: 'Vielen Dank für Ihren Fragebogen',
-        body: `Liebe/r {{clientName}},\n\nvielen Dank, dass Sie unseren Fragebogen ausgefüllt haben!\n\nMit freundlichen Grüßen,\nIhr Team von {{studioName}}`,
+        subject: 'Thank you for completing your questionnaire',
+        body: `Dear {{clientName}},\n\nThank you for completing our questionnaire!\n\nKind regards,\nThe {{studioName}} team`,
         footer: '{{studioName}} • {{siteUrl}}'
       });
     }
@@ -17359,10 +17359,17 @@ Return ONLY a valid JSON object with EXACTLY these keys:
         [token, effectiveClientId, template_id || 'default-questionnaire', expiresAt]
       );
       
-      // Generate public URL from request origin or env var
+      // The questionnaire form is served BY THIS APP at /q/:token. Build the link from the
+      // host the request actually arrived on (the app's real URL), NOT a configured
+      // marketing-site/website URL — a studio's existing website domain (e.g. their old
+      // Wix/Squarespace/WordPress site) does not serve /q/ and would 404. If the studio
+      // later points that domain at this app, the request host becomes that domain and the
+      // pretty URL works automatically. Env vars are only a last resort when host is absent.
       const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
       const host = req.headers['x-forwarded-host'] || req.headers.host || '';
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_URL || `${protocol}://${host}`;
+      const baseUrl = host
+        ? `${protocol}://${host}`
+        : (process.env.APP_URL || process.env.NEXT_PUBLIC_BASE_URL || '');
       const link = `${baseUrl}/q/${token}`;
       
       res.json({ token, link });

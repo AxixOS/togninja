@@ -109,18 +109,18 @@ export async function sendClientConfirmationEmail(clientEmail: string, clientNam
     const studioName = process.env.STUDIO_NAME || 'My Studio';
     const siteUrl = process.env.APP_URL || process.env.BASE_URL || '';
 
-    // Try to load customised template from database
-    let tplSubject = 'Vielen Dank für Ihren Fragebogen';
-    let tplBody = `Liebe/r {{clientName}},
+    // Try to load customised template from database (neutral English default)
+    let tplSubject = 'Thank you for completing your questionnaire';
+    let tplBody = `Dear {{clientName}},
 
-vielen Dank, dass Sie unseren Fragebogen ausgefüllt haben!
+Thank you for completing our questionnaire!
 
-Wir haben Ihre Antworten erhalten und werden uns in Kürze bei Ihnen melden, um weitere Details für Ihr Fotoshooting zu besprechen.
+We've received your answers and will be in touch shortly to discuss the details of your photo session.
 
-Bei Fragen können Sie uns jederzeit kontaktieren.
+If you have any questions in the meantime, feel free to reach out.
 
-Mit freundlichen Grüßen,
-Ihr Team von {{studioName}}`;
+Kind regards,
+The {{studioName}} team`;
     let tplFooter = '{{studioName}} • {{siteUrl}}';
 
     try {

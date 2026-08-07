@@ -668,7 +668,7 @@ const QuestionnairesPageV2: React.FC = () => {
                 </div>
 
                 <label className="block text-sm font-medium text-gray-700 mt-4">Thank-You Message <span className="text-gray-400 font-normal">(shown after submission)</span></label>
-                <textarea value={thankYouMessage} onChange={e => setThankYouMessage(e.target.value)} placeholder="Vielen Dank für das Ausfüllen unseres Fragebogens! Wir werden uns bald bei Ihnen melden." className="mt-1 block w-full border rounded px-2 py-1" rows={2} />
+                <textarea value={thankYouMessage} onChange={e => setThankYouMessage(e.target.value)} placeholder="Thank you for completing our questionnaire! We'll be in touch with you soon." className="mt-1 block w-full border rounded px-2 py-1" rows={2} />
               </div>
             )}
 
@@ -854,7 +854,7 @@ const QuestionnairesPageV2: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Subject</label>
-                <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} className="mt-1 block w-full border rounded px-3 py-2" placeholder="e.g. Vielen Dank für Ihren Fragebogen" />
+                <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} className="mt-1 block w-full border rounded px-3 py-2" placeholder="e.g. Thank you for completing your questionnaire" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Body</label>
