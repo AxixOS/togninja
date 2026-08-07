@@ -741,6 +741,40 @@ app.use((req, res, next) => {
         }
       } catch (e: any) { console.warn('⚠️ questionnaire seed skipped:', e?.message || e); }
 
+      // Price List Wizard — competitor price research. These four tables had NO migration
+      // in the repo (007-price-wizard-schema.sql is referenced but missing), so "New Price
+      // Research" 500'd with 'relation "price_wizard_sessions" does not exist' on every
+      // fresh instance. Reconstructed from the columns the routes/service actually use.
+      // No FKs (defensive — an insert can't fail on a missing parent row on a partial DB).
+      await ensureTable('price_wizard_sessions', sql`CREATE TABLE IF NOT EXISTS price_wizard_sessions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id text, location text, services text[] DEFAULT '{}', status text DEFAULT 'discovering',
+        competitors_found integer DEFAULT 0, prices_extracted integer DEFAULT 0, suggestions_generated integer DEFAULT 0,
+        created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('competitor_research', sql`CREATE TABLE IF NOT EXISTS competitor_research (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id uuid, competitor_name text, website_url text, location text,
+        status text DEFAULT 'pending', discovery_source varchar(100),
+        scraped_at timestamptz, scrape_error text,
+        created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('competitor_prices', sql`CREATE TABLE IF NOT EXISTS competitor_prices (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        competitor_id uuid, service_type text, package_name text, price_amount numeric,
+        currency text DEFAULT 'EUR', confidence_score numeric, url_source text, deliverables text,
+        created_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('price_list_suggestions', sql`CREATE TABLE IF NOT EXISTS price_list_suggestions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id uuid, service_type text, tier text, suggested_price numeric,
+        market_min numeric, market_median numeric, market_max numeric,
+        reasoning text, status text DEFAULT 'pending_review', created_at timestamptz DEFAULT now()
+      )`);
+      // Back-fill discovery_source on any pre-existing competitor_research table (a known
+      // drift — see fix-price-wizard-schema.ts).
+      await ensureTable('cr+discovery_source', sql`ALTER TABLE competitor_research ADD COLUMN IF NOT EXISTS discovery_source varchar(100)`);
+
       // Seed a single studio_configs row if none exists, so the Studio
       // Customization page (GET/PUT /api/studio/branding) and the singleton
       // LIMIT-1 reads elsewhere always have a row to read/update. Use the
