@@ -556,7 +556,7 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       await db.execute(sql`TRUNCATE crm_invoice_items, crm_invoices, crm_leads, crm_clients, gallery_images, galleries, voucher_sales, lead_sources, email_campaigns, landing_pages, blog_posts, admin_users RESTART IDENTITY CASCADE`);
     } catch (e: any) { console.warn('[reset-demo] core truncate:', e?.message); }
     // On-demand tables that may not exist yet.
-    for (const t of ['ui_translations', 'i18n_settings', 'website_pages', 'crawl_jobs', 'theme_analysis', 'onboarding_sessions', 'user_sessions', 'questionnaire_responses', 'questionnaire_links', 'competitor_prices', 'price_list_suggestions', 'competitor_research', 'price_wizard_sessions']) {
+    for (const t of ['ui_translations', 'i18n_settings', 'website_pages', 'crawl_jobs', 'theme_analysis', 'onboarding_sessions', 'user_sessions', 'questionnaire_responses', 'questionnaire_links', 'competitor_prices', 'price_list_suggestions', 'competitor_research', 'price_wizard_sessions', 'gallery_order_items', 'gallery_orders', 'print_orders', 'workflow_step_executions', 'workflow_executions', 'workflow_instances', 'workflow_analytics']) {
       try { await db.execute(sql.raw(`TRUNCATE ${t} RESTART IDENTITY CASCADE`)); } catch { /* skip */ }
     }
     // Reset the studio_configs singleton to blank pre-onboarding state (keep the row +

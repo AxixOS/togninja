@@ -775,6 +775,83 @@ app.use((req, res, next) => {
       // drift — see fix-price-wizard-schema.ts).
       await ensureTable('cr+discovery_source', sql`ALTER TABLE competitor_research ADD COLUMN IF NOT EXISTS discovery_source varchar(100)`);
 
+      // ── Fresh-instance table audit (2026-08): these features query raw-SQL tables that had
+      // NO migration anywhere in the repo and were never created at boot — they only existed
+      // on the New Age DB (made by hand), so they 500 on a fresh studio. Reconstructed from
+      // the exact columns each route uses. No FKs (defensive). ──
+      // Gallery shop (server/routes/gallery-shop.ts) + Prodigi print (server/routes/prodigi.ts).
+      // print_products is shared by both — columns unioned across the two.
+      await ensureTable('print_products', sql`CREATE TABLE IF NOT EXISTS print_products (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        studio_id uuid, sku text, name text, description text, category text,
+        base_price numeric, currency text, unit text,
+        width_inches numeric, height_inches numeric,
+        attributes jsonb, variant_json jsonb,
+        sort_order integer, is_active boolean DEFAULT true,
+        created_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('gallery_orders', sql`CREATE TABLE IF NOT EXISTS gallery_orders (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        studio_id uuid, gallery_id uuid, client_id uuid,
+        status text, total numeric, currency text,
+        created_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('gallery_order_items', sql`CREATE TABLE IF NOT EXISTS gallery_order_items (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id uuid, product_id uuid, variant jsonb,
+        qty integer, unit_price numeric, line_total numeric,
+        created_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('print_orders', sql`CREATE TABLE IF NOT EXISTS print_orders (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        gallery_id uuid, gallery_image_id uuid, merchant_reference text, status text,
+        customer_name text, customer_email text, customer_phone text,
+        shipping_line1 text, shipping_line2 text, shipping_city text, shipping_state text,
+        shipping_postal_code text, shipping_country_code text,
+        sku text, copies integer, sizing text, attributes jsonb, image_url text, shipping_method text,
+        prodigi_order_id text, prodigi_response jsonb,
+        item_cost numeric, shipping_cost numeric, total_cost numeric,
+        tracking_url text, tracking_number text, carrier text,
+        shipped_at timestamptz, completed_at timestamptz,
+        created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+      )`);
+      // Workflow Wizard (server/routes/workflow-wizard.ts). NOTE: workflow_templates + workflow_steps
+      // are never inserted by the router — the feature stays empty until templates/steps are seeded
+      // by another path. Creating the tables just stops the 500s; content is a separate task.
+      await ensureTable('workflow_templates', sql`CREATE TABLE IF NOT EXISTS workflow_templates (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        name text, category text, is_active boolean DEFAULT true,
+        created_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('workflow_instances', sql`CREATE TABLE IF NOT EXISTS workflow_instances (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        template_id uuid, name text, description text, trigger_type text,
+        trigger_conditions jsonb DEFAULT '{}'::jsonb, target_audience jsonb DEFAULT '{}'::jsonb,
+        status text, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(),
+        completed_at timestamptz
+      )`);
+      await ensureTable('workflow_executions', sql`CREATE TABLE IF NOT EXISTS workflow_executions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        workflow_id uuid, client_id uuid, status text, context jsonb DEFAULT '{}'::jsonb,
+        completed_at timestamptz, created_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('workflow_steps', sql`CREATE TABLE IF NOT EXISTS workflow_steps (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        workflow_id uuid, step_order integer, step_name text, step_type text,
+        delay_amount numeric, delay_unit text, config jsonb DEFAULT '{}'::jsonb,
+        created_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('workflow_step_executions', sql`CREATE TABLE IF NOT EXISTS workflow_step_executions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        execution_id uuid, step_id uuid, status text,
+        created_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('workflow_analytics', sql`CREATE TABLE IF NOT EXISTS workflow_analytics (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        workflow_id uuid, metric_name text, metric_value numeric,
+        recorded_at timestamptz DEFAULT now(), created_at timestamptz DEFAULT now()
+      )`);
+
       // Seed a single studio_configs row if none exists, so the Studio
       // Customization page (GET/PUT /api/studio/branding) and the singleton
       // LIMIT-1 reads elsewhere always have a row to read/update. Use the
