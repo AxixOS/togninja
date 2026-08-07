@@ -1,0 +1,111 @@
+// Land onboarding's generated copy in the pages the studio actually edits.
+//
+// The homepage pipeline crawls the studio's existing site, distils it and writes
+// optimised copy — then persisted it ONLY as a landing page. Nothing reached
+// `manual_page_content`, which is what Website Studio edits and what the built-in
+// pages render, so a studio finished onboarding and found every field still on the
+// neutral defaults. This maps the generated content onto those keys instead.
+import { pool } from '../db';
+
+/** The studio this deployment belongs to (one DB = one studio). */
+async function resolveStudioId(): Promise<string> {
+  try {
+    const { rows } = await pool.query(`SELECT id FROM studio_configs LIMIT 1`);
+    if (rows[0]?.id) return rows[0].id;
+  } catch { /* fall through */ }
+  return process.env.STUDIO_ID || '550e8400-e29b-41d4-a716-446655440000';
+}
+
+const clean = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+
+/**
+ * Generated content -> { manualPageKey: value } for the built-in Homepage.
+ *
+ * Only fields with a genuine 1:1 counterpart are mapped. Anything speculative is
+ * left alone so the studio sees its own copy rather than something invented to
+ * fill a box.
+ */
+export function mapGeneratedToHomeKeys(content: any): Record<string, string> {
+  const out: Record<string, string> = {};
+  const hero = content?.hero || {};
+  const seo = content?.seo || {};
+  const offer = content?.offerSection || {};
+  const problem = content?.problemSection || {};
+
+  const put = (key: string, value: unknown) => {
+    const v = clean(value);
+    if (v) out[key] = v;
+  };
+
+  put('home.heroTitle', hero.headline);
+  put('home.heroSubtitle', hero.subheadline);
+  put('home.heroDescription', hero.subheadline || problem.description);
+  put('home.bookShootingButton', hero.ctaText);
+  put('home.description', seo.metaDescription || offer.description);
+
+  // FAQ maps cleanly: the manifest exposes six question/answer pairs.
+  const faq = Array.isArray(content?.faq) ? content.faq : [];
+  faq.slice(0, 6).forEach((entry: any, i: number) => {
+    put(`home.faqQuestion${i + 1}`, entry?.question);
+    put(`home.faq${i + 1}Text`, entry?.answer);
+  });
+
+  // DELIBERATELY NOT MAPPED — `testimonials`. The generator is instructed to
+  // "generate believable but compelling testimonials if none are provided", i.e.
+  // they may be invented. Publishing invented reviews as a studio's own social
+  // proof is the exact problem we removed from the image; a studio adds its real
+  // ones in Website Studio -> Customer Reviews, or they come from its Google
+  // profile. Also not mapped: the milestone counters, which are factual claims.
+
+  return out;
+}
+
+/**
+ * Write the mapped copy into manual_page_content as BOTH draft and published, so
+ * the studio finishes onboarding with the pages pre-filled AND live. Never
+ * overwrites a value the studio has already set — an onboarding re-run must not
+ * clobber their edits.
+ */
+export async function seedManualPagesFromGenerated(
+  content: any,
+  language = 'en',
+): Promise<{ pageId: string; written: number; skipped: number } | null> {
+  const keys = mapGeneratedToHomeKeys(content);
+  if (!Object.keys(keys).length) return null;
+
+  const studioId = await resolveStudioId();
+  const pageId = 'home';
+
+  const existing = await pool.query(
+    `SELECT draft_content, published_content FROM manual_page_content
+      WHERE studio_id = $1 AND page_id = $2 AND language = $3 LIMIT 1`,
+    [studioId, pageId, language],
+  );
+
+  const prevDraft = existing.rows[0]?.draft_content || {};
+  const prevPublished = existing.rows[0]?.published_content || {};
+
+  let written = 0;
+  let skipped = 0;
+  const draft: Record<string, string> = { ...prevDraft };
+  for (const [k, v] of Object.entries(keys)) {
+    // Anything the studio already has stays put.
+    if (clean(prevDraft[k]) || clean(prevPublished[k])) { skipped++; continue; }
+    draft[k] = v;
+    written++;
+  }
+  if (!written) return { pageId, written: 0, skipped };
+
+  const published = { ...prevPublished, ...Object.fromEntries(Object.entries(draft).filter(([k]) => keys[k])) };
+
+  await pool.query(
+    `INSERT INTO manual_page_content (studio_id, page_id, language, draft_content, published_content, status, published_at, created_at, updated_at)
+     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, 'published', NOW(), NOW(), NOW())
+     ON CONFLICT (studio_id, page_id, language)
+     DO UPDATE SET draft_content = $4::jsonb, published_content = $5::jsonb,
+                   status = 'published', published_at = NOW(), updated_at = NOW()`,
+    [studioId, pageId, language, JSON.stringify(draft), JSON.stringify(published)],
+  );
+
+  return { pageId, written, skipped };
+}

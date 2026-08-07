@@ -11,6 +11,7 @@ import { pool } from '../db';
 import { crawlSite } from './site-crawler';
 import { generateLandingContent, NoOpenAIError, type LandingContext } from './landing-generator';
 import { mapGeneratedToLandingPage } from './landing-mapping';
+import { seedManualPagesFromGenerated } from './generated-to-manual-pages';
 import { ensureOnboardingSchema } from '../routes/onboarding';
 
 const neonDb = require('../../database.js');
@@ -180,6 +181,19 @@ export async function runHomepagePipeline(config: any): Promise<void> {
         return;
       }
       throw e;
+    }
+
+    // Land the generated copy in the pages the studio actually edits. Until now the
+    // output existed only as a landing page, so Website Studio still showed neutral
+    // defaults after onboarding and the optimised text was effectively invisible.
+    // Best-effort: a failure here must not fail the pipeline.
+    try {
+      const seeded = await seedManualPagesFromGenerated(content, (config?.language || 'en'));
+      if (seeded) {
+        console.log(`[homepage-pipeline] seeded ${seeded.written} homepage field(s) into Website Studio (${seeded.skipped} already set)`);
+      }
+    } catch (seedErr: any) {
+      console.warn('[homepage-pipeline] could not seed Website Studio fields:', seedErr?.message || seedErr);
     }
 
     // Persist a DRAFT with a preview token (30 days — onboarding->login gap).
