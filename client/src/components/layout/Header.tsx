@@ -28,8 +28,11 @@ const Header: React.FC = () => {
 
   const tSite = useManualPageContent('site-settings');
   const customLogo = tSite('site.logo');
+  // No bundled default: the old fallback was /frontend-logo.jpg — New Age Fotografie's
+  // logo — so any studio that hadn't uploaded one wore another studio's brand in the
+  // header of every page. With no logo configured we render the studio's NAME instead.
   const logoUrl = dbLogo
-    || (customLogo && customLogo !== 'site.logo' ? customLogo : (SITE.logo || '/frontend-logo.jpg'));
+    || (customLogo && customLogo !== 'site.logo' ? customLogo : (SITE.logo || ''));
 
   const toggleMenu = () => {
     setMenuOpen(!menuOpen);
@@ -88,11 +91,15 @@ const Header: React.FC = () => {
     <header className="bg-white shadow-sm sticky top-0 z-50 relative">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <Link to="/" className="flex items-center">
-          <img
-            src={logoUrl}
-            alt={SITE.name}
-            className="h-24 w-auto"
-          />
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={SITE.name}
+              className="h-24 w-auto"
+            />
+          ) : (
+            <span className="text-2xl font-semibold tracking-wide text-gray-900">{SITE.name}</span>
+          )}
         </Link>
 
         {/* Desktop Navigation */}

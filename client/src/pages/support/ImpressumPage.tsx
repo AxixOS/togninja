@@ -10,15 +10,42 @@ import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
 
 const ImpressumPage: React.FC = () => {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const de = language === 'de';
+
+  // Legal identity is unique to each studio and jurisdiction — an Austrian GISA
+  // number means nothing to a UK studio, and publishing another company's owner,
+  // registration numbers and address as your own is a legal problem, not a
+  // branding one. Every field below is studio-supplied (editable in Website
+  // Studio) with an EMPTY default, and each block renders only once filled in.
+  const legal = (key: string): string => {
+    const value = t(key);
+    return value && value !== key ? value.trim() : '';
+  };
+  const owner = legal('legal.owner');
+  const registration = legal('legal.registration');
+  const authorisations = legal('legal.authorisations');
+  const postalAddress = legal('legal.postalAddress');
+  const jurisdiction = legal('legal.jurisdiction');
+  const businessActivity = legal('legal.businessActivity');
+
+  const studioAddress = [SITE.address.street, SITE.address.postalCode, SITE.address.city, SITE.address.country]
+    .filter(Boolean);
+  const studioLangIsGerman = (SITE.lang || '').toLowerCase().startsWith('de');
+
+  // Nothing legally identifying configured at all — say so plainly rather than
+  // publish an empty notice that looks complete.
+  const legalConfigured = Boolean(owner || registration || studioAddress.length || postalAddress);
 
   return (
     <Layout>
       <SEOHead
-        title={`Impressum & Datenschutz | ${SITE.name}`}
-        description={`Impressum und Datenschutzerklärung von ${SITE.name} in Wien. Rechtliche Informationen, Kontaktdaten und Datenschutzhinweise.`}
-        keywords={`Impressum ${SITE.name}, Datenschutz Fotograf Wien, Rechtliche Informationen`}
+        title={`${de ? 'Impressum & Datenschutz' : 'Legal Notice & Privacy'} | ${SITE.name}`}
+        description={
+          de
+            ? `Impressum und Datenschutzerklärung von ${SITE.name}. Rechtliche Informationen, Kontaktdaten und Datenschutzhinweise.`
+            : `Legal notice and privacy policy of ${SITE.name}. Legal information, contact details and privacy notices.`
+        }
         canonical="/impressum/"
       />
 
@@ -32,7 +59,10 @@ const ImpressumPage: React.FC = () => {
                 ? `Rechtliche Informationen und Datenschutzerklärung von ${SITE.name}`
                 : `Legal information and privacy policy of ${SITE.name}`}
             </p>
-            {!de && (
+            {/* Only meaningful when the studio's OWN legal text is the German one.
+                Shown unconditionally, it told a UK studio's visitors that a German
+                original they do not have is the binding version. */}
+            {!de && studioLangIsGerman && (
               <p className="text-sm text-purple-200 mt-3 max-w-2xl">
                 English translation for convenience — the legally binding version is the German original.
               </p>
@@ -61,13 +91,15 @@ const ImpressumPage: React.FC = () => {
                     <p className="text-gray-700">{SITE.name}</p>
                   </div>
 
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
-                      <User className="w-5 h-5 mr-2 text-purple-500" />
-                      {de ? 'Inhaber' : 'Owner'}
-                    </h3>
-                    <p className="text-gray-700">Simon Parrott</p>
-                  </div>
+                  {owner && (
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                        <User className="w-5 h-5 mr-2 text-purple-500" />
+                        {de ? 'Inhaber' : 'Owner'}
+                      </h3>
+                      <p className="text-gray-700">{owner}</p>
+                    </div>
+                  )}
 
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
@@ -96,30 +128,36 @@ const ImpressumPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Business Registration */}
+                {/* Registration details — free text, because what must appear here is
+                    jurisdiction-specific (GLN/GISA in Austria, a company number and
+                    VAT number in the UK, and so on). Previously hardcoded to one
+                    studio's Austrian GLN, GISA number and trade authorisations. */}
                 <div className="space-y-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">GLN (Global Location Number)</h3>
-                    <p className="text-gray-700 font-mono">9110013674127</p>
-                  </div>
+                  {registration && (
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2">
+                        {de ? 'Unternehmensdaten' : 'Company registration'}
+                      </h3>
+                      <p className="text-gray-700 whitespace-pre-line">{registration}</p>
+                    </div>
+                  )}
 
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">{de ? 'GISA-Zahl' : 'GISA number'}</h3>
-                    <p className="text-gray-700 font-mono">35529712</p>
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">{de ? 'Berechtigungen' : 'Authorisations'}</h3>
-                    <p className="text-gray-700">LI Berufsfotografie</p>
-                    <p className="text-gray-700">Berufsfotograf</p>
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">{de ? 'Gewerberechtliche Geschäftsführung' : 'Managing director (trade law)'}</h3>
-                    <p className="text-gray-700">—</p>
-                  </div>
+                  {authorisations && (
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2">{de ? 'Berechtigungen' : 'Authorisations'}</h3>
+                      <p className="text-gray-700 whitespace-pre-line">{authorisations}</p>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {!legalConfigured && (
+                <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                  {de
+                    ? 'Diese Seite ist noch nicht ausgefüllt. Tragen Sie Ihre gesetzlich erforderlichen Angaben (Inhaber, Unternehmensdaten, Adresse) im Website Studio ein, bevor Sie die Website veröffentlichen.'
+                    : 'This page has not been completed yet. Enter your legally required details (owner, company registration, address) in Website Studio before publishing your site.'}
+                </div>
+              )}
             </section>
 
             {/* Addresses Section */}
@@ -129,42 +167,44 @@ const ImpressumPage: React.FC = () => {
                 <h2 className="text-2xl font-bold text-gray-900">{de ? 'Adressen' : 'Addresses'}</h2>
               </div>
 
+              {/* Both addresses were hardcoded to this studio's Vienna premises
+                  (Wehrgasse 11A/2+5 and Julius-Tandler-Platz 5/13), including the
+                  entrance directions and a Maps link. Studio address now comes from
+                  the studio's own configured address; the correspondence address is
+                  free text, and both blocks disappear when empty. */}
               <div className="grid md:grid-cols-2 gap-8">
-                <div className="bg-purple-50 rounded-xl p-6">
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
-                    <Camera className="w-5 h-5 mr-2 text-purple-500" />
-                    {de ? 'Studioadresse' : 'Studio address'}
-                  </h3>
-                  <p className="text-gray-700 text-sm mb-2 italic">
-                    {de ? '(Eingang Ecke Schönbrunnerstraße)' : '(Entrance on the corner of Schönbrunnerstraße)'}
-                  </p>
-                  <address className="text-gray-700 not-italic">
-                    Wehrgasse 11A / 2+5<br />
-                    1050 {de ? 'Wien' : 'Vienna'}<br />
-                    {de ? 'Österreich' : 'Austria'}
-                  </address>
-                  <a
-                    href="https://maps.google.com/?q=Wehrgasse+11A,+1050+Wien"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center mt-3 text-purple-600 hover:text-purple-700 text-sm"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-1" />
-                    {de ? 'Auf Google Maps anzeigen' : 'View on Google Maps'}
-                  </a>
-                </div>
+                {studioAddress.length > 0 && (
+                  <div className="bg-purple-50 rounded-xl p-6">
+                    <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                      <Camera className="w-5 h-5 mr-2 text-purple-500" />
+                      {de ? 'Studioadresse' : 'Studio address'}
+                    </h3>
+                    <address className="text-gray-700 not-italic">
+                      {studioAddress.map((line) => (
+                        <React.Fragment key={line}>{line}<br /></React.Fragment>
+                      ))}
+                    </address>
+                    <a
+                      href={`https://maps.google.com/?q=${encodeURIComponent(studioAddress.join(', '))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center mt-3 text-purple-600 hover:text-purple-700 text-sm"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      {de ? 'Auf Google Maps anzeigen' : 'View on Google Maps'}
+                    </a>
+                  </div>
+                )}
 
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
-                    <FileText className="w-5 h-5 mr-2 text-purple-500" />
-                    {de ? 'Büro & Korrespondenzadresse' : 'Office & correspondence address'}
-                  </h3>
-                  <address className="text-gray-700 not-italic">
-                    Julius-Tandler-Platz 5 / 13<br />
-                    1090 {de ? 'Wien' : 'Vienna'}<br />
-                    {de ? 'Österreich' : 'Austria'}
-                  </address>
-                </div>
+                {postalAddress && (
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                      <FileText className="w-5 h-5 mr-2 text-purple-500" />
+                      {de ? 'Büro & Korrespondenzadresse' : 'Office & correspondence address'}
+                    </h3>
+                    <address className="text-gray-700 not-italic whitespace-pre-line">{postalAddress}</address>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -174,10 +214,11 @@ const ImpressumPage: React.FC = () => {
                 <Camera className="w-8 h-8 text-purple-600 mr-3" />
                 <h2 className="text-2xl font-bold text-gray-900">{de ? 'Unternehmensgegenstand' : 'Business activity'}</h2>
               </div>
-              <p className="text-gray-700">
-                {de
-                  ? 'Fotografie, insbesondere Familien-, Baby-, Portrait- und Businessfotografie.'
-                  : 'Photography, in particular family, baby, portrait and business photography.'}
+              <p className="text-gray-700 whitespace-pre-line">
+                {businessActivity ||
+                  (de
+                    ? 'Fotografie, insbesondere Portrait-, Familien- und Businessfotografie.'
+                    : 'Photography, in particular portrait, family and business photography.')}
               </p>
             </section>
 
@@ -201,9 +242,11 @@ const ImpressumPage: React.FC = () => {
                 <h2 className="text-2xl font-bold text-gray-900">{de ? 'Urheberrecht' : 'Copyright'}</h2>
               </div>
               <p className="text-gray-700">
+                {/* Was fixed to "Austrian copyright law". The studio's own jurisdiction
+                    is used when it has set one, and left general otherwise. */}
                 {de
-                  ? `Die auf dieser Website veröffentlichten Inhalte und Bilder unterliegen dem österreichischen Urheberrecht. Eine Verwendung außerhalb der Grenzen des Urheberrechts bedarf der vorherigen schriftlichen Zustimmung von ${SITE.name}.`
-                  : `The content and images published on this website are subject to Austrian copyright law. Any use beyond the limits of copyright law requires the prior written consent of ${SITE.name}.`}
+                  ? `Die auf dieser Website veröffentlichten Inhalte und Bilder unterliegen dem ${jurisdiction ? `Urheberrecht (${jurisdiction})` : 'geltenden Urheberrecht'}. Eine Verwendung außerhalb der Grenzen des Urheberrechts bedarf der vorherigen schriftlichen Zustimmung von ${SITE.name}.`
+                  : `The content and images published on this website are subject to ${jurisdiction ? `the copyright law of ${jurisdiction}` : 'applicable copyright law'}. Any use beyond the limits of copyright law requires the prior written consent of ${SITE.name}.`}
               </p>
             </section>
 
@@ -218,9 +261,11 @@ const ImpressumPage: React.FC = () => {
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-2">{de ? 'Allgemeines' : 'General'}</h3>
                   <p className="text-gray-700">
+                    {/* Dropped the Austria-only "TKG 2003" citation — GDPR applies
+                        across the EEA/UK, the Austrian act does not. */}
                     {de
-                      ? 'Der Schutz Ihrer persönlichen Daten ist uns ein besonderes Anliegen. Wir verarbeiten Ihre Daten ausschließlich auf Grundlage der gesetzlichen Bestimmungen (DSGVO, TKG 2003).'
-                      : 'The protection of your personal data is of particular importance to us. We process your data exclusively on the basis of the statutory provisions (GDPR, Austrian Telecommunications Act 2003).'}
+                      ? 'Der Schutz Ihrer persönlichen Daten ist uns ein besonderes Anliegen. Wir verarbeiten Ihre Daten ausschließlich auf Grundlage der geltenden gesetzlichen Bestimmungen (DSGVO).'
+                      : 'The protection of your personal data is of particular importance to us. We process your data exclusively on the basis of the applicable statutory provisions (GDPR).'}
                   </p>
                 </div>
 

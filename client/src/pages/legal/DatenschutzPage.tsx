@@ -5,16 +5,27 @@ import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
 
 const DatenschutzPage: React.FC = () => {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const de = language === 'de';
+
+  // Same studio-supplied legal fields as the Impressum — see ImpressumPage.
+  const legal = (key: string): string => {
+    const value = t(key);
+    return value && value !== key ? value.trim() : '';
+  };
+  const owner = legal('legal.owner');
+  const registration = legal('legal.registration');
+  const postalAddress = legal('legal.postalAddress');
+  const studioAddress = [SITE.address.street, SITE.address.postalCode, SITE.address.city, SITE.address.country]
+    .filter(Boolean);
 
   return (
     <Layout>
       <Helmet>
-        <title>{de ? `Datenschutz & Impressum | ${SITE.name} Wien` : `Privacy Policy & Legal Notice | ${SITE.name} Vienna`}</title>
+        <title>{de ? `Datenschutz & Impressum | ${SITE.name}` : `Privacy Policy & Legal Notice | ${SITE.name}`}</title>
         <meta name="description" content={de
-          ? `Datenschutzerklärung und Impressum von ${SITE.name} Wien. DSGVO-konform, transparent, Österreich.`
-          : `Privacy policy and legal notice of ${SITE.name} Vienna. GDPR compliant, transparent, Austria.`
+          ? `Datenschutzerklärung und Impressum von ${SITE.name}. DSGVO-konform und transparent.`
+          : `Privacy policy and legal notice of ${SITE.name}. GDPR compliant and transparent.`
         } />
         <link rel="canonical" href={`${SITE.url}/datenschutz/`} />
       </Helmet>
@@ -26,7 +37,8 @@ const DatenschutzPage: React.FC = () => {
               {de ? 'Impressum & Datenschutzerklärung' : 'Legal Notice & Privacy Policy'}
             </h1>
 
-            {!de && (
+            {/* Only when the studio's own legal text is the German one — see ImpressumPage. */}
+            {!de && (SITE.lang || '').toLowerCase().startsWith('de') && (
               <p className="text-sm text-gray-500 -mt-6 mb-8">
                 English translation for convenience — the legally binding version is the German original.
               </p>
@@ -36,26 +48,45 @@ const DatenschutzPage: React.FC = () => {
               
               {/* Impressum Section */}
               <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">{de ? 'Anbieter' : 'Provider'}</h2>
+              {/* The data controller named here was one specific person, at one
+                  specific Vienna address, with a claim about VAT status — published
+                  as every studio's own controller. All studio-supplied now, and each
+                  line is omitted when unset rather than guessed. */}
               <div className="bg-gray-50 rounded-xl p-6 mb-8">
                 <p className="font-semibold text-gray-900 text-lg mb-2">{SITE.name}</p>
-                <p>Simon Parrott</p>
-                
-                <p className="font-semibold text-gray-900 mt-4 mb-1">📍 {de ? 'Studio:' : 'Studio:'}</p>
-                <p>{de ? 'Eingang Ecke Schönbrunnerstraße' : 'Entrance corner Schönbrunnerstraße'}<br />
-                Wehrgasse 11A/2+5<br />
-                1050 {de ? 'Wien' : 'Vienna'}</p>
-                
-                <p className="font-semibold text-gray-900 mt-4 mb-1">📮 {de ? 'Büro & Korrespondenz:' : 'Office & Correspondence:'}</p>
-                <p>Julius-Tandler-Platz 5 / 13<br />
-                1090 {de ? 'Wien' : 'Vienna'}</p>
-                
+                {owner && <p>{owner}</p>}
+
+                {studioAddress.length > 0 && (
+                  <>
+                    <p className="font-semibold text-gray-900 mt-4 mb-1">📍 {de ? 'Studio:' : 'Studio:'}</p>
+                    <p>
+                      {studioAddress.map((line) => (
+                        <React.Fragment key={line}>{line}<br /></React.Fragment>
+                      ))}
+                    </p>
+                  </>
+                )}
+
+                {postalAddress && (
+                  <>
+                    <p className="font-semibold text-gray-900 mt-4 mb-1">📮 {de ? 'Büro & Korrespondenz:' : 'Office & Correspondence:'}</p>
+                    <p className="whitespace-pre-line">{postalAddress}</p>
+                  </>
+                )}
+
                 <p className="mt-4">
-                  📞 <strong>{de ? 'Telefon:' : 'Phone:'}</strong> <a href={`tel:+${SITE.phone.replace(/[^0-9]/g,'')}`} className="text-purple-600 hover:text-purple-700">{SITE.phone}</a><br />
-                  📧 <strong>{de ? 'E-Mail:' : 'Email:'}</strong> <a href={`mailto:${SITE.email}`} className="text-purple-600 hover:text-purple-700">{SITE.email}</a><br />
-                  🌐 <strong>Website:</strong> <a href={SITE.url} className="text-purple-600 hover:text-purple-700">{SITE.url.replace(/^https?:\/\//, '')}</a>
+                  {SITE.phone && (
+                    <>📞 <strong>{de ? 'Telefon:' : 'Phone:'}</strong> <a href={`tel:+${SITE.phone.replace(/[^0-9]/g,'')}`} className="text-purple-600 hover:text-purple-700">{SITE.phone}</a><br /></>
+                  )}
+                  {SITE.email && (
+                    <>📧 <strong>{de ? 'E-Mail:' : 'Email:'}</strong> <a href={`mailto:${SITE.email}`} className="text-purple-600 hover:text-purple-700">{SITE.email}</a><br /></>
+                  )}
+                  {SITE.url && (
+                    <>🌐 <strong>Website:</strong> <a href={SITE.url} className="text-purple-600 hover:text-purple-700">{SITE.url.replace(/^https?:\/\//, '')}</a></>
+                  )}
                 </p>
-                
-                <p className="mt-4 text-sm text-gray-500">{de ? 'Keine UID-Nummer (nicht umsatzsteuerpflichtig).' : 'No VAT number (not subject to VAT).'}</p>
+
+                {registration && <p className="mt-4 text-sm text-gray-500 whitespace-pre-line">{registration}</p>}
               </div>
 
               {/* Datenschutz Section */}

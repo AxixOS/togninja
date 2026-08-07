@@ -415,6 +415,17 @@ const translations = {
     'home.heroDescription': 'Warm, authentic portraits of the people you love, in a relaxed and unhurried session.',
     'home.bookShootingButton': 'Book Shooting Now',
     'home.description': 'As a family photographer in Vienna and specialized newborn photographer in Vienna, we create timeless memories in a relaxed studio atmosphere. Even if you are camera-shy or have unpredictable children, we create family portraits that you will treasure forever.',
+    // Legal identity for the Impressum / privacy notice. EMPTY by default and
+    // per-studio: an owner name, registration numbers and a correspondence address
+    // are unique to each business and jurisdiction, and publishing someone else's
+    // is a legal problem. Each block is hidden until the studio fills it in.
+    'legal.owner': '',
+    'legal.registration': '',
+    'legal.authorisations': '',
+    'legal.postalAddress': '',
+    'legal.jurisdiction': '',
+    'legal.businessActivity': '',
+
     // Milestone counters. Values are EMPTY by default so the homepage band stays
     // hidden until a studio enters its own figures in Website Studio — never
     // another studio's numbers. Labels stay, so the fields read sensibly there.
@@ -1387,6 +1398,14 @@ const translations = {
     'home.heroDescription': 'Warme, authentische Porträts der Menschen, die Sie lieben – in einem entspannten Shooting ohne Zeitdruck.',
     'home.bookShootingButton': 'Jetzt Shooting Buchen',
     'home.description': 'Als Familienfotograf in Wien und spezialisierter Neugeborenenfotograf in Wien schaffen wir zeitlose Erinnerungen in entspannter Studioatmosphäre. Selbst wenn Sie kamerascheu sind oder unberechenbare Kinder haben, erstellen wir Familienporträts, die Sie für immer schätzen werden.',
+    // Rechtliche Angaben bleiben leer, bis das Studio seine eigenen einträgt (siehe EN).
+    'legal.owner': '',
+    'legal.registration': '',
+    'legal.authorisations': '',
+    'legal.postalAddress': '',
+    'legal.jurisdiction': '',
+    'legal.businessActivity': '',
+
     // Werte bleiben leer, bis das Studio seine eigenen Zahlen einträgt (siehe EN).
     'home.statFamiliesValue': '',
     'home.statPortraitsValue': '',
@@ -1982,8 +2001,13 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
     } catch {}
 
-    // Always default to German for new users or when no explicit choice
-    return 'de';
+    // Default to the STUDIO'S OWN language, not German. This returned 'de'
+    // unconditionally ("always default to German for new users"), so a studio in
+    // Leeds or Lisbon served its visitors German no matter what locale it had
+    // configured. SITE.lang comes from the tenant's identity; German remains the
+    // default only for studios that actually configured German.
+    const studioLang = (SITE.lang || '').slice(0, 2).toLowerCase() as Language;
+    return SUPPORTED_LANGS.includes(studioLang) ? studioLang : 'en';
   });
 
   // Setter that records an explicit user choice. `persist` is false for
