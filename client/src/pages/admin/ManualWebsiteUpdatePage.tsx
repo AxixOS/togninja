@@ -1996,24 +1996,26 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
                   </div>
                 )}
 
-                {/* Editing the Homepage has NO visible effect while a landing page is
-                    set as "/" — onboarding does that automatically, so a studio can
-                    edit this page for hours and never see a change. Say so here, where
-                    they are actually looking, and let them switch back in one click.
-                    The control otherwise lives only inside the landing-page editor. */}
-                {selectedPage?.id === 'home' && homepageLandingSlug && (
+                {/* While a landing page is set as "/", NOTHING edited here reaches the
+                    homepage — not the copy, not the homepage images, not the reviews
+                    carousel. Onboarding sets that automatically, so a studio can work
+                    across several of these entries, click View Website, and see a page
+                    it never edited. Shown on every entry, not just Homepage, because
+                    the override invalidates all of them equally. */}
+                {homepageLandingSlug && (
                   <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-                    <p className="font-medium mb-1">Your homepage is currently a landing page.</p>
+                    <p className="font-medium mb-1">Your website homepage is a landing page, not the pages below.</p>
                     <p className="mb-3">
-                      “/” is being served by the landing page <code className="px-1 bg-amber-100 rounded">{homepageLandingSlug}</code>,
-                      so edits made here are not visible on your website.
+                      “/” is being served by the landing page <code className="px-1 bg-amber-100 rounded">{homepageLandingSlug}</code>.
+                      Until you switch, “View Website” shows that page — homepage copy, homepage
+                      images and the reviews carousel edited here will not appear on it.
                     </p>
                     <button
                       onClick={() => unsetHomepageMutation.mutate()}
                       disabled={unsetHomepageMutation.isPending}
                       className="px-3 py-1.5 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50"
                     >
-                      {unsetHomepageMutation.isPending ? 'Switching…' : 'Use this homepage instead'}
+                      {unsetHomepageMutation.isPending ? 'Switching…' : 'Use my edited homepage instead'}
                     </button>
                   </div>
                 )}
