@@ -93,18 +93,43 @@ const AdminGalleriesPage: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const SortHeader: React.FC<{ label: string; column: keyof Gallery }> = ({ label, column }) => (
-    <button
-      onClick={() => toggleSort(column)}
-      className="group inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-900"
-      title={`Sort by ${label}`}
-    >
-      {label}
-      <span className={sortBy === column ? 'text-gray-900' : 'text-gray-300 group-hover:text-gray-400'}>
-        {sortBy === column ? (sortDir === 'asc' ? '▲' : '▼') : '▲'}
-      </span>
-    </button>
-  );
+  const SortHeader: React.FC<{ label: string; column: keyof Gallery }> = ({ label, column }) => {
+    // Several columns hold the same value on every row — Brand is always the studio
+    // name, Type is always "Gallery", Attached is usually empty. Sorting them is wired
+    // but cannot reorder anything, which reads as a broken control. Offer the arrow
+    // only when the column actually distinguishes rows.
+    const distinct = new Set(
+      galleries.map(g => {
+        const v = g[column];
+        return v === undefined || v === null || v === '' ? '' : String(v);
+      })
+    );
+    const sortable = distinct.size > 1;
+
+    if (!sortable) {
+      return (
+        <span
+          className="uppercase tracking-wider text-gray-400"
+          title={`Every gallery has the same ${label.toLowerCase()}, so there is nothing to sort`}
+        >
+          {label}
+        </span>
+      );
+    }
+
+    return (
+      <button
+        onClick={() => toggleSort(column)}
+        className="group inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-900"
+        title={`Sort by ${label}`}
+      >
+        {label}
+        <span className={sortBy === column ? 'text-gray-900' : 'text-gray-300 group-hover:text-gray-400'}>
+          {sortBy === column ? (sortDir === 'asc' ? '▲' : '▼') : '▲'}
+        </span>
+      </button>
+    );
+  };
 
   useEffect(() => {
     fetchAnalytics();
@@ -175,6 +200,46 @@ const AdminGalleriesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Bulk actions over the current selection. Each runs sequentially and reports how
+  // many succeeded, so one failure does not silently abort the rest.
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const runBulk = async (
+    ids: string[],
+    action: (id: string) => Promise<void>,
+    verb: string
+  ) => {
+    setBulkBusy(true);
+    const failed: string[] = [];
+    for (const id of ids) {
+      try { await action(id); } catch { failed.push(id); }
+    }
+    setBulkBusy(false);
+    setSelectedGalleries([]);
+    await fetchGalleries();
+    fetchAnalytics();
+    if (failed.length) {
+      alert(`${ids.length - failed.length} of ${ids.length} galleries ${verb}. ${failed.length} failed.`);
+    }
+  };
+
+  const handleBulkTrash = async () => {
+    const ids = [...selectedGalleries];
+    if (!confirm(`Move ${ids.length} gallery${ids.length === 1 ? '' : 's'} to Trash?\n\nYou can restore them from the Trash view.`)) return;
+    await runBulk(ids, deleteGallery, 'moved to Trash');
+  };
+
+  const handleBulkRestore = async () => {
+    const ids = [...selectedGalleries];
+    await runBulk(ids, restoreGallery, 'restored');
+  };
+
+  const handleBulkDeleteForever = async () => {
+    const ids = [...selectedGalleries];
+    if (!confirm(`Permanently delete ${ids.length} gallery${ids.length === 1 ? '' : 's'} and all their images?\n\nThis cannot be undone.`)) return;
+    await runBulk(ids, deleteGalleryPermanently, 'deleted');
   };
 
   const handleRestoreGallery = async (id: string) => {
@@ -482,6 +547,53 @@ const AdminGalleriesPage: React.FC = () => {
             </label>
           </div>
         </div>
+
+        {/* Bulk actions. The row checkboxes existed but nothing consumed the
+            selection — ticking galleries did nothing at all. */}
+        {selectedGalleries.length > 0 && (
+          <div className="flex items-center gap-3 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3">
+            <span className="text-sm text-teal-900 font-medium">
+              {selectedGalleries.length} selected
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setSelectedGalleries([])}
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+              >
+                Clear
+              </button>
+              {showTrash ? (
+                <>
+                  <button
+                    onClick={handleBulkRestore}
+                    disabled={bulkBusy}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <RotateCcw size={14} />
+                    Restore
+                  </button>
+                  <button
+                    onClick={handleBulkDeleteForever}
+                    disabled={bulkBusy}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                  >
+                    <Trash2 size={14} />
+                    Delete permanently
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleBulkTrash}
+                  disabled={bulkBusy}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                >
+                  <Trash2 size={14} />
+                  {bulkBusy ? 'Working…' : `Move ${selectedGalleries.length} to Trash`}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Table */}
         <div className="bg-white rounded-lg shadow overflow-visible">
