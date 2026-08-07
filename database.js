@@ -391,17 +391,26 @@ if (!connectionString) {
         )
       `);
 
-      // Create Questionnaire Responses table
+      // Create Questionnaire Responses table.
+      // client_name/client_email are REQUIRED by the admin responses view + the submit path;
+      // they were added after this table's original definition. client_id is nullable because
+      // link-submitted responses can be anonymous.
       await pool.query(`
         CREATE TABLE IF NOT EXISTS questionnaire_responses (
           id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-          client_id TEXT NOT NULL,
-          token TEXT NOT NULL,
+          client_id TEXT,
+          token TEXT,
           template_slug TEXT,
-          answers JSONB NOT NULL,
+          answers JSONB,
+          client_name TEXT,
+          client_email TEXT,
           submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )
       `);
+      // Back-fill the two columns on any pre-existing (older) questionnaire_responses table,
+      // so the admin responses view doesn't 500 with "column client_name does not exist".
+      await pool.query(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_name TEXT`);
+      await pool.query(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_email TEXT`);
 
       // Create Surveys table for questionnaire templates
       await pool.query(`

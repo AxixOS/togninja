@@ -17446,7 +17446,14 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       }
       
       const link = linkResult[0];
-      
+
+      // Self-heal the columns before inserting (same race as the responses view — an older
+      // questionnaire_responses table may lack client_name/client_email).
+      try {
+        await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_name text`);
+        await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_email text`);
+      } catch { /* best effort */ }
+
       // Store response in database (include client name and email)
       await runSql(
         'INSERT INTO questionnaire_responses (client_id, token, template_slug, answers, client_name, client_email) VALUES ($1, $2, $3, $4, $5, $6)',
