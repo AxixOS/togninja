@@ -9650,10 +9650,49 @@ ${getBizName()} Team`;
         await runSql(`UPDATE questionnaire_responses SET answers = responses WHERE answers IS NULL AND responses IS NOT NULL`);
       }
     } catch { /* best effort back-fill */ }
+    // SUBMIT 500 FIX: the older table has legacy NOT NULL columns (questionnaire_id, slug,
+    // responses) the current INSERT never populates, and often an integer `id` with NO
+    // default — both make POST /api/email-questionnaire 500. Relax the legacy NOT NULLs and
+    // give `id` an auto-increment default when it lacks one. Guarded so it's safe on every
+    // schema variant.
+    await runSql(`DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='questionnaire_responses' AND column_name='questionnaire_id') THEN
+    EXECUTE 'ALTER TABLE questionnaire_responses ALTER COLUMN questionnaire_id DROP NOT NULL';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='questionnaire_responses' AND column_name='slug') THEN
+    EXECUTE 'ALTER TABLE questionnaire_responses ALTER COLUMN slug DROP NOT NULL';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='questionnaire_responses' AND column_name='responses') THEN
+    EXECUTE 'ALTER TABLE questionnaire_responses ALTER COLUMN responses DROP NOT NULL';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='questionnaire_responses' AND column_name='client_id') THEN
+    EXECUTE 'ALTER TABLE questionnaire_responses ALTER COLUMN client_id DROP NOT NULL';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='questionnaire_responses' AND column_name='token') THEN
+    EXECUTE 'ALTER TABLE questionnaire_responses ALTER COLUMN token DROP NOT NULL';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='questionnaire_responses' AND column_name='answers') THEN
+    EXECUTE 'ALTER TABLE questionnaire_responses ALTER COLUMN answers DROP NOT NULL';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='questionnaire_responses' AND column_name='id' AND column_default IS NOT NULL) THEN
+    CREATE SEQUENCE IF NOT EXISTS questionnaire_responses_id_seq;
+    PERFORM setval('questionnaire_responses_id_seq', COALESCE((SELECT MAX(id) FROM questionnaire_responses), 0) + 1, false);
+    EXECUTE 'ALTER TABLE questionnaire_responses ALTER COLUMN id SET DEFAULT nextval(''questionnaire_responses_id_seq'')';
+  END IF;
+END $$;`);
     console.log('✅ Ensured questionnaire_responses columns exist');
   } catch (e: any) {
     console.log('questionnaire_responses column check:', e?.message);
   }
+
+  // TEMP DIAGNOSTIC (unauthed) — full schema of questionnaire_responses. Remove after.
+  app.get("/api/debug/qr-fullschema", async (_req: Request, res: Response) => {
+    try {
+      const cols = await runSql(`SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name='questionnaire_responses' ORDER BY ordinal_position`);
+      res.json({ columns: cols });
+    } catch (e: any) { res.json({ error: String(e?.message || e) }); }
+  });
 
 
   app.get("/api/admin/questionnaire-responses", authenticateUser, async (req: Request, res: Response) => {
@@ -17502,9 +17541,9 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       }
       
       res.json({ success: true, message: "Questionnaire submitted successfully" });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting questionnaire:", error);
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json({ error: "Internal server error", detail: String(error?.message || error).slice(0, 300) });
     }
   });
 
