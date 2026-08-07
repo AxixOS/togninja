@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuthorityMap } from '../../hooks/useAuthorityMap';
+import { SITE } from '../../config/site';
 
 interface PillarLink {
   title: string;
@@ -71,10 +72,11 @@ export function PillarLinksBlock({
         <h2 className="text-2xl md:text-3xl font-bold text-purple-900 mb-3 text-center">
           {headingText}
         </h2>
+        {/* Was a fixed "Studio Wehrgasse 11A/2+5, 1050 Wien" strapline on every page. */}
         <p className="text-center text-gray-500 mb-8 text-sm">
           {de
-            ? 'Professionelle Fotografie in Wien – Studio Wehrgasse 11A/2+5, 1050 Wien'
-            : 'Professional photography in Vienna – Studio Wehrgasse 11A/2+5, 1050 Vienna'}
+            ? `Professionelle Fotografie${SITE.address.city ? ` in ${SITE.address.city}` : ''} – ${SITE.name}`
+            : `Professional photography${SITE.address.city ? ` in ${SITE.address.city}` : ''} – ${SITE.name}`}
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {links.map((link) => (

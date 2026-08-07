@@ -218,7 +218,11 @@ const ClientDetailPage: React.FC = () => {
         description: `Fotoshooting-Termin mit ${client.firstName} ${client.lastName}\n\nKontakt:\nE-Mail: ${client.email}\nTelefon: ${client.phone || 'Nicht angegeben'}\n\nAdresse: ${client.address || 'Nicht angegeben'}`,
         startTime: tomorrow,
         endTime: endTime,
-        location: `${SITE.name} Studio, Wehrgasse 11A/2+5, 1050 Wien`,
+        // The studio's own address (was hardcoded to a Vienna street, so every
+        // studio's calendar invites sent clients to the wrong place).
+        location: [`${SITE.name} Studio`, SITE.address.street, SITE.address.postalCode, SITE.address.city]
+          .filter(Boolean)
+          .join(', '),
         attendees: [client.email],
         clientId: client.id
       };

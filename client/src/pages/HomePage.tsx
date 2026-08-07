@@ -17,7 +17,6 @@ import { getCachedData, setCachedData } from '../lib/persistentCache';
 import { useImagePreloader } from '../hooks/useImagePreloader';
 import { useGoogleReviews } from '../hooks/useGoogleReviews';
 import HomepageConfidenceSection from '../components/home/HomepageConfidenceSection';
-import CareerStorySection from '../components/home/CareerStorySection';
 import { SITE } from '../config/site';
 
 // Translation mappings for German product names and descriptions
@@ -189,9 +188,12 @@ const HomePage: React.FC = () => {
         label: `${SITE.name} Price Calculator`,
         labelSub: 'Your personal package in just a few clicks',
         badge: 'Fast & obligation-free',
-        trustOne: 'Over 5 million portraits created',
-        trustTwo: 'Family-run since 2012',
-        trustThree: 'Studio in 1050 Vienna',
+        // Neutral and true for any studio. These previously asserted "Over 5 million
+        // portraits created", "Family-run since 2012" and "Studio in 1050 Vienna" —
+        // one studio's history, published as every instance's own.
+        trustOne: 'Professional & experienced',
+        trustTwo: 'Personal service',
+        trustThree: SITE.address.city ? `Studio in ${SITE.address.city}` : 'Studio & outdoor sessions',
         iframeTitle: `PricingEmbed price calculator for ${SITE.name}`,
       }
     : {
@@ -201,9 +203,9 @@ const HomePage: React.FC = () => {
         label: `${SITE.name} Preisrechner`,
         labelSub: 'Ihr persönliches Paket in wenigen Klicks',
         badge: 'Schnell & unverbindlich',
-        trustOne: 'Über 5 Mio. Portraits erstellt',
-        trustTwo: 'Familiengeführt seit 2012',
-        trustThree: 'Studio in 1050 Wien',
+        trustOne: 'Professionell & erfahren',
+        trustTwo: 'Persönlicher Service',
+        trustThree: SITE.address.city ? `Studio in ${SITE.address.city}` : 'Studio & Outdoor',
         iframeTitle: `PricingEmbed Preisrechner für ${SITE.name}`,
       };
 
@@ -343,8 +345,42 @@ const HomePage: React.FC = () => {
   // data stays in sync with the number shown in the reviews widget (instead of a
   // hardcoded value that silently drifts from Google).
   const { data: liveGoogle } = useGoogleReviews();
-  const ratingValue = (liveGoogle?.rating ?? 4.8).toFixed(1);
-  const reviewCount = String(liveGoogle?.count ?? 306);
+  // Ratings come from the studio's OWN live Google profile or not at all. The old
+  // fallback published 4.8★/306 reviews — another studio's numbers — as this
+  // studio's rating, in schema Google reads as a factual claim.
+  const ratingValue = liveGoogle?.rating != null ? liveGoogle.rating.toFixed(1) : null;
+  const reviewCount = liveGoogle?.count != null ? String(liveGoogle.count) : null;
+
+  // Milestone figures the studio supplies for itself (Website Studio → homepage keys).
+  // A key that is unset, non-numeric or zero contributes nothing, so a new studio shows
+  // no counters at all rather than inheriting someone else's.
+  const milestones = [
+    { valueKey: 'home.statFamiliesValue', labelKey: 'home.happyFamilies' },
+    { valueKey: 'home.statPortraitsValue', labelKey: 'home.portraitsCaptured' },
+    { valueKey: 'home.statYearsValue', labelKey: 'home.yearsExperience' },
+  ]
+    .map(({ valueKey, labelKey }) => {
+      const raw = t(valueKey);
+      const value = raw && raw !== valueKey ? Number(String(raw).replace(/[^\d]/g, '')) : NaN;
+      return Number.isFinite(value) && value > 0 ? { value, labelKey } : null;
+    })
+    .filter((m): m is { value: number; labelKey: string } => m !== null);
+
+  // Homepage SEO built from the studio's own identity + its editable homepage copy.
+  // Was hardcoded "Familienfotograf Wien | …" with a Vienna keyword list and a claim
+  // of 27,000 families photographed — served verbatim by every instance.
+  const seoCity = SITE.address.city;
+  const seoTitle = seoCity ? `${SITE.name} | Photography in ${seoCity}` : SITE.name;
+  const homeDescription = t('home.description');
+  const seoDescription =
+    homeDescription && homeDescription !== 'home.description'
+      ? homeDescription.slice(0, 160)
+      : `${SITE.name} — professional photography${seoCity ? ` in ${seoCity}` : ''}.`;
+  // Keywords are only meaningful once we know the studio's city; a generic list is
+  // noise, and the Vienna one was actively wrong.
+  const seoKeywords = seoCity
+    ? `photographer ${seoCity}, photo studio ${seoCity}, portrait photography ${seoCity}`
+    : undefined;
 
   const faqImages =
     (homepageImages &&
@@ -363,12 +399,74 @@ const HomePage: React.FC = () => {
       { title: t('home.faqQuestion6'), image: photoGridImage, alt: 'Image' },
     ];
 
+  // LocalBusiness schema built ONLY from this studio's own identity. Anything the
+  // studio hasn't configured is OMITTED rather than guessed: a hardcoded locality,
+  // street and coordinates told Google every instance was a business in Vienna's
+  // 1050, which is worse than saying nothing at all. Geo coordinates are dropped
+  // entirely — we have no per-studio source for them, and inventing them is exactly
+  // the bug being fixed here.
+  const localBusinessSchema = (() => {
+    const { street, city, postalCode, country } = SITE.address;
+    const schema: Record<string, unknown> = {
+      '@context': 'https://schema.org',
+      '@type': 'LocalBusiness',
+      '@id': `${SITE.url}/#business`,
+      name: SITE.name,
+      url: SITE.url,
+    };
+    if (heroImageUrl) schema.image = heroImageUrl;
+
+    const description = t('home.description');
+    if (description && description !== 'home.description') schema.description = description;
+
+    if (street || city || postalCode || country) {
+      schema.address = {
+        '@type': 'PostalAddress',
+        ...(street ? { streetAddress: street } : {}),
+        ...(city ? { addressLocality: city } : {}),
+        ...(postalCode ? { postalCode } : {}),
+        ...(country ? { addressCountry: country } : {}),
+      };
+    }
+    if (SITE.phone) schema.telephone = SITE.phone;
+    if (city) schema.areaServed = { '@type': 'City', name: city };
+    if (SITE.social?.length) schema.sameAs = SITE.social;
+
+    // Service names come from the studio's own translated copy, same
+    // filter-the-misses pattern as the FAQ schema below.
+    const services = [
+      'home.familyPortraitsTitle',
+      'home.pregnancyTitle',
+      'home.newbornTitle',
+      'home.businessHeadshotsTitle',
+    ]
+      .map((key) => {
+        const name = t(key);
+        return name && name !== key ? { '@type': 'Offer', itemOffered: { '@type': 'Service', name } } : null;
+      })
+      .filter(Boolean);
+    if (services.length) {
+      schema.hasOfferCatalog = { '@type': 'OfferCatalog', name: SITE.name, itemListElement: services };
+    }
+
+    if (ratingValue && reviewCount) {
+      schema.aggregateRating = {
+        '@type': 'AggregateRating',
+        ratingValue,
+        reviewCount,
+        bestRating: '5',
+        worstRating: '1',
+      };
+    }
+    return schema;
+  })();
+
   return (
     <Layout>
       <SEOHead
-        title={`Familienfotograf Wien | ${SITE.name}`}
-        description="Ihr professioneller Familienfotograf in Wien: Familien-, Baby-, Neugeborenen-, Schwangerschafts- und Businessfotos im Studio. Über 27.000 Familien fotografiert. Jetzt Termin buchen!"
-        keywords="Fotograf Wien, Familienfotograf Wien, Babyfotograf Wien, Neugeborenenfotograf Wien, Businessfotografie Wien, Fotostudio Wien"
+        title={seoTitle}
+        description={seoDescription}
+        keywords={seoKeywords}
         canonical="/"
         ogImage={heroImageUrl || undefined}
         hreflang={[
@@ -380,83 +478,7 @@ const HomePage: React.FC = () => {
       {/* JSON-LD Structured Data for LocalBusiness */}
       <Helmet>
         <script type="application/ld+json">
-          {JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'LocalBusiness',
-            '@id': `${SITE.url}/#business`,
-            name: SITE.name,
-            image: heroImageUrl || 'https://example.com/placeholder.jpg',
-            description: 'Professioneller Familienfotograf in Wien. Spezialisiert auf Familienfotos, Schwangerschaftsfotos, Neugeborenenfotos und Business Portraits.',
-            address: {
-              '@type': 'PostalAddress',
-              streetAddress: 'Wehrgasse 11A/2+5',
-              addressLocality: 'Wien',
-              postalCode: '1050',
-              addressCountry: 'AT'
-            },
-            geo: {
-              '@type': 'GeoCoordinates',
-              latitude: 48.191130,
-              longitude: 16.356010
-            },
-            url: SITE.url,
-            telephone: '+43 677 63399210',
-            priceRange: '€€',
-            // Open by appointment (incl. weekends) — no fixed opening hours,
-            // so we intentionally omit openingHours rather than claim wrong ones.
-            areaServed: {
-              '@type': 'City',
-              name: 'Wien'
-            },
-            hasOfferCatalog: {
-              '@type': 'OfferCatalog',
-              name: 'Fotografie Services',
-              itemListElement: [
-                {
-                  '@type': 'Offer',
-                  itemOffered: {
-                    '@type': 'Service',
-                    name: 'Familienfotografie',
-                    description: 'Professionelle Familienportraits im Studio oder Outdoor'
-                  }
-                },
-                {
-                  '@type': 'Offer',
-                  itemOffered: {
-                    '@type': 'Service',
-                    name: 'Schwangerschaftsfotografie',
-                    description: 'Babybauch Fotoshootings in Wien'
-                  }
-                },
-                {
-                  '@type': 'Offer',
-                  itemOffered: {
-                    '@type': 'Service',
-                    name: 'Neugeborenenfotos',
-                    description: 'Professionelle Babyfotografie für Neugeborene'
-                  }
-                },
-                {
-                  '@type': 'Offer',
-                  itemOffered: {
-                    '@type': 'Service',
-                    name: 'Business Portraits',
-                    description: 'Professionelle Businessfotografie und Headshots'
-                  }
-                }
-              ]
-            },
-            // Verified profiles (tenant's SOCIAL_LINKS) — helps Google's Knowledge
-            // Graph connect the business entity across platforms.
-            sameAs: SITE.social,
-            aggregateRating: {
-              '@type': 'AggregateRating',
-              ratingValue,
-              reviewCount,
-              bestRating: '5',
-              worstRating: '1'
-            }
-          })}
+          {JSON.stringify(localBusinessSchema)}
         </script>
 
         {/* FAQPage schema – mirrors visible FAQ content in HomepageConfidenceSection */}
@@ -574,34 +596,27 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* Counter Section */}
-      <section className="bg-gradient-to-r from-pink-500 to-purple-600 py-16">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-            <div className="text-white">
-              <div className="text-3xl md:text-4xl font-bold mb-2">
-                <CountUp end={27156} duration={2.5} separator="," />
-              </div>
-              <div className="text-base md:text-lg text-white/90">{t('home.happyFamilies')}</div>
-            </div>
-            <div className="text-white">
-              <div className="text-3xl md:text-4xl font-bold mb-2">
-                <CountUp end={5431977} duration={2.5} separator="," />
-              </div>
-              <div className="text-base md:text-lg text-white/90">{t('home.portraitsCaptured')}</div>
-            </div>
-            <div className="text-white">
-              <div className="text-3xl md:text-4xl font-bold mb-2">
-                <CountUp end={27} duration={2.5} />
-              </div>
-              <div className="text-base md:text-lg text-white/90">{t('home.yearsExperience')}</div>
+      {/* Counter Section — the studio's OWN milestones. The figures were hardcoded
+          (27,156 families / 5,431,977 portraits / 27 years), so every instance
+          animated one studio's numbers as its own. They now come from editable
+          keys with EMPTY defaults: a studio sets them in Website Studio, and until
+          it does the band renders nothing rather than something invented. */}
+      {milestones.length > 0 && (
+        <section className="bg-gradient-to-r from-pink-500 to-purple-600 py-16">
+          <div className="container mx-auto px-4">
+            <div className={`grid grid-cols-1 gap-8 text-center ${milestones.length >= 3 ? 'md:grid-cols-3' : milestones.length === 2 ? 'md:grid-cols-2' : ''}`}>
+              {milestones.map((m) => (
+                <div className="text-white" key={m.labelKey}>
+                  <div className="text-3xl md:text-4xl font-bold mb-2">
+                    <CountUp end={m.value} duration={2.5} separator="," />
+                  </div>
+                  <div className="text-base md:text-lg text-white/90">{t(m.labelKey)}</div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Career-history band — the evidence + workings behind the stats */}
-      <CareerStorySection />
+        </section>
+      )}
 
       <section id="preisrechner" className="bg-white py-16 md:py-24 scroll-mt-24">
         <div className="container mx-auto px-4">

@@ -285,6 +285,10 @@ const VoucherCheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const de = language === 'de';
+  // The studio's own address as one line; empty when unset, which hides the block.
+  const studioAddress = [SITE.address.street, SITE.address.postalCode, SITE.address.city, SITE.address.country]
+    .filter(Boolean)
+    .join(', ');
   const [voucher, setVoucher] = useState<VoucherProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -472,35 +476,31 @@ const VoucherCheckoutPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Studio Location */}
-            <div className="mt-6 bg-white rounded-lg shadow-sm border p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">{de ? 'Studio Standort' : 'Studio location'}</h3>
-              <div className="space-y-2 mb-4">
-                <p className="text-gray-600">
-                  <strong>{de ? 'Eingang Ecke Schönbrunnerstraße' : 'Entrance at the corner of Schönbrunnerstraße'}</strong><br />
-                  Wehrgasse 11A/2+5<br />
-                  {de ? '1050 Wien, Austria' : '1050 Vienna, Austria'}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {de ? '5 Minuten von Kettenbrückengasse' : '5 minutes from Kettenbrückengasse'}<br />
-                  {de ? 'Street parking available' : 'Street parking available'}
-                </p>
+            {/* Studio location — the studio's OWN address, hidden when it hasn't set
+                one. This block hardcoded Wehrgasse 11A / 1050 Wien, its landmarks
+                ("corner of Schönbrunnerstraße", "5 minutes from Kettenbrückengasse")
+                and a fixed map pin, shown to every studio's paying customers. */}
+            {studioAddress && (
+              <div className="mt-6 bg-white rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">{de ? 'Studio Standort' : 'Studio location'}</h3>
+                <div className="space-y-2 mb-4">
+                  <p className="text-gray-600">{studioAddress}</p>
+                </div>
+
+                <div className="rounded-lg overflow-hidden border">
+                  <iframe
+                    src={`https://www.google.com/maps?q=${encodeURIComponent(studioAddress)}&output=embed`}
+                    width="100%"
+                    height="200"
+                    style={{ border: 0 }}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    title={`${SITE.name} — ${studioAddress}`}
+                  />
+                </div>
               </div>
-              
-              {/* Embedded Google Map */}
-              <div className="rounded-lg overflow-hidden border">
-                <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2659.8!2d16.3608!3d48.1865!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x476d0774b3d4e1ab%3A0x123456789abcdef0!2sWehrgasse%2011A%2C%201050%20Wien%2C%20Austria!5e0!3m2!1sen!2sat!4v1625075400000!5m2!1sen!2sat"
-                  width="100%"
-                  height="200"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title={`${SITE.name} Studio Location`}
-                />
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Right Column - Checkout Form */}

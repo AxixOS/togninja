@@ -47,12 +47,22 @@ const KontaktPage: React.FC = () => {
     });
   };
 
+  // The studio's own address as one line, for the map + title. Empty when unset.
+  const mapQuery = [SITE.address.street, SITE.address.postalCode, SITE.address.city, SITE.address.country]
+    .filter(Boolean)
+    .join(', ');
+
   return (
     <Layout>
+      {/* Title/description/keywords named Vienna 1050 and "New Age Photography"
+          outright — the studio's own name and city now drive them. */}
       <SEOHead
-        title={language === 'de' ? `Fotostudio Wien kontaktieren | ${SITE.name}` : 'Contact Photo Studio Vienna – Book Appointment & Consultation | New Age Photography'}
-        description={language === 'de' ? 'Kontaktieren Sie unser Fotostudio in Wien 1050. Persönliche Beratung, flexible Termine Fr–So. Telefon, WhatsApp oder E-Mail – wir freuen uns auf Ihre Anfrage!' : 'Contact our photo studio in Vienna. Personal consultation, flexible appointments Fri–Sun. Phone, WhatsApp or email – we look forward to your inquiry!'}
-        keywords={language === 'de' ? `Kontakt Fotograf Wien, Fotostudio Wien Termin, Fotoshooting buchen Wien, ${SITE.name} Kontakt` : 'Contact Photographer Vienna, Photo Studio Vienna Booking, New Age Photography Contact'}
+        title={language === 'de' ? `Kontakt | ${SITE.name}` : `Contact | ${SITE.name}`}
+        description={
+          language === 'de'
+            ? `Kontaktieren Sie ${SITE.name}${SITE.address.city ? ` in ${SITE.address.city}` : ''}. Persönliche Beratung und flexible Termine – wir freuen uns auf Ihre Anfrage!`
+            : `Get in touch with ${SITE.name}${SITE.address.city ? ` in ${SITE.address.city}` : ''}. Personal consultation and flexible appointments — we look forward to hearing from you!`
+        }
         canonical="/kontakt/"
       />
       
@@ -66,13 +76,19 @@ const KontaktPage: React.FC = () => {
             url: `${SITE.url}/`,
             telephone: SITE.phone,
             email: SITE.email,
-            address: {
-              '@type': 'PostalAddress',
-              streetAddress: 'Wehrgasse 11A/2+5',
-              addressLocality: 'Wien',
-              postalCode: '1050',
-              addressCountry: 'AT'
-            }
+            // The studio's own address, omitted when it hasn't set one — this
+            // previously told Google every instance was at Wehrgasse 11A, 1050 Wien.
+            ...(SITE.address.street || SITE.address.city || SITE.address.postalCode || SITE.address.country
+              ? {
+                  address: {
+                    '@type': 'PostalAddress',
+                    ...(SITE.address.street ? { streetAddress: SITE.address.street } : {}),
+                    ...(SITE.address.city ? { addressLocality: SITE.address.city } : {}),
+                    ...(SITE.address.postalCode ? { postalCode: SITE.address.postalCode } : {}),
+                    ...(SITE.address.country ? { addressCountry: SITE.address.country } : {}),
+                  },
+                }
+              : {}),
           })}
         </script>
       </Helmet>
@@ -149,22 +165,27 @@ const KontaktPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Google Maps Embed */}
-            <div className="mt-8">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">{t('contact.mapTitle')}</h3>
-              <div className="rounded-lg overflow-hidden shadow-sm border">
-                <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2659.8!2d16.3608!3d48.1865!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x476d0774b3d4e1ab%3A0x123456789abcdef0!2sWehrgasse%2011A%2C%201050%20Wien%2C%20Austria!5e0!3m2!1sen!2sat!4v1625075400000!5m2!1sen!2sat"
-                  width="100%"
-                  height="300"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title={`${SITE.name} Studio Location - Wehrgasse 11A/2+5, 1050 Wien`}
-                />
+            {/* Map of the studio's OWN address. The embed URL was a fixed pin on
+                Wehrgasse 11A, 1050 Wien, so every studio's contact page showed a map
+                of a Vienna street they have nothing to do with. Built from the
+                configured address via a query search, and hidden when there is none. */}
+            {mapQuery && (
+              <div className="mt-8">
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">{t('contact.mapTitle')}</h3>
+                <div className="rounded-lg overflow-hidden shadow-sm border">
+                  <iframe
+                    src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`}
+                    width="100%"
+                    height="300"
+                    style={{ border: 0 }}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    title={`${SITE.name} — ${mapQuery}`}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Contact Form */}

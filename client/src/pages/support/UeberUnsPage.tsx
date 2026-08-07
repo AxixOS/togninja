@@ -187,50 +187,28 @@ const UeberUnsPage: React.FC = () => {
   return (
     <Layout>
       <SEOHead
-        title={`Über uns | Fotostudio Wien seit 2012 – ${SITE.name}`}
-        description={`Lerne ${SITE.name} kennen – dein Fotostudio in Wien seit 2012 für Familienfotografie, Babybauch, Neugeborene und Business Portraits. Persönlich, modern und authentisch.`}
-        keywords={`Fotostudio Wien, ${SITE.name} Wien, Familienfotografie Wien, Babybauch Wien, Neugeborene Wien, Business Portrait Wien`}
+        title={de ? `Über uns – ${SITE.name}` : `About us – ${SITE.name}`}
+        description={
+          de
+            ? `Lerne ${SITE.name} kennen${SITE.address.city ? ` – dein Fotostudio in ${SITE.address.city}` : ''}. Persönlich, modern und authentisch.`
+            : `Meet ${SITE.name}${SITE.address.city ? ` – your photo studio in ${SITE.address.city}` : ''}. Personal, modern and authentic.`
+        }
         canonical="/ueber-uns/"
       />
 
-      {/* Schema.org LocalBusiness structured data */}
+      {/* AboutPage schema pointing at the LocalBusiness the homepage already declares.
+          This page previously emitted a SECOND LocalBusiness node hardcoded to Vienna,
+          naming a specific real person as the founder of the business — published as
+          every instance's own founder, alongside two unrelated sameAs links. There is
+          no per-studio source for founder details, so the safe thing is to assert
+          nothing about them here. */}
       <script type="application/ld+json">
         {JSON.stringify({
           "@context": "https://schema.org",
-          "@type": "LocalBusiness",
-          "name": SITE.name,
-          "description": "Fotostudio in Wien seit 2012 für Familienfotografie, Babybauch, Neugeborene und Business Portraits.",
-          "address": {
-            "@type": "PostalAddress",
-            "addressLocality": "Wien",
-            "addressCountry": "AT"
-          },
-          "areaServed": "Vienna, Austria",
-          "url": SITE.url,
-          "sameAs": [
-            "https://www.capetowncarnival.com/",
-            "https://eurovision.tv/event/vienna-2015"
-          ],
-          "founder": {
-            "@type": "Person",
-            "name": "Simon Parrott",
-            "jobTitle": "Photographer",
-            "sameAs": [
-              SIMON_LINKEDIN,
-              SIMON_INSTAGRAM
-            ],
-            ...(SIMON_PHOTO ? { "image": SIMON_PHOTO } : {})
-          },
-          "knowsAbout": [
-            "family photography",
-            "newborn photography",
-            "maternity photography",
-            "portrait photography",
-            "wedding photography",
-            "corporate headshots",
-            "product photography",
-            "real estate photography"
-          ]
+          "@type": "AboutPage",
+          "name": de ? `Über uns – ${SITE.name}` : `About us – ${SITE.name}`,
+          "url": `${SITE.url}/ueber-uns/`,
+          "mainEntity": { "@id": `${SITE.url}/#business` }
         })}
       </script>
       

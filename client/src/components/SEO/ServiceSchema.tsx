@@ -41,39 +41,26 @@ export function ServiceSchema({
       telephone: SITE.phone,
       email: SITE.email,
       priceRange: priceRange,
-      address: {
-        '@type': 'PostalAddress',
-        streetAddress: 'Wehrgasse 11A/2+5',
-        addressLocality: 'Wien',
-        postalCode: '1050',
-        addressCountry: 'AT',
-        addressRegion: 'Wien'
-      },
-      geo: {
-        '@type': 'GeoCoordinates',
-        latitude: 48.191130,
-        longitude: 16.356010
-      },
-      openingHoursSpecification: [
-        {
-          '@type': 'OpeningHoursSpecification',
-          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-          opens: '09:00',
-          closes: '18:00'
-        },
-        {
-          '@type': 'OpeningHoursSpecification',
-          dayOfWeek: 'Saturday',
-          opens: '10:00',
-          closes: '16:00'
-        }
-      ]
+      // Address comes from the studio's own identity, and is omitted entirely when
+      // unset. This was hardcoded to Wehrgasse 11A, 1050 Wien with Vienna coordinates
+      // and fixed opening hours — asserted by every instance, on every service page.
+      // Geo and opening hours are dropped outright: there is no per-studio source for
+      // either, and guessing them is the bug.
+      ...(SITE.address.street || SITE.address.city || SITE.address.postalCode || SITE.address.country
+        ? {
+            address: {
+              '@type': 'PostalAddress',
+              ...(SITE.address.street ? { streetAddress: SITE.address.street } : {}),
+              ...(SITE.address.city ? { addressLocality: SITE.address.city } : {}),
+              ...(SITE.address.postalCode ? { postalCode: SITE.address.postalCode } : {}),
+              ...(SITE.address.country ? { addressCountry: SITE.address.country } : {}),
+            },
+          }
+        : {}),
     },
-    areaServed: {
-      '@type': 'City',
-      name: 'Wien',
-      '@id': 'https://www.wikidata.org/wiki/Q1741'
-    },
+    ...(SITE.address.city
+      ? { areaServed: { '@type': 'City', name: SITE.address.city } }
+      : {}),
     hasOfferCatalog: {
       '@type': 'OfferCatalog',
       name: `${serviceName} Pakete`,

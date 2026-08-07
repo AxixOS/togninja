@@ -111,7 +111,6 @@ import CartPage from './pages/CartPage';
 import FamilyGutscheinPage from './pages/gutschein/FamilyGutscheinPage';
 import NewbornGutscheinPage from './pages/gutschein/NewbornGutscheinPage';
 import MaternityGutscheinPage from './pages/gutschein/MaternityGutscheinPage';
-import TestHeroPage from './pages/TestHeroPage';
 import UeberUnsPage from './pages/support/UeberUnsPage';
 import PreisePage from './pages/support/PreisePage';
 import FAQPage from './pages/support/FAQPage';
@@ -256,9 +255,6 @@ function App() {
 
                 <Route path="/portfolio" element={<PortfolioPage />} />
                 <Route path="/fotoshootings" element={<FotoshootingsPage />} />
-                
-                {/* SEO Cornerstone Pages */}
-                <Route path="/test-hero" element={<TestHeroPage />} />
                 
                 {/* SEO Pillar Pages */}
                 

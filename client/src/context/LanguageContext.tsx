@@ -407,14 +407,20 @@ const translations = {
     
     // HomePage
     'home.heroTitle': 'Family & Newborn Photographer in Vienna You Can Trust',
-    'home.heroSubtitle': 'Authentic family photography in Vienna since 2012.',
-    'home.heroRotator1': 'Authentic family photography in Vienna since 2012.',
+    'home.heroSubtitle': 'Authentic photography of the people you love.',
+    'home.heroRotator1': 'Authentic photography of the people you love.',
     'home.heroRotator2': 'Relaxed sessions — even camera-shy little ones shine.',
-    'home.heroRotator3': 'Studio or outdoor, right across Vienna.',
-    'home.heroRotator4': 'Rated 4.8★ by 300+ Google reviews.',
-    'home.heroDescription': 'Warm, authentic portraits of the people you love — from photographers with 25+ years’ experience, in Vienna since 2012.',
+    'home.heroRotator3': 'Studio or outdoor, whichever suits you.',
+    'home.heroRotator4': 'Warm, natural portraits you will treasure.',
+    'home.heroDescription': 'Warm, authentic portraits of the people you love, in a relaxed and unhurried session.',
     'home.bookShootingButton': 'Book Shooting Now',
     'home.description': 'As a family photographer in Vienna and specialized newborn photographer in Vienna, we create timeless memories in a relaxed studio atmosphere. Even if you are camera-shy or have unpredictable children, we create family portraits that you will treasure forever.',
+    // Milestone counters. Values are EMPTY by default so the homepage band stays
+    // hidden until a studio enters its own figures in Website Studio — never
+    // another studio's numbers. Labels stay, so the fields read sensibly there.
+    'home.statFamiliesValue': '',
+    'home.statPortraitsValue': '',
+    'home.statYearsValue': '',
     'home.happyFamilies': 'Happy Families',
     'home.portraitsCaptured': 'Portraits Captured',
     'home.yearsExperience': 'Years of Experience',
@@ -597,7 +603,9 @@ const translations = {
     'contact.openingHours': 'Fri-Sun: 09:00 - 17:00',
     'contact.officeAddress': 'Office and Correspondence Address',
     'contact.addressNote': 'Entrance corner Schönbrunnerstraße',
-    'contact.studioAddress': 'Studio: Wehrgasse 11A/2+5, 1050 Wien',
+    // Empty by default — the studio's address comes from its own setup, and this
+    // key stays editable in Website Studio. It used to hardcode a Vienna street.
+    'contact.studioAddress': '',
     'contact.transport': 'Transportation',
     'contact.trainInfo': '5 minutes from Kettenbrückengasse',
     'contact.streetParking': 'Street parking available',
@@ -1371,14 +1379,18 @@ const translations = {
     
     // HomePage
     'home.heroTitle': 'Familien- & Neugeborenenfotograf in Wien, dem Sie vertrauen können',
-    'home.heroSubtitle': 'Authentische Familienfotografie in Wien seit 2012.',
-    'home.heroRotator1': 'Authentische Familienfotografie in Wien seit 2012.',
+    'home.heroSubtitle': 'Authentische Fotografie der Menschen, die Sie lieben.',
+    'home.heroRotator1': 'Authentische Fotografie der Menschen, die Sie lieben.',
     'home.heroRotator2': 'Entspannte Shootings – auch schüchterne Kleine strahlen.',
-    'home.heroRotator3': 'Im Studio oder outdoor, in ganz Wien.',
-    'home.heroRotator4': '4,8★ aus über 300 Google-Bewertungen.',
-    'home.heroDescription': 'Warme, authentische Porträts der Menschen, die Sie lieben – von Fotografen mit über 25 Jahren Erfahrung, in Wien seit 2012.',
+    'home.heroRotator3': 'Im Studio oder outdoor – ganz wie Sie mögen.',
+    'home.heroRotator4': 'Warme, natürliche Porträts, die bleiben.',
+    'home.heroDescription': 'Warme, authentische Porträts der Menschen, die Sie lieben – in einem entspannten Shooting ohne Zeitdruck.',
     'home.bookShootingButton': 'Jetzt Shooting Buchen',
     'home.description': 'Als Familienfotograf in Wien und spezialisierter Neugeborenenfotograf in Wien schaffen wir zeitlose Erinnerungen in entspannter Studioatmosphäre. Selbst wenn Sie kamerascheu sind oder unberechenbare Kinder haben, erstellen wir Familienporträts, die Sie für immer schätzen werden.',
+    // Werte bleiben leer, bis das Studio seine eigenen Zahlen einträgt (siehe EN).
+    'home.statFamiliesValue': '',
+    'home.statPortraitsValue': '',
+    'home.statYearsValue': '',
     'home.happyFamilies': 'Glückliche Familien',
     'home.portraitsCaptured': 'Porträts eingefangen',
     'home.yearsExperience': 'Jahre Berufserfahrung',
@@ -1554,7 +1566,9 @@ const translations = {
     'contact.openingHours': 'Fr-So: 09:00 - 17:00',
     'contact.officeAddress': '',
     'contact.addressNote': 'Eingang Ecke Schönbrunnerstraße',
-    'contact.studioAddress': 'Studio: Wehrgasse 11A/2+5, 1050 Wien',
+    // Empty by default — the studio's address comes from its own setup, and this
+    // key stays editable in Website Studio. It used to hardcode a Vienna street.
+    'contact.studioAddress': '',
     'contact.transport': 'Anfahrt',
     'contact.trainInfo': '5 Minuten von Kettenbrückengasse',
     'contact.streetParking': 'Straßenparkplätze verfügbar',
@@ -1900,7 +1914,7 @@ const translations = {
   'faq.clarity2.link': '/preise/',
   
   'faq.clarity3.q': 'Warum uns wählen?',
-  'faq.clarity3.micro': '25+ Jahre, 27.000+ Familien',
+  'faq.clarity3.micro': 'Erfahren, entspannt, persönlich',
   'faq.clarity3.full': 'Über ein Jahrzehnt Erfahrung mit Familien in Wien. Entspannter, spielerischer Ansatz. Natürlicher Bearbeitungsstil. Wir sind spezialisiert darauf, kamerascheue Kinder (und Erwachsene!) wohlzufühlen.',
   'faq.clarity3.cta': 'Über uns',
   'faq.clarity3.link': '/ueber-uns/',
