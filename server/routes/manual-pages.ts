@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../db';
-import { manualPageContent } from '../../shared/schema';
+import { manualPageContent, studioConfigs } from '../../shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../auth';
 import { getSiteIdentity } from '../lib/siteIdentity';
@@ -8,10 +8,32 @@ import { config as appConfig } from '../config-reader';
 
 const router = express.Router();
 
-// Helper to get current studio ID (for now use demo studio, later from user session)
-const getStudioId = (req: any): string => {
-  return req.user?.studioId || (process.env.STUDIO_ID || '550e8400-e29b-41d4-a716-446655440000');
-};
+// The studio this deployment belongs to. Single-tenant per deployment (one DB = one
+// studio), so the truth is simply the studio_configs singleton row — NOT req.user, and
+// NOT the env/canonical fallback on its own. Both mattered:
+//   • Writes ran as req.user?.studioId while the PUBLIC read (no session) used the env
+//     fallback, so published edits were saved under one id and read back under another
+//     — the studio's changes never reached the live site.
+//   • manual_page_content.studio_id carries an FK to studio_configs on any DB created by
+//     drizzle push, so writing a canonical id that has no studio_configs row failed the
+//     FK outright — the "Publish failed" toast, with the real cause only in the logs.
+// Resolved once and cached; the row id cannot change under a running process.
+let cachedStudioId: string | null = null;
+const FALLBACK_STUDIO_ID = process.env.STUDIO_ID || '550e8400-e29b-41d4-a716-446655440000';
+
+async function resolveStudioId(): Promise<string> {
+  if (cachedStudioId) return cachedStudioId;
+  try {
+    const [row] = await db.select({ id: studioConfigs.id }).from(studioConfigs).limit(1);
+    if (row?.id) {
+      cachedStudioId = row.id;
+      return cachedStudioId;
+    }
+  } catch (e: any) {
+    console.warn('[manual-pages] studio_configs lookup failed, using fallback id:', e?.message || e);
+  }
+  return FALLBACK_STUDIO_ID;
+}
 
 // Build the studio's brand + locale context for AI copy from the TENANT'S OWN identity
 // (env/config via siteIdentity) — never a hardcoded studio. Neutral when unconfigured, so
@@ -40,7 +62,7 @@ async function buildStudioContext(reqLanguage: string) {
 // GET /api/manual-pages - List all manual page content records for this studio
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const studioId = getStudioId(req);
+    const studioId = await resolveStudioId();
     const { language = 'de' } = req.query;
 
     const records = await db
@@ -67,7 +89,7 @@ router.get('/', requireAuth, async (req, res) => {
 // makes Manual Website Update edits actually reach the live pages.
 router.get('/published/all', async (req, res) => {
   try {
-    const studioId = getStudioId(req);
+    const studioId = await resolveStudioId();
     const { language = 'de' } = req.query;
 
     const records = await db
@@ -105,7 +127,7 @@ router.get('/:pageId', async (req, res) => {
     const { language = 'de', studioId: queryStudioId } = req.query;
     
     // Allow public access for frontend rendering
-    const studioId = queryStudioId || getStudioId(req);
+    const studioId = queryStudioId || await resolveStudioId();
 
     const [record] = await db
       .select()
@@ -231,7 +253,7 @@ router.post('/enhance-field', requireAuth, async (req, res) => {
 router.post('/:pageId', requireAuth, async (req, res) => {
   try {
     const { pageId } = req.params;
-    const studioId = getStudioId(req);
+    const studioId = await resolveStudioId();
     const { language = 'de', draftContent, action = 'save_draft' } = req.body;
 
     if (!draftContent || typeof draftContent !== 'object') {
@@ -293,9 +315,15 @@ router.post('/:pageId', requireAuth, async (req, res) => {
     }
 
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    // Return the real reason — a bare "Failed to save" left the studio staring at
+    // "Publish failed. Please try again." with no way to know it was, say, an FK
+    // violation on studio_id, and nothing to report but a screenshot.
     console.error('Failed to save page content:', error);
-    res.status(500).json({ error: 'Failed to save page content' });
+    res.status(500).json({
+      error: 'Failed to save page content',
+      detail: String(error?.message || error).slice(0, 300)
+    });
   }
 });
 
@@ -303,7 +331,7 @@ router.post('/:pageId', requireAuth, async (req, res) => {
 router.post('/:pageId/publish', requireAuth, async (req, res) => {
   try {
     const { pageId } = req.params;
-    const studioId = getStudioId(req);
+    const studioId = await resolveStudioId();
     const { language = 'de' } = req.body;
 
     const [existing] = await db
@@ -344,7 +372,7 @@ router.post('/:pageId/publish', requireAuth, async (req, res) => {
 router.delete('/:pageId', requireAuth, async (req, res) => {
   try {
     const { pageId } = req.params;
-    const studioId = getStudioId(req);
+    const studioId = await resolveStudioId();
     const { language = 'de' } = req.query;
 
     await db

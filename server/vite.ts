@@ -788,6 +788,33 @@ export function serveStatic(app: Express) {
       }
     }
 
+    // Homepage when the studio has set a landing page AS its homepage: the body
+    // baked into dist/index.html is the BUILT-IN homepage, i.e. the wrong page
+    // entirely. It rendered first and was then replaced by React with the real
+    // homepage — a visible flash of another studio's content on every load, and
+    // the wrong content for crawlers. lookupRouteMeta("/") already resolves the
+    // custom homepage; it was simply never consulted for "/" (only /blog|/gutschein|/lp
+    // reached it), so the branch was dead. Same 1.5s race + total isolation as
+    // that branch: a slow or broken lookup must never delay or break "/".
+    if (requestPath === "/") {
+      try {
+        const homeMeta = await Promise.race([
+          lookupRouteMeta("/"),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500).unref?.()),
+        ]);
+        // Only divert when there IS a custom homepage body. With none, fall through
+        // to the prerendered built-in homepage exactly as before.
+        if (homeMeta?.bodyHtml) {
+          let html = injectRouteMeta(emptiedShell(), homeMeta);
+          html = injectBodyIntoRoot(html, homeMeta.bodyHtml);
+          res.setHeader("X-Route-Meta", "home-custom");
+          return res.status(200).type("html").send(html);
+        }
+      } catch (err) {
+        console.warn("[route-meta] homepage branch failed:", (err as any)?.message);
+      }
+    }
+
     // For all other requests (frontend routes), serve the SPA with identity
     // injected. dist/index.html is the PRERENDERED HOMEPAGE, so every
     // non-homepage route served from it flashed homepage content until React

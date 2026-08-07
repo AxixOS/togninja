@@ -1236,6 +1236,18 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
     window.setTimeout(() => setActionNote(cur => (cur && cur.text === text ? null : cur)), 6000);
   };
 
+  // Turn a failed response into something the studio can act on (or quote to support),
+  // rather than a generic "please try again" that hides the actual server error.
+  const describeFailure = async (res: Response): Promise<string> => {
+    if (res.status === 401 || res.status === 403) return 'your session expired — sign in again';
+    try {
+      const body = await res.json();
+      if (body?.detail) return String(body.detail);
+      if (body?.error) return String(body.error);
+    } catch { /* non-JSON error body */ }
+    return `server error ${res.status}`;
+  };
+
   // Save draft mutation
   const saveDraftMutation = useMutation({
     mutationFn: async () => {
@@ -1249,7 +1261,7 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
           action: 'save_draft'
         })
       });
-      if (!res.ok) throw new Error('Failed to save draft');
+      if (!res.ok) throw new Error(await describeFailure(res));
       return res.json();
     },
     onSuccess: () => {
@@ -1257,7 +1269,7 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
       setHasUnsavedChanges(false);
       flashNote('success', 'Draft saved. It is not live yet — click Publish to put it on the website.');
     },
-    onError: () => flashNote('error', 'Could not save the draft. Please try again.'),
+    onError: (err: any) => flashNote('error', `Could not save the draft (${err?.message || 'unknown error'}).`),
   });
 
   // Publish mutation
@@ -1273,7 +1285,7 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
           action: 'publish'
         })
       });
-      if (!res.ok) throw new Error('Failed to publish');
+      if (!res.ok) throw new Error(await describeFailure(res));
       return res.json();
     },
     onSuccess: () => {
@@ -1281,7 +1293,7 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
       setHasUnsavedChanges(false);
       flashNote('success', '✓ Published — your changes are now live on the website.');
     },
-    onError: () => flashNote('error', 'Publish failed — nothing was changed on the live site. Please try again.'),
+    onError: (err: any) => flashNote('error', `Publish failed — nothing was changed on the live site (${err?.message || 'unknown error'}).`),
   });
 
   // Reset mutation
