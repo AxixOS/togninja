@@ -7229,6 +7229,10 @@ Bitte versuchen Sie es später noch einmal.`;
       studioConfig.vatNumber = dbConfig?.vatNumber || '';
       // The AI-generated homepage: when set, "/" renders this landing page slug.
       studioConfig.homepageLandingSlug = dbConfig?.homepageLandingSlug || null;
+      // Which public pages this studio runs. The client gates its routes on this, so
+      // a disabled page 301s to its live equivalent rather than staying quietly
+      // crawlable and competing with the page the studio actually uses.
+      studioConfig.enabledPages = (dbConfig as any)?.enabledPages || null;
       // The studio's own PricingEmbed calculator (homepage price calculator).
       studioConfig.pricingEmbedUrl = dbConfig?.pricingEmbedUrl || null;
       // Public-site theme preset (tokens) — the client applies it to landing pages.
@@ -19554,6 +19558,49 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
     } catch (error: any) {
       console.error('Error setting homepage:', error?.message);
       res.status(500).json({ error: 'Failed to set homepage' });
+    }
+  });
+
+  // Which public pages this studio runs. Disabled pages are not deleted — they stay
+  // as templates, so a studio that later adds a service switches the page on and it
+  // arrives already carrying its onboarding copy.
+  app.get("/api/admin/site-pages", authenticateUser, async (_req: Request, res: Response) => {
+    try {
+      const { SITE_PAGES, defaultEnabledPages, LOCALE_PAIRS } = await import('../shared/sitePages');
+      const rows = await runSql(`SELECT enabled_pages, site_language FROM studio_configs LIMIT 1`).catch(() => []);
+      const lang = rows[0]?.site_language || process.env.SITE_LANG || 'en';
+      const stored = rows[0]?.enabled_pages || null;
+      res.json({
+        pages: SITE_PAGES,
+        localePairs: LOCALE_PAIRS,
+        enabled: stored || defaultEnabledPages(lang),
+        usingDefaults: !stored,
+      });
+    } catch (error: any) {
+      console.error('Error reading site pages:', error?.message);
+      res.status(500).json({ error: 'Failed to read site pages' });
+    }
+  });
+
+  app.put("/api/admin/site-pages", authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const { LOCALE_PAIRS } = await import('../shared/sitePages');
+      const incoming = (req.body?.enabled || {}) as Record<string, boolean>;
+      const enabled: Record<string, boolean> = { ...incoming };
+      // Enabling one half of a locale pair disables the other, so a studio can never
+      // publish the same page twice in two languages and split its own ranking.
+      for (const [a, b] of LOCALE_PAIRS) {
+        if (enabled[a] && enabled[b]) enabled[b] = false;
+      }
+      await runSql(
+        `UPDATE studio_configs SET enabled_pages = $1::jsonb, updated_at = NOW()
+          WHERE id = (SELECT id FROM studio_configs LIMIT 1)`,
+        [JSON.stringify(enabled)]
+      );
+      res.json({ success: true, enabled });
+    } catch (error: any) {
+      console.error('Error saving site pages:', error?.message);
+      res.status(500).json({ error: 'Failed to save site pages' });
     }
   });
 

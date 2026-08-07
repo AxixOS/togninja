@@ -97,6 +97,9 @@ export const studioConfigs = pgTable("studio_configs", {
   homepageGenState: jsonb("homepage_gen_state"),
   homepageDraftLandingId: uuid("homepage_draft_landing_id"),
   homepageLandingSlug: text("homepage_landing_slug"),
+  // Which public pages this studio runs — { [pageId]: boolean }. NULL means "use the
+  // language defaults"; disabled pages stay in the codebase as reusable templates.
+  enabledPages: jsonb("enabled_pages").$type<Record<string, boolean>>(),
   // Studio's own PricingEmbed.com calculator embed URL (homepage price calculator).
   pricingEmbedUrl: text("pricing_embed_url"),
 

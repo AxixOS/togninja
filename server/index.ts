@@ -606,6 +606,9 @@ app.use((req, res, next) => {
         // plus its images — irreversible, with a "Trash" filter in the admin that had
         // nothing to show because nothing was ever kept.
         await db.execute(sql`ALTER TABLE galleries ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+        // Which public pages this studio runs. NULL = use the language defaults in
+        // shared/sitePages.ts. Disabled pages stay in the codebase as templates.
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS enabled_pages JSONB`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_api_key TEXT`);
         // Authority Map — per-studio topical-cluster + internal-link structure (falls back
         // to the New Age seed in shared/authorityMap.ts when null).

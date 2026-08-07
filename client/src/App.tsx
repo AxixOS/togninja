@@ -199,6 +199,37 @@ function LanguageRouteSync() {
   return null;
 }
 
+/**
+ * Gate for pages a studio has switched off. A disabled page 301s to its live
+ * equivalent rather than rendering — an unlinked page that still returns content is
+ * still crawlable, and competes with the page the studio actually uses. The page
+ * itself stays in the codebase as a template it can switch back on.
+ */
+function PageGate({ pageId, children }: { pageId: string; children: React.ReactNode }) {
+  const [enabled, setEnabled] = useState<boolean | undefined>(undefined);
+  const [redirectTo, setRedirectTo] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/studio-config')
+      .then(r => r.json())
+      .then(async (d) => {
+        if (cancelled) return;
+        const { isPageEnabled, SITE_PAGES } = await import('../../shared/sitePages');
+        const def = SITE_PAGES.find(p => p.id === pageId);
+        const ok = isPageEnabled(pageId, d?.enabledPages, d?.lang || d?.siteLanguage || 'en');
+        setRedirectTo(def?.redirectTo || '/');
+        setEnabled(ok);
+      })
+      .catch(() => { if (!cancelled) setEnabled(true); }); // never hide a page on a config error
+    return () => { cancelled = true; };
+  }, [pageId]);
+
+  if (enabled === undefined) return null;
+  if (!enabled && redirectTo) return <Navigate to={redirectTo} replace />;
+  return <>{children}</>;
+}
+
 // Root route: render the studio's AI-generated homepage (a published landing page)
 // when one is set as the homepage, otherwise the built-in HomePage. Defaults to
 // HomePage while the config loads so there's no blank flash. SSR meta for "/" is
@@ -275,7 +306,7 @@ function App() {
                 {/* SEO Pillar Pages */}
                 
                 {/* Support Pages */}
-                <Route path="/ueber-uns/" element={<UeberUnsPage />} />
+                <Route path="/ueber-uns/" element={<PageGate pageId="ueber-uns-de"><UeberUnsPage /></PageGate>} />
                 <Route path="/preise/" element={<PreisePage />} />
                 {/* Duplicate pricing page consolidated on /preise/ (server 301s
                     direct hits; this covers client-side navigation too). */}
@@ -288,7 +319,7 @@ function App() {
                 <Route path="/model-release/" element={<ModelReleasePage />} />
                 {/* SEO pillar hubs (July 2026 audit) */}
                 
-                <Route path="/gutschein" element={<GutscheinPage />} />
+                <Route path="/gutschein" element={<PageGate pageId="gutschein-de"><GutscheinPage /></PageGate>} />
                 <Route path="/gutschein/family" element={<FamilyGutscheinPage />} />
                 <Route path="/gutschein/newborn" element={<NewbornGutscheinPage />} />
                 <Route path="/gutschein/maternity" element={<MaternityGutscheinPage />} />
@@ -297,8 +328,8 @@ function App() {
                 <Route path="/case-studies" element={<CaseStudiesPage />} />
                 <Route path="/blog/:slug" element={<BlogPostPage />} />
                 <Route path="/lp/:slug" element={<PublicLandingPage />} />
-                <Route path="/warteliste" element={<WartelistePage />} />
-                <Route path="/kontakt" element={<KontaktPage />} />
+                <Route path="/warteliste" element={<PageGate pageId="warteliste-de"><WartelistePage /></PageGate>} />
+                <Route path="/kontakt" element={<PageGate pageId="kontakt-de"><KontaktPage /></PageGate>} />
                 <Route path="/vouchers" element={<VouchersPage />} />
                 <Route path="/voucher/:slug" element={<VoucherDetailPage />} />
                 <Route path="/gutschein/:slug" element={<VoucherDetailPage />} />
@@ -309,7 +340,6 @@ function App() {
                 <Route path="/checkout/voucher/:id" element={<CheckoutPage />} />
                 <Route path="/checkout/success" element={<OrderCompletePage />} />
                 <Route path="/checkout/mock-success" element={<MockSuccessPage />} />
-                <Route path="/demo-success" element={<MockSuccessPage />} />
                 <Route path="/order-complete/:id" element={<OrderCompletePage />} />                <Route path="/account" element={<AccountPage />} />
                 <Route path="/account/profile" element={<AccountProfilePage />} />
                 <Route path="/my-archive" element={<MyArchivePage />} />
@@ -318,7 +348,7 @@ function App() {
                 <Route path="/storage-demo" element={<StorageDemoPage />} />
                 <Route path="/cart" element={<CartPage />} />
                 <Route path="/galleries" element={<PublicGalleriesPage />} />
-                <Route path="/galerie" element={<PublicGalleriesPage />} />
+                <Route path="/galerie" element={<Navigate to="/galleries" replace />} />
                 <Route path="/gallery/:slug" element={<GalleryPage />} />
                 <Route path="/gallery" element={<ProtectedRoute><GalleryPage /></ProtectedRoute>} />
                 {/* Dedicated calculator page */}
@@ -330,7 +360,6 @@ function App() {
                 <Route path="/invoice/:invoiceId" element={<PublicInvoicePage />} />
                 <Route path="/inv/:invoiceId" element={<PublicInvoicePage />} />
                 <Route path="/download-data" element={<DownloadDataPage />} />
-                <Route path="/image-test" element={<ImageTestPage />} />
 
                 {/* Admin routes */}
                 <Route path="/admin/login" element={<NeonAdminLoginPage />} />
@@ -889,7 +918,6 @@ function App() {
                     </NeonProtectedRoute>
                   }
                 />
-                <Route path="/gallery-shop-test" element={<GalleryShopTest />} />
               </Routes>
               </Suspense>
               </ErrorBoundary>
