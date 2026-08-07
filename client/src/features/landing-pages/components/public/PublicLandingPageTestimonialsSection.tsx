@@ -7,7 +7,8 @@ import { useLanguage } from '../../../../context/LanguageContext';
 
 // Fallback review page if none is configured in Settings → Manual Website
 // Update → Site Settings → Reviews (the `reviews.googleUrl` value).
-const DEFAULT_REVIEWS_URL = 'https://maps.app.goo.gl/fckY6bgN4dACo6H29';
+// Was another studio's Google reviews link, shown on every landing page.
+const DEFAULT_REVIEWS_URL = '';
 
 interface PublicLandingPageTestimonialsSectionProps {
   data: Array<{

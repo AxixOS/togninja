@@ -554,7 +554,7 @@ const translations = {
     'voucher.openingTimes': 'Fri-Sun: 09:00 - 17:00',
     
     // HomePage
-    'home.heroTitle': 'Family & Newborn Photographer You Can Trust',
+    'home.heroTitle': 'Professional Photography You Can Trust',
     'home.heroHeading': 'Professional Photography – Studio & Outdoor',
     'home.heroSubtitle': 'Authentic photography of the people you love.',
     'home.heroRotator1': 'Authentic photography of the people you love.',
@@ -638,7 +638,7 @@ const translations = {
     'home.voucherInstantAvailableDesc': 'Even last-minute orders',
     'home.voucherPerfectGift': 'Perfect Gift',
     'home.voucherPerfectGiftDesc': 'Suitable for any occasion',
-    'home.portraitStudioTitle': 'Premier Portrait Studio | Family, Newborn, Pregnancy & Corporate Photography',
+    'home.portraitStudioTitle': 'Professional Photography Studio',
     'home.pregnancyShootingTitle': 'Pregnancy Shooting',
   'home.pregnancyShootingDescription': 'Celebrate the magic of new beginnings. Our pregnancy shoot captures the glow, love, and anticipation of this once-in-a-lifetime chapter — timeless portraits you’ll treasure forever.',
     'home.familyShootingTitle': 'Family Shooting',
@@ -678,8 +678,8 @@ const translations = {
     'home.faqQuestion6': 'How do you ensure we feel comfortable in front of the camera?',
     
     // Photoshoots Page
-    'photoshoots.title': 'Photoshoots - Family & Newborn Photography',
-    'photoshoots.subtitle': 'Professional photoshoots: Family portraits, pregnancy photos, newborn pictures & business headshots',
+    'photoshoots.title': 'Photoshoots',
+    'photoshoots.subtitle': 'Professional photoshoots tailored to you',
     'photoshoots.familyTitle': 'Family Portraits',
     'photoshoots.familyDescription': 'Our family sessions are all about capturing the unique bond you share. From candid moments to posed portraits, we create images you\'ll treasure forever.',
     'photoshoots.pregnancyTitle': 'Pregnancy Photography',
@@ -935,20 +935,20 @@ const translations = {
 
   // Customer Reviews (editable in Manual Website Update → Customer Reviews)
   'reviews.sectionTitle': 'What Our Clients Say',
-  'reviews.ratingSummary': '4.9 on Google (253 Reviews)',
-  'reviews.googleUrl': 'https://maps.app.goo.gl/L5EFKkMSK7FaiRVa8',
-  'reviews.r1.author': 'Sabine Schuster',
-  'reviews.r1.text': 'Matt is a wonderful photographer who knows how to capture people\'s personalities. We felt very comfortable and the photos turned out absolutely great. Highly recommended!',
-  'reviews.r2.author': 'Katharina Müller',
-  'reviews.r2.text': 'We had a family photoshoot with Matt and are thrilled! The atmosphere was super relaxed and the photos turned out simply beautiful. We especially loved how patient he was with our children. Absolute recommendation!',
-  'reviews.r3.author': 'Thomas Wagner',
-  'reviews.r3.text': 'Professional business photoshoot with outstanding results. Matt made me feel comfortable in front of the camera, even though I usually don\'t like being photographed. I now use the photos for my website and LinkedIn – top quality!',
-  'reviews.r4.author': 'Lisa Huber',
-  'reviews.r4.text': 'Our newborn photoshoot with Matt was a wonderful experience. He took so much time and was incredibly gentle with our little son. The photos turned out beautifully and will always remind us of this special time.',
-  'reviews.r5.author': 'Michael Bauer',
-  'reviews.r5.text': 'Matt photographed our wedding and we are more than satisfied! He captured all the important moments without being intrusive. The photos tell the story of our day perfectly. Thank you for these wonderful memories!',
-  'reviews.r6.author': 'Anna Steiner',
-  'reviews.r6.text': 'My maternity photoshoot with Matt was a great experience. He has a very pleasant manner and makes you feel comfortable right away. The photos turned out beautifully and capture exactly the emotions I was hoping for. Highly recommended!',
+  'reviews.ratingSummary': '',
+  'reviews.googleUrl': '',
+  'reviews.r1.author': '',
+  'reviews.r1.text': '',
+  'reviews.r2.author': '',
+  'reviews.r2.text': '',
+  'reviews.r3.author': '',
+  'reviews.r3.text': '',
+  'reviews.r4.author': '',
+  'reviews.r4.text': '',
+  'reviews.r5.author': '',
+  'reviews.r5.text': '',
+  'reviews.r6.author': '',
+  'reviews.r6.text': '',
 
   // Manual Page - Fotoshooting hero copy (shown & editable in Manual Website Update)
 
@@ -1699,7 +1699,7 @@ const translations = {
     'voucher.openingTimes': 'Fr-So: 09:00 - 17:00',
     
     // HomePage
-    'home.heroTitle': 'Familien- & Neugeborenenfotograf, dem Sie vertrauen können',
+    'home.heroTitle': 'Professionelle Fotografie, der Sie vertrauen können',
     'home.heroHeading': 'Professionelle Fotografie – Studio & Outdoor',
     'home.heroSubtitle': 'Authentische Fotografie der Menschen, die Sie lieben.',
     'home.heroRotator1': 'Authentische Fotografie der Menschen, die Sie lieben.',
@@ -1755,7 +1755,7 @@ const translations = {
     'home.weddingPhotographyDescription': 'Es gibt nichts Schöneres als die Magie eines Hochzeitstages. Unsere Hochzeitsfotografie fängt diese magischen Momente mit Liebe zum Detail und künstlerischem Flair ein.',
     'home.productPhotographyTitle': 'Produktfotografie',
     'home.productPhotographyDescription': 'Professionelle Produktfotografie für E-Commerce, Kataloge und Marketing. Saubere Produktbilder und Lifestyle-Shots, die verkaufen.',
-    'home.servicesTitle': 'Unsere Fotografie-Services',
+    'home.servicesTitle': 'Unsere Fotografie-Leistungen',
     'home.servicesSubtitle': 'Von Familien-Shootings bis Business-Portraits – wir bieten professionelle Fotografie für jeden Anlass',
     'home.viewAllServices': 'Alle Services ansehen',
     'home.learnMore': 'Mehr erfahren',
@@ -1774,7 +1774,7 @@ const translations = {
     'home.voucherInstantAvailableDesc': 'Auch last-minute bestellbar',
     'home.voucherPerfectGift': 'Perfektes Geschenk',
     'home.voucherPerfectGiftDesc': 'Für jeden Anlass geeignet',
-    'home.portraitStudioTitle': 'Erstklassiges Portraitstudio | Familien-, Neugeborenen-, Schwangerschafts- & Unternehmensfotografie',
+    'home.portraitStudioTitle': 'Professionelles Fotostudio',
     'home.pregnancyShootingTitle': 'Schwangerschafts-Shooting',
   'home.pregnancyShootingDescription': 'Feiere den Zauber eines neuen Anfangs. Unser Schwangerschafts-Shooting fängt das Strahlen, die Liebe und die Vorfreude dieses einmaligen Kapitels ein – zeitlose Bilder, die du für immer bewahren wirst.',
     'home.familyShootingTitle': 'Familien-Shooting',
@@ -1814,8 +1814,8 @@ const translations = {
     'home.faqQuestion6': 'Wie sorgt ihr dafür, dass wir uns vor der Kamera wohlfühlen?',
     
     // Photoshoots Page
-    'photoshoots.title': 'Fotoshootings - Familien & Neugeborenen Fotografie',
-    'photoshoots.subtitle': 'Professionelle Fotoshootings: Familienporträts, Schwangerschaftsfotos, Neugeborenenbilder & Business-Headshots',
+    'photoshoots.title': 'Fotoshootings',
+    'photoshoots.subtitle': 'Professionelle Fotoshootings, ganz auf Sie abgestimmt',
     'photoshoots.familyTitle': 'Familienporträts',
     'photoshoots.familyDescription': 'Unsere Familiensitzungen drehen sich darum, die einzigartige Bindung festzuhalten, die Sie teilen. Von spontanen Momenten bis hin zu inszenierten Porträts schaffen wir Bilder, die Sie für immer schätzen werden.',
     'photoshoots.pregnancyTitle': 'Schwangerschaftsfotografie',
@@ -2064,20 +2064,20 @@ const translations = {
 
   // Customer Reviews (editable in Manual Website Update → Customer Reviews)
   'reviews.sectionTitle': 'Was unsere Kunden sagen',
-  'reviews.ratingSummary': '4.9 auf Google (253 Bewertungen)',
-  'reviews.googleUrl': 'https://maps.app.goo.gl/L5EFKkMSK7FaiRVa8',
-  'reviews.r1.author': 'Sabine Schuster',
-  'reviews.r1.text': 'Matt ist ein wunderbarer Fotograf, der es versteht, die Persönlichkeit der Menschen einzufangen. Wir haben uns sehr wohl gefühlt und die Bilder sind einfach toll geworden. Sehr zu empfehlen!',
-  'reviews.r2.author': 'Katharina Müller',
-  'reviews.r2.text': 'Wir hatten ein Familienshooting mit Matt und sind begeistert! Die Atmosphäre war super entspannt und die Bilder sind einfach wunderschön geworden. Besonders toll fanden wir, wie geduldig er mit unseren Kindern war. Absolute Empfehlung!',
-  'reviews.r3.author': 'Thomas Wagner',
-  'reviews.r3.text': 'Professionelles Business-Shooting mit hervorragenden Ergebnissen. Matt hat es geschafft, dass ich mich vor der Kamera wohl gefühlt habe, obwohl ich normalerweise nicht gerne fotografiert werde. Die Bilder nutze ich jetzt für meine Website und LinkedIn - top Qualität!',
-  'reviews.r4.author': 'Lisa Huber',
-  'reviews.r4.text': 'Unser Neugeborenen-Shooting mit Matt war ein wunderschönes Erlebnis. Er hat sich so viel Zeit genommen und war unglaublich einfühlsam mit unserem kleinen Sohn. Die Fotos sind traumhaft schön geworden und werden uns immer an diese besondere Zeit erinnern.',
-  'reviews.r5.author': 'Michael Bauer',
-  'reviews.r5.text': 'Matt hat unsere Hochzeit fotografiert und wir sind mehr als zufrieden! Er hat alle wichtigen Momente eingefangen, ohne dabei aufdringlich zu sein. Die Bilder erzählen die Geschichte unseres Tages perfekt. Danke für diese wunderbaren Erinnerungen!',
-  'reviews.r6.author': 'Anna Steiner',
-  'reviews.r6.text': 'Mein Schwangerschaftsshooting mit Matt war ein tolles Erlebnis. Er hat eine sehr angenehme Art und schafft es, dass man sich sofort wohlfühlt. Die Bilder sind wunderschön geworden und zeigen genau die Emotionen, die ich mir gewünscht habe. Sehr empfehlenswert!',
+  'reviews.ratingSummary': '',
+  'reviews.googleUrl': '',
+  'reviews.r1.author': '',
+  'reviews.r1.text': '',
+  'reviews.r2.author': '',
+  'reviews.r2.text': '',
+  'reviews.r3.author': '',
+  'reviews.r3.text': '',
+  'reviews.r4.author': '',
+  'reviews.r4.text': '',
+  'reviews.r5.author': '',
+  'reviews.r5.text': '',
+  'reviews.r6.author': '',
+  'reviews.r6.text': '',
 
   // Manual Page - Fotoshooting hero copy (shown & editable in Manual Website Update)
 

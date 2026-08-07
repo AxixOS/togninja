@@ -616,7 +616,9 @@ const PortfolioImagesManager: React.FC = () => {
   const [newImageCategory, setNewImageCategory] = useState('family');
   const [newImageTitle, setNewImageTitle] = useState('');
   const [uploadMethod, setUploadMethod] = useState<'url' | 'file'>('file');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [replacingImage, setReplacingImage] = useState<any | null>(null);
   const [replaceMethod, setReplaceMethod] = useState<'url' | 'file'>('file');
   const [replaceUrl, setReplaceUrl] = useState('');
@@ -673,29 +675,41 @@ const PortfolioImagesManager: React.FC = () => {
 
   // Upload image file mutation
   const uploadImageMutation = useMutation({
-    mutationFn: async (data: { file: File; category: string; title?: string }) => {
-      const formData = new FormData();
-      formData.append('image', data.file);
-      formData.append('category', data.category);
-      if (data.title) formData.append('title', data.title);
+    // Portfolio accepted ONE file at a time while the homepage uploader already took
+    // several — adding a portfolio set meant repeating the whole flow per photo.
+    mutationFn: async (data: { files: File[]; category: string; title?: string }) => {
+      for (let i = 0; i < data.files.length; i++) {
+        setUploadProgress(i + 1);
+        const formData = new FormData();
+        formData.append('image', data.files[i]);
+        formData.append('category', data.category);
+        // A single title across a batch would label every image identically, so it
+        // only applies when one file is being uploaded.
+        if (data.title && data.files.length === 1) formData.append('title', data.title);
 
-      const res = await fetch('/api/portfolio/images/upload', {
-        method: 'POST',
-        credentials: 'include',
-        headers: withAdminHeaders(),
-        body: formData
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || 'Failed to upload image');
+        const res = await fetch('/api/portfolio/images/upload', {
+          method: 'POST',
+          credentials: 'include',
+          headers: withAdminHeaders(),
+          body: formData
+        });
+        if (!res.ok) {
+          const error = await res.json().catch(() => ({}));
+          throw new Error(error.message || `Failed to upload ${data.files[i].name}`);
+        }
       }
-      return res.json();
+      return { ok: true, count: data.files.length };
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/portfolio/images'] });
-      setSelectedFile(null);
+      const n = result?.count ?? 1;
+      setUploadNote(`${n} image${n === 1 ? '' : 's'} added to your portfolio.`);
+      window.setTimeout(() => setUploadNote(null), 6000);
+      setSelectedFiles([]);
       setNewImageTitle('');
-    }
+      setUploadProgress(0);
+    },
+    onError: () => setUploadProgress(0)
   });
 
   // Delete image mutation
@@ -767,9 +781,9 @@ const PortfolioImagesManager: React.FC = () => {
         title: newImageTitle.trim() || undefined
       });
     } else {
-      if (!selectedFile) return;
+      if (!selectedFiles.length) return;
       uploadImageMutation.mutate({
-        file: selectedFile,
+        files: selectedFiles,
         category: newImageCategory,
         title: newImageTitle.trim() || undefined
       });
@@ -778,8 +792,8 @@ const PortfolioImagesManager: React.FC = () => {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files && files[0]) {
-      setSelectedFile(files[0]);
+    if (files && files.length) {
+      setSelectedFiles(Array.from(files));
     }
   };
 
@@ -873,14 +887,18 @@ const PortfolioImagesManager: React.FC = () => {
             <div>
               <input
                 type="file"
+                multiple
                 accept="image/jpeg,image/jpg,image/png,image/webp"
                 onChange={handleFileSelect}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
-              {selectedFile && (
+              <p className="mt-1 text-xs text-gray-500">You can select several files at once.</p>
+              {selectedFiles.length > 0 && (
                 <div className="mt-2 text-sm text-green-600 flex items-center gap-1">
                   <Check size={16} />
-                  {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                  {selectedFiles.length === 1
+                    ? `${selectedFiles[0].name} (${(selectedFiles[0].size / 1024 / 1024).toFixed(2)} MB)`
+                    : `${selectedFiles.length} images selected`}
                 </div>
               )}
             </div>
@@ -898,7 +916,7 @@ const PortfolioImagesManager: React.FC = () => {
           <button
             onClick={handleAddImage}
             disabled={
-              (uploadMethod === 'file' && !selectedFile) ||
+              (uploadMethod === 'file' && !selectedFiles.length) ||
               (uploadMethod === 'url' && !newImageUrl.trim()) ||
               addImageMutation.isPending ||
               uploadImageMutation.isPending
@@ -907,14 +925,21 @@ const PortfolioImagesManager: React.FC = () => {
           >
             <Upload size={18} />
             {addImageMutation.isPending || uploadImageMutation.isPending
-              ? uploadMethod === 'file' 
-                ? 'Uploading to B2...' 
+              ? uploadMethod === 'file'
+                ? `Saving image ${uploadProgress} of ${selectedFiles.length}...`
                 : 'Adding...'
               : uploadMethod === 'file'
-              ? 'Upload & Add Image'
+              ? `Save ${selectedFiles.length || ''} image${selectedFiles.length === 1 ? '' : 's'} to portfolio`.replace(/\s+/g, ' ')
               : 'Add Image'}
           </button>
-          
+
+          {uploadNote && (
+            <div className="text-sm text-green-700 bg-green-50 border border-green-200 p-3 rounded-lg flex items-center gap-2">
+              <Check size={16} />
+              {uploadNote}
+            </div>
+          )}
+
           {uploadImageMutation.isError && (
             <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
               {uploadImageMutation.error?.message || 'Upload failed'}

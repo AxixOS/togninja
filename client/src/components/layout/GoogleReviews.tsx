@@ -28,61 +28,19 @@ interface Review {
 // editable from the backend via Manual Website Update → "Customer Reviews".
 // NOTE: this list previously held INVENTED reviewers with generated cartoon
 // avatars — never ship fabricated testimonials.
-const FALLBACK_REVIEWS: FallbackReview[] = [
-  {
-    author: 'Robyn Patterson',
-    textDe: 'NAF have done my engagement photoshoot previously, and now my legal wedding ceremony shoot too. Could not be happier! We felt so comfortable the whole time and the incredible moments caught show it all!',
-    textEn: 'NAF have done my engagement photoshoot previously, and now my legal wedding ceremony shoot too. Could not be happier! We felt so comfortable the whole time and the incredible moments caught show it all!',
-    profile_photo_url: '',
-    time: 1735689600000,
-    rating: 5,
-  },
-  {
-    author: 'Mitchell Gaitskell',
-    textDe: 'NAF were absolutely amazing. Captured our special day so perfectly giving us life long memories that we will cherish forever. Very professional and best in the business.',
-    textEn: 'NAF were absolutely amazing. Captured our special day so perfectly giving us life long memories that we will cherish forever. Very professional and best in the business.',
-    profile_photo_url: '',
-    time: 1735689600000,
-    rating: 5,
-  },
-  {
-    author: 'Narangarav Erdenejargal',
-    textDe: 'We went for a family photoshoot, and the photographer was truly talented. He knew exactly how to interact with our child to capture beautiful shots. We had so much fun and ended up with such amazing photos.',
-    textEn: 'We went for a family photoshoot, and the photographer was truly talented. He knew exactly how to interact with our child to capture beautiful shots. We had so much fun and ended up with such amazing photos.',
-    profile_photo_url: '',
-    time: 1733011200000,
-    rating: 5,
-  },
-  {
-    author: 'Chandler Buhl',
-    textDe: 'We had lots of fun at our family photoshoot! The photographer was wonderful with our baby, and gave easy directions for natural poses.',
-    textEn: 'We had lots of fun at our family photoshoot! The photographer was wonderful with our baby, and gave easy directions for natural poses.',
-    profile_photo_url: '',
-    time: 1717200000000,
-    rating: 5,
-  },
-  {
-    author: 'Bernhard Wistawel',
-    textDe: 'Vielen Dank für das professionelle und gleichzeitig lustige Fotoshooting. Wir waren schon zum zweiten Mal da. Wir empfehlen euch weiter.',
-    textEn: 'Thank you for a photoshoot that was professional and great fun at the same time. This was already our second visit. We happily recommend you to others.',
-    profile_photo_url: '',
-    time: 1717200000000,
-    rating: 5,
-  },
-  {
-    author: 'Michaela Pohanka',
-    textDe: 'Nach fast 13 Jahren und einigen Neuzugängen in unserer Familie haben wir uns entschlossen: neue Familienfotos müssen her – und es war eine wunderbare Entscheidung.',
-    textEn: 'After almost 13 years and a few new additions to our family, we decided it was time for new family photos – and it was a wonderful decision.',
-    profile_photo_url: '',
-    time: 1714521600000,
-    rating: 5,
-  },
-];
+// No bundled testimonials. This array previously held REAL reviews for one studio
+// (they even name "NAF"), which every other instance then displayed as its own social
+// proof. Reviews come from the studio's own Google profile via useGoogleReviews, or
+// from what it enters in Website Studio — never from here.
+const FALLBACK_REVIEWS: FallbackReview[] = [];
 
-const DEFAULT_GOOGLE_URL = 'https://maps.app.goo.gl/L5EFKkMSK7FaiRVa8';
+// Empty by default: these pointed at one studio's Google Business Profile, so every
+// instance linked visitors to another business's reviews page (and its "write a
+// review" form). The studio sets its own in Website Studio → Customer Reviews.
+const DEFAULT_GOOGLE_URL = '';
 // Deep link that opens the "write a review" dialog on the studio's Google
 // Business Profile — more reviews directly lift local ranking + conversion.
-const GOOGLE_REVIEW_URL = 'https://g.page/r/CfWCViKtBrjuEAE/review';
+const GOOGLE_REVIEW_URL = '';
 
 const GoogleReviews: React.FC = () => {
   const { t, language } = useLanguage();
@@ -110,13 +68,18 @@ const GoogleReviews: React.FC = () => {
         whenLabel: r.when,
       }));
     }
-    return FALLBACK_REVIEWS.map((r, i) => ({
-      author_name: ov(`reviews.r${i + 1}.author`, r.author),
-      text: ov(`reviews.r${i + 1}.text`, language === 'de' ? r.textDe : r.textEn),
-      rating: r.rating,
-      profile_photo_url: r.profile_photo_url,
-      time: r.time,
-    }));
+    // With no bundled fallbacks, reviews come from what the studio entered in
+    // Website Studio (reviews.rN.*). Entries it has not filled in are dropped rather
+    // than rendered as empty cards.
+    return [1, 2, 3, 4, 5, 6]
+      .map((n) => ({
+        author_name: ov(`reviews.r${n}.author`, ''),
+        text: ov(`reviews.r${n}.text`, ''),
+        rating: 5,
+        profile_photo_url: '',
+        time: 0,
+      }))
+      .filter((r) => r.author_name.trim() && r.text.trim());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language, pageData.data, live]);
 
@@ -127,7 +90,10 @@ const GoogleReviews: React.FC = () => {
         ? `${live.rating.toFixed(1).replace('.', ',')} auf Google (${live.count} Bewertungen)`
         : `${live.rating.toFixed(1)} on Google (${live.count} Reviews)`)
     : null;
-  const ratingSummary = liveSummary || ov('reviews.ratingSummary', language === 'de' ? '4,8 auf Google' : '4.8 on Google');
+  // No invented rating: it is the studio's LIVE Google figure, or whatever it typed
+  // in Website Studio, or nothing. The old fallback asserted "4.8 on Google" for
+  // studios that have never had a single review.
+  const ratingSummary = liveSummary || ov('reviews.ratingSummary', '');
   const googleUrl = live?.mapsUri || ov('reviews.googleUrl', DEFAULT_GOOGLE_URL);
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -136,7 +102,9 @@ const GoogleReviews: React.FC = () => {
 
   // Auto-scroll carousel every 4 seconds
   useEffect(() => {
-    if (isPaused) return;
+    // Guard the modulo: with no reviews this was `% 0` → NaN, and the index never
+    // recovered. The section is hidden in that case anyway, but the timer still ran.
+    if (isPaused || reviews.length === 0) return;
     const autoScroll = setInterval(() => {
       setCurrentIndex((prevIndex) => (prevIndex + 1) % reviews.length);
     }, 4000);
@@ -185,6 +153,10 @@ const GoogleReviews: React.FC = () => {
       />
     ));
   };
+
+  // Nothing to show → render nothing. A studio with no reviews yet gets no empty
+  // "What Our Clients Say" band, and certainly not someone else's testimonials.
+  if (reviews.length === 0) return null;
 
   return (
     <section className="bg-gray-50 py-16">

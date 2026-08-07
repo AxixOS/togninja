@@ -28,7 +28,8 @@ const KundenstimmenPage: React.FC = () => {
   const ratingNum = live?.rating || 4.9;
   const ratingText = de ? ratingNum.toFixed(1).replace('.', ',') : ratingNum.toFixed(1);
   const countText = String(live?.count || 253);
-  const reviewsUri = live?.mapsUri || 'https://maps.app.goo.gl/L5EFKkMSK7FaiRVa8';
+  // The studio's own Google profile, or none — this fell back to another studio's.
+  const reviewsUri = live?.mapsUri || '';
 
   const testimonials: Testimonial[] = [
     {
