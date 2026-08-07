@@ -45,6 +45,9 @@ const QuestionnairesPageV2: React.FC = () => {
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [emailFooter, setEmailFooter] = useState('');
+  // Studio-wide default thank-you message (shown on screen after Send). Individual
+  // questionnaires can override it via their own Thank-You Message field.
+  const [studioThankYou, setStudioThankYou] = useState('');
   const [emailTemplateSaving, setEmailTemplateSaving] = useState(false);
   // Thank-you message customization
   const [thankYouMessage, setThankYouMessage] = useState('');
@@ -112,6 +115,7 @@ const QuestionnairesPageV2: React.FC = () => {
       setEmailSubject(data.subject || '');
       setEmailBody(data.body || '');
       setEmailFooter(data.footer || '');
+      setStudioThankYou(data.thankYouMessage || '');
     } catch {}
   };
 
@@ -121,10 +125,10 @@ const QuestionnairesPageV2: React.FC = () => {
       const res = await fetch('/api/admin/questionnaire-email-template', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: emailSubject, body: emailBody, footer: emailFooter })
+        body: JSON.stringify({ subject: emailSubject, body: emailBody, footer: emailFooter, thankYouMessage: studioThankYou })
       });
       if (!res.ok) throw new Error('Save failed');
-      alert('✅ Email template saved successfully!');
+      alert('✅ Saved successfully!');
     } catch {
       alert('Failed to save email template.');
     } finally {
@@ -670,8 +674,8 @@ const QuestionnairesPageV2: React.FC = () => {
                   </div>
                 </div>
 
-                <label className="block text-sm font-medium text-gray-700 mt-4">Thank-You Message <span className="text-gray-400 font-normal">(shown after submission)</span></label>
-                <textarea value={thankYouMessage} onChange={e => setThankYouMessage(e.target.value)} placeholder="Thank you for completing our questionnaire! We'll be in touch with you soon." className="mt-1 block w-full border rounded px-2 py-1" rows={2} />
+                <label className="block text-sm font-medium text-gray-700 mt-4">Thank-You Message <span className="text-gray-400 font-normal">(optional — overrides your studio default)</span></label>
+                <textarea value={thankYouMessage} onChange={e => setThankYouMessage(e.target.value)} placeholder="Leave blank to use your studio default (Questionnaire Follow-Up, below)" className="mt-1 block w-full border rounded px-2 py-1" rows={2} />
               </div>
             )}
 
@@ -841,7 +845,7 @@ const QuestionnairesPageV2: React.FC = () => {
         {/* Confirmation Email Template Customization */}
         <div className="bg-white shadow rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Confirmation Email Template</h3>
+            <h3 className="text-lg font-medium text-gray-900">Questionnaire Follow-Up</h3>
             <button
               onClick={() => { if (!showEmailTemplate) loadEmailTemplate(); setShowEmailTemplate(!showEmailTemplate); }}
               className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
@@ -849,22 +853,36 @@ const QuestionnairesPageV2: React.FC = () => {
               {showEmailTemplate ? 'Hide' : 'Customize'}
             </button>
           </div>
-          <p className="text-sm text-gray-500 mb-2">Customise the confirmation email sent to clients after they submit a questionnaire.</p>
+          <p className="text-sm text-gray-500 mb-2">Customise what clients see and receive after they submit a questionnaire: the thank-you message on screen, and the confirmation email.</p>
           {showEmailTemplate && (
             <div className="space-y-4 border-t pt-4">
               <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800">
                 <strong>Available placeholders:</strong> {'{{clientName}}'} {'{{studioName}}'} {'{{siteUrl}}'}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Subject</label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Thank-You Message <span className="text-gray-400 font-normal">(on screen, straight after they press Send)</span>
+                </label>
+                <textarea
+                  value={studioThankYou}
+                  onChange={e => setStudioThankYou(e.target.value)}
+                  rows={2}
+                  className="mt-1 block w-full border rounded px-3 py-2"
+                  placeholder="Thank you for completing our questionnaire! We'll be in touch with you soon."
+                />
+                <p className="mt-1 text-xs text-gray-500">Used by every questionnaire, unless one sets its own Thank-You Message.</p>
+              </div>
+
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium text-gray-700">Email Subject</label>
                 <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} className="mt-1 block w-full border rounded px-3 py-2" placeholder="e.g. Thank you for completing your questionnaire" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Body</label>
+                <label className="block text-sm font-medium text-gray-700">Email Body</label>
                 <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={10} className="mt-1 block w-full border rounded px-3 py-2 font-mono text-sm" placeholder="Email body with {{clientName}} etc." />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Footer</label>
+                <label className="block text-sm font-medium text-gray-700">Email Footer</label>
                 <input value={emailFooter} onChange={e => setEmailFooter(e.target.value)} className="mt-1 block w-full border rounded px-3 py-2" placeholder="e.g. {{studioName}} • {{siteUrl}}" />
               </div>
               <div className="flex justify-end">

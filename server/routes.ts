@@ -9940,7 +9940,30 @@ END $$;`);
     }
   });
 
-  // Get/save questionnaire confirmation email template
+  // Neutral English default — the message a studio sees before customising anything.
+  const DEFAULT_THANK_YOU_MESSAGE = "Thank you for completing our questionnaire! We'll be in touch with you soon.";
+
+  // The studio-wide thank-you message, or null if the studio hasn't set one.
+  // Best-effort: app_settings may not exist yet on a fresh instance.
+  async function getStudioThankYouMessage(): Promise<string | null> {
+    try {
+      const rows = await runSql(
+        `SELECT value FROM app_settings WHERE key = 'questionnaire_confirmation_email' LIMIT 1`
+      );
+      if (!rows.length) return null;
+      const tpl = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
+      const msg = typeof tpl?.thankYouMessage === 'string' ? tpl.thankYouMessage.trim() : '';
+      return msg || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Get/save the studio's questionnaire follow-up: the confirmation EMAIL sent to the
+  // client, plus the on-screen THANK-YOU message shown after they press Send. Both are
+  // per-studio and live together under one app_settings key, so a studio edits its
+  // automated questionnaire messaging in one place. An individual questionnaire can still
+  // override the thank-you text via its own settings.thankYouMessage.
   app.get("/api/admin/questionnaire-email-template", authenticateUser, async (req: Request, res: Response) => {
     try {
       const rows = await runSql(
@@ -9948,7 +9971,8 @@ END $$;`);
       );
       if (rows.length > 0) {
         const tpl = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
-        return res.json(tpl);
+        // Templates saved before the thank-you message existed have no such field.
+        return res.json({ thankYouMessage: DEFAULT_THANK_YOU_MESSAGE, ...tpl });
       }
       // Return defaults (neutral English — studios can customise + translate here)
       res.json({
@@ -9963,7 +9987,8 @@ If you have any questions in the meantime, feel free to reach out.
 
 Kind regards,
 The {{studioName}} team`,
-        footer: '{{studioName}} • {{siteUrl}}'
+        footer: '{{studioName}} • {{siteUrl}}',
+        thankYouMessage: DEFAULT_THANK_YOU_MESSAGE
       });
     } catch (error) {
       console.error('Error fetching email template:', error);
@@ -9971,15 +9996,21 @@ The {{studioName}} team`,
       res.json({
         subject: 'Thank you for completing your questionnaire',
         body: `Dear {{clientName}},\n\nThank you for completing our questionnaire!\n\nKind regards,\nThe {{studioName}} team`,
-        footer: '{{studioName}} • {{siteUrl}}'
+        footer: '{{studioName}} • {{siteUrl}}',
+        thankYouMessage: DEFAULT_THANK_YOU_MESSAGE
       });
     }
   });
 
   app.put("/api/admin/questionnaire-email-template", authenticateUser, async (req: Request, res: Response) => {
     try {
-      const { subject, body, footer } = req.body;
-      const value = JSON.stringify({ subject, body, footer });
+      const { subject, body, footer, thankYouMessage } = req.body;
+      const value = JSON.stringify({
+        subject,
+        body,
+        footer,
+        thankYouMessage: typeof thankYouMessage === 'string' ? thankYouMessage.trim() : ''
+      });
 
       // Ensure app_settings table exists
       await runSql(`CREATE TABLE IF NOT EXISTS app_settings (
@@ -17455,6 +17486,15 @@ Return ONLY a valid JSON object with EXACTLY these keys:
         }));
       }
       
+      const settings = typeof survey.settings === 'string' ? JSON.parse(survey.settings) : (survey.settings || {});
+
+      // Thank-you message precedence: this questionnaire's own override → the studio-wide
+      // default (set alongside the confirmation email) → the neutral built-in.
+      settings.thankYouMessage =
+        (typeof settings.thankYouMessage === 'string' && settings.thankYouMessage.trim())
+        || (await getStudioThankYouMessage())
+        || DEFAULT_THANK_YOU_MESSAGE;
+
       res.json({
         token,
         clientName: `${link.first_name || ''} ${link.last_name || ''}`.trim(),
@@ -17464,7 +17504,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
           title: survey.title,
           description: survey.description || 'Please complete the questionnaire in as much detail as you can.',
           pages: surveyPages,
-          settings: typeof survey.settings === 'string' ? JSON.parse(survey.settings) : (survey.settings || {})
+          settings
         }
       });
     } catch (error) {
