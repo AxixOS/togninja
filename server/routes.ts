@@ -9644,6 +9644,25 @@ ${getBizName()} Team`;
 
   app.get("/api/admin/questionnaire-responses", authenticateUser, async (req: Request, res: Response) => {
     try {
+      // Self-heal: the boot migration and database.js's (legacy, no client_name/email)
+      // initializeDatabaseSchema() race — database.js runs fire-and-forget on pool connect —
+      // so on some DBs this table lacks the columns this query reads. Ensure them here
+      // (idempotent) before querying, mirroring the preview-link route's defensive ALTERs.
+      try {
+        await runSql(`CREATE TABLE IF NOT EXISTS questionnaire_responses (
+          id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          client_id text, token text, template_slug text, answers jsonb,
+          client_name text, client_email text, submitted_at timestamptz DEFAULT now())`);
+        await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_name text`);
+        await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_email text`);
+        await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS template_slug text`);
+        await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS token text`);
+        await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_id text`);
+        await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS submitted_at timestamptz DEFAULT now()`);
+      } catch (ensureErr: any) {
+        console.warn('[questionnaire-responses] ensure columns:', ensureErr?.message);
+      }
+
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
       const clientFilter = req.query.client_id as string | undefined;
@@ -9720,9 +9739,11 @@ ${getBizName()} Team`;
       });
 
       res.json({ responses, total, limit, offset });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching questionnaire responses:', error);
-      res.status(500).json({ error: 'Failed to fetch responses', responses: [], total: 0 });
+      // Surface the real DB error (e.g. a missing column/table) so the cause is visible
+      // instead of a generic message that hides the root problem.
+      res.status(500).json({ error: 'Failed to fetch responses', detail: String(error?.message || error).slice(0, 300), responses: [], total: 0 });
     }
   });
 

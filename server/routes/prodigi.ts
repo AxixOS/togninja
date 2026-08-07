@@ -7,29 +7,48 @@
 
 import { Router, Request, Response } from 'express';
 import { pool } from '../db';
+import { config } from '../config-reader';
 
 const router = Router();
 
-// Prodigi API configuration
-const PRODIGI_API_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://api.prodigi.com/v4.0'
-  : 'https://api.sandbox.prodigi.com/v4.0';
+// Prodigi config is resolved PER REQUEST from the per-tenant config-reader (DB-first,
+// env fallback), so each studio uses its OWN key + sandbox/production environment.
+// (Was a module-level process.env.PRODIGI_API_KEY keyed off NODE_ENV — host-level, wrong
+// for a multi-tenant product image.)
+export async function getProdigiConfig(): Promise<{ apiKey: string | null; baseUrl: string }> {
+  const apiKey = await config.get('prodigi_api_key');
+  const env = ((await config.get('prodigi_environment')) || 'sandbox').toLowerCase();
+  const baseUrl = env === 'production'
+    ? 'https://api.prodigi.com/v4.0'
+    : 'https://api.sandbox.prodigi.com/v4.0';
+  return { apiKey, baseUrl };
+}
 
-const PRODIGI_API_KEY = process.env.PRODIGI_API_KEY;
+/** Tenant-neutral order reference prefix, derived from the studio's business name. */
+async function getMerchantPrefix(): Promise<string> {
+  try {
+    const name = (await config.get('business_name')) || (await config.get('studio_name')) || '';
+    const slug = String(name).replace(/[^A-Za-z0-9]/g, '').slice(0, 8).toUpperCase();
+    return slug || 'PRINT';
+  } catch {
+    return 'PRINT';
+  }
+}
 
-// Helper to make Prodigi API requests
+// Helper to make Prodigi API requests (resolves the tenant key + base URL each call).
 async function prodigiRequest(endpoint: string, method: string = 'GET', body?: any) {
-  const response = await fetch(`${PRODIGI_API_URL}${endpoint}`, {
+  const { apiKey, baseUrl } = await getProdigiConfig();
+  const response = await fetch(`${baseUrl}${endpoint}`, {
     method,
     headers: {
-      'X-API-Key': PRODIGI_API_KEY || '',
+      'X-API-Key': apiKey || '',
       'Content-Type': 'application/json',
     },
     body: body ? JSON.stringify(body) : undefined,
   });
 
   const data = await response.json();
-  
+
   if (!response.ok) {
     console.error('[Prodigi] API Error:', data);
     throw new Error(data.statusText || 'Prodigi API error');
@@ -105,7 +124,8 @@ router.post('/quote', async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'SKU is required' });
       }
 
-      if (!PRODIGI_API_KEY) {
+      const { apiKey } = await getProdigiConfig();
+      if (!apiKey) {
         // Return estimated price from local products if no API key
         const product = await pool.query(
           'SELECT * FROM print_products WHERE sku = $1',
@@ -182,8 +202,9 @@ router.post('/order', async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Incomplete customer or address information' });
       }
 
-      // Generate merchant reference
-      const merchantReference = `NAF-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Generate merchant reference (tenant-neutral prefix from the studio's business name)
+      const merchantPrefix = await getMerchantPrefix();
+      const merchantReference = `${merchantPrefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
       // Create order record in our database first
       const orderRecord = await pool.query(`
@@ -219,7 +240,8 @@ router.post('/order', async (req: Request, res: Response) => {
 
       const localOrderId = orderRecord.rows[0].id;
 
-      if (!PRODIGI_API_KEY) {
+      const { apiKey } = await getProdigiConfig();
+      if (!apiKey) {
         // Return mock order if no API key (for testing)
         await pool.query(`
           UPDATE print_orders SET status = 'test_mode' WHERE id = $1
@@ -265,7 +287,7 @@ router.post('/order', async (req: Request, res: Response) => {
           galleryId,
           galleryImageId,
           localOrderId,
-          source: 'newagefotografie-gallery',
+          source: `${merchantPrefix.toLowerCase()}-print`,
         },
       };
 
@@ -326,7 +348,8 @@ router.get('/order/:id', async (req: Request, res: Response) => {
       const order = result.rows[0];
 
       // If we have a Prodigi order ID, get fresh status
-      if (order.prodigi_order_id && PRODIGI_API_KEY) {
+      const { apiKey: statusApiKey } = await getProdigiConfig();
+      if (order.prodigi_order_id && statusApiKey) {
         try {
           const prodigiOrder = await prodigiRequest(`/orders/${order.prodigi_order_id}`);
           

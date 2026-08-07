@@ -1643,6 +1643,11 @@ export const studioIntegrations = pgTable("studio_integrations", {
   pulse_profiles: jsonb("pulse_profiles"),
   pulse_mode: text("pulse_mode").default("draft"), // draft | schedule | now
 
+  // Prodigi print fulfilment (per-tenant). Key is encrypted; environment picks
+  // the sandbox vs live Prodigi host. Studios bring their own Prodigi account.
+  prodigi_api_key_encrypted: text("prodigi_api_key_encrypted"),
+  prodigi_environment: text("prodigi_environment").default("sandbox"), // sandbox | production
+
   // Currency and Regional Settings
   default_currency: text("default_currency").default("EUR"),
   timezone: text("timezone").default("Europe/Vienna"),

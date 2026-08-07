@@ -25,7 +25,8 @@ import {
   Server,
   Languages,
   Calculator,
-  Share2
+  Share2,
+  Printer
 } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
@@ -167,6 +168,13 @@ const SettingsPage: React.FC = () => {
           description: 'Connect ShootCleaner (culling, enhancement, case studies) — generate an API key',
           path: '/admin/settings/shootcleaner',
           color: 'bg-violet-600'
+        },
+        {
+          icon: Printer,
+          title: 'Print Fulfilment (Prodigi)',
+          description: 'Connect your Prodigi account to sell + fulfil prints from invoices',
+          path: '/admin/settings/prodigi',
+          color: 'bg-indigo-600'
         }
       ]
     },

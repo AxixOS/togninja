@@ -618,6 +618,9 @@ app.use((req, res, next) => {
         // Gmail via OAuth (one-click "Connect Gmail") — the connected address + refresh token.
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS gmail_email TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS gmail_refresh_token_encrypted TEXT`);
+        // Prodigi print fulfilment: per-tenant API key (encrypted) + sandbox/production toggle.
+        await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS prodigi_api_key_encrypted TEXT`);
+        await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS prodigi_environment TEXT DEFAULT 'sandbox'`);
         // Bundle fulfilment (TogNinja + ShootCleaner package delivery).
         await db.execute(sql`CREATE TABLE IF NOT EXISTS bundle_deliveries (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

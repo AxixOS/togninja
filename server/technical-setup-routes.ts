@@ -247,6 +247,30 @@ router.post('/stripe', async (req: Request, res: Response) => {
 });
 
 // ──────────────────────────────────────────────────────────────
+// POST /api/setup/technical/prodigi — Prodigi print fulfilment (per-tenant key)
+// ──────────────────────────────────────────────────────────────
+router.post('/prodigi', async (req: Request, res: Response) => {
+  try {
+    const { apiKey, environment } = req.body;
+    const siId = await ensureIntegrations();
+    const updateData: Record<string, any> = {};
+    // Only overwrite the key when the user actually typed a new one (masked otherwise).
+    if (apiKey) updateData.prodigi_api_key_encrypted = encrypt(apiKey);
+    if (environment !== undefined) {
+      updateData.prodigi_environment = String(environment).toLowerCase() === 'production' ? 'production' : 'sandbox';
+    }
+    if (Object.keys(updateData).length > 0) {
+      await db.update(studioIntegrations).set(updateData).where(eq(studioIntegrations.id, siId));
+    }
+    config.invalidate();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[technical-setup] Prodigi save error:', error);
+    res.status(500).json({ error: 'Failed to save Prodigi settings' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────
 // POST /api/setup/technical/storage — Step 5: File Storage
 // ──────────────────────────────────────────────────────────────
 router.post('/storage', async (req: Request, res: Response) => {
@@ -524,6 +548,36 @@ router.post('/test/stripe', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/setup/test/prodigi — Verify a Prodigi API key against the chosen environment.
+// Any authenticated call validates the key: GET /orders returns 200 for a valid key, 401 for
+// a bad one. Uses the key from the body if provided (unsaved), else the stored one.
+router.post('/test/prodigi', async (req: Request, res: Response) => {
+  try {
+    let { apiKey, environment } = req.body;
+    if (!apiKey) {
+      try { apiKey = await config.get('prodigi_api_key'); } catch { /* ignore */ }
+    }
+    if (!apiKey) {
+      return res.status(400).json({ success: false, error: 'Prodigi API key is required' });
+    }
+    const env = String(environment || (await config.get('prodigi_environment')) || 'sandbox').toLowerCase();
+    const baseUrl = env === 'production'
+      ? 'https://api.prodigi.com/v4.0'
+      : 'https://api.sandbox.prodigi.com/v4.0';
+    const resp = await fetch(`${baseUrl}/orders?top=1`, { headers: { 'X-API-Key': apiKey } });
+    if (resp.status === 401 || resp.status === 403) {
+      return res.status(400).json({ success: false, error: 'Invalid API key for the selected environment.' });
+    }
+    if (!resp.ok) {
+      return res.status(400).json({ success: false, error: `Prodigi returned HTTP ${resp.status}.` });
+    }
+    return res.json({ success: true, message: `Prodigi key verified (${env}).`, environment: env });
+  } catch (error) {
+    console.error('[test-prodigi]', error);
+    return res.status(400).json({ success: false, error: `Prodigi test failed: ${(error as Error).message}` });
+  }
+});
+
 // POST /api/setup/test/storage — Verify S3-compatible storage
 router.post('/test/storage', async (req: Request, res: Response) => {
   try {
@@ -640,6 +694,10 @@ router.get('/current', async (_req: Request, res: Response) => {
         secretKeySet: !!si?.stripe_secret_key_encrypted,
         secretKeyMasked: mask(si?.stripe_secret_key_encrypted ? 'sk_****' : null),
         webhookSecretSet: !!si?.stripe_webhook_secret_encrypted,
+      },
+      prodigi: {
+        apiKeySet: !!si?.prodigi_api_key_encrypted,
+        environment: si?.prodigi_environment || 'sandbox',
       },
       storage: {
         provider: si?.storage_provider || 'backblaze',

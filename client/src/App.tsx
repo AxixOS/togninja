@@ -101,6 +101,7 @@ const LanguageSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/
 const CalculatorSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/CalculatorSettingsPage'));
 const PulseSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/PulseSettingsPage'));
 const ShootCleanerSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/ShootCleanerSettingsPage'));
+const ProdigiSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/ProdigiSettingsPage'));
 const ManualWebsiteUpdatePage = lazyWithRetry(() => import('./pages/admin/ManualWebsiteUpdatePage'));
 const WebsiteStudioPage = lazyWithRetry(() => import('./pages/admin/WebsiteStudioPage'));
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -661,6 +662,14 @@ function App() {
                   element={
                     <NeonProtectedRoute>
                       <StorageSettingsPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/settings/prodigi"
+                  element={
+                    <NeonProtectedRoute>
+                      <ProdigiSettingsPage />
                     </NeonProtectedRoute>
                   }
                 />

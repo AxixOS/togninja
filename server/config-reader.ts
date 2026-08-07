@@ -52,6 +52,10 @@ const ENV_MAP: Record<string, string> = {
   stripe_publishable_key: 'STRIPE_PUBLISHABLE_KEY',
   stripe_webhook_secret: 'STRIPE_WEBHOOK_SECRET',
   vite_stripe_publishable_key: 'VITE_STRIPE_PUBLISHABLE_KEY',
+
+  // Prodigi (print fulfilment) — per-tenant key; env is the fallback for the demo image
+  prodigi_api_key: 'PRODIGI_API_KEY',
+  prodigi_environment: 'PRODIGI_ENVIRONMENT',
   
   // Storage
   storage_access_key_id: 'AWS_ACCESS_KEY_ID',
@@ -104,6 +108,7 @@ const ENCRYPTED_FIELDS = new Set([
   'brevo_api_key_encrypted',
   'imap_pass_encrypted',
   'sms_auth_token_encrypted',
+  'prodigi_api_key_encrypted',
 ]);
 
 // Mapping from config key to actual DB column names
@@ -141,6 +146,9 @@ const DB_FIELD_MAP: Record<string, { table: 'studio_configs' | 'studio_integrati
   stripe_publishable_key: { table: 'studio_integrations', column: 'stripe_publishable_key' },
   stripe_secret_key: { table: 'studio_integrations', column: 'stripe_secret_key_encrypted' },
   stripe_account_id: { table: 'studio_integrations', column: 'stripe_account_id' },
+  // Prodigi print fulfilment (per-tenant key + sandbox/production toggle)
+  prodigi_api_key: { table: 'studio_integrations', column: 'prodigi_api_key_encrypted' },
+  prodigi_environment: { table: 'studio_integrations', column: 'prodigi_environment' },
   openai_api_key: { table: 'studio_integrations', column: 'openai_api_key_encrypted' },
   storage_provider: { table: 'studio_integrations', column: 'storage_provider' },
   storage_access_key_id: { table: 'studio_integrations', column: 'storage_access_key_id' },
