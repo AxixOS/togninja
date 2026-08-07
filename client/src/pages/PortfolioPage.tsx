@@ -115,7 +115,13 @@ const CategoryCarousel: React.FC<{
     return () => clearInterval(interval);
   }, [emblaApi, index]);
 
-  const title = categoryTitles[categoryId]?.[language] || categoryId;
+  // Prefer the studio's own category name (editable in Website Studio); the built-in
+  // map is only the default. Was fixed to New Age's service names for every studio.
+  const titleKey = `portfolio.category.${categoryId}`;
+  const titleFromKey = t(titleKey);
+  const title = (titleFromKey && titleFromKey !== titleKey)
+    ? titleFromKey
+    : (categoryTitles[categoryId]?.[language] || categoryId);
   const description = categoryDescriptions[categoryId]?.[language] || '';
 
   // Don't render if no images

@@ -610,6 +610,8 @@ const HomepageImagesManager: React.FC = () => {
 
 // Portfolio Images Manager Component
 const PortfolioImagesManager: React.FC = () => {
+  // Needed for the category labels, which read the studio's own naming.
+  const { t } = useLanguage();
   const [newImageUrl, setNewImageUrl] = useState('');
   const [newImageCategory, setNewImageCategory] = useState('family');
   const [newImageTitle, setNewImageTitle] = useState('');
@@ -626,15 +628,16 @@ const PortfolioImagesManager: React.FC = () => {
   const withAdminHeaders = () => ({ 'x-admin-token': getAdminToken() });
   const withAdminJsonHeaders = () => ({ 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() });
 
-  const categories = [
-    { value: 'family', label: 'Family Portraits' },
-    { value: 'newborn', label: 'Newborn Photography' },
-    { value: 'maternity', label: 'Maternity Sessions' },
-    { value: 'wedding', label: 'Wedding Photography' },
-    { value: 'business', label: 'Business & Corporate' },
-    { value: 'event', label: 'Event Photography' },
-    { value: 'featured', label: 'Featured Gallery' },
-  ];
+  // Category IDs are structural (portfolio images are stored against them); the labels
+  // are the studio's own and come from the same keys the public portfolio page uses,
+  // so renaming a category in Website Studio renames it in both places. They were
+  // previously hardcoded to New Age's service list here and on the public page.
+  const categories = ['family', 'newborn', 'maternity', 'wedding', 'business', 'event', 'featured']
+    .map((value) => {
+      const key = `portfolio.category.${value}`;
+      const label = t(key);
+      return { value, label: label && label !== key ? label : value };
+    });
 
   // Fetch portfolio images
   const { data: images, isLoading } = useQuery({

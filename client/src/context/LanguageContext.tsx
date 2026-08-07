@@ -564,6 +564,19 @@ const translations = {
     'home.heroDescription': 'Warm, authentic portraits of the people you love, in a relaxed and unhurried session.',
     'home.bookShootingButton': 'Book Shooting Now',
     'home.description': 'As a family photographer and specialized newborn photographer, we create timeless memories in a relaxed studio atmosphere. Even if you are camera-shy or have unpredictable children, we create family portraits that you will treasure forever.',
+    // Portfolio category names. The IDs (family, newborn, …) are structural — images
+    // are stored against them — but the visible names are the studio's own and were
+    // hardcoded to New Age's service list in two places at once (the admin dropdown
+    // and the public portfolio page). A boudoir studio renames these to its own
+    // categories here and both follow.
+    'portfolio.category.family': 'Family Portraits',
+    'portfolio.category.newborn': 'Newborn Photography',
+    'portfolio.category.maternity': 'Maternity Sessions',
+    'portfolio.category.wedding': 'Wedding Photography',
+    'portfolio.category.business': 'Business & Corporate',
+    'portfolio.category.event': 'Event Photography',
+    'portfolio.category.featured': 'Featured Gallery',
+
     // Legal identity for the Impressum / privacy notice. EMPTY by default and
     // per-studio: an owner name, registration numbers and a correspondence address
     // are unique to each business and jurisdiction, and publishing someone else's
@@ -1696,6 +1709,15 @@ const translations = {
     'home.heroDescription': 'Warme, authentische Porträts der Menschen, die Sie lieben – in einem entspannten Shooting ohne Zeitdruck.',
     'home.bookShootingButton': 'Jetzt Shooting Buchen',
     'home.description': 'Als Familienfotograf und spezialisierter Neugeborenenfotograf schaffen wir zeitlose Erinnerungen in entspannter Studioatmosphäre. Selbst wenn Sie kamerascheu sind oder unberechenbare Kinder haben, erstellen wir Familienporträts, die Sie für immer schätzen werden.',
+    // Portfolio-Kategorienamen — pro Studio anpassbar (siehe EN).
+    'portfolio.category.family': 'Familienporträts',
+    'portfolio.category.newborn': 'Neugeborenen-Fotografie',
+    'portfolio.category.maternity': 'Schwangerschafts-Sessions',
+    'portfolio.category.wedding': 'Hochzeitsfotografie',
+    'portfolio.category.business': 'Business & Corporate',
+    'portfolio.category.event': 'Event-Fotografie',
+    'portfolio.category.featured': 'Ausgewählte Galerie',
+
     // Rechtliche Angaben bleiben leer, bis das Studio seine eigenen einträgt (siehe EN).
     'legal.owner': '',
     'legal.registration': '',
