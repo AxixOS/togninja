@@ -48,7 +48,38 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
       // Re-brandable/re-hostable: rewrite the curated sitemap's hardcoded origin to
       // the configured PUBLIC_SITE_URL so a moved or re-branded instance never emits
       // the wrong host (a mixed-host sitemap gets dropped by Google).
-      const base = rawBase.replace(/https?:\/\/(www\.)?newagefotografie\.com/g, SITE_ORIGIN);
+      let base = rawBase.replace(/https?:\/\/(www\.)?newagefotografie\.com/g, SITE_ORIGIN);
+
+      // Drop <url> blocks for pages this studio has switched off. They 301 when
+      // visited, but a sitemap is an active invitation to crawl — advertising a page
+      // that only redirects wastes crawl budget and keeps the duplicate alive in the
+      // index, which is the whole reason for disabling it. Best-effort: a failure
+      // here must leave the sitemap intact rather than emit an empty one.
+      try {
+        const { SITE_PAGES, isPageEnabled } = await import("../shared/sitePages");
+        const { pool } = await import("./db");
+        const { rows } = await pool.query(
+          `SELECT enabled_pages, site_language FROM studio_configs LIMIT 1`,
+        );
+        const enabled = rows?.[0]?.enabled_pages || null;
+        const lang = rows?.[0]?.site_language || process.env.SITE_LANG || "en";
+
+        const disabledLocs = SITE_PAGES
+          .filter((p) => !isPageEnabled(p.id, enabled, lang))
+          .map((p) => `${SITE_ORIGIN}${p.route.replace(/\/+$/, "")}`);
+
+        for (const loc of disabledLocs) {
+          // Match the whole <url>…</url> block whose <loc> is this page, with or
+          // without a trailing slash.
+          const re = new RegExp(
+            `\\s*<url>(?:(?!</url>)[\\s\\S])*?<loc>${loc.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}/?</loc>[\\s\\S]*?</url>`,
+            "g",
+          );
+          base = base.replace(re, "");
+        }
+      } catch (e: any) {
+        console.warn("[sitemap] could not apply page visibility:", e?.message || e);
+      }
 
       const { storage } = await import("./storage.js");
       const posts = await storage.getBlogPosts(true); // published & publishedAt <= NOW()

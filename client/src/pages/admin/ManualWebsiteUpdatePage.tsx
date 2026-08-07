@@ -1349,6 +1349,48 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
     onError: () => flashNote('error', 'Could not switch the homepage. Please try again.'),
   });
 
+  // ---- Which public pages this studio runs -------------------------------
+  // Disabled pages are not deleted; they stay as templates and can be switched
+  // back on, arriving with whatever copy onboarding already wrote for them.
+  const { data: sitePages } = useQuery<any>({
+    queryKey: ['/api/admin/site-pages'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/site-pages', { credentials: 'include' });
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  const savePagesMutation = useMutation({
+    mutationFn: async (enabled: Record<string, boolean>) => {
+      const res = await fetch('/api/admin/site-pages', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/site-pages'] });
+      flashNote('success', 'Page visibility updated.');
+    },
+    onError: () => flashNote('error', 'Could not update page visibility.'),
+  });
+
+  const togglePage = (id: string, on: boolean) => {
+    const current: Record<string, boolean> = { ...(sitePages?.enabled || {}) };
+    current[id] = on;
+    // Mirror the server rule locally so the UI does not briefly show both halves of
+    // a locale pair enabled.
+    for (const [a, b] of (sitePages?.localePairs || [])) {
+      if (id === a && on) current[b] = false;
+      if (id === b && on) current[a] = false;
+    }
+    savePagesMutation.mutate(current);
+  };
+
   // Save draft mutation
   const saveDraftMutation = useMutation({
     mutationFn: async () => {
@@ -2018,6 +2060,47 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
                       {unsetHomepageMutation.isPending ? 'Switching…' : 'Use my edited homepage instead'}
                     </button>
                   </div>
+                )}
+
+                {/* Which pages this studio publishes. Shown once, above the editor,
+                    because it decides what a visitor can reach at all. */}
+                {sitePages?.pages?.length > 0 && (
+                  <details className="mb-4 rounded-lg border border-gray-200 bg-white">
+                    <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-gray-900">
+                      Pages on your website
+                      <span className="ml-2 font-normal text-gray-500">
+                        — switch pages on or off{sitePages.usingDefaults ? ' (using defaults for your language)' : ''}
+                      </span>
+                    </summary>
+                    <div className="border-t border-gray-200 px-4 py-3">
+                      <p className="mb-3 text-xs text-gray-500">
+                        Switching a page off redirects it to the equivalent live page — nothing is deleted,
+                        and you can switch it back on at any time. Pages you have never used stay available
+                        as templates.
+                      </p>
+                      <div className="space-y-2">
+                        {sitePages.pages.map((p: any) => {
+                          const on = sitePages.enabled?.[p.id] ?? false;
+                          return (
+                            <label key={p.id} className="flex items-center gap-3 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                disabled={savePagesMutation.isPending}
+                                onChange={(e) => togglePage(p.id, e.target.checked)}
+                                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                              />
+                              <span className={on ? 'text-gray-900' : 'text-gray-400'}>{p.label}</span>
+                              <code className="text-xs text-gray-400">{p.route}</code>
+                              {!on && p.redirectTo && (
+                                <span className="text-xs text-gray-400">→ redirects to {p.redirectTo}</span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </details>
                 )}
 
                 {/* Status Indicator */}
