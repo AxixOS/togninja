@@ -693,6 +693,54 @@ app.use((req, res, next) => {
         created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
       )`);
 
+      // Questionnaires / surveys — the admin Questionnaires page (templates + shareable
+      // links + responses) depends on these three tables. They were ONLY created by
+      // database.js's monolithic initializeDatabaseSchema(), which aborts on the first
+      // failing CREATE — so on some instances the questionnaire tables (near the end)
+      // never got made and the page 500'd ("Failed to fetch questionnaire responses",
+      // empty template dropdown → Create Link disabled). Ensure them here, each isolated,
+      // matching the columns the V2 endpoints actually query.
+      await ensureTable('surveys', sql`CREATE TABLE IF NOT EXISTS surveys (
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        title text NOT NULL, description text, status text DEFAULT 'active',
+        pages jsonb DEFAULT '[]'::jsonb, settings jsonb DEFAULT '{}'::jsonb,
+        created_by text, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('questionnaire_links', sql`CREATE TABLE IF NOT EXISTS questionnaire_links (
+        token text PRIMARY KEY, client_id text, template_id text, is_used boolean DEFAULT false,
+        expires_at timestamptz, created_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('questionnaire_responses', sql`CREATE TABLE IF NOT EXISTS questionnaire_responses (
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        client_id text, token text, template_slug text, answers jsonb,
+        client_name text, client_email text, submitted_at timestamptz DEFAULT now()
+      )`);
+      // Back-fill the columns the V2 responses endpoint reads, in case an OLDER
+      // questionnaire_responses table exists without them (CREATE IF NOT EXISTS won't add
+      // columns to an existing table → the responses SELECT would 500 on a missing column).
+      await ensureTable('qr+client_name', sql`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_name text`);
+      await ensureTable('qr+client_email', sql`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_email text`);
+      await ensureTable('qr+template_slug', sql`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS template_slug text`);
+      await ensureTable('qr+token', sql`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS token text`);
+      await ensureTable('qr+client_id', sql`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_id text`);
+      await ensureTable('qr+submitted_at', sql`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS submitted_at timestamptz DEFAULT now()`);
+      // Seed a starter questionnaire so the template dropdown isn't empty on a fresh studio
+      // (Create Link is disabled without a template). Idempotent: only when zero surveys exist.
+      try {
+        const sc = await db.execute(sql`SELECT COUNT(*)::int AS n FROM surveys`);
+        const n = (sc.rows?.[0] as any)?.n ?? 0;
+        if (!n) {
+          const starterPages = JSON.stringify([{ id: 'page-1', title: 'About your shoot', questions: [
+            { id: 'q1', type: 'text', title: 'What are you looking to capture?', required: true },
+            { id: 'q2', type: 'text', title: 'Preferred dates / timeframe', required: false },
+            { id: 'q3', type: 'text', title: 'Anything else we should know?', required: false },
+          ] }]);
+          await db.execute(sql`INSERT INTO surveys (title, description, status, pages, settings)
+            VALUES ('Client Questionnaire', 'A starter questionnaire — edit the questions to suit your studio.', 'active', ${starterPages}::jsonb, '{}'::jsonb)`);
+          console.log('✅ Seeded starter questionnaire');
+        }
+      } catch (e: any) { console.warn('⚠️ questionnaire seed skipped:', e?.message || e); }
+
       // Seed a single studio_configs row if none exists, so the Studio
       // Customization page (GET/PUT /api/studio/branding) and the singleton
       // LIMIT-1 reads elsewhere always have a row to read/update. Use the
