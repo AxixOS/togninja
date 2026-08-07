@@ -5331,18 +5331,27 @@ Bitte versuchen Sie es später noch einmal.`;
       }
 
       // Reliable expiry / archival: once the expiry date passes (or the gallery
-      // is archived), it is no longer available to clients.
+      // is archived), it is no longer available TO CLIENTS.
       const expiresAt = (gallery as any).expiresAt;
       const isExpired = (expiresAt && new Date(expiresAt).getTime() < Date.now())
         || (gallery as any).status === 'ARCHIVED';
-      if (isExpired) {
+
+      // ...but the admin Edit Gallery page loads through this same public endpoint,
+      // so a blanket 410 locked the studio out of exactly the galleries it needed to
+      // fix — an expired or archived gallery could not be opened to extend its date
+      // or un-archive it ("Failed to load gallery", 410, on /admin/galleries/:id/edit).
+      // Signed-in staff get the gallery; clients still get 410.
+      const isStaff = Boolean((req as any).user || (req as any).session?.userId);
+      if (isExpired && !isStaff) {
         return res.status(410).json({ error: 'gallery_expired', message: 'This gallery is no longer available.' });
       }
 
       // SECURITY: Never expose the actual password to the client
       // Only send the isPasswordProtected boolean flag
       const { password, ...safeGallery } = gallery;
-      res.json(safeGallery);
+      // Tell the admin UI the gallery is expired/archived so it can say so, rather
+      // than presenting it as if clients could still open it.
+      res.json({ ...safeGallery, isExpired });
     } catch (error) {
       console.error("Error fetching gallery:", error);
       res.status(500).json({ error: "Internal server error" });

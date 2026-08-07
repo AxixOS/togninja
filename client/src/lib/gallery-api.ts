@@ -36,8 +36,10 @@ export async function getGalleryById(id: string): Promise<Gallery> {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to fetch gallery');
+      // Prefer the human-readable message over the error code, so the admin sees
+      // "This gallery is no longer available." rather than "gallery_expired".
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || error.error || `Failed to fetch gallery (${response.status})`);
     }
 
     return await response.json();

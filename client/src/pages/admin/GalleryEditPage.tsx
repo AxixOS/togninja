@@ -23,9 +23,11 @@ const GalleryEditPage: React.FC = () => {
       setLoading(true);
       const data = await getGalleryById(galleryId);
       setGallery(data);
-    } catch (err) {
-      // console.error removed
-      setError('Failed to load gallery. Please try again.');
+    } catch (err: any) {
+      // Say what actually went wrong — this showed "Please try again" for a 410 that
+      // would never succeed on retry.
+      const detail = err?.message ? ` (${String(err.message).slice(0, 120)})` : '';
+      setError(`Failed to load gallery.${detail}`);
     } finally {
       setLoading(false);
     }
@@ -54,7 +56,18 @@ const GalleryEditPage: React.FC = () => {
               <AlertCircle className="h-5 w-5 text-red-400 mt-0.5 mr-2" />
               <span>{error}</span>
             </div>          ) : gallery ? (
-            <AdvancedGalleryForm gallery={gallery} isEditing={true} />
+            <>
+              {/* The gallery loads for staff even when expired/archived — say so, so
+                  the studio knows why its client cannot open the link, and can fix it
+                  right here by extending the date or un-archiving. */}
+              {(gallery as any).isExpired && (
+                <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  This gallery has expired or been archived, so clients can no longer open it.
+                  Extend the expiry date or change its status below to make it available again.
+                </div>
+              )}
+              <AdvancedGalleryForm gallery={gallery} isEditing={true} />
+            </>
           ) : (
             <div className="text-center py-12">
               <p className="text-gray-500">Gallery not found.</p>
