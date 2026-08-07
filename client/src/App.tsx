@@ -204,16 +204,32 @@ function LanguageRouteSync() {
 // HomePage while the config loads so there's no blank flash. SSR meta for "/" is
 // handled separately in server/vite.ts.
 function RootHome() {
-  const [slug, setSlug] = useState<string | null | undefined>(undefined);
+  // The server injects the answer into the HTML (window.__HOMEPAGE_LANDING_SLUG__),
+  // so the correct homepage renders on the FIRST paint. Previously this started as
+  // undefined and rendered the built-in HomePage while /api/studio-config loaded,
+  // then swapped to the landing page — the whole homepage visibly replaced by a
+  // different one on every single load.
+  const injected = typeof window !== 'undefined'
+    ? (window as any).__HOMEPAGE_LANDING_SLUG__
+    : undefined;
+  const [slug, setSlug] = useState<string | null | undefined>(
+    injected === undefined ? undefined : (injected || null)
+  );
+
   useEffect(() => {
+    // Only ask the API when the server did not tell us (dev server, cached shell).
+    if (injected !== undefined) return;
     let cancelled = false;
     fetch('/api/studio-config')
       .then(r => r.json())
       .then(d => { if (!cancelled) setSlug(d?.homepageLandingSlug || null); })
       .catch(() => { if (!cancelled) setSlug(null); });
     return () => { cancelled = true; };
-  }, []);
-  if (slug === undefined) return <HomePage />;
+  }, [injected]);
+
+  // Still unknown: render nothing rather than a homepage we may be about to replace.
+  // A brief blank beats showing the wrong page and swapping it out.
+  if (slug === undefined) return null;
   if (slug) return <PublicLandingPage slugOverride={slug} />;
   return <HomePage />;
 }

@@ -182,6 +182,28 @@ const ROUTE_META_TTL = 5 * 60_000;
 // Prerendered HTML with tenant identity stamped in, cached per file path.
 const prerenderedCache = new Map<string, string>();
 
+// Which landing page (if any) is serving "/". The CLIENT needs this at first paint:
+// RootHome used to fetch /api/studio-config and render the BUILT-IN homepage while
+// waiting, then swap to the landing page when the answer arrived — a full homepage
+// visibly replaced by a different one on every load. Injected into the HTML so the
+// client knows synchronously. Short TTL: it changes only when a studio sets/unsets
+// its homepage.
+let homeSlugCache: { slug: string | null; at: number } | null = null;
+const HOME_SLUG_TTL = 60_000;
+async function getHomepageLandingSlug(): Promise<string | null> {
+  if (homeSlugCache && Date.now() - homeSlugCache.at < HOME_SLUG_TTL) return homeSlugCache.slug;
+  try {
+    const { pool } = await import("./db");
+    const { rows } = await pool.query(`SELECT homepage_landing_slug FROM studio_configs LIMIT 1`);
+    const slug = rows?.[0]?.homepage_landing_slug || null;
+    homeSlugCache = { slug, at: Date.now() };
+    return slug;
+  } catch {
+    homeSlugCache = { slug: null, at: Date.now() };
+    return null;
+  }
+}
+
 async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
   const cached = routeMetaCache.get(reqPath);
   if (cached && Date.now() - cached.at < ROUTE_META_TTL) return cached.meta;
@@ -200,9 +222,7 @@ async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
     // renders the built-in HomePage; matching that here avoids SSR/client cloaking.
     if (staticKey === "/") {
       try {
-        const { pool } = await import("./db");
-        const { rows } = await pool.query(`SELECT homepage_landing_slug FROM studio_configs LIMIT 1`);
-        const homeSlug = rows?.[0]?.homepage_landing_slug;
+        const homeSlug = await getHomepageLandingSlug();
         if (homeSlug) {
           const neonMod: any = await import("../database.js");
           const neonDb = neonMod.default || neonMod;
@@ -798,18 +818,33 @@ export function serveStatic(app: Express) {
     // that branch: a slow or broken lookup must never delay or break "/".
     if (requestPath === "/") {
       try {
-        const homeMeta = await Promise.race([
-          lookupRouteMeta("/"),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500).unref?.()),
+        const [homeMeta, homeSlug] = await Promise.all([
+          Promise.race([
+            lookupRouteMeta("/"),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500).unref?.()),
+          ]),
+          Promise.race([
+            getHomepageLandingSlug(),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500).unref?.()),
+          ]),
         ]);
+
+        // Tell the client which homepage to render BEFORE it mounts, so RootHome does
+        // not paint the built-in homepage and then replace it with the landing page.
+        // JSON.stringify also escapes the value safely for inline script context.
+        const slugScript =
+          `<script>window.__HOMEPAGE_LANDING_SLUG__=${JSON.stringify(homeSlug ?? null)}</script>`;
+        const withSlug = (html: string) => html.replace("</head>", `${slugScript}</head>`);
+
         // Only divert when there IS a custom homepage body. With none, fall through
         // to the prerendered built-in homepage exactly as before.
         if (homeMeta?.bodyHtml) {
           let html = injectRouteMeta(emptiedShell(), homeMeta);
           html = injectBodyIntoRoot(html, homeMeta.bodyHtml);
           res.setHeader("X-Route-Meta", "home-custom");
-          return res.status(200).type("html").send(html);
+          return res.status(200).type("html").send(withSlug(html));
         }
+        return res.status(200).type("html").send(withSlug(renderedIndex()));
       } catch (err) {
         console.warn("[route-meta] homepage branch failed:", (err as any)?.message);
       }

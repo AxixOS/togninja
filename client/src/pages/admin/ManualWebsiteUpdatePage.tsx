@@ -1321,6 +1321,34 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
     return `server error ${res.status}`;
   };
 
+  // Is a landing page currently serving "/"? Drives the notice on the Homepage entry.
+  const { data: studioConfig } = useQuery<any>({
+    queryKey: ['/api/studio-config'],
+    queryFn: async () => {
+      const res = await fetch('/api/studio-config');
+      if (!res.ok) return {};
+      return res.json();
+    },
+  });
+  const homepageLandingSlug: string | null = studioConfig?.homepageLandingSlug || null;
+
+  const unsetHomepageMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/admin/landing-pages/unset-homepage', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to switch homepage');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/studio-config'] });
+      flashNote('success', 'Your website now uses this homepage. Open “View Website” to check it.');
+    },
+    onError: () => flashNote('error', 'Could not switch the homepage. Please try again.'),
+  });
+
   // Save draft mutation
   const saveDraftMutation = useMutation({
     mutationFn: async () => {
@@ -1964,6 +1992,28 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
                       aria-label="Dismiss"
                     >
                       <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Editing the Homepage has NO visible effect while a landing page is
+                    set as "/" — onboarding does that automatically, so a studio can
+                    edit this page for hours and never see a change. Say so here, where
+                    they are actually looking, and let them switch back in one click.
+                    The control otherwise lives only inside the landing-page editor. */}
+                {selectedPage?.id === 'home' && homepageLandingSlug && (
+                  <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="font-medium mb-1">Your homepage is currently a landing page.</p>
+                    <p className="mb-3">
+                      “/” is being served by the landing page <code className="px-1 bg-amber-100 rounded">{homepageLandingSlug}</code>,
+                      so edits made here are not visible on your website.
+                    </p>
+                    <button
+                      onClick={() => unsetHomepageMutation.mutate()}
+                      disabled={unsetHomepageMutation.isPending}
+                      className="px-3 py-1.5 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {unsetHomepageMutation.isPending ? 'Switching…' : 'Use this homepage instead'}
                     </button>
                   </div>
                 )}
