@@ -602,6 +602,10 @@ app.use((req, res, next) => {
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS homepage_draft_landing_id UUID`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS homepage_landing_slug TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS pricing_embed_url TEXT`);
+        // Gallery soft-delete. Deleting a gallery used to run DELETE FROM galleries
+        // plus its images — irreversible, with a "Trash" filter in the admin that had
+        // nothing to show because nothing was ever kept.
+        await db.execute(sql`ALTER TABLE galleries ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_api_key TEXT`);
         // Authority Map — per-studio topical-cluster + internal-link structure (falls back
         // to the New Age seed in shared/authorityMap.ts when null).

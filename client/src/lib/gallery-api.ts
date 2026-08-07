@@ -9,9 +9,10 @@ import {
 } from '../types/gallery';
 
 // Get all galleries (admin only)
-export async function getGalleries(): Promise<Gallery[]> {
+export async function getGalleries(opts?: { trash?: boolean }): Promise<Gallery[]> {
   try {
-    const response = await fetch('/api/admin/galleries', {
+    // Trash is a distinct server-side view; the default list excludes deleted galleries.
+    const response = await fetch(`/api/admin/galleries${opts?.trash ? '?trash=true' : ''}`, {
       credentials: 'include',
     });
     if (!response.ok) {
@@ -23,6 +24,30 @@ export async function getGalleries(): Promise<Gallery[]> {
   } catch (error) {
     // console.error removed
     throw error;
+  }
+}
+
+// Restore a gallery out of Trash.
+export async function restoreGallery(id: string): Promise<void> {
+  const res = await fetch(`/api/admin/galleries/${id}/restore`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to restore gallery');
+  }
+}
+
+// Permanently delete a gallery. Only valid once it is in Trash.
+export async function deleteGalleryPermanently(id: string): Promise<void> {
+  const res = await fetch(`/api/admin/galleries/${id}/permanent`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to delete gallery');
   }
 }
 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Clock, MoreVertical, Mail, Flag, Image, ChevronLeft, ChevronRight, HelpCircle, BookOpen, X, Globe, Lock, HardDrive } from 'lucide-react';
-import { getGalleries, deleteGallery } from '../../lib/gallery-api';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Clock, MoreVertical, Mail, Flag, Image, ChevronLeft, ChevronRight, RotateCcw, HelpCircle, BookOpen, X, Globe, Lock, HardDrive } from 'lucide-react';
+import { getGalleries, deleteGallery, restoreGallery, deleteGalleryPermanently } from '../../lib/gallery-api';
 import AdvancedGalleryForm from '../../components/admin/AdvancedGalleryForm';
 import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
@@ -80,13 +80,18 @@ const AdminGalleriesPage: React.FC = () => {
   const itemsPerPage = 15;
 
   useEffect(() => {
-    fetchGalleries();
     fetchAnalytics();
   }, []);
 
+  // Trash is fetched from the server, so toggling it reloads rather than filtering
+  // the galleries already on screen.
+  useEffect(() => {
+    fetchGalleries();
+  }, [showTrash]);
+
   useEffect(() => {
     filterGalleries();
-  }, [galleries, searchTerm, statusFilter, showExpired, showTrash]);
+  }, [galleries, searchTerm, statusFilter, showExpired]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -117,7 +122,7 @@ const AdminGalleriesPage: React.FC = () => {
   const fetchGalleries = async () => {
     try {
       setLoading(true);
-      const data = await getGalleries();
+      const data = await getGalleries({ trash: showTrash });
       
       const transformedGalleries: Gallery[] = data.map((g: any) => ({
         id: g.id,
@@ -145,9 +150,34 @@ const AdminGalleriesPage: React.FC = () => {
     }
   };
 
+  const handleRestoreGallery = async (id: string) => {
+    try {
+      await restoreGallery(id);
+      setGalleries(galleries.filter(g => g.id !== id));
+      fetchAnalytics();
+      setOpenMenuId(null);
+    } catch (error: any) {
+      alert(error?.message || 'Failed to restore gallery');
+    }
+  };
+
+  const handleDeleteForever = async (id: string, title: string) => {
+    // Only reachable from Trash, and this one really is irreversible — name the
+    // gallery so it cannot be confirmed on autopilot.
+    if (!confirm(`Permanently delete “${title}” and all its images?\n\nThis cannot be undone.`)) return;
+    try {
+      await deleteGalleryPermanently(id);
+      setGalleries(galleries.filter(g => g.id !== id));
+      fetchAnalytics();
+      setOpenMenuId(null);
+    } catch (error: any) {
+      alert(error?.message || 'Failed to delete gallery');
+    }
+  };
+
   const handleDeleteGallery = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this gallery?')) return;
-    
+    if (!confirm('Move this gallery to Trash? You can restore it from the Trash view.')) return;
+
     try {
       await deleteGallery(id);
       setGalleries(galleries.filter(g => g.id !== id));
@@ -172,6 +202,18 @@ const AdminGalleriesPage: React.FC = () => {
 
     if (statusFilter !== 'all') {
       filtered = filtered.filter(gallery => gallery.status === statusFilter);
+    }
+
+    // "Expired" narrows to galleries clients can no longer open. Both this and Trash
+    // were wired to state and to the effect's dependency array, but neither was ever
+    // read here — ticking them did nothing at all. (Trash is a server-side view; it
+    // refetches rather than filtering the loaded page.)
+    if (showExpired) {
+      filtered = filtered.filter(g => {
+        const expiresAt = (g as any).expiresAt;
+        return (expiresAt && new Date(expiresAt).getTime() < Date.now())
+          || (g as any).status === 'ARCHIVED';
+      });
     }
 
     setFilteredGalleries(filtered);
@@ -554,7 +596,29 @@ const AdminGalleriesPage: React.FC = () => {
                       <MoreVertical size={18} />
                     </button>
                     
-                    {openMenuId === gallery.id && (
+                    {openMenuId === gallery.id && showTrash && (
+                      /* Trash view: restore, or delete for good. Nothing else applies to
+                         a gallery that is not live. */
+                      <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                        <button
+                          onClick={() => handleRestoreGallery(gallery.id)}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          <RotateCcw size={16} className="mr-2" />
+                          Restore
+                        </button>
+                        <hr className="my-1" />
+                        <button
+                          onClick={() => handleDeleteForever(gallery.id, gallery.title)}
+                          className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 size={16} className="mr-2" />
+                          Delete permanently
+                        </button>
+                      </div>
+                    )}
+
+                    {openMenuId === gallery.id && !showTrash && (
                       <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                         <button
                           onClick={() => {

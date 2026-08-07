@@ -5346,6 +5346,12 @@ Bitte versuchen Sie es später noch einmal.`;
         return res.status(410).json({ error: 'gallery_expired', message: 'This gallery is no longer available.' });
       }
 
+      // A gallery in Trash is gone as far as clients are concerned, staff or not —
+      // it is only restorable from the admin Trash view.
+      if ((gallery as any).deletedAt || (gallery as any).deleted_at) {
+        return res.status(410).json({ error: 'gallery_deleted', message: 'This gallery is no longer available.' });
+      }
+
       // SECURITY: Never expose the actual password to the client
       // Only send the isPasswordProtected boolean flag
       const { password, ...safeGallery } = gallery;
@@ -5399,13 +5405,62 @@ Bitte versuchen Sie es später noch einmal.`;
 
   // NOTE: Gallery PUT endpoint moved to line ~4000 with better field mapping
 
+  // Soft delete: the gallery moves to Trash, keeping its images, and can be restored.
+  // This previously destroyed the gallery and every image row outright, with no undo —
+  // one mis-click cost a delivered shoot. Permanent removal is a separate, explicit
+  // action below.
   app.delete("/api/galleries/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
-      await storage.deleteGallery(req.params.id);
-      res.json({ success: true });
+      const result = await runSql(
+        `UPDATE galleries SET deleted_at = NOW(), updated_at = NOW()
+          WHERE id = $1 AND deleted_at IS NULL
+        RETURNING id, title`,
+        [req.params.id]
+      );
+      if (!result.length) {
+        return res.status(404).json({ error: 'Gallery not found or already in Trash' });
+      }
+      res.json({ success: true, trashed: true, message: `“${result[0].title}” moved to Trash.` });
     } catch (error) {
       console.error("Error deleting gallery:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Restore a gallery out of Trash.
+  app.post("/api/admin/galleries/:id/restore", authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const result = await runSql(
+        `UPDATE galleries SET deleted_at = NULL, updated_at = NOW()
+          WHERE id = $1 AND deleted_at IS NOT NULL
+        RETURNING id, title`,
+        [req.params.id]
+      );
+      if (!result.length) {
+        return res.status(404).json({ error: 'Gallery not found in Trash' });
+      }
+      res.json({ success: true, message: `“${result[0].title}” restored.` });
+    } catch (error) {
+      console.error("Error restoring gallery:", error);
+      res.status(500).json({ error: "Failed to restore gallery" });
+    }
+  });
+
+  // Permanent delete — only from Trash, so it can never be reached by one stray click
+  // on the list. This is the destructive path the DELETE above used to be.
+  app.delete("/api/admin/galleries/:id/permanent", authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const check = await runSql(`SELECT title, deleted_at FROM galleries WHERE id = $1`, [req.params.id]);
+      if (!check.length) return res.status(404).json({ error: 'Gallery not found' });
+      if (!check[0].deleted_at) {
+        return res.status(409).json({ error: 'Move the gallery to Trash before deleting it permanently.' });
+      }
+      await runSql(`DELETE FROM gallery_images WHERE gallery_id = $1`, [req.params.id]);
+      await runSql(`DELETE FROM galleries WHERE id = $1`, [req.params.id]);
+      res.json({ success: true, message: `“${check[0].title}” permanently deleted.` });
+    } catch (error) {
+      console.error("Error permanently deleting gallery:", error);
+      res.status(500).json({ error: "Failed to delete gallery" });
     }
   });
 
@@ -6332,8 +6387,9 @@ Bitte versuchen Sie es später noch einmal.`;
   // Get gallery analytics/stats (admin only)
   app.get("/api/admin/galleries/analytics", authenticateUser, async (req: Request, res: Response) => {
     try {
-      // Get total galleries count
-      const totalGalleriesResult = await runSql(`SELECT COUNT(*) as count FROM galleries`);
+      // Counts exclude galleries in Trash — a deleted gallery should not keep padding
+      // the studio's totals.
+      const totalGalleriesResult = await runSql(`SELECT COUNT(*) as count FROM galleries WHERE deleted_at IS NULL`);
       const totalGalleries = parseInt(totalGalleriesResult[0]?.count || '0');
       
       // Get total images count across all galleries
@@ -6341,11 +6397,11 @@ Bitte versuchen Sie es später noch einmal.`;
       const totalImages = parseInt(totalImagesResult[0]?.count || '0');
       
       // Get public galleries count
-      const publicGalleriesResult = await runSql(`SELECT COUNT(*) as count FROM galleries WHERE is_public = true`);
+      const publicGalleriesResult = await runSql(`SELECT COUNT(*) as count FROM galleries WHERE is_public = true AND deleted_at IS NULL`);
       const publicGalleries = parseInt(publicGalleriesResult[0]?.count || '0');
       
       // Get password-protected galleries count
-      const protectedGalleriesResult = await runSql(`SELECT COUNT(*) as count FROM galleries WHERE is_password_protected = true`);
+      const protectedGalleriesResult = await runSql(`SELECT COUNT(*) as count FROM galleries WHERE is_password_protected = true AND deleted_at IS NULL`);
       const protectedGalleries = parseInt(protectedGalleriesResult[0]?.count || '0');
       
       // Storage used by gallery images. size_bytes was added later as a boot migration
@@ -6381,7 +6437,8 @@ Bitte versuchen Sie es später noch einmal.`;
 
   app.get("/api/admin/galleries", authenticateUser, async (req: Request, res: Response) => {
     try {
-      const { clientId, isPublic, limit = 100 } = req.query;
+      const { clientId, isPublic, limit = 100, trash } = req.query;
+      const trashOnly = String(trash || '').toLowerCase() === 'true';
       
       let query = `
         SELECT 
@@ -6395,6 +6452,9 @@ Bitte versuchen Sie es später noch einmal.`;
           g.client_id,
           g.created_at,
           g.updated_at,
+          g.status,
+          g.expires_at,
+          g.deleted_at,
           COALESCE(c.first_name || ' ' || c.last_name, 'Unknown Client') as client_name,
           c.email as client_email,
           COUNT(gi.id) as image_count,
@@ -6415,7 +6475,11 @@ Bitte versuchen Sie es später noch einmal.`;
       const conditions = [];
       const values = [];
       let paramIndex = 1;
-      
+
+      // Trash is a separate view: the normal list never shows deleted galleries, and
+      // the Trash view shows only those.
+      conditions.push(trashOnly ? `g.deleted_at IS NOT NULL` : `g.deleted_at IS NULL`);
+
       if (clientId) {
         conditions.push(`g.client_id = $${paramIndex}`);
         values.push(clientId);
