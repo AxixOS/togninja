@@ -33,6 +33,9 @@ interface BlogTag {
 
 // Newsletter signup form component
 function NewsletterForm({ language }: { language: string }) {
+  // Its copy is now translation keys, so it needs t() of its own — the page-scoped
+  // t() lives in the BlogPage component below and is not in scope here.
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
@@ -41,7 +44,7 @@ function NewsletterForm({ language }: { language: string }) {
     e.preventDefault();
     if (!email || !email.includes('@')) {
       setStatus('error');
-      setMessage(language === 'de' ? 'Bitte geben Sie eine gültige E-Mail-Adresse ein.' : 'Please enter a valid email address.');
+      setMessage(t('blog.pleaseEnterAValid'));
       return;
     }
     setStatus('loading');
@@ -54,15 +57,15 @@ function NewsletterForm({ language }: { language: string }) {
       const data = await res.json();
       if (res.ok && data.success) {
         setStatus('success');
-        setMessage(data.message || (language === 'de' ? 'Vielen Dank! Prüfen Sie Ihre E-Mails.' : 'Thank you! Check your email.'));
+        setMessage(data.message || (t('blog.thankYouCheckYour')));
         setEmail('');
       } else {
         setStatus('error');
-        setMessage(data.error || (language === 'de' ? 'Ein Fehler ist aufgetreten.' : 'An error occurred.'));
+        setMessage(data.error || (t('blog.anErrorOccurred')));
       }
     } catch {
       setStatus('error');
-      setMessage(language === 'de' ? 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.' : 'An error occurred. Please try again later.');
+      setMessage(t('blog.anErrorOccurredPlease'));
     }
   };
 
@@ -80,7 +83,7 @@ function NewsletterForm({ language }: { language: string }) {
         type="email"
         value={email}
         onChange={(e) => { setEmail(e.target.value); if (status === 'error') setStatus('idle'); }}
-        placeholder={language === 'de' ? 'Ihre E-Mail-Adresse' : 'Your email address'}
+        placeholder={t('blog.yourEmailAddress')}
         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-purple-600"
         disabled={status === 'loading'}
       />
@@ -91,8 +94,8 @@ function NewsletterForm({ language }: { language: string }) {
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white font-medium py-2 px-4 rounded-lg transition-colors"
       >
         {status === 'loading'
-          ? (language === 'de' ? 'Wird gesendet...' : 'Sending...')
-          : (language === 'de' ? 'Abonnieren' : 'Subscribe')}
+          ? (t('blog.sending'))
+          : (t('blog.subscribe'))}
       </button>
     </form>
   );
@@ -231,9 +234,7 @@ const BlogPage: React.FC = () => {
       metaDescription.setAttribute('name', 'description');
       document.head.appendChild(metaDescription);
     }
-    metaDescription.setAttribute('content', language === 'de' 
-      ? 'Fotografie-Blog mit Tipps für Familienfotos, Neugeborenenbilder und Schwangerschaftsfotos. Inspiration und Beratung vom Wiener Familienfotograf.'
-      : 'Photography blog with tips for family photos, newborn pictures and maternity photos. Inspiration and advice from a Vienna family photographer.');
+    metaDescription.setAttribute('content', t('blog.photographyBlogWithTips'));
 
     // Open Graph tags
     let ogTitle = document.querySelector('meta[property="og:title"]');
@@ -330,8 +331,8 @@ const BlogPage: React.FC = () => {
     <Layout>
       <SEOHead
         title={language === 'de' ? `Fotografie Blog | ${SITE.name}` : 'Photography Blog | New Age Photography'}
-        description={language === 'de' ? 'Tipps, Inspiration und Neuigkeiten rund um Fotografie in Wien. Familien-, Baby- und Business-Fotografie Insights.' : 'Tips, inspiration and news about photography in Vienna. Family, baby and business photography insights.'}
-        keywords={language === 'de' ? 'Fotografie Blog Wien, Fotoshooting Tipps, Fotograf Inspiration' : 'Photography Blog Vienna, Photoshoot Tips, Photographer Inspiration'}
+        description={t('blog.tipsInspirationAndNews')}
+        keywords={t('blog.photographyBlogViennaPhotoshoot')}
         canonical="/blog/"
         ogImage="https://i.postimg.cc/wTdZVLdC/photo-grid.jpg"
         hreflang={[
@@ -425,9 +426,7 @@ const BlogPage: React.FC = () => {
       <section className="bg-white border-b border-gray-100" aria-labelledby="blog-intro-heading">
         <div className="container mx-auto px-4 py-10 max-w-5xl">
           <h2 id="blog-intro-heading" className="text-2xl md:text-3xl font-bold text-purple-900 mb-3">
-            {language === 'de'
-              ? 'Fotografie-Tipps, Ideen & Guides aus einem Wiener Studio'
-              : 'Photography Tips, Ideas & Guides from a Vienna Studio'}
+            {t('blog.photographyTipsIdeasGuides')}
           </h2>
           <p className="text-gray-700 leading-relaxed mb-8">
             {language === 'de' ? (
@@ -448,27 +447,27 @@ const BlogPage: React.FC = () => {
           </p>
 
           <h2 className="text-xl md:text-2xl font-bold text-purple-900 mb-4">
-            {language === 'de' ? 'Fotografie-Themen entdecken' : 'Explore Photography Topics'}
+            {t('blog.explorePhotographyTopics')}
           </h2>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <li>
               <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {language === 'de' ? 'Tipps für Familienfotografie' : 'Family Photography Tips'}
+                {t('blog.familyPhotographyTips')}
               </Link>
             </li>
             <li>
               <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {language === 'de' ? 'Ratgeber Neugeborenenfotografie' : 'Newborn Photography Advice'}
+                {t('blog.newbornPhotographyAdvice')}
               </Link>
             </li>
             <li>
               <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {language === 'de' ? 'Ideen für Schwangerschaftsfotos' : 'Maternity Photoshoot Ideas'}
+                {t('blog.maternityPhotoshootIdeas')}
               </Link>
             </li>
             <li>
               <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {language === 'de' ? 'Guides für Business Headshots' : 'Business Headshot Guides'}
+                {t('blog.businessHeadshotGuides')}
               </Link>
             </li>
           </ul>
@@ -494,7 +493,7 @@ const BlogPage: React.FC = () => {
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <Loader2 className="h-8 w-8 text-purple-600 animate-spin" />
-                <span className="ml-2 text-gray-600">{language === 'de' ? 'Beiträge laden...' : 'Loading posts...'}</span>
+                <span className="ml-2 text-gray-600">{t('blog.loadingPosts')}</span>
               </div>
             ) : error ? (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -592,7 +591,7 @@ const BlogPage: React.FC = () => {
                         to={`/blog/${post.slug}`}
                         className="text-purple-600 hover:text-purple-800 font-medium text-sm inline-flex items-center"
                       >
-                        {language === 'de' ? 'Weiterlesen' : 'Read more'}
+                        {t('blog.readMore')}
                         <ChevronRight size={16} className="ml-1" />
                       </Link>
                     </div>
@@ -682,7 +681,7 @@ const BlogPage: React.FC = () => {
           <div className="lg:col-span-1">
             {/* Tags */}
             <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">{language === 'de' ? 'Kategorien' : 'Categories'}</h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-4">{t('blog.categories')}</h2>
               <ul className="space-y-2">
                 <li>
                   <button
@@ -692,7 +691,7 @@ const BlogPage: React.FC = () => {
                     }`}
                   >
                     <ChevronRight size={16} className="mr-2" />
-                    {language === 'de' ? 'Alle Kategorien' : 'All Categories'}
+                    {t('blog.allCategories')}
                   </button>
                 </li>
                 {tags.map((tagItem) => (
@@ -715,31 +714,31 @@ const BlogPage: React.FC = () => {
             <div className="bg-purple-50 rounded-lg shadow-lg p-6 mb-8">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Newsletter</h2>
               <p className="text-gray-600 mb-4">
-                {language === 'de' ? 'Bleiben Sie auf dem Laufenden mit unseren neuesten Fotografie-Tipps und Sonderangeboten.' : 'Stay updated with our latest photography tips and special offers.'}
+                {t('blog.stayUpdatedWithOur')}
               </p>
               <NewsletterForm language={language} />
             </div>
 
             {/* Popular Services */}
             <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">{language === 'de' ? 'Beliebte Services' : 'Popular Services'}</h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-4">{t('blog.popularServices')}</h2>
               <ul className="space-y-3">
                 <li>
                   <Link to="/fotoshootings" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
                     <ChevronRight size={16} className="mr-2 text-purple-600" />
-                    {language === 'de' ? 'Familienfotos Wien' : 'Family Photos Vienna'}
+                    {t('blog.familyPhotosVienna')}
                   </Link>
                 </li>
                 <li>
                   <Link to="/fotoshootings" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
                     <ChevronRight size={16} className="mr-2 text-purple-600" />
-                    {language === 'de' ? 'Neugeborenenfotos' : 'Newborn Photos'}
+                    {t('blog.newbornPhotos')}
                   </Link>
                 </li>
                 <li>
                   <Link to="/fotoshootings" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
                     <ChevronRight size={16} className="mr-2 text-purple-600" />
-                    {language === 'de' ? 'Babyfotos Wien' : 'Baby Photos Vienna'}
+                    {t('blog.babyPhotosVienna')}
                   </Link>
                 </li>
                 <li>
@@ -751,7 +750,7 @@ const BlogPage: React.FC = () => {
                 <li>
                   <Link to="/fotoshootings" className="flex items-center text-gray-600 hover:text-purple-600 transition-colors">
                     <ChevronRight size={16} className="mr-2 text-purple-600" />
-                    {language === 'de' ? 'Hochzeitsfotografie' : 'Wedding Photography'}
+                    {t('blog.weddingPhotography')}
                   </Link>
                 </li>
               </ul>
@@ -759,15 +758,15 @@ const BlogPage: React.FC = () => {
 
             {/* Voucher CTA */}
             <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-lg shadow-lg p-6 text-white">
-              <h2 className="text-xl font-bold mb-3">{language === 'de' ? 'Geschenkidee' : 'Gift Idea'}</h2>
+              <h2 className="text-xl font-bold mb-3">{t('blog.giftIdea')}</h2>
               <p className="text-purple-100 mb-4 text-sm">
-                {language === 'de' ? 'Schenken Sie unvergessliche Momente mit unseren Fotoshooting-Gutscheinen.' : 'Give unforgettable moments with our photoshoot vouchers.'}
+                {t('blog.giveUnforgettableMomentsWith')}
               </p>
               <Link 
                 to="/vouchers" 
                 className="inline-block bg-white text-purple-600 px-4 py-2 rounded-lg font-medium hover:bg-purple-50 transition-colors"
               >
-                {language === 'de' ? 'Gutscheine entdecken' : 'Discover Vouchers'}
+                {t('blog.discoverVouchers')}
               </Link>
             </div>
           </div>
@@ -778,7 +777,7 @@ const BlogPage: React.FC = () => {
       <section className="bg-gray-50 border-t border-gray-100" aria-labelledby="blog-plan-heading">
         <div className="container mx-auto px-4 py-10 max-w-4xl">
           <h3 id="blog-plan-heading" className="text-xl md:text-2xl font-bold text-purple-900 mb-3">
-            {language === 'de' ? 'Ihr Fotoshooting in Wien planen' : 'Plan Your Photoshoot in Vienna'}
+            {t('blog.planYourPhotoshootIn')}
           </h3>
           <p className="text-gray-700 leading-relaxed">
             {language === 'de' ? (
@@ -804,31 +803,31 @@ const BlogPage: React.FC = () => {
       <section className="bg-white border-t border-gray-100" aria-labelledby="blog-faq-heading">
         <div className="container mx-auto px-4 py-12 max-w-3xl">
           <h2 id="blog-faq-heading" className="text-2xl md:text-3xl font-bold text-purple-900 mb-6 text-center">
-            {language === 'de' ? 'Häufige Fragen zur Fotografie in Wien' : 'Frequently Asked Questions About Photography in Vienna'}
+            {t('blog.frequentlyAskedQuestionsAbout')}
           </h2>
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                {language === 'de' ? 'Was soll ich für ein Familienfotoshooting anziehen?' : 'What should I wear for a family photoshoot?'}
+                {t('blog.whatShouldIWear')}
               </h3>
               <p className="text-gray-700">
-                {language === 'de' ? 'Neutrale Töne und abgestimmte Outfits wirken bei zeitlosen Familienportraits in Wien am besten.' : 'Neutral tones and coordinated outfits work best for timeless family portraits in Vienna.'}
+                {t('blog.neutralTonesAndCoordinated')}
               </p>
             </div>
             <div>
               <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                {language === 'de' ? 'Wann ist der beste Zeitpunkt für ein Neugeborenen-Shooting?' : 'When is the best time for a newborn photoshoot?'}
+                {t('blog.whenIsTheBest')}
               </h3>
               <p className="text-gray-700">
-                {language === 'de' ? 'Ideal sind die ersten 10–14 Tage nach der Geburt für natürliche, entspannte Posen.' : 'The ideal time is within the first 10–14 days after birth for natural, relaxed poses.'}
+                {t('blog.theIdealTimeIs')}
               </p>
             </div>
             <div>
               <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                {language === 'de' ? 'Bieten Sie Studio- und Outdoor-Fotografie an?' : 'Do you offer studio and outdoor photography?'}
+                {t('blog.doYouOfferStudio')}
               </h3>
               <p className="text-gray-700">
-                {language === 'de' ? 'Ja, je nach Wunsch bieten wir sowohl Studio- als auch Outdoor-Fotoshootings an.' : 'Yes, we offer both studio and outdoor photoshoots depending on your preference.'}
+                {t('blog.yesWeOfferBoth')}
               </p>
             </div>
           </div>

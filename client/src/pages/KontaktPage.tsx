@@ -34,7 +34,7 @@ const KontaktPage: React.FC = () => {
       setSuccess(true);
       setFormData({ fullName: '', email: '', phone: '', message: '' });
     } catch (err) {
-      setError(language === 'de' ? 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.' : 'An error occurred. Please try again later.');
+      setError(t('contactPage.anErrorOccurredPlease'));
     } finally {
       setLoading(false);
     }
@@ -289,31 +289,31 @@ const KontaktPage: React.FC = () => {
       {/* Services CTA Section */}
       <div className="bg-gray-50 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">{language === 'de' ? 'Unsere Beliebten Services' : 'Our Popular Services'}</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">{t('contactPage.ourPopularServices')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Link to="/fotoshootings" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex items-center mb-3">
                 <Camera className="w-6 h-6 text-purple-600 mr-3" />
-                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Familienfotos' : 'Family Photos'}</h3>
+                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">{t('contactPage.familyPhotos')}</h3>
               </div>
-              <p className="text-gray-600 text-sm mb-2">{language === 'de' ? 'Professionelle Familienportraits' : 'Professional family portraits'}</p>
-              <span className="text-purple-600 text-sm flex items-center">{language === 'de' ? 'Mehr erfahren' : 'Learn more'} <ChevronRight className="w-4 h-4 ml-1" /></span>
+              <p className="text-gray-600 text-sm mb-2">{t('contactPage.professionalFamilyPortraits')}</p>
+              <span className="text-purple-600 text-sm flex items-center">{t('contactPage.learnMore')} <ChevronRight className="w-4 h-4 ml-1" /></span>
             </Link>
             <Link to="/fotoshootings" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex items-center mb-3">
                 <Camera className="w-6 h-6 text-purple-600 mr-3" />
-                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Neugeborenenfotos' : 'Newborn Photos'}</h3>
+                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">{t('contactPage.newbornPhotos')}</h3>
               </div>
-              <p className="text-gray-600 text-sm mb-2">{language === 'de' ? 'Zarte Babyfotografie für die ersten Tage' : 'Gentle baby photography for the first days'}</p>
-              <span className="text-purple-600 text-sm flex items-center">{language === 'de' ? 'Mehr erfahren' : 'Learn more'} <ChevronRight className="w-4 h-4 ml-1" /></span>
+              <p className="text-gray-600 text-sm mb-2">{t('contactPage.gentleBabyPhotographyFor')}</p>
+              <span className="text-purple-600 text-sm flex items-center">{t('contactPage.learnMore2')} <ChevronRight className="w-4 h-4 ml-1" /></span>
             </Link>
             <Link to="/fotoshootings" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex items-center mb-3">
                 <Camera className="w-6 h-6 text-purple-600 mr-3" />
                 <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">Business Portraits</h3>
               </div>
-              <p className="text-gray-600 text-sm mb-2">{language === 'de' ? 'Professionelle Bewerbungs- und Businessfotos' : 'Professional headshots and business photography'}</p>
-              <span className="text-purple-600 text-sm flex items-center">{language === 'de' ? 'Mehr erfahren' : 'Learn more'} <ChevronRight className="w-4 h-4 ml-1" /></span>
+              <p className="text-gray-600 text-sm mb-2">{t('contactPage.professionalHeadshotsAndBusiness')}</p>
+              <span className="text-purple-600 text-sm flex items-center">{t('contactPage.learnMore3')} <ChevronRight className="w-4 h-4 ml-1" /></span>
             </Link>
           </div>
           <div className="text-center mt-8">
@@ -322,7 +322,7 @@ const KontaktPage: React.FC = () => {
               className="inline-flex items-center bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors"
             >
               <Gift className="w-5 h-5 mr-2" />
-              {language === 'de' ? 'Geschenkgutscheine kaufen' : 'Buy Gift Vouchers'}
+              {t('contactPage.buyGiftVouchers')}
             </Link>
           </div>
         </div>

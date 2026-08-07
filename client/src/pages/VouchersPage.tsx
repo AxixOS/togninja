@@ -128,8 +128,8 @@ const VouchersPage: React.FC = () => {
       <Layout>
         <SEOHead
           title={language === 'de' ? `Fotoshooting Gutscheine in Wien | ${SITE.name}` : 'Photoshoot Vouchers in Vienna | New Age Photography'}
-          description={language === 'de' ? 'Fotoshooting Gutscheine als perfektes Geschenk. Wählen Sie aus Familie, Baby oder Business Paketen. Sofort per E-Mail!' : 'Photoshoot vouchers as the perfect gift. Choose from family, baby or business packages. Instantly via email!'}
-          keywords={language === 'de' ? 'Fotoshooting Gutschein Wien, Geschenkgutschein Fotograf, Gutschein Fotoshooting' : 'Photoshoot Voucher Vienna, Gift voucher photographer, Voucher photoshoot'}
+          description={t('vouchers.photoshootVouchersAsThe')}
+          keywords={t('vouchers.photoshootVoucherViennaGift')}
           canonical="/vouchers/"
         />
         <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 pt-20">
@@ -139,9 +139,7 @@ const VouchersPage: React.FC = () => {
                 {vouchersTitle}
               </h1>
               <p className="text-lg text-gray-600 mb-4">
-                {language === 'de'
-                  ? 'Fotoshooting-Gutscheine als perfektes Geschenk: Familie, Baby, Schwangerschaft oder Business — sofort per E-Mail, bis zu 2 Jahre gültig.'
-                  : 'Photoshoot vouchers as the perfect gift: family, baby, maternity or business — delivered instantly by email, valid for up to 2 years.'}
+                {t('vouchers.photoshootVouchersAsThe2')}
               </p>
               <p className="text-lg text-gray-600 animate-pulse">Loading vouchers...</p>
             </div>
@@ -218,8 +216,8 @@ const VouchersPage: React.FC = () => {
     <Layout>
       <SEOHead
         title={language === 'de' ? `Fotoshooting Gutscheine in Wien | ${SITE.name}` : 'Photoshoot Vouchers in Vienna | New Age Photography'}
-        description={language === 'de' ? 'Fotoshooting Gutscheine als perfektes Geschenk. Wählen Sie aus Familie, Baby oder Business Paketen. Sofort per E-Mail!' : 'Photoshoot vouchers as the perfect gift. Choose from family, baby or business packages. Instantly via email!'}
-        keywords={language === 'de' ? 'Fotoshooting Gutschein Wien, Geschenkgutschein Fotograf, Gutschein Fotoshooting' : 'Photoshoot Voucher Vienna, Gift voucher photographer, Voucher photoshoot'}
+        description={t('vouchers.photoshootVouchersAsThe3')}
+        keywords={t('vouchers.photoshootVoucherViennaGift2')}
         canonical="/vouchers/"
         ogImage="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=1200&h=630&fit=crop"
         hreflang={[
@@ -289,10 +287,10 @@ const VouchersPage: React.FC = () => {
             {vouchersTitle}
           </h1>
           <p className="text-xl md:text-2xl mb-2">
-            {language === 'de' ? 'Fotoshooting Gutscheine für jeden Anlass' : 'Photoshoot Vouchers for Every Occasion'}
+            {t('vouchers.photoshootVouchersForEvery')}
           </p>
           <p className="text-lg opacity-90">
-            {language === 'de' ? 'Wählen Sie aus unseren Kategorien: Familie, Baby, Schwangerschaft, Business & Event' : 'Choose from our categories: Family, Baby, Maternity, Business & Event'}
+            {t('vouchers.chooseFromOurCategories')}
           </p>
         </div>
       </div>
@@ -301,7 +299,7 @@ const VouchersPage: React.FC = () => {
       <section className="bg-white border-b border-gray-100" aria-labelledby="vouchers-intro-heading">
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           <h2 id="vouchers-intro-heading" className="text-2xl md:text-3xl font-bold text-purple-900 mb-3">
-            {language === 'de' ? 'Fotoshooting Gutscheine in Wien für jeden Anlass' : 'Photoshoot Vouchers in Vienna for Every Occasion'}
+            {t('vouchers.photoshootVouchersInVienna')}
           </h2>
           <p className="text-gray-700 leading-relaxed">
             {language === 'de' ? (
@@ -352,15 +350,15 @@ const VouchersPage: React.FC = () => {
                     {/* Badge */}
                     {voucher.badge && (() => {
                       const badgeConfig: Record<string, { label: string; bg: string; text: string; icon: string }> = {
-                        'BESTSELLER': { label: language === 'de' ? 'Bestseller' : 'Best Seller', bg: 'bg-amber-500', text: 'text-white', icon: '⭐' },
-                        'TOP_SELLER': { label: language === 'de' ? 'Top Seller' : 'Top Seller', bg: 'bg-red-500', text: 'text-white', icon: '🔥' },
-                        'NEW': { label: language === 'de' ? 'Neu' : 'New', bg: 'bg-emerald-500', text: 'text-white', icon: '✨' },
-                        'POPULAR': { label: language === 'de' ? 'Beliebt' : 'Popular', bg: 'bg-pink-500', text: 'text-white', icon: '❤️' },
-                        'LIMITED': { label: language === 'de' ? 'Limitiert' : 'Limited', bg: 'bg-purple-600', text: 'text-white', icon: '⏳' },
-                        'SALE': { label: language === 'de' ? 'Angebot' : 'Sale', bg: 'bg-orange-500', text: 'text-white', icon: '💰' },
-                        'RECOMMENDED': { label: language === 'de' ? 'Empfohlen' : 'Recommended', bg: 'bg-blue-500', text: 'text-white', icon: '👍' },
-                        'GIFT_IDEA': { label: language === 'de' ? 'Geschenkidee' : 'Gift Idea', bg: 'bg-fuchsia-500', text: 'text-white', icon: '🎁' },
-                        'SEASONAL': { label: language === 'de' ? 'Saisonal' : 'Seasonal', bg: 'bg-teal-500', text: 'text-white', icon: '🌸' },
+                        'BESTSELLER': { label: t('vouchers.bestSeller'), bg: 'bg-amber-500', text: 'text-white', icon: '⭐' },
+                        'TOP_SELLER': { label: t('vouchers.topSeller'), bg: 'bg-red-500', text: 'text-white', icon: '🔥' },
+                        'NEW': { label: t('vouchers.new'), bg: 'bg-emerald-500', text: 'text-white', icon: '✨' },
+                        'POPULAR': { label: t('vouchers.popular'), bg: 'bg-pink-500', text: 'text-white', icon: '❤️' },
+                        'LIMITED': { label: t('vouchers.limited'), bg: 'bg-purple-600', text: 'text-white', icon: '⏳' },
+                        'SALE': { label: t('vouchers.sale'), bg: 'bg-orange-500', text: 'text-white', icon: '💰' },
+                        'RECOMMENDED': { label: t('vouchers.recommended'), bg: 'bg-blue-500', text: 'text-white', icon: '👍' },
+                        'GIFT_IDEA': { label: t('vouchers.giftIdea'), bg: 'bg-fuchsia-500', text: 'text-white', icon: '🎁' },
+                        'SEASONAL': { label: t('vouchers.seasonal'), bg: 'bg-teal-500', text: 'text-white', icon: '🌸' },
                       };
                       const cfg = badgeConfig[voucher.badge] || { label: voucher.badge, bg: 'bg-gray-700', text: 'text-white', icon: '' };
                       return (
@@ -396,7 +394,7 @@ const VouchersPage: React.FC = () => {
                       {/* Price and Button */}
                       <div className="flex justify-between items-center">
                         <div className="flex flex-col">
-                          <span className="text-sm text-gray-500 uppercase tracking-wide">{language === 'de' ? 'AB' : 'FROM'}</span>
+                          <span className="text-sm text-gray-500 uppercase tracking-wide">{t('vouchers.from')}</span>
                           <span className="text-2xl font-bold text-purple-600">€{voucher.price}</span>
                         </div>
                         <button 
@@ -441,7 +439,7 @@ const VouchersPage: React.FC = () => {
       <section className="bg-purple-50/40 border-t border-gray-100" aria-labelledby="vouchers-context-heading">
         <div className="container mx-auto px-4 py-10 max-w-4xl">
           <h2 id="vouchers-context-heading" className="text-2xl md:text-3xl font-bold text-purple-900 mb-3">
-            {language === 'de' ? 'Das passende Foto-Erlebnis wählen' : 'Choose the Right Photography Experience'}
+            {t('vouchers.chooseTheRightPhotography')}
           </h2>
           <p className="text-gray-700 leading-relaxed">
             {language === 'de' ? (
@@ -465,27 +463,27 @@ const VouchersPage: React.FC = () => {
       <section className="bg-white border-t border-gray-100" aria-labelledby="vouchers-explore-heading">
         <div className="container mx-auto px-4 py-10 max-w-4xl">
           <h3 id="vouchers-explore-heading" className="text-xl md:text-2xl font-bold text-purple-900 mb-4 text-center">
-            {language === 'de' ? 'Unsere Fotografie-Leistungen entdecken' : 'Explore Our Photography Services'}
+            {t('vouchers.exploreOurPhotographyServices')}
           </h3>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-center">
             <li>
               <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {language === 'de' ? 'Familienfotos Wien' : 'Family Photography Vienna'}
+                {t('vouchers.familyPhotographyVienna')}
               </Link>
             </li>
             <li>
               <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {language === 'de' ? 'Neugeborenenfotos Wien' : 'Newborn Photography Vienna'}
+                {t('vouchers.newbornPhotographyVienna')}
               </Link>
             </li>
             <li>
               <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {language === 'de' ? 'Schwangerschaftsfotos Wien' : 'Maternity Photography Vienna'}
+                {t('vouchers.maternityPhotographyVienna')}
               </Link>
             </li>
             <li>
               <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {language === 'de' ? 'Business Portraits Wien' : 'Business Headshots Vienna'}
+                {t('vouchers.businessHeadshotsVienna')}
               </Link>
             </li>
           </ul>
@@ -496,31 +494,31 @@ const VouchersPage: React.FC = () => {
       <section className="bg-gray-50 border-t border-gray-100" aria-labelledby="vouchers-faq-heading">
         <div className="container mx-auto px-4 py-12 max-w-3xl">
           <h2 id="vouchers-faq-heading" className="text-2xl md:text-3xl font-bold text-purple-900 mb-6 text-center">
-            {language === 'de' ? 'Häufige Fragen zu Fotoshooting Gutscheinen' : 'Frequently Asked Questions About Photoshoot Vouchers'}
+            {t('vouchers.frequentlyAskedQuestionsAbout')}
           </h2>
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                {language === 'de' ? 'Wie funktionieren Fotoshooting Gutscheine in Wien?' : 'How do photography vouchers work in Vienna?'}
+                {t('vouchers.howDoPhotographyVouchers')}
               </h3>
               <p className="text-gray-700">
-                {language === 'de' ? 'Unsere Gutscheine können online gekauft und für ein professionelles Fotoshooting in unserem Studio in Wien oder an Outdoor-Locations eingelöst werden.' : 'Our vouchers can be purchased online and redeemed for a professional photoshoot at our Vienna studio or outdoor locations.'}
+                {t('vouchers.ourVouchersCanBe')}
               </p>
             </div>
             <div>
               <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                {language === 'de' ? 'Kann ich ein Familienfotoshooting verschenken?' : 'Can I gift a family photoshoot?'}
+                {t('vouchers.canIGiftA')}
               </h3>
               <p className="text-gray-700">
-                {language === 'de' ? 'Ja, Familienfotografie-Gutscheine gehören zu den beliebtesten Geschenken und lassen sich für jeden Anlass individualisieren.' : 'Yes, family photography vouchers are one of the most popular gifts and can be customised for any occasion.'}
+                {t('vouchers.yesFamilyPhotographyVouchers')}
               </p>
             </div>
             <div>
               <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                {language === 'de' ? 'Verfallen die Gutscheine?' : 'Do vouchers expire?'}
+                {t('vouchers.doVouchersExpire')}
               </h3>
               <p className="text-gray-700">
-                {language === 'de' ? 'Die Gültigkeit hängt vom gewählten Paket ab. Alle Details werden beim Checkout angezeigt.' : 'Voucher validity depends on the package selected. Full details are provided at checkout.'}
+                {t('vouchers.voucherValidityDependsOn')}
               </p>
             </div>
           </div>

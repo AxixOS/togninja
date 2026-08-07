@@ -83,7 +83,7 @@ const CategoryCarousel: React.FC<{
   isReversed: boolean;
 }> = ({ categoryId, icon: Icon, link, images, index, isReversed }) => {
   const navigate = useNavigate();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: true, 
     align: 'start',
@@ -156,7 +156,7 @@ const CategoryCarousel: React.FC<{
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              {language === 'de' ? 'Mehr entdecken' : 'Explore More'}
+              {t('portfolio.exploreMore')}
               <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </motion.button>
           </motion.div>
@@ -236,7 +236,7 @@ const CategoryCarousel: React.FC<{
 // Masonry Grid for Featured Work
 const FeaturedGrid: React.FC<{ images: PortfolioImage[] }> = ({ images }) => {
   const navigate = useNavigate();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
 
   // Assign sizes based on index for visual variety
   const getSizeClass = (index: number) => {
@@ -260,12 +260,10 @@ const FeaturedGrid: React.FC<{ images: PortfolioImage[] }> = ({ images }) => {
           className="text-center mb-12"
         >
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            {language === 'de' ? 'Ausgewählte Arbeiten' : 'Featured Work'}
+            {t('portfolio.featuredWork')}
           </h2>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            {language === 'de' 
-              ? 'Eine Auswahl unserer liebsten Momente aus verschiedenen Sessions'
-              : 'A selection of our favorite moments from various sessions'}
+            {t('portfolio.aSelectionOfOur')}
           </p>
         </motion.div>
 
@@ -305,7 +303,7 @@ const FeaturedGrid: React.FC<{ images: PortfolioImage[] }> = ({ images }) => {
 
 // Main Portfolio Page
 const PortfolioPage: React.FC = () => {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const navigate = useNavigate();
 
   // Fetch portfolio images from API
@@ -336,9 +334,7 @@ const PortfolioPage: React.FC = () => {
     <Layout>
       <SEOHead
         title={language === 'de' ? `Fotografie Portfolio Wien | ${SITE.name}` : 'Photography Portfolio Vienna – Family, Newborn & Business Sessions | New Age Photography'}
-        description={language === 'de' 
-          ? 'Entdecken Sie unser Portfolio: Familienporträts, Neugeborenenfotos, Schwangerschaftsbilder, Hochzeitsfotografie und Business-Portraits aus Wien. Lassen Sie sich inspirieren!'
-          : 'Explore our portfolio: Family portraits, newborn photos, maternity sessions, wedding photography and business portraits from Vienna. Get inspired!'}
+        description={t('portfolio.exploreOurPortfolioFamily')}
         keywords="Portfolio Fotograf Wien, Familienfotos Wien, Hochzeitsfotografie Wien, Business Portraits Wien, Neugeborenenfotos Wien"
         canonical="/portfolio/"
       />
@@ -387,16 +383,14 @@ const PortfolioPage: React.FC = () => {
             </motion.div>
             
             <h1 className="text-5xl md:text-7xl font-bold text-white mb-6">
-              <span className="block">{language === 'de' ? 'Unser' : 'Our'}</span>
+              <span className="block">{t('portfolio.our')}</span>
               <span className="bg-gradient-to-r from-pink-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
                 Portfolio
               </span>
             </h1>
             
             <p className="text-xl md:text-2xl text-purple-200 max-w-3xl mx-auto mb-8">
-              {language === 'de' 
-                ? 'Momente, die für immer bleiben. Entdecken Sie unsere Arbeit.'
-                : 'Moments that last forever. Explore our work.'}
+              {t('portfolio.momentsThatLastForever')}
             </p>
 
             <p className="text-base md:text-lg text-purple-100/90 max-w-3xl mx-auto mb-8">
@@ -425,7 +419,7 @@ const PortfolioPage: React.FC = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              {language === 'de' ? 'Portfolio entdecken' : 'Explore Portfolio'}
+              {t('portfolio.explorePortfolio')}
               <ChevronRight className="w-5 h-5" />
             </motion.button>
           </motion.div>
@@ -454,7 +448,7 @@ const PortfolioPage: React.FC = () => {
           <div className="py-20 text-center">
             <Loader2 className="w-12 h-12 mx-auto animate-spin text-purple-600" />
             <p className="mt-4 text-gray-600">
-              {language === 'de' ? 'Portfolio wird geladen...' : 'Loading portfolio...'}
+              {t('portfolio.loadingPortfolio')}
             </p>
           </div>
         )}
@@ -463,7 +457,7 @@ const PortfolioPage: React.FC = () => {
         {error && (
           <div className="py-20 text-center">
             <p className="text-red-600">
-              {language === 'de' ? 'Fehler beim Laden des Portfolios' : 'Error loading portfolio'}
+              {t('portfolio.errorLoadingPortfolio')}
             </p>
           </div>
         )}
@@ -493,7 +487,7 @@ const PortfolioPage: React.FC = () => {
               viewport={{ once: true }}
             >
               <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-                {language === 'de' ? 'Bereit für Ihre eigenen Erinnerungen?' : 'Ready to Create Your Own Memories?'}
+                {t('portfolio.readyToCreateYour')}
               </h2>
               <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
                 {language === 'de'
@@ -507,7 +501,7 @@ const PortfolioPage: React.FC = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  {language === 'de' ? 'Termin anfragen' : 'Book a Session'}
+                  {t('portfolio.bookASession')}
                 </motion.button>
                 <motion.button
                   onClick={() => navigate('/vouchers')}
@@ -515,7 +509,7 @@ const PortfolioPage: React.FC = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  {language === 'de' ? 'Gutscheine ansehen' : 'View Vouchers'}
+                  {t('portfolio.viewVouchers')}
                 </motion.button>
               </div>
             </motion.div>
@@ -527,38 +521,38 @@ const PortfolioPage: React.FC = () => {
       <section className="py-12 bg-gray-50 border-t border-gray-100">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            {language === 'de' ? 'Weitere Fotoshootings' : 'More Photo Shoots'}
+            {t('portfolio.morePhotoShoots')}
           </h3>
           <ul className="grid sm:grid-cols-3 gap-3 mb-6 max-w-2xl mx-auto">
             <li className="text-center">
               <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
-                {language === 'de' ? 'Familienfotos Wien' : 'Family Photos Vienna'}
+                {t('portfolio.familyPhotosVienna')}
               </Link>
             </li>
             <li className="text-center">
               <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
-                {language === 'de' ? 'Babyfotografie Wien' : 'Baby Photography Vienna'}
+                {t('portfolio.babyPhotographyVienna')}
               </Link>
             </li>
             <li className="text-center">
               <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
-                {language === 'de' ? 'Business Portrait Wien' : 'Business Portrait Vienna'}
+                {t('portfolio.businessPortraitVienna')}
               </Link>
             </li>
           </ul>
           <p className="text-center text-gray-700">
             <Link to="/preise/" className="text-purple-700 hover:text-purple-900 font-semibold underline underline-offset-2">
-              {language === 'de' ? 'Preise ansehen' : 'View prices'}
+              {t('portfolio.viewPrices')}
             </Link>
             <span className="mx-2 text-gray-400">·</span>
             <Link to="/warteliste/" className="text-purple-700 hover:text-purple-900 font-semibold underline underline-offset-2">
-              {language === 'de' ? 'Termin sichern' : 'Book appointment'}
+              {t('portfolio.bookAppointment')}
             </Link>
           </p>
         </div>
       </section>
 
-      <PillarLinksBlock currentPath="/portfolio/" title={language === 'de' ? 'Unsere Fotoshootings in Wien' : 'Our Photo Shoots in Vienna'} />
+      <PillarLinksBlock currentPath="/portfolio/" title={t('portfolio.ourPhotoShootsIn')} />
       <RelatedTopicsBlock pathname="/portfolio" language={(language as 'de' | 'en') || 'de'} />
     </Layout>
   );

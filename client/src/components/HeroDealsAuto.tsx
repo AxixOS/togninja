@@ -50,11 +50,12 @@ function normalize(item: AnyObj) {
   return { id, imageUrl, thumbnailUrl, promoImageUrl, title, url, price, compareAt, ribbonText: ribbon, dataVoucherId: dataId, subtitle, detailedDescription, slug };
 }
 
-function pctSave(price: number, compareAt: number | undefined, language: 'en' | 'de') {
+// Plain helper, not a component — it cannot call the t() hook, so the already
+// translated suffix is passed in by the caller.
+function pctSave(price: number, compareAt: number | undefined, offSuffix: string) {
   if (!compareAt || compareAt <= price) return null;
   const pct = Math.round(((compareAt - price) / compareAt) * 100);
-  const suffix = language === 'de' ? 'SPAREN' : 'OFF';
-  return `${pct}% ${suffix}`;
+  return `${pct}% ${offSuffix}`;
 }
 
 export default function HeroDealsAuto({ items }: { items: AnyObj[] }) {
@@ -65,7 +66,7 @@ export default function HeroDealsAuto({ items }: { items: AnyObj[] }) {
   const top3 = (items || []).slice(0, 3).map(normalize).filter(v => v.imageUrl && v.title && v.url);
   if (!top3.length) return null;
 
-  const formatter = new Intl.NumberFormat(language === 'de' ? 'de-AT' : 'en-AT', {
+  const formatter = new Intl.NumberFormat(t('heroDeals.enAt'), {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 2,
@@ -94,7 +95,7 @@ export default function HeroDealsAuto({ items }: { items: AnyObj[] }) {
     <section className="naf-hero-wrap" aria-label="Top vouchers">
       <div className="naf-hero-grid">
         {top3.map(v => {
-          const savingsText = pctSave(v.price, v.compareAt, language);
+          const savingsText = pctSave(v.price, v.compareAt, t('heroDeals.off'));
           
           return (
             <article key={v.id} className="naf-card">
@@ -122,7 +123,7 @@ export default function HeroDealsAuto({ items }: { items: AnyObj[] }) {
                 )}
                 
                 <div className="naf-price-row">
-                  <span className="naf-from">{language === 'de' ? 'AB' : 'FROM'}</span>
+                  <span className="naf-from">{t('heroDeals.from')}</span>
                   {v.compareAt && (
                     <span className="naf-old">{formatter.format(v.compareAt)}</span>
                   )}

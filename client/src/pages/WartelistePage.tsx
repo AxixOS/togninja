@@ -12,6 +12,8 @@ import { SITE } from '../config/site';
 
 const WartelistePage: React.FC = () => {
   const { language } = useLanguage();
+  // Page-scoped t(): checks this page's published Website Studio overrides first,
+  // then falls back to the LanguageContext defaults.
   const t = useManualPageContent('waitlist');
   const [formData, setFormData] = useState({
     fullName: '',
@@ -34,7 +36,7 @@ const WartelistePage: React.FC = () => {
       setSuccess(true);
       setFormData({ fullName: '', preferredDate: '', email: '', phone: '', message: '' });
     } catch (err) {
-      setError(language === 'de' ? 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.' : 'An error occurred. Please try again later.');
+      setError(t('waitlist.anErrorOccurredPlease'));
     } finally {
       setLoading(false);
     }
@@ -51,8 +53,8 @@ const WartelistePage: React.FC = () => {
     <Layout>
       <SEOHead
         title={language === 'de' ? `Warteliste für Fotoshootings | ${SITE.name}` : 'Photoshoot Waitlist | New Age Photography'}
-        description={language === 'de' ? 'Tragen Sie sich auf unsere Warteliste ein und erfahren Sie als Erste/r von freien Terminen und Aktionen.' : 'Sign up for our waitlist and be the first to know about available appointments and promotions.'}
-        keywords={language === 'de' ? 'Warteliste Fotoshooting, Termin Fotograf Wien, Benachrichtigung' : 'Photoshoot waitlist, Photographer appointment Vienna, Notification'}
+        description={t('waitlist.signUpForOur')}
+        keywords={t('waitlist.photoshootWaitlistPhotographerAppointment')}
         canonical="/warteliste/"
       />
 
@@ -111,7 +113,7 @@ const WartelistePage: React.FC = () => {
         {/* Additive SEO intro block – above form */}
         <section className="max-w-2xl mx-auto mb-10" aria-labelledby="waitlist-intro-heading">
           <h2 id="waitlist-intro-heading" className="text-2xl md:text-3xl font-bold text-purple-900 mb-3">
-            {language === 'de' ? 'Ihr professionelles Fotoshooting in Wien buchen' : 'Book Your Professional Photoshoot in Vienna'}
+            {t('waitlist.bookYourProfessionalPhotoshoot')}
           </h2>
           <p className="text-gray-700 leading-relaxed">
             {language === 'de' ? (
@@ -232,7 +234,7 @@ const WartelistePage: React.FC = () => {
             </button>
 
             <p className="text-sm text-gray-500 text-center">
-              <span className="text-purple-600">*</span> {language === 'de' ? 'Pflichtfelder' : 'Required fields'}
+              <span className="text-purple-600">*</span> {t('waitlist.requiredFields')}
             </p>
           </form>
         </div>
@@ -240,7 +242,7 @@ const WartelistePage: React.FC = () => {
         {/* Additive: What happens next */}
         <section className="max-w-2xl mx-auto mt-10" aria-labelledby="waitlist-next-heading">
           <h2 id="waitlist-next-heading" className="text-2xl md:text-3xl font-bold text-purple-900 mb-3">
-            {language === 'de' ? 'Was passiert nach Ihrer Anfrage?' : 'What Happens After Your Request?'}
+            {t('waitlist.whatHappensAfterYour')}
           </h2>
           <p className="text-gray-700 leading-relaxed">
             {language === 'de' ? (
@@ -261,55 +263,55 @@ const WartelistePage: React.FC = () => {
 
         {/* Services Sidebar/Section */}
         <div className="max-w-4xl mx-auto mt-12">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">{language === 'de' ? 'Während Sie warten – Entdecken Sie unsere Services' : 'While You Wait – Discover Our Services'}</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">{t('waitlist.whileYouWaitDiscover')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Link to="/fotoshootings" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
               <Camera className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-              <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Familienfotos' : 'Family Photos'}</h3>
+              <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{t('waitlist.familyPhotos')}</h3>
             </Link>
             <Link to="/fotoshootings" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
               <Camera className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-              <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Neugeborene' : 'Newborn'}</h3>
+              <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{t('waitlist.newborn')}</h3>
             </Link>
             <Link to="/fotoshootings" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
               <Camera className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-              <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{language === 'de' ? 'Schwangerschaft' : 'Maternity'}</h3>
+              <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{t('waitlist.maternity')}</h3>
             </Link>
             <Link to="/vouchers" className="bg-purple-600 text-white p-4 rounded-lg shadow hover:bg-purple-700 transition-colors text-center">
               <Gift className="w-8 h-8 mx-auto mb-2" />
-              <h3 className="font-medium">{language === 'de' ? 'Gutscheine' : 'Vouchers'}</h3>
+              <h3 className="font-medium">{t('waitlist.vouchers')}</h3>
             </Link>
           </div>
           <p className="text-center text-gray-600 mt-6">
             <Link to="/blog" className="text-purple-600 hover:text-purple-800 font-medium inline-flex items-center">
-              {language === 'de' ? 'Lesen Sie unseren Blog für Fotografie-Tipps' : 'Read our blog for photography tips'} <ChevronRight className="w-4 h-4 ml-1" />
+              {t('waitlist.readOurBlogFor')} <ChevronRight className="w-4 h-4 ml-1" />
             </Link>
           </p>
 
           {/* Additive: Explore our photography services link block */}
           <section className="mt-10" aria-labelledby="waitlist-explore-heading">
             <h3 id="waitlist-explore-heading" className="text-xl md:text-2xl font-bold text-purple-900 mb-4 text-center">
-              {language === 'de' ? 'Unsere Fotografie-Leistungen entdecken' : 'Explore Our Photography Services'}
+              {t('waitlist.exploreOurPhotographyServices')}
             </h3>
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
               <li>
                 <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
-                  {language === 'de' ? 'Familienfotos Wien' : 'Family Photography Vienna'}
+                  {t('waitlist.familyPhotographyVienna')}
                 </Link>
               </li>
               <li>
                 <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
-                  {language === 'de' ? 'Neugeborenenfotos Wien' : 'Newborn Photography Vienna'}
+                  {t('waitlist.newbornPhotographyVienna')}
                 </Link>
               </li>
               <li>
                 <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
-                  {language === 'de' ? 'Schwangerschaftsfotos Wien' : 'Maternity Photoshoots Vienna'}
+                  {t('waitlist.maternityPhotoshootsVienna')}
                 </Link>
               </li>
               <li>
                 <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
-                  {language === 'de' ? 'Business Portraits Wien' : 'Business Headshots Vienna'}
+                  {t('waitlist.businessHeadshotsVienna')}
                 </Link>
               </li>
             </ul>
@@ -321,38 +323,38 @@ const WartelistePage: React.FC = () => {
       <section className="bg-white border-t border-gray-100" aria-labelledby="waitlist-faq-heading">
         <div className="container mx-auto px-4 py-12 max-w-3xl">
           <h2 id="waitlist-faq-heading" className="text-2xl md:text-3xl font-bold text-purple-900 mb-6 text-center">
-            {language === 'de' ? 'Häufig gestellte Fragen' : 'Frequently Asked Questions'}
+            {t('waitlist.frequentlyAskedQuestions')}
           </h2>
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                {language === 'de' ? 'Wie weit im Voraus sollte ich ein Fotoshooting in Wien buchen?' : 'How far in advance should I book a photoshoot in Vienna?'}
+                {t('waitlist.howFarInAdvance')}
               </h3>
               <p className="text-gray-700">
-                {language === 'de' ? 'Wir empfehlen eine Vorlaufzeit von 2–3 Wochen, um Ihren Wunschtermin zu sichern.' : 'We recommend booking at least 2–3 weeks in advance to secure your preferred date.'}
+                {t('waitlist.weRecommendBookingAt')}
               </p>
             </div>
             <div>
               <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                {language === 'de' ? 'Bieten Sie Termine am Wochenende an?' : 'Do you offer weekend appointments?'}
+                {t('waitlist.doYouOfferWeekend')}
               </h3>
               <p className="text-gray-700">
-                {language === 'de' ? 'Ja, je nach Verfügbarkeit bieten wir Fotoshootings auch am Wochenende an.' : 'Yes, we offer weekend photoshoots depending on availability.'}
+                {t('waitlist.yesWeOfferWeekend')}
               </p>
             </div>
             <div>
               <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                {language === 'de' ? 'Kann ich zwischen Studio- und Outdoor-Fotografie wählen?' : 'Can I choose between studio and outdoor photography?'}
+                {t('waitlist.canIChooseBetween')}
               </h3>
               <p className="text-gray-700">
-                {language === 'de' ? 'Absolut. Wir bieten je nach Wunsch Studio- und Outdoor-Sessions an.' : 'Absolutely. We offer both studio and outdoor sessions based on your preference.'}
+                {t('waitlist.absolutelyWeOfferBoth')}
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      <PillarLinksBlock currentPath="/warteliste/" title={language === 'de' ? 'Welches Shooting interessiert Sie?' : 'Which shoot are you interested in?'} />
+      <PillarLinksBlock currentPath="/warteliste/" title={t('waitlist.whichShootAreYou')} />
 
       {/* Additive: soft pre-footer CTA */}
       <section className="bg-purple-50/40 border-t border-gray-100">
