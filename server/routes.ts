@@ -9686,13 +9686,6 @@ END $$;`);
     console.log('questionnaire_responses column check:', e?.message);
   }
 
-  // TEMP DIAGNOSTIC (unauthed) — full schema of questionnaire_responses. Remove after.
-  app.get("/api/debug/qr-fullschema", async (_req: Request, res: Response) => {
-    try {
-      const cols = await runSql(`SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name='questionnaire_responses' ORDER BY ordinal_position`);
-      res.json({ columns: cols });
-    } catch (e: any) { res.json({ error: String(e?.message || e) }); }
-  });
 
 
   app.get("/api/admin/questionnaire-responses", authenticateUser, async (req: Request, res: Response) => {
