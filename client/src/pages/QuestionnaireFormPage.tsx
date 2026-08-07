@@ -38,6 +38,7 @@ const QuestionnaireFormPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [emailSent, setEmailSent] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
@@ -160,6 +161,7 @@ const QuestionnaireFormPage: React.FC = () => {
       
       const result = await response.json();
       console.log('✅ Questionnaire submitted successfully:', result);
+      setEmailSent(result?.emailSent !== false);
       setSubmitted(true);
     } catch (err) {
       console.error('❌ Questionnaire submission error:', err);
@@ -263,17 +265,22 @@ const QuestionnaireFormPage: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-md p-8 max-w-md w-full text-center">
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Vielen Dank!</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Thank you!</h2>
           <p className="text-gray-600 mb-6">
-            {questionnaire?.survey.settings.thankYouMessage || 
-             'Vielen Dank für das Ausfüllen unseres Fragebogens! Wir werden uns bald bei Ihnen melden.'}
+            {questionnaire?.survey.settings.thankYouMessage ||
+             "Thank you for completing our questionnaire! We'll be in touch with you soon."}
           </p>
           <div className="space-y-3">
             <p className="text-sm text-gray-500">
-              Ihre Antwort wurde gespeichert und wir werden uns in Kürze bei Ihnen melden.
+              Your response has been saved and we'll be in touch shortly.
             </p>
+            {!emailSent && (
+              <p className="text-xs text-amber-600">
+                Note: a confirmation email couldn't be sent this time.
+              </p>
+            )}
             <p className="text-xs text-gray-400">
-              Sie können diese Seite jetzt schließen.
+              You can now close this page.
             </p>
           </div>
         </div>

@@ -1,22 +1,44 @@
 import nodemailer from 'nodemailer';
 import { config } from '../config-reader';
 
+// Get email settings from DB first (per-studio /setup), then environment variables.
+// Both mails below share this so a studio that configured SMTP in the wizard gets
+// BOTH the notification and the client confirmation — not just one.
+async function getEmailSettings() {
+  const user = await config.get('smtp_user') || process.env.EMAIL_USER || '';
+  const fromEmail = await config.getOrDefault('from_email', '') || user;
+  return {
+    host: await config.getOrDefault('smtp_host', 'smtp.easyname.com'),
+    port: await config.getNumber('smtp_port', 587),
+    user,
+    pass: await config.get('smtp_pass') || process.env.EMAIL_PASS || '',
+    fromEmail,
+    // Notify the studio at its notify address, falling back to the SMTP/from address.
+    studioEmail: (await config.getOrDefault('studio_notify_email', '')) || fromEmail
+  };
+}
+
+// The studio's own name, per tenant — never hardcode a studio here.
+async function getStudioName() {
+  return (await config.getOrDefault('business_name', ''))
+    || (await config.getOrDefault('studio_name', ''))
+    || process.env.STUDIO_NAME
+    || 'My Studio';
+}
+
 // Email service for questionnaire notifications
-export async function sendStudioNotificationEmail(clientName: string, clientEmail: string, answers: any, link: any) {
+export async function sendStudioNotificationEmail(clientName: string, clientEmail: string, answers: any, link: any): Promise<boolean> {
   try {
-    // Get email settings from DB first, then environment variables
-    const emailSettings = {
-      host: await config.getOrDefault('smtp_host', 'smtp.easyname.com'),
-      port: await config.getNumber('smtp_port', 587),
-      user: await config.get('smtp_user') || process.env.EMAIL_USER,
-      pass: await config.get('smtp_pass') || process.env.EMAIL_PASS,
-      fromEmail: await config.getOrDefault('from_email', ''),
-      studioEmail: await config.getOrDefault('studio_notify_email', '')
-    };
+    const emailSettings = await getEmailSettings();
+    const studioName = await getStudioName();
 
     if (!emailSettings.user || !emailSettings.pass) {
       console.error('Email credentials not configured');
-      return;
+      return false;
+    }
+    if (!emailSettings.studioEmail) {
+      console.error('Studio notification recipient not configured (studio_notify_email)');
+      return false;
     }
 
     // Create transporter
@@ -39,35 +61,35 @@ export async function sendStudioNotificationEmail(clientName: string, clientEmai
 
     const subject = `New Client Questionnaire - ${clientName}`;
     const text = `
-Neue Fragebogen-Antwort erhalten!
+New questionnaire response received!
 
 Client: ${clientName}
 Email: ${clientEmail}
 
-Antworten:
+Answers:
 ${answersText}
 
 ---
-${process.env.STUDIO_NAME || 'My Studio'} CRM System
+${studioName} CRM System
     `;
 
     const html = `
-      <h2>Neue Fragebogen-Antwort erhalten!</h2>
-      
+      <h2>New questionnaire response received!</h2>
+
       <p><strong>Client:</strong> ${clientName}</p>
       <p><strong>Email:</strong> ${clientEmail}</p>
-      
-      <h3>Antworten:</h3>
+
+      <h3>Answers:</h3>
       <div style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
         ${answersText.split('\n').map(line => line ? `<p>${line}</p>` : '').join('')}
       </div>
-      
+
       <hr>
-      <p style="color: #666; font-size: 12px;">${process.env.STUDIO_NAME || 'My Studio'} CRM System</p>
+      <p style="color: #666; font-size: 12px;">${studioName} CRM System</p>
     `;
 
     await transporter.sendMail({
-      from: `"${process.env.STUDIO_NAME || 'My Studio'}" <${emailSettings.fromEmail}>`,
+      from: `"${studioName}" <${emailSettings.fromEmail}>`,
       to: emailSettings.studioEmail,
       subject,
       text,
@@ -75,25 +97,20 @@ ${process.env.STUDIO_NAME || 'My Studio'} CRM System
     });
 
     console.log('Studio notification email sent successfully');
+    return true;
   } catch (error) {
     console.error('Error sending studio notification email:', error);
-    throw error;
+    return false;
   }
 }
 
-export async function sendClientConfirmationEmail(clientEmail: string, clientName: string) {
+export async function sendClientConfirmationEmail(clientEmail: string, clientName: string): Promise<boolean> {
   try {
-    const emailSettings = {
-      host: process.env.SMTP_HOST || 'smtp.easyname.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      user: process.env.SMTP_USER || process.env.EMAIL_USER,
-      pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
-      fromEmail: process.env.FROM_EMAIL || process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@example.com'
-    };
+    const emailSettings = await getEmailSettings();
 
     if (!emailSettings.user || !emailSettings.pass) {
       console.error('Email credentials not configured');
-      return;
+      return false;
     }
 
     const transporter = nodemailer.createTransport({
@@ -106,7 +123,7 @@ export async function sendClientConfirmationEmail(clientEmail: string, clientNam
       }
     });
 
-    const studioName = process.env.STUDIO_NAME || 'My Studio';
+    const studioName = await getStudioName();
     const siteUrl = process.env.APP_URL || process.env.BASE_URL || '';
 
     // Try to load customised template from database (neutral English default)
@@ -170,8 +187,9 @@ The {{studioName}} team`;
     });
 
     console.log('Client confirmation email sent successfully');
+    return true;
   } catch (error) {
     console.error('Error sending client confirmation email:', error);
-    throw error;
+    return false;
   }
 }

@@ -17518,22 +17518,22 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       // Mark link as used
       await runSql('UPDATE questionnaire_links SET is_used = TRUE WHERE token = $1', [token]);
       
-      // Send studio notification email
+      // Send the studio notification + client confirmation emails. These never fail the
+      // submission (the response is already saved) — but we DO report whether they were sent
+      // so the UI can warn about misconfigured email (e.g. a Gmail app-password not set).
+      let emailSent = true;
       try {
         const { sendStudioNotificationEmail, sendClientConfirmationEmail } = await import('./utils/emailService');
-        
-        // Send studio notification
-        await sendStudioNotificationEmail(clientName, clientEmail, answers, link);
-        
-        // Send client confirmation
-        await sendClientConfirmationEmail(clientEmail, clientName);
-        
+        const studioOk = await sendStudioNotificationEmail(clientName, clientEmail, answers, link);
+        const clientOk = await sendClientConfirmationEmail(clientEmail, clientName);
+        emailSent = !!(studioOk && clientOk);
       } catch (emailError) {
+        emailSent = false;
         console.error("Email sending error:", emailError);
-        // Don't fail the response if email fails, just log it
+        // Don't fail the response if email fails, just log it.
       }
-      
-      res.json({ success: true, message: "Questionnaire submitted successfully" });
+
+      res.json({ success: true, message: "Questionnaire submitted successfully", emailSent });
     } catch (error: any) {
       console.error("Error submitting questionnaire:", error);
       res.status(500).json({ error: "Internal server error", detail: String(error?.message || error).slice(0, 300) });
