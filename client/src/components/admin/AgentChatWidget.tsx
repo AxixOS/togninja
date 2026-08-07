@@ -17,6 +17,64 @@ const AgentChatWidget: React.FC = () => {
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
 
+  // --- Draggable position -------------------------------------------------
+  // Parked bottom-right, the widget covered whatever the page rendered there.
+  // On Galleries that was the pagination control, so page 2 could not be clicked.
+  // Position is kept per-browser so a studio only has to move it once.
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
+    try {
+      const saved = localStorage.getItem('agentChatWidgetPos');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+  const didDragRef = useRef(false);
+
+  // Default (bottom-right) until the user moves it; after that, explicit coordinates.
+  const dragStyle: React.CSSProperties = pos
+    ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' }
+    : { right: '1.5rem', bottom: '1.5rem' };
+
+  const startDrag = (e: React.PointerEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    dragRef.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+    didDragRef.current = false;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onDragMove = useCallback((e: PointerEvent) => {
+    if (!dragRef.current) return;
+    // A few pixels of slop so a normal click still opens the chat.
+    didDragRef.current = true;
+    const width = 72;
+    const height = 72;
+    const x = Math.min(Math.max(e.clientX - dragRef.current.dx, 4), window.innerWidth - width);
+    const y = Math.min(Math.max(e.clientY - dragRef.current.dy, 4), window.innerHeight - height);
+    setPos({ x, y });
+  }, []);
+
+  const endDrag = useCallback(() => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    setPos(current => {
+      if (current) {
+        try { localStorage.setItem('agentChatWidgetPos', JSON.stringify(current)); } catch {}
+      }
+      return current;
+    });
+    // Let the click handler see the drag, then clear it.
+    window.setTimeout(() => { didDragRef.current = false; }, 0);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('pointermove', onDragMove);
+    window.addEventListener('pointerup', endDrag);
+    return () => {
+      window.removeEventListener('pointermove', onDragMove);
+      window.removeEventListener('pointerup', endDrag);
+    };
+  }, [onDragMove, endDrag]);
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -161,13 +219,17 @@ const AgentChatWidget: React.FC = () => {
     );
   };
 
-  // Floating button when closed
+  // Floating button when closed. Draggable, because parked bottom-right it sat on top
+  // of whatever the page puts there — the Galleries pagination control, for one, which
+  // made page 2 unreachable.
   if (!isOpen) {
     return (
       <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 group"
-        title="Open AI Assistant"
+        onClick={(e) => { if (!didDragRef.current) setIsOpen(true); }}
+        onPointerDown={startDrag}
+        style={dragStyle}
+        className="fixed z-50 group touch-none cursor-grab active:cursor-grabbing"
+        title="Open AI Assistant — drag to move"
       >
         <div className="relative">
           {/* Animated gradient border */}
@@ -188,10 +250,10 @@ const AgentChatWidget: React.FC = () => {
   // Chat window when open
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden transition-all duration-300 flex flex-col ${
+      style={{ ...dragStyle, maxHeight: 'calc(100vh - 48px)' }}
+      className={`fixed z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden transition-all duration-300 flex flex-col ${
         isMinimized ? 'w-96 h-14' : 'w-[720px] h-[720px]'
       }`}
-      style={{ maxHeight: 'calc(100vh - 48px)' }}
     >
       {/* Header */}
       <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-3 flex items-center justify-between">

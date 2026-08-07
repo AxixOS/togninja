@@ -745,7 +745,19 @@ router.post('/galleries', requireScope('galleries:write'), async (req, res) => {
       const existing = await lookupExternalRef(externalRef);
       if (existing && existing.entityType === 'gallery') {
         const found = await fetchGalleryById(existing.entityId, req);
-        if (found) return res.json({ data: found }); // idempotent re-export
+        if (found) {
+          // Idempotent re-export: NO new gallery was created. This returned a bare
+          // 200 with the existing gallery, indistinguishable from a successful
+          // create — so repeated exports reusing an externalRef/sourceRef looked
+          // like they were working while nothing new ever appeared in the admin.
+          // Say so explicitly.
+          return res.json({
+            data: found,
+            created: false,
+            idempotent: true,
+            message: `A gallery already exists for externalRef "${externalRef}"; returning it instead of creating a duplicate.`,
+          });
+        }
       }
     }
 
@@ -779,7 +791,7 @@ router.post('/galleries', requireScope('galleries:write'), async (req, res) => {
     if (externalRef) await recordExternalRef(externalRef, 'gallery', galleryId);
 
     const created = await fetchGalleryById(galleryId, req);
-    return res.status(201).json({ data: created });
+    return res.status(201).json({ data: created, created: true, idempotent: false });
   } catch (error) {
     console.error('[shootcleaner] Failed to create gallery:', error);
     return res.status(500).json({ error: 'Failed to create gallery', code: 'gallery_create_failed' });

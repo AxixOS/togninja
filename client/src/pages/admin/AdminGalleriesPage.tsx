@@ -724,9 +724,10 @@ const AdminGalleriesPage: React.FC = () => {
           )}
         </div>
 
-        {/* Pagination */}
+        {/* Pagination. pb-24 keeps the controls clear of the floating chat widget,
+            which sat directly on top of the "next page" button. */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-end space-x-2 text-sm text-gray-600">
+          <div className="flex items-center justify-end space-x-2 text-sm text-gray-600 pb-24">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
