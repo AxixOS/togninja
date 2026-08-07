@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mail, MessageCircle, Copy, Check } from 'lucide-react';
-import { SITE } from '../../config/site';
+import { X, Copy, Check } from 'lucide-react';
 
 interface Survey {
   id: string;
@@ -95,31 +94,6 @@ const SendQuestionnaireModal: React.FC<SendQuestionnaireModalProps> = ({
     } catch (err) {
       console.error('Failed to copy link:', err);
     }
-  };
-
-  const generateWhatsAppLink = () => {
-    if (!link) return '';
-    
-    const message = `Hallo! Bitte füllen Sie unseren Fragebogen hier aus: ${link}`;
-    return `https://wa.me/?text=${encodeURIComponent(message)}`;
-  };
-
-  const generateEmailLink = () => {
-    if (!link) return '';
-    
-    const subject = `Ihr Fragebogen - ${SITE.name}`;
-    const body = `Hallo ${client.firstName},
-
-bitte füllen Sie unseren Fragebogen über den folgenden Link aus:
-
-${link}
-
-Vielen Dank!
-
-Mit freundlichen Grüßen,
-${SITE.name} Team`;
-    
-    return `mailto:${client.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   useEffect(() => {
@@ -242,30 +216,17 @@ ${SITE.name} Team`;
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <a
-                  href={generateEmailLink()}
-                  className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  <Mail size={16} />
-                  <span>Email</span>
-                </a>
-                
-                <a
-                  href={generateWhatsAppLink()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                >
-                  <MessageCircle size={16} />
-                  <span>WhatsApp</span>
-                </a>
-              </div>
+              <button
+                onClick={copyLink}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm font-medium"
+              >
+                {copied ? <Check size={16} /> : <Copy size={16} />}
+                <span>{copied ? 'Link copied!' : 'Copy link'}</span>
+              </button>
 
               <div className="text-xs text-gray-500 mt-2">
-                <p>• Email: Opens your default email client with pre-filled message</p>
-                <p>• WhatsApp: Opens WhatsApp with ready-to-send message</p>
-                <p>• Link expires in 30 days</p>
+                <p>Copy this link and paste it into an email, WhatsApp or SMS message to your client.</p>
+                <p>The link expires in 30 days.</p>
               </div>
             </div>
           )}
