@@ -17462,7 +17462,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
         isUsed: link.is_used,
         survey: {
           title: survey.title,
-          description: survey.description || 'Bitte fülle den Fragebogen so detailliert wie möglich aus.',
+          description: survey.description || 'Please complete the questionnaire in as much detail as you can.',
           pages: surveyPages,
           settings: typeof survey.settings === 'string' ? JSON.parse(survey.settings) : (survey.settings || {})
         }

@@ -446,7 +446,10 @@ const QuestionnairesPageV2: React.FC = () => {
           questions: questions.map((q, idx) => ({ id: `q${idx+1}`, type: 'text', title: q, required: true }))
         }
       ];
-      const settings = { logo: logoUrl };
+      // Keep the thank-you message on edit — settings is written wholesale, so leaving
+      // it out here silently wiped the message the studio set when creating the form.
+      const settings: any = { logo: logoUrl };
+      if (thankYouMessage.trim()) settings.thankYouMessage = thankYouMessage.trim();
       const body = { title: formTitle, description: formDescription, pages, settings };
       const res = await fetch(`/api/surveys/${editingId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) throw new Error('Failed to update survey');
