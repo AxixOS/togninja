@@ -112,6 +112,128 @@ router.get('/products', async (req: Request, res: Response) => {
     }
   });
 
+// ============================================================================
+// Catalogue management (Phase 1) — the studio adds Prodigi products by SKU. We
+// validate the SKU against Prodigi's product-details API (pulls name/dimensions)
+// and the studio sets their own sell price. Populates print_products per tenant.
+// NOTE: these mutate the catalogue and are consumed by the authed admin settings
+// page; router-level auth is added in the order-flow hardening pass (Phase 2).
+// ============================================================================
+
+/** Look up a SKU on Prodigi and normalise the bits we store. */
+async function fetchProdigiProduct(sku: string) {
+  const data = await prodigiRequest(`/products/${encodeURIComponent(sku)}`);
+  const p = data?.product || {};
+  const dim = p.productDimensions || {};
+  const units = String(dim.units || '').toLowerCase();
+  const toInches = (v: any) => {
+    const n = parseFloat(v);
+    if (!Number.isFinite(n)) return null;
+    return units === 'cm' ? Number((n / 2.54).toFixed(2)) : Number(n.toFixed(2));
+  };
+  return {
+    sku: p.sku || sku,
+    name: p.description || sku,
+    description: p.description || '',
+    widthInches: toInches(dim.width),
+    heightInches: toInches(dim.height),
+    attributes: p.attributes || {},
+  };
+}
+
+// POST /catalog/validate — validate a SKU against Prodigi, return details (no save).
+router.post('/catalog/validate', async (req: Request, res: Response) => {
+  try {
+    const sku = String(req.body?.sku || '').trim();
+    if (!sku) return res.status(400).json({ error: 'SKU is required' });
+    const { apiKey } = await getProdigiConfig();
+    if (!apiKey) return res.status(400).json({ error: 'Connect your Prodigi API key in Settings first.' });
+    const product = await fetchProdigiProduct(sku);
+    res.json({ ok: true, product });
+  } catch (error: any) {
+    res.status(400).json({ ok: false, error: `Could not validate SKU: ${error?.message || 'Prodigi lookup failed'}` });
+  }
+});
+
+// GET /catalog — full catalogue (incl inactive) for the admin manager.
+router.get('/catalog', async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, sku, name, description, category, base_price, currency,
+              width_inches, height_inches, is_active, sort_order
+       FROM print_products ORDER BY sort_order, name`,
+    );
+    res.json({ products: result.rows.map((p: any) => ({ ...p, basePrice: p.base_price != null ? parseFloat(p.base_price) : null })) });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /catalog — add a product (validate SKU via Prodigi; studio sets the sell price).
+router.post('/catalog', async (req: Request, res: Response) => {
+  try {
+    const { sku, name, basePrice, currency = 'EUR', category = 'prints', validate = true } = req.body;
+    if (!sku) return res.status(400).json({ error: 'SKU is required' });
+
+    let details: any = { name: name || sku, description: '', widthInches: null, heightInches: null, attributes: {} };
+    if (validate) {
+      const { apiKey } = await getProdigiConfig();
+      if (apiKey) {
+        try {
+          details = { ...details, ...(await fetchProdigiProduct(sku)) };
+        } catch (e: any) {
+          return res.status(400).json({ error: `Prodigi could not find SKU "${sku}": ${e?.message || 'lookup failed'}` });
+        }
+      }
+    }
+
+    const studioRow = await pool.query('SELECT id FROM studio_configs LIMIT 1');
+    const studioId = studioRow.rows[0]?.id || null;
+    const result = await pool.query(
+      `INSERT INTO print_products
+         (studio_id, sku, name, description, category, base_price, currency, width_inches, height_inches, attributes, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true) RETURNING id`,
+      [studioId, sku, name || details.name, details.description, category,
+       basePrice != null ? parseFloat(basePrice) : null, currency, details.widthInches, details.heightInches,
+       JSON.stringify(details.attributes || {})],
+    );
+    res.json({ ok: true, id: result.rows[0].id });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /catalog/:id — update sell price / name / category / active.
+router.put('/catalog/:id', async (req: Request, res: Response) => {
+  try {
+    const { name, basePrice, currency, category, isActive } = req.body;
+    await pool.query(
+      `UPDATE print_products SET
+         name = COALESCE($1, name),
+         base_price = COALESCE($2, base_price),
+         currency = COALESCE($3, currency),
+         category = COALESCE($4, category),
+         is_active = COALESCE($5, is_active)
+       WHERE id = $6`,
+      [name ?? null, basePrice != null ? parseFloat(basePrice) : null, currency ?? null, category ?? null,
+       isActive === undefined ? null : isActive, req.params.id],
+    );
+    res.json({ ok: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /catalog/:id
+router.delete('/catalog/:id', async (req: Request, res: Response) => {
+  try {
+    await pool.query('DELETE FROM print_products WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /**
  * POST /quote
  * Get a price quote from Prodigi
