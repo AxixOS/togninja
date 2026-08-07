@@ -11,6 +11,24 @@ import Cropper, { Area } from 'react-easy-crop';
 // SITE.lang) rather than always German, so an English-market studio starts in English.
 const DEFAULT_EDITOR_LANG: 'de' | 'en' = (SITE.lang || '').toLowerCase().startsWith('de') ? 'de' : 'en';
 
+// Homepage image slots. `value` is structural — the homepage filters images on it, so
+// it must not change. `labelKey` reads the studio's OWN service name from its homepage
+// copy: these six were previously labelled with New Age's services (Family, Pregnancy,
+// Newborn, Business, Event, Product), which mean nothing to, say, a boudoir studio.
+// Rename a service in Website Studio and this dropdown follows.
+const IMAGE_SECTIONS: { value: string; labelKey?: string; fallback: string }[] = [
+  { value: 'hero', fallback: 'Hero / Main Grid' },
+  { value: 'content-1', fallback: 'Content Block 1' },
+  { value: 'content-2', fallback: 'Content Block 2' },
+  { value: 'services-family', labelKey: 'home.familyPortraitsTitle', fallback: 'Services - Slot 1' },
+  { value: 'services-pregnancy', labelKey: 'home.pregnancyPhotographyTitle', fallback: 'Services - Slot 2' },
+  { value: 'services-newborn', labelKey: 'home.newbornPhotographyTitle', fallback: 'Services - Slot 3' },
+  { value: 'services-business', labelKey: 'home.businessPhotographyTitle', fallback: 'Services - Slot 4' },
+  { value: 'services-event', labelKey: 'home.eventPhotographyTitle', fallback: 'Services - Slot 5' },
+  { value: 'services-product', labelKey: 'home.productPhotographyTitle', fallback: 'Services - Slot 6' },
+  { value: 'faq', fallback: 'FAQ' },
+];
+
 interface PageContent {
   id?: string;
   pageId: string;
@@ -70,11 +88,15 @@ const getCroppedImageBlob = async (imageSrc: string, crop: Area, mimeType: strin
 
 // Homepage Images Manager Component
 const HomepageImagesManager: React.FC = () => {
+  // Needed for the section labels, which read the studio's own service names.
+  const { t } = useLanguage();
   const [newImageUrl, setNewImageUrl] = useState('');
   const [newImageSection, setNewImageSection] = useState('hero');
   const [uploadMethod, setUploadMethod] = useState<'url' | 'file'>('file');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
+  // Confirmation shown after a successful upload.
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [replacingImage, setReplacingImage] = useState<any | null>(null);
   const [replaceMethod, setReplaceMethod] = useState<'url' | 'file'>('file');
   const [replaceUrl, setReplaceUrl] = useState('');
@@ -120,7 +142,11 @@ const HomepageImagesManager: React.FC = () => {
   // Upload image file mutation — supports selecting multiple files at once.
   const uploadImageMutation = useMutation({
     mutationFn: async (data: { files: File[]; section: string }) => {
-      for (const file of data.files) {
+      // Files upload one at a time, so report which one is in flight — a multi-file
+      // upload otherwise sits on a single static label with no sign of progress.
+      for (let i = 0; i < data.files.length; i++) {
+        const file = data.files[i];
+        setUploadProgress(i + 1);
         const formData = new FormData();
         formData.append('image', file);
         formData.append('section', data.section);
@@ -136,13 +162,19 @@ const HomepageImagesManager: React.FC = () => {
           throw new Error(error.message || `Failed to upload ${file.name}`);
         }
       }
-      return { ok: true };
+      return { ok: true, count: data.files.length };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/homepage/images'] });
+      // Confirm it worked. The selection used to just clear, which is
+      // indistinguishable from the upload silently doing nothing.
+      const n = (result as any)?.count ?? selectedFiles.length;
+      setUploadNote(`${n} image${n === 1 ? '' : 's'} uploaded and added to your homepage.`);
+      window.setTimeout(() => setUploadNote(null), 6000);
       setSelectedFiles([]);
       setUploadProgress(0);
-    }
+    },
+    onError: () => setUploadProgress(0)
   });
 
   // Delete image mutation
@@ -330,16 +362,20 @@ const HomepageImagesManager: React.FC = () => {
               onChange={(e) => setNewImageSection(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
-              <option value="hero">Hero / Main Grid</option>
-              <option value="content-1">Content Block 1</option>
-              <option value="content-2">Content Block 2</option>
-              <option value="services-family">Services - Family</option>
-              <option value="services-pregnancy">Services - Pregnancy</option>
-              <option value="services-newborn">Services - Newborn</option>
-              <option value="services-business">Services - Business</option>
-              <option value="services-event">Services - Event</option>
-              <option value="services-product">Services - Product</option>
-              <option value="faq">FAQ</option>
+              {/* The section VALUES are structural slots the homepage filters on, so they
+                  stay fixed. The LABELS were New Age's own service list (Family,
+                  Pregnancy, Newborn, Business, Event, Product) shown to every studio —
+                  meaningless to, say, a boudoir studio. They now read from the studio's
+                  own homepage service titles, so renaming a service in Website Studio
+                  renames it here too. */}
+              {IMAGE_SECTIONS.map(({ value, labelKey, fallback }) => {
+                const label = labelKey ? t(labelKey) : '';
+                return (
+                  <option key={value} value={value}>
+                    {label && label !== labelKey ? `Services - ${label}` : fallback}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -355,14 +391,23 @@ const HomepageImagesManager: React.FC = () => {
           >
             <Upload size={16} />
             {addImageMutation.isPending || uploadImageMutation.isPending
-              ? uploadMethod === 'file' 
-                ? 'Uploading to B2...' 
+              ? uploadMethod === 'file'
+                // "Uploading to B2" named the storage provider, which means nothing to a
+                // studio and is wrong for anyone on Supabase. Show real progress instead.
+                ? `Saving image ${uploadProgress} of ${selectedFiles.length}...`
                 : 'Adding...'
               : uploadMethod === 'file'
-              ? 'Upload & Add Image'
+              ? `Save ${selectedFiles.length || ''} image${selectedFiles.length === 1 ? '' : 's'} to homepage`.replace(/\s+/g, ' ')
               : 'Add Image'}
           </button>
-          
+
+          {uploadNote && (
+            <div className="text-sm text-green-700 bg-green-50 border border-green-200 p-3 rounded-lg flex items-center gap-2">
+              <Check size={16} />
+              {uploadNote}
+            </div>
+          )}
+
           {uploadImageMutation.isError && (
             <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
               {uploadImageMutation.error?.message || 'Upload failed'}
