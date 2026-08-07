@@ -9637,6 +9637,19 @@ ${getBizName()} Team`;
     await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_name text`);
     await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_email text`);
     await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS template_slug text`);
+    await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS token text`);
+    await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_id text`);
+    // CRITICAL: some instances have an OLDER questionnaire_responses table whose payload
+    // column is named `responses` (jsonb), not `answers` — the code reads/writes `answers`,
+    // so without this the responses view 500s "column qr.answers does not exist". Add the
+    // column and back-fill from the legacy `responses` column when present.
+    await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS answers jsonb`);
+    try {
+      const hasResponses = await runSql(`SELECT 1 FROM information_schema.columns WHERE table_name='questionnaire_responses' AND column_name='responses'`);
+      if (hasResponses.length) {
+        await runSql(`UPDATE questionnaire_responses SET answers = responses WHERE answers IS NULL AND responses IS NOT NULL`);
+      }
+    } catch { /* best effort back-fill */ }
     console.log('✅ Ensured questionnaire_responses columns exist');
   } catch (e: any) {
     console.log('questionnaire_responses column check:', e?.message);
@@ -9680,6 +9693,7 @@ ${getBizName()} Team`;
         await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS token text`);
         await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_id text`);
         await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS submitted_at timestamptz DEFAULT now()`);
+        await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS answers jsonb`);
       } catch (ensureErr: any) {
         console.warn('[questionnaire-responses] ensure columns:', ensureErr?.message);
       }
@@ -17473,6 +17487,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       try {
         await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_name text`);
         await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS client_email text`);
+        await runSql(`ALTER TABLE questionnaire_responses ADD COLUMN IF NOT EXISTS answers jsonb`);
       } catch { /* best effort */ }
 
       // Store response in database (include client name and email)
