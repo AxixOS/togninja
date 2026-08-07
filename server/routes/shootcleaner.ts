@@ -412,6 +412,15 @@ router.delete('/webhooks', requireScope('orders:write'), async (_req, res) => {
   catch (error: any) { res.status(500).json({ error: 'Failed to clear webhook', code: 'webhook_clear_failed' }); }
 });
 
+// A gallery is closed to the PUBLIC once its expiry passes or it is archived. This
+// mirrors the gate on the public gallery routes exactly, so the integration API and
+// the website can never disagree about whether a gallery is deliverable.
+function isGalleryExpired(row: { expires_at?: string | Date | null; status?: string | null }): boolean {
+  const expiresAt = row?.expires_at;
+  if (expiresAt && new Date(expiresAt as any).getTime() < Date.now()) return true;
+  return row?.status === 'ARCHIVED';
+}
+
 router.get('/galleries', requireShootCleanerApiKey, async (req, res) => {
   try {
     const limitRaw = Number.parseInt(String(req.query.limit || '100'), 10);
@@ -452,6 +461,8 @@ router.get('/galleries', requireShootCleanerApiKey, async (req, res) => {
           g.is_public,
           g.is_password_protected,
           g.client_id,
+          g.status,
+          g.expires_at,
           g.created_at,
           g.updated_at,
           COALESCE(COUNT(gi.id), 0)::int AS image_count
@@ -478,6 +489,12 @@ router.get('/galleries', requireShootCleanerApiKey, async (req, res) => {
         clientId: row.client_id,
         imageCount: row.image_count,
         galleryUrl: `${baseUrl}/gallery/${row.slug}`,
+        // Delivery state. Without these a gallery looks perfectly healthy here while
+        // the public gallery URL returns 410, because expiry/archival is what gates
+        // public access — not anything about the record's contents.
+        status: row.status,
+        expiresAt: row.expires_at,
+        isExpired: isGalleryExpired(row),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       })),
@@ -485,6 +502,61 @@ router.get('/galleries', requireShootCleanerApiKey, async (req, res) => {
   } catch (error) {
     console.error('[shootcleaner] Failed to list galleries:', error);
     res.status(500).json({ error: 'Failed to fetch galleries' });
+  }
+});
+
+// GET /galleries/:id — single gallery read. There was a list and an images
+// sub-resource but no way to fetch one gallery, so a client holding an id had to
+// page the list to find it.
+router.get('/galleries/:id', requireShootCleanerApiKey, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          g.id, g.title, g.slug, g.description, g.cover_image, g.is_public,
+          g.is_password_protected, g.client_id, g.status, g.expires_at,
+          g.created_at, g.updated_at,
+          COALESCE(COUNT(gi.id), 0)::int AS image_count
+        FROM galleries g
+        LEFT JOIN gallery_images gi ON gi.gallery_id = g.id
+        WHERE g.id = $1
+        GROUP BY g.id
+      `,
+      [req.params.id],
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Gallery not found' });
+    }
+
+    const row = result.rows[0];
+    const baseUrl = getBaseUrl(req);
+    const expired = isGalleryExpired(row);
+    res.json({
+      id: row.id,
+      title: row.title,
+      slug: row.slug,
+      description: row.description,
+      coverImageUrl: row.cover_image,
+      isPublic: row.is_public,
+      isPasswordProtected: row.is_password_protected,
+      clientId: row.client_id,
+      imageCount: row.image_count,
+      galleryUrl: `${baseUrl}/gallery/${row.slug}`,
+      status: row.status,
+      expiresAt: row.expires_at,
+      isExpired: expired,
+      // Why the public gallery URL may refuse the gallery even though this record is
+      // fine. Password protection does NOT 410 — it prompts for the password.
+      publicAccess: expired
+        ? { available: false, reason: row.status === 'ARCHIVED' ? 'archived' : 'expired', httpStatus: 410 }
+        : { available: true },
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+  } catch (error) {
+    console.error('[shootcleaner] Failed to fetch gallery:', error);
+    res.status(500).json({ error: 'Failed to fetch gallery' });
   }
 });
 
