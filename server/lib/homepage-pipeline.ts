@@ -79,6 +79,10 @@ function buildContext(config: any, rows: Array<{ url: string; title: string | nu
   ].filter((l) => l !== undefined).join('\n');
 
   return {
+    // The studio's configured language, so the generated copy is written for its
+    // market rather than matching whatever language the crawled pages happened to
+    // be in. A Brighton studio was getting German copy without this.
+    language: config?.language || config?.siteLanguage || process.env.SITE_LANG || 'en',
     primaryService: tagline || 'Photography',
     city: city || undefined,
     tone: 'warm',

@@ -18,6 +18,8 @@ export function hasOpenAI(): boolean {
 
 /** The generator input. Every field is optional — the prompt fills sensible defaults. */
 export interface LandingContext {
+  /** The studio's own language ('en' | 'de' | …). Decides the output language. */
+  language?: string;
   primaryService?: string;
   targetAudience?: string;
   city?: string;
@@ -97,13 +99,23 @@ Rules:
 - Include local relevance when city/area is provided
 - Use emotional triggers appropriate for the audience
 - Create urgency where deadline or limited availability is mentioned
-- All copy must be in the same language as the user's input
-- If input is in German, write ALL output in German
+- Write ALL copy in the target language given below, regardless of the language of
+  the source material. (This rule used to say "same language as the user's input"
+  with a special case for German, which produced German copy for an English-market
+  studio because the crawled source happened to lean that way.)
 - Generate believable but compelling testimonials if none are provided
 - Keep headlines concise and impactful
 - Return ONLY the JSON object, no markdown, no code fences`;
 
+  // The studio's own language decides the output, not whatever the crawled source
+  // happened to be written in.
+  const langNames: Record<string, string> = { en: 'English', de: 'German', fr: 'French', es: 'Spanish' };
+  const langCode = String((context as any).language || 'en').slice(0, 2).toLowerCase();
+  const targetLanguage = langNames[langCode] || 'English';
+
   const userPrompt = `Generate a high-converting landing page for a photography studio with these details:
+
+TARGET LANGUAGE: ${targetLanguage} — write every headline, sentence and FAQ in ${targetLanguage}.
 
 Service Type: ${context.primaryService || 'Photography'}
 Target Audience: ${context.targetAudience || 'General'}
