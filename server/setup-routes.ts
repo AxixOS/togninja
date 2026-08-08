@@ -1174,14 +1174,15 @@ router.post('/complete', async (_req: Request, res: Response) => {
         .where(eq(studioConfigs.id, config.id));
     }
 
-    // Give a brand-new studio its OWN branded homepage automatically — unless one is already
-    // set (e.g. New Age's hand-coded page). Fire-and-forget so it never blocks completion.
-    try {
-      if (config && !(config as any).homepageLandingSlug) {
-        const { generateStarterHomepage } = await import('./lib/starter-homepage');
-        generateStarterHomepage({}).catch((e: any) => console.error('[setup] starter homepage failed:', e?.message || e));
-      }
-    } catch { /* best-effort */ }
+    // NO starter landing page. Finishing onboarding used to auto-generate one and point
+    // "/" at it, so the first thing a new studio saw was a single scrolling page titled
+    // "Our Studio" with placeholder service cards — no navigation, no pillar pages, no
+    // contact page — while the real site, seeded with the copy just crawled from their
+    // own website, sat unserved behind it.
+    //
+    // The built-in template IS the website. It has the navigation and the pages, and
+    // onboarding writes the studio's own copy into it. A studio that still wants a
+    // single-page site can build a landing page and set it as its homepage by hand.
 
     if (hubIntegration.isConfigured()) {
       await hubIntegration.completeOnboarding();
