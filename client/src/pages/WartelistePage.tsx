@@ -65,11 +65,11 @@ const WartelistePage: React.FC = () => {
             '@context': 'https://schema.org',
             '@type': 'FAQPage',
             mainEntity: (language === 'de' ? [
-              { q: 'Wie weit im Voraus sollte ich ein Fotoshooting in Wien buchen?', a: 'Wir empfehlen eine Vorlaufzeit von 2–3 Wochen, um Ihren Wunschtermin zu sichern.' },
+              { q: 'Wie weit im Voraus sollte ich ein Fotoshooting buchen?', a: 'Wir empfehlen eine Vorlaufzeit von 2–3 Wochen, um Ihren Wunschtermin zu sichern.' },
               { q: 'Bieten Sie Termine am Wochenende an?', a: 'Ja, je nach Verfügbarkeit bieten wir Fotoshootings auch am Wochenende an.' },
               { q: 'Kann ich zwischen Studio- und Outdoor-Fotografie wählen?', a: 'Absolut. Wir bieten je nach Wunsch Studio- und Outdoor-Sessions an.' }
             ] : [
-              { q: 'How far in advance should I book a photoshoot in Vienna?', a: 'We recommend booking at least 2–3 weeks in advance to secure your preferred date.' },
+              { q: 'How far in advance should I book a photoshoot?', a: 'We recommend booking at least 2–3 weeks in advance to secure your preferred date.' },
               { q: 'Do you offer weekend appointments?', a: 'Yes, we offer weekend photoshoots depending on availability.' },
               { q: 'Can I choose between studio and outdoor photography?', a: 'Absolutely. We offer both studio and outdoor sessions based on your preference.' }
             ]).map(({ q, a }) => ({
@@ -205,7 +205,7 @@ const WartelistePage: React.FC = () => {
                 value={formData.phone}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-purple-600 transition-colors"
-                placeholder="+43 "
+                placeholder="Your phone number"
               />
             </div>
 
