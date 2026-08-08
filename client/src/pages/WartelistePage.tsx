@@ -121,14 +121,14 @@ const WartelistePage: React.FC = () => {
                 Bereit für zeitlose Erinnerungen? Buchen Sie Ihr{' '}
                 <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Familienfotoshooting</Link>, Ihre{' '}
                 <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Neugeborenen-Session</Link>{' '}oder{' '}
-                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Business Portraits</Link>{' '}in unserem Wiener Studio. Flexible Termine inkl. Wochenende – wir begleiten Sie durch jeden Schritt.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Business Portraits</Link>{' '}in unserem Studio. Flexible Termine inkl. Wochenende – wir begleiten Sie durch jeden Schritt.
               </>
             ) : (
               <>
                 Ready to create timeless memories? Book your{' '}
                 <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">family photoshoot</Link>,{' '}
                 <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">newborn session</Link>, or{' '}
-                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">business portraits</Link>{' '}with our Vienna studio. We offer flexible appointments, including weekends, and guide you through every step of the experience.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">business portraits</Link>{' '}with our studio. We offer flexible appointments, including weekends, and guide you through every step of the experience.
               </>
             )}
           </p>

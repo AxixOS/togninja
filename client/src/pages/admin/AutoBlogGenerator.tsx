@@ -191,7 +191,7 @@ export default function AutoBlogGenerator() {
       });
       
       // Add other form data - FIXED: Use server configuration instead of hardcoded assistant ID
-      const userPrompt = contentGuidance || 'Professional photography session in Vienna studio';
+      const userPrompt = contentGuidance || 'Professional photography session in the studio';
       formData.append('userPrompt', userPrompt);
       // REMOVED: hardcoded assistant ID - server will use centralized config
       formData.append('publishOption', publishingOption);

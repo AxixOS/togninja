@@ -171,7 +171,7 @@ const FamilyGutscheinPage: React.FC = () => {
                 {de ? <>Bei {SITE.name} entstehen keine gestellten Posen – sondern Bilder, die eure Geschichte erzählen.
                 Ob im hellen Studio in Wien oder draußen an eurem Lieblingsort – wir halten fest, was euch als Familie ausmacht:
                 Lachen, Nähe, kleine Gesten.</> : <>At {SITE.name} there are no stiff, staged poses – just images that tell your story.
-                Whether in our bright Vienna studio or outdoors at your favourite spot, we capture what makes you a family:
+                Whether in our bright studio or outdoors at your favourite spot, we capture what makes you a family:
                 laughter, closeness, little gestures.</>}
               </p>
               <ul className="space-y-4">

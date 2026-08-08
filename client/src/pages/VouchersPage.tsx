@@ -269,7 +269,7 @@ const VouchersPage: React.FC = () => {
               { q: 'Kann ich ein Familienfotoshooting verschenken?', a: 'Ja, Familienfotografie-Gutscheine gehören zu den beliebtesten Geschenken und lassen sich für jeden Anlass individualisieren.' },
               { q: 'Verfallen die Gutscheine?', a: 'Die Gültigkeit hängt vom gewählten Paket ab. Alle Details werden beim Checkout angezeigt.' }
             ] : [
-              { q: 'How do photography vouchers work in Vienna?', a: 'Our vouchers can be purchased online and redeemed for a professional photoshoot at our Vienna studio or outdoor locations.' },
+              { q: 'How do photography vouchers work?', a: 'Our vouchers can be purchased online and redeemed for a professional photoshoot at our studio or outdoor locations.' },
               { q: 'Can I gift a family photoshoot?', a: 'Yes, family photography vouchers are one of the most popular gifts and can be customised for any occasion.' },
               { q: 'Do vouchers expire?', a: 'Voucher validity depends on the package selected. Full details are provided at checkout.' }
             ]).map(({ q, a }) => ({
@@ -452,7 +452,7 @@ const VouchersPage: React.FC = () => {
               <>
                 Whether you're gifting a{' '}
                 <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">family photoshoot</Link>, celebrating a newborn, or upgrading your professional image with{' '}
-                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">business portraits</Link>, our Vienna photography vouchers offer flexibility and premium quality.
+                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">business portraits</Link>, our photography vouchers offer flexibility and premium quality.
               </>
             )}
           </p>

@@ -7,6 +7,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import LanguageSelector from '../common/LanguageSelector';
 import { useManualPageContent } from '../../hooks/useManualPageContent';
 import { SITE } from '../../config/site';
+import { pageForRoute, isPageEnabled } from '../../../../shared/sitePages';
 
 const Header: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -57,7 +58,25 @@ const Header: React.FC = () => {
   };
 
   // Unified Fotoshootings navigation matching footer (SEO cornerstone pages)
-  const fotoshootingItems = [
+  // Which service pages this studio actually runs. Without this the dropdown listed
+  // all fourteen regardless — so a studio advertised services it does not offer, and
+  // every link led to a page that only redirects.
+  const [enabledPages, setEnabledPages] = useState<Record<string, boolean> | null>(null);
+  const [siteLang, setSiteLang] = useState<string>('en');
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/studio-config')
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        setEnabledPages(d?.enabledPages || {});
+        setSiteLang(d?.lang || d?.siteLanguage || 'en');
+      })
+      .catch(() => { if (!cancelled) setEnabledPages({}); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const allFotoshootingItems = [
     { path: '/familienfotos-wien/', label: t('nav.familyPhotos') },
     { path: '/neugeborenenfotos-wien/', label: t('nav.newbornPhotos') },
     { path: '/babyfotos-wien/', label: t('nav.babyPhotos') },
@@ -73,6 +92,16 @@ const Header: React.FC = () => {
     { path: '/eventfotografie-wien/', label: t('nav.eventPhotography') },
     { path: '/schul-und-hochschulfotografie-wien/', label: t('nav.schoolPhotography') },
   ];
+
+  // Show only the pages this studio has switched on. Until the config loads we show
+  // none rather than all — briefly flashing services a studio does not offer is worse
+  // than a menu that fills in a moment later.
+  const fotoshootingItems = enabledPages === null
+    ? []
+    : allFotoshootingItems.filter((item) => {
+        const def = pageForRoute(item.path);
+        return def ? isPageEnabled(def.id, enabledPages, siteLang) : true;
+      });
 
   const aboutItems = [
     { path: '/ueber-uns/', label: t('nav.about') },
@@ -118,8 +147,7 @@ const Header: React.FC = () => {
           ))}
 
           {/* Fotoshootings Dropdown */}
-          <div 
-            className="relative group"
+          {fotoshootingItems.length > 0 && (<div className="relative group"
             onMouseEnter={() => setFotoshootingsOpen(true)}
             onMouseLeave={() => setFotoshootingsOpen(false)}
           >
@@ -149,6 +177,7 @@ const Header: React.FC = () => {
               </div>
             )}
           </div>
+          )}
 
           {/* About Dropdown */}
           <div 

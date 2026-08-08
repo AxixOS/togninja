@@ -50,6 +50,28 @@ export const SITE_PAGES: SitePageDef[] = [
   // ---- Leftovers from the studio the image was built for. -----------------
   { id: 'preise-wien', route: '/fotoshooting-preise-wien/', label: 'Pricing (legacy city pillar)', group: 'legacy', defaultEnabled: false, redirectTo: '/preise' },
 
+  // ---- Service pillar pages. -------------------------------------------
+  // Fourteen city-specific service pages from the studio the image was built for,
+  // hardcoded into the nav. A Brighton boudoir studio was advertising "School &
+  // University Photography" in Vienna. OFF by default: they remain in the codebase
+  // as templates, and a studio whose services genuinely match can switch one on.
+  // Replacing them with pillars generated from the studio's OWN services is the
+  // follow-up; disabling them stops the misrepresentation now.
+  { id: 'pillar-family', route: '/familienfotos-wien/', label: 'Family Photos', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-newborn', route: '/neugeborenenfotos-wien/', label: 'Newborn Photos', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-baby', route: '/babyfotos-wien/', label: 'Baby Photos', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-maternity', route: '/schwangerschaftsfotos-wien/', label: 'Maternity Photos', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-business', route: '/business-portrait-wien/', label: 'Business Portraits', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-team', route: '/teamfotos-wien/', label: 'Team & Employee Photos', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-linkedin', route: '/bewerbungsfotos-wien/', label: 'LinkedIn & Headshots', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-portrait', route: '/portrait-fotografie-wien/', label: 'Portrait Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-product', route: '/produkt-fotografie-wien/', label: 'Product Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-realestate', route: '/immobilien-fotografie-wien/', label: 'Real Estate Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-studio', route: '/studio-fotografie-wien/', label: 'Studio Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-wedding', route: '/hochzeitsfotografie-wien/', label: 'Wedding Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-event', route: '/eventfotografie-wien/', label: 'Event Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-school', route: '/schul-und-hochschulfotografie-wien/', label: 'School & University Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+
   // ---- Duplicate gallery routes. One canonical, the rest redirect. --------
   { id: 'galerie-alias', route: '/galerie', label: 'Galerie (alias)', group: 'alias', defaultEnabled: false, redirectTo: '/galleries' },
   { id: 'gallery-alias', route: '/gallery', label: 'Gallery (alias)', group: 'alias', defaultEnabled: false, redirectTo: '/galleries' },
