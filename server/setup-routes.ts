@@ -427,7 +427,7 @@ router.post('/homepage/generate', async (req: Request, res: Response) => {
     }
 
     // Fire-and-forget — the pipeline writes progress to homepage_gen_state.
-    runHomepagePipeline(config).catch((e: any) => console.error('[setup] homepage pipeline error:', e?.message || e));
+    runHomepagePipeline(config, { force }).catch((e: any) => console.error('[setup] homepage pipeline error:', e?.message || e));
     return res.json({ started: true });
   } catch (error: any) {
     console.error('Homepage generate error:', error?.message || error);

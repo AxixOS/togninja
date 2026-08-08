@@ -123,7 +123,7 @@ async function uniqueSlug(base: string): Promise<string> {
  * Run the full pipeline for the given studio_configs row. Fire-and-forget: never
  * throws to the caller — all failures are captured into homepage_gen_state.
  */
-export async function runHomepagePipeline(config: any): Promise<void> {
+export async function runHomepagePipeline(config: any, opts: { force?: boolean } = {}): Promise<void> {
   const website = normalizeWebsiteUrl(config?.website || config?.frontendUrl || '');
   const state: HomepageGenState = {
     status: 'running', stage: 'crawling', pagesCrawled: 0,
@@ -188,7 +188,7 @@ export async function runHomepagePipeline(config: any): Promise<void> {
     // defaults after onboarding and the optimised text was effectively invisible.
     // Best-effort: a failure here must not fail the pipeline.
     try {
-      const seeded = await seedManualPagesFromGenerated(content, (config?.language || 'en'));
+      const seeded = await seedManualPagesFromGenerated(content, (config?.language || 'en'), { overwrite: !!opts.force });
       if (seeded) {
         console.log(`[homepage-pipeline] seeded ${seeded.written} homepage field(s) into Website Studio (${seeded.skipped} already set)`);
       }

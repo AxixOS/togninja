@@ -69,6 +69,7 @@ export function mapGeneratedToHomeKeys(content: any): Record<string, string> {
 export async function seedManualPagesFromGenerated(
   content: any,
   language = 'en',
+  opts: { overwrite?: boolean } = {},
 ): Promise<{ pageId: string; written: number; skipped: number } | null> {
   const keys = mapGeneratedToHomeKeys(content);
   if (!Object.keys(keys).length) return null;
@@ -89,8 +90,12 @@ export async function seedManualPagesFromGenerated(
   let skipped = 0;
   const draft: Record<string, string> = { ...prevDraft };
   for (const [k, v] of Object.entries(keys)) {
-    // Anything the studio already has stays put.
-    if (clean(prevDraft[k]) || clean(prevPublished[k])) { skipped++; continue; }
+    // Anything the studio already has stays put — EXCEPT on a forced re-run.
+    // Without that exception a studio onboarded before this existed can never be
+    // fixed: its fields already hold auto-published copies of the old defaults, so
+    // "don't overwrite" would skip every one of them and regeneration would be a
+    // silent no-op.
+    if (!opts.overwrite && (clean(prevDraft[k]) || clean(prevPublished[k]))) { skipped++; continue; }
     draft[k] = v;
     written++;
   }
