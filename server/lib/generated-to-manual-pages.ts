@@ -61,6 +61,66 @@ export function mapGeneratedToHomeKeys(content: any): Record<string, string> {
 }
 
 /**
+ * The other four public pages. Same principle: map only where the generated content
+ * has a real counterpart. Form field labels and placeholders ("Email", "Your
+ * message") are deliberately NOT mapped — they are interface text, not marketing
+ * copy, and an AI rewrite of them makes a form worse, not better. Studio contact
+ * details are likewise left alone; those are facts, not copy.
+ */
+export function mapGeneratedToOtherPages(content: any): Record<string, Record<string, string>> {
+  const hero = content?.hero || {};
+  const offer = content?.offerSection || {};
+  const problem = content?.problemSection || {};
+  const why = content?.whyChooseUs || {};
+  const finalCta = content?.finalCta || {};
+  const reasons: any[] = Array.isArray(why?.reasons) ? why.reasons : [];
+
+  const page = (pairs: Array<[string, unknown]>): Record<string, string> => {
+    const o: Record<string, string> = {};
+    for (const [k, v] of pairs) {
+      const s = clean(v);
+      if (s) o[k] = s;
+    }
+    return o;
+  };
+
+  return {
+    // Sessions overview: the offer, then the three "why choose us" reasons, which
+    // line up 1:1 with the page's three feature blocks.
+    photoshoots: page([
+      ['photoshoots.title', offer.headline || hero.headline],
+      ['photoshoots.subtitle', offer.description || hero.subheadline],
+      ['photoshoots.professionalEquipment', reasons[0]?.title],
+      ['photoshoots.professionalDescription', reasons[0]?.description],
+      ['photoshoots.flexibleAppointments', reasons[1]?.title],
+      ['photoshoots.flexibleDescription', reasons[1]?.description],
+      ['photoshoots.wholeFamily', reasons[2]?.title],
+      ['photoshoots.wholeFamilyDescription', reasons[2]?.description],
+    ]),
+
+    // Contact: the closing pitch belongs on the page where people act on it.
+    contact: page([
+      ['contact.title', finalCta.headline],
+      ['contact.subtitle', finalCta.description],
+    ]),
+
+    // Voucher landing: the offer sells the gift.
+    'gift-cards': page([
+      ['giftCards.heroTitle', offer.headline],
+      ['giftCards.heroSubtitle', offer.description],
+      ['giftCards.sectionIntro', offer.urgency],
+      ['giftCards.buttonLabel', finalCta.ctaText || hero.ctaText],
+    ]),
+
+    // Waitlist: scarcity is the reason someone joins one.
+    waitlist: page([
+      ['waitlist.title', finalCta.headline],
+      ['waitlist.subtitle', offer.urgency || problem.description],
+    ]),
+  };
+}
+
+/**
  * Write the mapped copy into manual_page_content as BOTH draft and published, so
  * the studio finishes onboarding with the pages pre-filled AND live. Never
  * overwrites a value the studio has already set — an onboarding re-run must not
@@ -71,12 +131,34 @@ export async function seedManualPagesFromGenerated(
   language = 'en',
   opts: { overwrite?: boolean } = {},
 ): Promise<{ pageId: string; written: number; skipped: number } | null> {
-  const keys = mapGeneratedToHomeKeys(content);
-  if (!Object.keys(keys).length) return null;
-
   const studioId = await resolveStudioId();
-  const pageId = 'home';
 
+  // All five public pages, not just the homepage.
+  const byPage: Record<string, Record<string, string>> = {
+    home: mapGeneratedToHomeKeys(content),
+    ...mapGeneratedToOtherPages(content),
+  };
+
+  let totalWritten = 0;
+  let totalSkipped = 0;
+  for (const [pid, pageKeys] of Object.entries(byPage)) {
+    if (!Object.keys(pageKeys).length) continue;
+    const r = await writePage(studioId, pid, language, pageKeys, opts);
+    totalWritten += r.written;
+    totalSkipped += r.skipped;
+  }
+  if (!totalWritten && !totalSkipped) return null;
+  return { pageId: Object.keys(byPage).join(','), written: totalWritten, skipped: totalSkipped };
+}
+
+/** Write one page's keys, preserving anything the studio already set. */
+async function writePage(
+  studioId: string,
+  pageId: string,
+  language: string,
+  keys: Record<string, string>,
+  opts: { overwrite?: boolean },
+): Promise<{ written: number; skipped: number }> {
   const existing = await pool.query(
     `SELECT draft_content, published_content FROM manual_page_content
       WHERE studio_id = $1 AND page_id = $2 AND language = $3 LIMIT 1`,
@@ -99,7 +181,7 @@ export async function seedManualPagesFromGenerated(
     draft[k] = v;
     written++;
   }
-  if (!written) return { pageId, written: 0, skipped };
+  if (!written) return { written: 0, skipped };
 
   const published = { ...prevPublished, ...Object.fromEntries(Object.entries(draft).filter(([k]) => keys[k])) };
 
@@ -112,5 +194,5 @@ export async function seedManualPagesFromGenerated(
     [studioId, pageId, language, JSON.stringify(draft), JSON.stringify(published)],
   );
 
-  return { pageId, written, skipped };
+  return { written, skipped };
 }
