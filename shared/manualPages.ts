@@ -323,7 +323,7 @@ export const manualPageManifest: ManualPageDefinition[] = [
   },
   {
     id: 'photoshoots',
-    label: 'Fotoshootings Overview',
+    label: 'Sessions Overview',
     route: '/fotoshootings',
     description: 'Copy for the shootings overview page (categories and CTAs).',
     tags: ['Services', 'Families'],
@@ -372,7 +372,7 @@ export const manualPageManifest: ManualPageDefinition[] = [
   },
   {
     id: 'gift-cards',
-    label: 'Gutschein Landing',
+    label: 'Voucher Landing',
     route: '/gutschein',
     description: 'Hero and package copy for the gift card landing page.',
     tags: ['Vouchers', 'Sales'],
@@ -403,7 +403,7 @@ export const manualPageManifest: ManualPageDefinition[] = [
   },
   {
     id: 'contact',
-    label: 'Kontakt Page',
+    label: 'Contact Page',
     route: '/kontakt',
     description: 'Contact hero, studio details and transport notes.',
     tags: ['Conversion', 'Leads'],
@@ -437,7 +437,7 @@ export const manualPageManifest: ManualPageDefinition[] = [
   },
   {
     id: 'waitlist',
-    label: 'Warteliste / Booking',
+    label: 'Waitlist / Booking',
     route: '/warteliste',
     description: 'Copy for the booking request form.',
     sections: [
@@ -546,7 +546,7 @@ export const manualPageManifest: ManualPageDefinition[] = [
   },
   {
     id: 'ueber-uns',
-    label: 'About Us / Über uns',
+    label: 'About Us',
     route: '/ueber-uns',
     description: 'The founder photo and story shown on the About Us page (Simon). Edit here — no code needed. Leave a field blank to keep the built-in default.',
     tags: ['About', 'Photo', 'Story'],
