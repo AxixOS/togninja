@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Globe, Check, ChevronDown } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { SITE } from '../../config/site';
 
 const LABELS: Record<string, { name: string; flag: string }> = {
   en: { name: 'English', flag: '🇬🇧' },
@@ -31,7 +32,13 @@ export default function LanguageSelector({ className = '', onSelect }: Props) {
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const langs: string[] = enabledLanguages && enabledLanguages.length ? enabledLanguages : ['en', 'de'];
+  // Fall back to the studio's OWN language, not a hardcoded ['en','de'] pair. That
+  // fallback put a German option in front of every studio that had not explicitly
+  // configured its languages — including English-market ones, which then offered
+  // visitors a translation they never asked for.
+  const langs: string[] = enabledLanguages && enabledLanguages.length
+    ? enabledLanguages
+    : [(SITE.lang || 'en').slice(0, 2).toLowerCase()];
   if (langs.length <= 1) return null;
 
   const cur = LABELS[language] || LABELS.en;
