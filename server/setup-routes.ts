@@ -556,7 +556,11 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       await db.execute(sql`TRUNCATE crm_invoice_items, crm_invoices, crm_leads, crm_clients, gallery_images, galleries, voucher_sales, lead_sources, email_campaigns, landing_pages, blog_posts, admin_users RESTART IDENTITY CASCADE`);
     } catch (e: any) { console.warn('[reset-demo] core truncate:', e?.message); }
     // On-demand tables that may not exist yet.
-    for (const t of ['ui_translations', 'i18n_settings', 'website_pages', 'crawl_jobs', 'theme_analysis', 'onboarding_sessions', 'user_sessions', 'questionnaire_responses', 'questionnaire_links', 'competitor_prices', 'price_list_suggestions', 'competitor_research', 'price_wizard_sessions', 'gallery_order_items', 'gallery_orders', 'print_orders', 'workflow_step_executions', 'workflow_executions', 'workflow_instances', 'workflow_analytics']) {
+    // manual_page_content, homepage_images and portfolio_images were NOT cleared, so a
+    // "fresh" reset inherited the previous studio's published website copy and its
+    // uploaded images — an end-to-end onboarding test then started with the last
+    // tenant's homepage text still in place, which is the opposite of a clean slate.
+    for (const t of ['manual_page_content', 'homepage_images', 'portfolio_images', 'ui_translations', 'i18n_settings', 'website_pages', 'crawl_jobs', 'theme_analysis', 'onboarding_sessions', 'user_sessions', 'questionnaire_responses', 'questionnaire_links', 'competitor_prices', 'price_list_suggestions', 'competitor_research', 'price_wizard_sessions', 'gallery_order_items', 'gallery_orders', 'print_orders', 'workflow_step_executions', 'workflow_executions', 'workflow_instances', 'workflow_analytics']) {
       try { await db.execute(sql.raw(`TRUNCATE ${t} RESTART IDENTITY CASCADE`)); } catch { /* skip */ }
     }
     // Reset the studio_configs singleton to blank pre-onboarding state (keep the row +
@@ -567,6 +571,8 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // Revert Authority Map to the default seed + drop ShootCleaner creds, so a fresh test
     // starts truly clean (these post-date the original reset).
     try { await db.execute(sql`UPDATE studio_configs SET authority_map = NULL, shootcleaner_api_key = NULL, shootcleaner_webhook_url = NULL, shootcleaner_webhook_secret = NULL`); } catch {}
+    // Page visibility back to "use the language defaults" for the next studio.
+    try { await db.execute(sql`UPDATE studio_configs SET enabled_pages = NULL`); } catch {}
     // Clear tenant-entered STORAGE credentials so a fresh test falls back to the instance's
     // env storage. A stale/invalid stored key (e.g. a Supabase publishable key pasted in a
     // prior run) otherwise overrides the valid env creds and fails uploads (InvalidAccessKeyId).
