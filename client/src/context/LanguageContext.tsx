@@ -2413,10 +2413,16 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (typeof override === 'string' && override.trim()) return override;
     const runtime = runtimeTx[key];
     if (typeof runtime === 'string' && runtime.trim()) return runtime;
+    // An EMPTY string is a deliberate value, not a miss. Several keys default to ''
+    // on purpose — the studio's address, its reviews, its milestone figures — because
+    // the alternative was shipping another studio's. A truthiness check treated those
+    // as missing and fell through to returning the KEY, so pages rendered literal
+    // text like "contact.studioAddress". Only an absent key falls back.
     const current = (translations[language] as any)?.[key];
-    if (current) return current;
+    if (typeof current === 'string') return current;
     const fallbackEn = (translations.en as any)[key];
-    return fallbackEn || key;
+    if (typeof fallbackEn === 'string') return fallbackEn;
+    return key;
   };
 
   return (
