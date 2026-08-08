@@ -577,6 +577,11 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // env storage. A stale/invalid stored key (e.g. a Supabase publishable key pasted in a
     // prior run) otherwise overrides the valid env creds and fails uploads (InvalidAccessKeyId).
     try { await db.execute(sql`UPDATE studio_integrations SET storage_access_key_id = NULL, storage_secret_key_encrypted = NULL, storage_bucket = NULL, storage_endpoint = NULL`); } catch {}
+    // The SMTP SERVER details are deliberately kept (infrastructure — re-entering them
+    // every demo run is pointless), but the sender IDENTITY is the studio's own. Left
+    // behind, a fresh wizard pre-filled the PREVIOUS studio's name in "From Name", so
+    // the next tenant's emails would have gone out signed as them.
+    try { await db.execute(sql`UPDATE studio_integrations SET email_from_name = NULL`); } catch {}
     try {
       const { config } = await import('./config-reader');
       config.invalidate();
