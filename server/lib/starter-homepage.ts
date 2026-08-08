@@ -111,8 +111,30 @@ export async function generateStarterHomepage(opts: { themePreset?: string } = {
     });
   } catch { /* status already set on create */ }
 
-  // Point "/" at it.
-  await pool.query('UPDATE studio_configs SET homepage_landing_slug = $1 WHERE TRUE', [page.slug]);
+  // Point "/" at it ONLY when the built-in homepage has nothing of the studio's own.
+  //
+  // This used to be unconditional. Onboarding also crawls the studio's website and
+  // writes tailored copy into the built-in Homepage (manual_page_content) — so a
+  // studio finished the wizard, clicked View Website, and got this generic starter
+  // page instead of the homepage that had just been written for it. The good work
+  // was there; it simply was not the page being served.
+  //
+  // The starter page still exists and can be set as the homepage by hand; it just
+  // stops overriding real content it cannot beat.
+  let homeHasOwnCopy = false;
+  try {
+    const { rows } = await pool.query(
+      `SELECT published_content FROM manual_page_content
+        WHERE page_id = 'home' AND published_content IS NOT NULL LIMIT 1`,
+    );
+    homeHasOwnCopy = Object.keys(rows?.[0]?.published_content || {}).length > 0;
+  } catch { /* table may not exist yet on a fresh instance */ }
+
+  if (!homeHasOwnCopy) {
+    await pool.query('UPDATE studio_configs SET homepage_landing_slug = $1 WHERE TRUE', [page.slug]);
+  } else {
+    console.log('[starter-homepage] built-in homepage already carries the studio\'s own copy — leaving "/" on it');
+  }
 
   let themePreset: string | null = null;
   if (opts.themePreset) { try { themePreset = (await saveSiteTheme(opts.themePreset)).id; } catch { /* ignore */ } }
