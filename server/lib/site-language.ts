@@ -83,6 +83,43 @@ export async function getSiteLanguage(): Promise<SiteLanguageCode> {
   return lang;
 }
 
+/**
+ * Push the studio's chosen language into i18n_settings, which is what the PUBLIC site
+ * actually reads.
+ *
+ * There are two language values with similar names and nothing connected them:
+ * studio_configs.site_language (chosen in the wizard, drives page visibility, generated
+ * copy and URLs) and i18n_settings.default_language (drives which translation set the
+ * public site renders, and defaults to 'de'). A studio could complete onboarding in
+ * English, get English URLs and English generated copy, and still serve its visitors the
+ * German translation set — which is the origin studio's Vienna copy, complete with its
+ * phone number. That is one setting as far as the studio is concerned, so setting one now
+ * sets the other.
+ *
+ * enabled_languages is narrowed to the chosen language too: a single-language studio has
+ * no reason to offer visitors a language selector, and offering one exposes exactly the
+ * translation set it does not want.
+ */
+export async function applySiteLanguageToI18n(code: SiteLanguageCode): Promise<void> {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS i18n_settings (
+        id integer PRIMARY KEY DEFAULT 1,
+        default_language text DEFAULT 'de',
+        enabled_languages jsonb DEFAULT '["en","de"]'::jsonb,
+        updated_at timestamptz DEFAULT now()
+      )`);
+    await pool.query(`INSERT INTO i18n_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
+    await pool.query(
+      `UPDATE i18n_settings SET default_language = $1, enabled_languages = $2::jsonb, updated_at = now() WHERE id = 1`,
+      [code, JSON.stringify([code])],
+    );
+  } catch (e: any) {
+    // Never fail the studio's save because the public-site default could not be written.
+    console.warn('[site-language] could not apply language to i18n_settings:', e?.message || e);
+  }
+}
+
 /** Call after the studio changes its language so the next request sees it. */
 export function invalidateSiteLanguage(): void {
   cached = null;

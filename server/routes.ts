@@ -7307,6 +7307,10 @@ Bitte versuchen Sie es später noch einmal.`;
         studioConfig.lang = await getSiteLanguage();
         studioConfig.siteLanguage = studioConfig.lang;
       } catch { /* client falls back to 'en' */ }
+      // The currency the studio sells in. Public price rendering hardcoded "€", so a
+      // studio that chose GBP in the wizard still advertised euros; voucher_products has
+      // no currency column, so this row is the only source of truth for it.
+      studioConfig.currency = (dbConfig as any)?.currency || 'EUR';
       // The studio's own PricingEmbed calculator (homepage price calculator).
       studioConfig.pricingEmbedUrl = dbConfig?.pricingEmbedUrl || null;
       // Public-site theme preset (tokens) — the client applies it to landing pages.

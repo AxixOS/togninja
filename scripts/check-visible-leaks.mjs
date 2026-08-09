@@ -18,6 +18,14 @@ const PAGES = [
 ];
 const PATTERN = /(New Age|NewAge|newagefotografie|in Vienna|in Wien\b|Vienna|Wien\b|Wehrgasse|\+43)/gi;
 
+// Third-party embed ids belonging to the origin studio. An <iframe> renders somebody
+// else's prices and packages while contributing NOTHING to innerText, so a visible-text
+// sweep once called the homepage clean while it displayed another studio's price list.
+const FOREIGN_EMBEDS = [
+  'embed_ai_1780913691468_2effx16uy',
+  'embed_ai_1772535371344_q0lkcwv9x',
+];
+
 const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1280, height: 900 });
@@ -66,6 +74,17 @@ for (const r of report) {
   if (r.count > 0) r.contexts.forEach(c => console.log(`    … ${c}`));
 }
 console.log(`\nTOTAL visible: ${total}`);
+
+// A page that ERRORED was never inspected, so "0 visible" says nothing about it. This
+// script reported a clean zero across 23 pages while every single one had failed on a
+// ReferenceError — a false all-clear is worse than no check, because it gets believed.
+const errored = report.filter((r) => r.count < 0);
+if (errored.length) {
+  console.log(`\n${errored.length} page(s) could NOT be checked — this run proves nothing:`);
+  errored.forEach((r) => console.log(`  ${r.path}  ${r.contexts[0] || ''}`));
+}
+
 // Non-zero exit so this can gate a release: a leak that reaches a visitor should fail
-// the build, unlike a source-level default that no studio renders.
-process.exit(total > 0 ? 1 : 0);
+// the build, unlike a source-level default that no studio renders. An unchecked page
+// fails too.
+process.exit(total > 0 || errored.length ? 1 : 0);

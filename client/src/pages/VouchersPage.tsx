@@ -7,6 +7,7 @@ import CategoryFilter from '../components/vouchers/CategoryFilter';
 import { useAppContext } from '../context/AppContext';
 import { Search, Gift } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useStudioCurrency } from '../hooks/useStudioCurrency';
 import HeroDealsAuto from '@/components/HeroDealsAuto';
 import { useCart } from '../context/CartContext';
 import { SEOHead } from '../components/SEO/SEOHead';
@@ -18,6 +19,8 @@ import { useImagePreloader } from '../hooks/useImagePreloader';
 const VouchersPage: React.FC = () => {
   const { selectedCategory } = useAppContext();
   const { t, language } = useLanguage();
+  // Prices in the STUDIO'S currency, not a hardcoded euro sign.
+  const { format: formatPrice } = useStudioCurrency();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = React.useState('');
 
@@ -395,7 +398,7 @@ const VouchersPage: React.FC = () => {
                       <div className="flex justify-between items-center">
                         <div className="flex flex-col">
                           <span className="text-sm text-gray-500 uppercase tracking-wide">{t('vouchers.from')}</span>
-                          <span className="text-2xl font-bold text-purple-600">€{voucher.price}</span>
+                          <span className="text-2xl font-bold text-purple-600">{formatPrice(voucher.price)}</span>
                         </div>
                         <button 
                           onClick={() => handlePurchaseVoucher(voucher)}

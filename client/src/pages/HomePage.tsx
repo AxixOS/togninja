@@ -8,6 +8,7 @@ import CountUp from 'react-countup';
 import { Check } from 'lucide-react';
 import { proxyImage } from '../lib/imageProxy';
 import { useLanguage } from '../context/LanguageContext';
+import { useStudioCurrency } from '../hooks/useStudioCurrency';
 import { useCart } from '../context/CartContext';
 import { useManualPageContent } from '../hooks/useManualPageContent';
 import { SEOHead } from '../components/SEO/SEOHead';
@@ -18,86 +19,8 @@ import { useGoogleReviews } from '../hooks/useGoogleReviews';
 import HomepageConfidenceSection from '../components/home/HomepageConfidenceSection';
 import { SITE } from '../config/site';
 
-// Translation mappings for German product names and descriptions
-const productNameTranslations: Record<string, string> = {
-  'Hochzeitsfotografie Basic': 'Wedding Photography Basic',
-  'Hochzeitsfotografie Premium': 'Wedding Photography Premium',
-  'Hochzeit Basic': 'Wedding Basic',
-  'Hochzeit Premium': 'Wedding Premium',
-  'Immobilienfotografie': 'Real Estate Photography',
-  'Immobilien Basic': 'Real Estate Basic',
-  'Immobilien Premium': 'Real Estate Premium',
-  'Produktfotografie': 'Product Photography',
-  'Studio-Fotografie Basic': 'Studio Photography Basic',
-  'Portraitfotografie Basic': 'Portrait Photography Basic',
-  'Portrait Einzelperson': 'Individual Portrait',
-  'Bewerbungsfotos & LinkedIn': 'Application Photos & LinkedIn',
-  'Team & Mitarbeiterfotos': 'Team & Employee Photos',
-  'Eventfotografie': 'Event Photography',
-  'Familie Fotoshootings': 'Family Photo Session',
-  'Shooting Experience Gutschein': 'Shooting Experience Voucher',
-};
-
-const productDescriptionTranslations: Record<string, string> = {
-  // Family products
-  '60 Min Shooting; 1 retuschiertes Portrait digital + Leinwand 40×30 cm; Auswahlgalerie online; Nutzungsrechte privat': 
-    '60 Min Shooting; 1 retouched portrait digital + Canvas 40×30 cm; Online gallery; Private usage rights',
-  '60 Min Shooting; 2 retuschiertes Portrait digital + 2x Leinwand 30×40 cm; Auswahlgalerie online; Nutzungsrechte privat': 
-    '60 Min Shooting; 2 retouched portraits digital + 2x Canvas 30×40 cm; Online gallery; Private usage rights',
-  '60 Min Shooting; 5 retuschierte Fotos digital; Leinwand 40×30 cm; Auswahlgalerie & Nutzungsrechte privat':
-    '60 Min Shooting; 5 retouched photos digital; Canvas 40×30 cm; Online gallery & Private usage rights',
-  // Wedding
-  'Hochzeitsbegleitung (Auszug) inkl. 30 bearbeiteter Fotos': 
-    'Wedding coverage (excerpt) incl. 30 edited photos',
-  'Standesamt oder kleine Feier inkl. alle Portraits als Datei - Halber Tag, Stunden nach Wunsch\n':
-    'Registry office or small celebration incl. all portraits as file - Half day, hours as desired',
-  'Ganztägige Hochzeit - inkl. alle Bilder, Online-Galerie, Prints und Leinwand-Collage als Geschenk (Porträts nach Wahl)':
-    'Full day wedding - incl. all images, online gallery, prints and canvas collage as gift (portraits of your choice)',
-  // Real Estate
-  'Immobilienfotos Paket für Wohnungen & Häuser — Innen und Exterieur. Alle Bilder in Vollauflösung dabei, 360°-Bilder, Google Maps-Update\n':
-    'Real estate photo package for apartments & houses — Interior and exterior. All images in full resolution, 360° images, Google Maps update',
-  'Kleine Wohnungen & Studios inkl. alle Bilder als Datei':
-    'Small apartments & studios incl. all images as file',
-  'Wohnungen & Häuser  alle Bilder als Datei, Interaktiver Video-Rundgang und professionell gezeichneter Grundriss':
-    'Apartments & houses all images as file, interactive video tour and professionally drawn floor plan',
-  // Portrait/Business
-  'Portraitsession im Studio; 30-45 Minuten; 1 retuschiertes Foto':
-    'Portrait session in studio; 30-45 minutes; 1 retouched photo',
-  'Bewerbungsfotos Paket inkl. 2 retuschierte Bilder für Bewerbungen & LinkedIn':
-    'Application photos package incl. 2 retouched images for applications & LinkedIn',
-  'Team- & Mitarbeiterfotos; Paketpreise by headcount; In-Studio or Onsite options z.B:. 50€ pro Kopf mit alle Portäts als Datei dazu.':
-    'Team & employee photos; Package prices by headcount; In-studio or onsite options e.g.: €50 per person with all portraits as files',
-  'Studio-Miete inkl. Fotosession; perfekte Option für Produkt- oder Portraitaufnahmen':
-    'Studio rental incl. photo session; perfect option for product or portrait shots',
-  'Produktfotografie Basic — 5 retuschierte Bilder, ideal für Shops & Social':
-    'Product Photography Basic — 5 retouched images, ideal for shops & social media',
-  'Business-Headshot; 30 Minuten; 1 retuschiertes Foto suitable for LinkedIn':
-    'Business headshot; 30 minutes; 1 retouched photo suitable for LinkedIn',
-  'Klassisches Porträt - 5x Portäts nach Wahl':
-    'Classic portrait - 5x portraits of your choice',
-  // Business packages
-  'Schnell & effizient inkl. x2 Bilder nach Wahl als Datei ':
-    'Quick & efficient incl. 2 images of your choice as file',
-  'Für Professionals inkl. alle Bilder als Datei ':
-    'For professionals incl. all images as file',
-  'Maximale Wirkung für deine Produkte und deine Marke.\n\nInklusive 10 hochauflösender High-Impact-Fotos deiner Wahl – mit kommerziellen Nutzungsrechten für unbegrenzte Drucke und uneingeschränkte Online-Nutzung.':
-    'Maximum impact for your products and brand.\n\nIncluding 10 high-resolution high-impact photos of your choice – with commercial usage rights for unlimited prints and unrestricted online use.',
-  // Event
-  'Eventfotografie Paket — Kurzauftrag inkl. 30 bearbeiteter Fotos':
-    'Event photography package — Short assignment incl. 30 edited photos',
-  'Ganztägige Event-Coverage - inkl. alle Bilder als Datei, in Vollauflösung geliefert':
-    'Full day event coverage - incl. all images as file, delivered in full resolution',
-  // Newborn
-  'ca. 60 Minuten im Studio; 5 retuschierte Lieblingsfotos digital; Leinwand 40×30 cm; 2–3 Sets (Wraps + Detail-Makros)':
-    'approx. 60 minutes in studio; 5 retouched favorite photos digital; Canvas 40×30 cm; 2-3 sets (wraps + detail macros)',
-};
 
 
-// Helper function to translate product text
-const translateProductText = (text: string, translations: Record<string, string>, language: string): string => {
-  if (language === 'de') return text; // Keep German as-is
-  return translations[text] || text; // Return translation or original
-};
 
 /**
  * An <img> that renders nothing when it has no src. Section images resolve to '' when
@@ -113,6 +36,8 @@ const SectionImage: React.FC<React.ImgHTMLAttributes<HTMLImageElement>> = ({ src
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { language } = useLanguage();
+  // Prices in the STUDIO'S currency, not a hardcoded euro sign.
+  const { format: formatPrice } = useStudioCurrency();
   const { addToCart } = useCart();
   
   // Use manual page content hook - allows admin to override any content
@@ -874,17 +799,17 @@ const HomePage: React.FC = () => {
                 )}
 
                 <h3 className={idx === 1 ? 'text-2xl font-bold mb-4' : 'text-2xl font-bold mb-4 text-purple-900'}>
-                  {translateProductText(voucher.name, productNameTranslations, language)}
+                  {voucher.name}
                 </h3>
 
                 <div className={idx === 1 ? 'text-3xl font-bold mb-6' : 'text-3xl font-bold text-purple-600 mb-6'}>
-                  €{voucher.price}
+                  {formatPrice(voucher.price)}
                 </div>
 
                 <ul className={idx === 1 ? 'space-y-3 mb-8 text-white/90' : 'space-y-3 mb-8 text-gray-700'}>
                   <li className="flex items-start">
                     <Check className={idx === 1 ? 'h-5 w-5 text-white mr-2 flex-shrink-0 mt-0.5' : 'h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5'} />
-                    <span>{translateProductText(voucher.description || t('home.voucherOnlineGallery'), productDescriptionTranslations, language)}</span>
+                    <span>{voucher.description || t('home.voucherOnlineGallery')}</span>
                   </li>
                   <li className="flex items-start">
                     <Check className={idx === 1 ? 'h-5 w-5 text-white mr-2 flex-shrink-0 mt-0.5' : 'h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5'} />
@@ -899,7 +824,7 @@ const HomePage: React.FC = () => {
                 <button
                   onClick={() => {
                     addToCart({
-                      title: translateProductText(voucher.name, productNameTranslations, language),
+                      title: voucher.name,
                       productId: voucher.id,
                       productSlug: voucher.route || voucher.id,
                       price: Number(voucher.price) || 0,

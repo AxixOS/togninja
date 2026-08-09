@@ -15,7 +15,7 @@
 import { Router, Request, Response } from 'express';
 import { hubIntegration } from './hub-integration';
 import { db } from './db';
-import { normalizeSiteLanguage, invalidateSiteLanguage } from './lib/site-language';
+import { normalizeSiteLanguage, invalidateSiteLanguage, applySiteLanguageToI18n } from './lib/site-language';
 import {
   studioConfigs,
   studioIntegrations,
@@ -554,7 +554,11 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // Core data (CASCADE clears dependent rows: invoices/items, gallery images, sessions,
     // questionnaires, communications, etc. that reference clients/galleries).
     try {
-      await db.execute(sql`TRUNCATE crm_invoice_items, crm_invoices, crm_leads, crm_clients, gallery_images, galleries, voucher_sales, lead_sources, email_campaigns, landing_pages, blog_posts, admin_users RESTART IDENTITY CASCADE`);
+      // voucher_products was in NEITHER truncate list, so the origin studio's own products
+      // — "Familie Fotoshooting", "Neugeborenen Fotoshooting", priced in euros — survived
+      // every reset and appeared on the next studio's homepage and vouchers page as its
+      // own offering. A reset that leaves purchasable items behind is not a reset.
+      await db.execute(sql`TRUNCATE crm_invoice_items, crm_invoices, crm_leads, crm_clients, gallery_images, galleries, voucher_sales, voucher_products, lead_sources, email_campaigns, landing_pages, blog_posts, admin_users RESTART IDENTITY CASCADE`);
     } catch (e: any) { console.warn('[reset-demo] core truncate:', e?.message); }
     // On-demand tables that may not exist yet.
     // manual_page_content, homepage_images and portfolio_images were NOT cleared, so a
@@ -884,8 +888,10 @@ router.post('/basics', async (req: Request, res: Response) => {
         ...fields,
       } as any);
     }
-    // Page visibility and the sitemap read the language on the very next request.
+    // Page visibility and the sitemap read the language on the very next request, and
+    // the PUBLIC site reads i18n_settings — a different table that nothing kept in step.
     invalidateSiteLanguage();
+    { const code = normalizeSiteLanguage(siteLanguage); if (code) await applySiteLanguageToI18n(code); }
 
     res.json({ success: true, nextStep: 'integrations', businessInfo });
   } catch (error) {

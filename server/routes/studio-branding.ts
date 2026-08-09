@@ -172,8 +172,9 @@ router.put('/branding', requireAuth, async (req, res) => {
 
     // Page visibility, the sitemap and the public URLs read the language per request.
     if (languageChanged) {
-      const { invalidateSiteLanguage } = await import('../lib/site-language');
+      const { invalidateSiteLanguage, applySiteLanguageToI18n } = await import('../lib/site-language');
       invalidateSiteLanguage();
+      if (set.siteLanguage) await applySiteLanguageToI18n(set.siteLanguage);
     }
 
     return res.json({ success: true });

@@ -217,6 +217,13 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
           publish: true,
         });
         console.log(`[homepage-pipeline] pillar pages: ${r.created} created, ${r.skipped} already existed, ${r.remaining} left for a later build`);
+
+        // A voucher shop stocked with the studio's OWN services, from the same map.
+        // Created inactive and unpriced — see starter-products for why nothing here
+        // invents a price.
+        const { seedStarterProductsFromServices } = await import('./starter-products.js');
+        const sp = await seedStarterProductsFromServices();
+        console.log(`[homepage-pipeline] starter voucher products: ${sp.created} created (inactive, awaiting prices), ${sp.skipped} already existed`);
       })
       .catch((err) => console.warn('[homepage-pipeline] authority map / pillar pages failed:', err?.message || err));
 
