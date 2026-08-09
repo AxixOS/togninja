@@ -588,6 +588,34 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // behind, a fresh wizard pre-filled the PREVIOUS studio's name in "From Name", so
     // the next tenant's emails would have gone out signed as them.
     try { await db.execute(sql`UPDATE studio_integrations SET email_from_name = NULL`); } catch {}
+
+    // EVERY credential the wizard collects — not just storage. A reset that left SMTP,
+    // Stripe and the OpenAI key behind meant the next run of the wizard opened with the
+    // previous studio's settings already filled in and marked "(saved)", which is not
+    // what a new customer would ever see and quietly hides whether a step actually works.
+    // Listed column by column, and each in its own statement, so a column that does not
+    // exist on an older instance skips itself instead of aborting the whole reset.
+    const INTEGRATION_COLUMNS = [
+      // Email / SMTP + IMAP + inbound
+      'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass_encrypted', 'smtp_secure',
+      'default_from_email', 'inbound_email_address', 'brevo_api_key_encrypted',
+      'imap_host', 'imap_port', 'imap_user', 'imap_pass_encrypted', 'imap_tls',
+      // Payments
+      'stripe_account_id', 'stripe_publishable_key', 'stripe_secret_key_encrypted',
+      'stripe_webhook_secret_encrypted', 'ecommerce_enabled',
+      // AI
+      'openai_api_key_encrypted', 'openai_assistant_id', 'anthropic_api_key_encrypted',
+      // Google
+      'google_client_id', 'google_client_secret_encrypted', 'google_calendar_id',
+      'google_places_api_key_encrypted', 'google_places_place_id',
+      // Messaging + fulfilment + social
+      'sms_provider', 'sms_account_sid', 'sms_auth_token_encrypted', 'sms_from_number',
+      'prodigi_api_key_encrypted', 'prodigi_environment',
+      'pulse_api_key_encrypted', 'pulse_mode', 'pulse_profiles',
+    ];
+    for (const col of INTEGRATION_COLUMNS) {
+      try { await db.execute(sql.raw(`UPDATE studio_integrations SET ${col} = NULL`)); } catch { /* column absent on this instance */ }
+    }
     try {
       const { config } = await import('./config-reader');
       config.invalidate();

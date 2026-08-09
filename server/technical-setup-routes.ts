@@ -529,7 +529,26 @@ router.post('/security', async (req: Request, res: Response) => {
     }).where(eq(studioConfigs.id, scId));
 
     config.invalidate();
-    res.json({ success: true });
+
+    // Sign the new owner in straight away. They have just chosen this password, two steps
+    // before the wizard ends; making them type it again at a login screen is asking them
+    // to prove they are the person who has been configuring the studio for ten minutes.
+    // Same session field the login route sets, so nothing about auth diverges.
+    let signedIn = false;
+    try {
+      const [user] = await db.select().from(adminUsers).where(eq(adminUsers.email, email)).limit(1);
+      if (user?.id && req.session) {
+        (req.session as any).userId = user.id;
+        await new Promise<void>((resolve) => req.session.save(() => resolve()));
+        signedIn = true;
+      }
+    } catch (e: any) {
+      // Never fail account creation because the session could not be established — the
+      // account exists and the login page still works.
+      console.warn('[technical-setup] auto sign-in after admin creation failed:', e?.message || e);
+    }
+
+    res.json({ success: true, signedIn });
   } catch (error) {
     console.error('[technical-setup] Security save error:', error);
     res.status(500).json({ error: 'Failed to save security settings' });
@@ -689,16 +708,32 @@ router.post('/test/storage', async (req: Request, res: Response) => {
     // Same check the save handler applies — one implementation, so the two can never
     // give different answers about the same pair of values.
     const hostRegion = String(endpoint || '').match(/s3[.-]([a-z]{2}-[a-z]+-\d+)\./i)?.[1];
-    const { describeRegionMismatch } = await import('./services/s3-storage');
+    const { describeRegionMismatch, normalizeEndpoint, isUsableEndpoint } = await import('./services/s3-storage');
     const regionProblem = describeRegionMismatch(endpoint, region);
     if (regionProblem) {
       return res.status(400).json({ success: false, error: 'Region mismatch', message: regionProblem });
     }
 
+    // Backblaze displays its endpoint WITHOUT a scheme — "s3.eu-central-003.backblazeb2.com"
+    // — so that is what gets pasted. The save path normalised it; this one handed it to the
+    // AWS SDK raw, which threw "Invalid URL" and reported it as a failed storage test on
+    // input that was entirely correct. Normalise here too, and say so plainly if what is
+    // left still is not a usable address.
+    const normalizedEndpoint = normalizeEndpoint(endpoint);
+    if (endpoint && !isUsableEndpoint(normalizedEndpoint)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid endpoint',
+        message: `"${endpoint}" is not a valid endpoint address. Copy the Endpoint shown on your bucket, e.g. s3.eu-central-003.backblazeb2.com.`,
+      });
+    }
+
     const { S3Client, ListObjectsV2Command } = await import('@aws-sdk/client-s3');
     const client = new S3Client({
+      // With no Region typed, take it from the endpoint — the endpoint already names it,
+      // and asking for it twice is how the two came to disagree in the first place.
       region: region || hostRegion || 'us-east-1',
-      endpoint: endpoint || undefined,
+      endpoint: normalizedEndpoint || undefined,
       credentials: {
         accessKeyId,
         secretAccessKey: secretKey,

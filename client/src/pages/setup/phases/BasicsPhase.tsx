@@ -92,19 +92,17 @@ const SITE_LANGUAGES = [
   { value: 'es', label: 'Español (Spanish)' }
 ];
 
-function detectBrowserLanguage(): string {
-  const code = String(navigator?.language || 'en').slice(0, 2).toLowerCase();
-  return SITE_LANGUAGES.some(l => l.value === code) ? code : 'en';
-}
 
 export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProps) {
   const [formData, setFormData] = useState({
     businessName: initialData?.businessName || '',
     businessType: initialData?.businessType || '',
     timezone: initialData?.timezone || 'Europe/Vienna',
-    // Default to the browser's own language when it is one we support, so a French
-    // photographer is not asked to notice that a field says English.
-    siteLanguage: initialData?.siteLanguage || detectBrowserLanguage(),
+    // English by default. Browser detection was worse in practice: the buyer's OS locale
+    // is not their WEBSITE's language — someone on a German machine building an English
+    // site got German pre-selected, and a default that is wrong in a way you have to
+    // notice is worse than one that is plainly the first option in the list.
+    siteLanguage: initialData?.siteLanguage || 'en',
     currency: initialData?.currency || 'EUR',
     vatNumber: initialData?.vatNumber || '',
     dateFormat: (initialData?.dateFormat as DateFormatPreset) || getDateFormatPreset(),

@@ -194,13 +194,20 @@ export default function StorageStep({ onComplete, onBack }: Props) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="region">Region</Label>
+            <Label htmlFor="region">Region <span className="text-slate-400 font-normal">(leave blank)</span></Label>
             <Input
               id="region"
-              placeholder="us-west-004"
+              // The placeholder used to read "us-west-004" — a real region, for a
+              // different data centre than most buckets. It looked like an instruction,
+              // and typing it against a eu-central-003 endpoint breaks every upload with
+              // an error that never mentions the region.
+              placeholder="taken from your endpoint"
               value={region}
               onChange={e => setRegion(e.target.value)}
             />
+            <p className="text-xs text-slate-500">
+              Only needed if your provider uses a region that isn't in the endpoint above.
+            </p>
           </div>
         </div>
 
@@ -235,9 +242,18 @@ export default function StorageStep({ onComplete, onBack }: Props) {
         <div className="flex gap-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800">
           <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-700 dark:text-blue-300">
-            <strong>Backblaze B2 users:</strong> Make sure your bucket is set to "Public" or has appropriate
-            CORS rules. The endpoint typically looks like <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">
-            https://s3.us-west-004.backblazeb2.com</code>
+            <strong>Backblaze B2 — where each value comes from:</strong>
+            <ul className="mt-2 space-y-1 list-disc list-inside">
+              <li><strong>Access Key ID</strong> and <strong>Secret Key</strong> — the <em>keyID</em> and{' '}
+                <em>applicationKey</em> pair from <em>Application Keys</em>. You only see the
+                applicationKey once, when you create it.</li>
+              <li><strong>Bucket Name</strong> and <strong>Endpoint URL</strong> — both shown on the bucket
+                itself under <em>Buckets</em>. Copy the endpoint exactly as displayed; it does not need
+                <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded mx-1">https://</code>in front.</li>
+              <li><strong>Region</strong> — leave blank. It is already part of the endpoint.</li>
+            </ul>
+            <p className="mt-2">Your bucket must be set to <strong>Public</strong>, or have CORS rules that
+              allow this site to read from it.</p>
           </div>
         </div>
       </CardContent>

@@ -147,6 +147,13 @@ export default function UnifiedSetupWizard() {
           {/* Sidebar */}
           <aside className="col-span-12 md:col-span-3">
             <nav className="space-y-5 md:sticky md:top-28">
+              {/* Says the thing that makes the sidebar useful. Without it people treat a
+                  wizard as one-way and carry a mistake all the way to the end. */}
+              {index > 0 && (
+                <p className="text-xs text-gray-500 px-1 -mb-2">
+                  Click any completed step to go back and change it — nothing is lost.
+                </p>
+              )}
               {groups.map((g) => (
                 <div key={g.name}>
                   <div className="text-xs uppercase tracking-wider text-gray-400 font-semibold mb-2 px-1">{g.name}</div>
@@ -160,8 +167,14 @@ export default function UnifiedSetupWizard() {
                           key={def.key}
                           onClick={() => visited && setIndex(idx)}
                           disabled={!visited}
+                          // A completed step has always been clickable, but nothing said
+                          // so — no pointer, no hint — so someone who realised at step 13
+                          // that they had skipped their address assumed the wizard was
+                          // one-way. The cursor and the title now say it out loud.
+                          title={done ? `Go back to "${def.label}" — your answers are kept` : undefined}
                           className={cn(
                             'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-all',
+                            visited && !active && 'cursor-pointer',
                             active && 'bg-blue-600 text-white shadow-sm',
                             !active && done && 'text-green-700 hover:bg-green-50',
                             !active && !done && visited && 'text-gray-700 hover:bg-gray-50',
