@@ -22,6 +22,7 @@ const StripeSettingsPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [ecommerceEnabled, setEcommerceEnabled] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -36,10 +37,29 @@ const StripeSettingsPage: React.FC = () => {
             secretKeySet: !!st.secretKeySet,
             webhookSecretSet: !!st.webhookSecretSet,
           }));
+          setEcommerceEnabled((data.extras || {}).ecommerceEnabled !== false);
         }
       } catch { /* keep defaults */ } finally { setIsLoading(false); }
     })();
   }, []);
+
+  // A studio can answer "I'm not selling online" in the wizard, which hides vouchers and
+  // checkout. That must not be a one-way door — this is how it comes back.
+  const enableEcommerce = async () => {
+    setIsSaving(true); setMessage(null);
+    try {
+      const res = await fetch('/api/setup/technical/stripe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enableEcommerce: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not turn payments on');
+      setEcommerceEnabled(true);
+      setMessage({ type: 'success', text: data.message || 'Online payments are on.' });
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e?.message || 'Could not turn payments on.' });
+    } finally { setIsSaving(false); }
+  };
 
   const handleSave = async () => {
     setIsSaving(true); setMessage(null);
@@ -92,6 +112,15 @@ const StripeSettingsPage: React.FC = () => {
             <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2"><CreditCard size={22} className="text-purple-600" /> Payments (Stripe)</h1>
             <p className="text-gray-600">Keys used for voucher sales and online payments.</p>
           </div>
+          {!ecommerceEnabled && (
+            <button
+              onClick={enableEcommerce}
+              disabled={isSaving}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg disabled:opacity-50"
+            >
+              Turn online payments on
+            </button>
+          )}
           <div className="flex items-center space-x-3">
             <button onClick={handleTest} disabled={isTesting} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center disabled:opacity-50">
               <FlaskConical size={16} className="mr-2" /> {isTesting ? 'Testing…' : 'Test Key'}
@@ -101,6 +130,14 @@ const StripeSettingsPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {!ecommerceEnabled && (
+          <div className="rounded-lg p-4 bg-amber-50 border border-amber-200 text-sm text-amber-800">
+            <strong>Online payments are off.</strong> You chose not to sell online during setup, so
+            vouchers and checkout are hidden from your website. Saving keys below, or the button
+            above, turns them back on.
+          </div>
+        )}
 
         {message && (
           <div className={`rounded-lg p-4 ${message.type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>

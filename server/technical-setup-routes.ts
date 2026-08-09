@@ -223,6 +223,26 @@ router.post('/stripe', async (req: Request, res: Response) => {
   try {
     const { publishableKey, secretKey, webhookSecret, skipEcommerce } = req.body;
 
+    // Turning the shop back ON without re-entering keys. The wizard's opt-out is not a
+    // one-way door: a studio that said no at onboarding and later wants to sell must be
+    // able to reverse it from Settings → Payments, using the keys it may already have.
+    if (req.body.enableEcommerce === true && !publishableKey && !secretKey) {
+      const siId = await ensureIntegrations();
+      await db.update(studioIntegrations)
+        .set({ ecommerce_enabled: true } as any)
+        .where(eq(studioIntegrations.id, siId));
+      config.invalidate();
+      const [row] = await db.select().from(studioIntegrations).where(eq(studioIntegrations.id, siId)).limit(1);
+      const hasKeys = !!(row as any)?.stripe_secret_key_encrypted;
+      return res.json({
+        success: true,
+        ecommerceEnabled: true,
+        message: hasKeys
+          ? 'Online payments are back on. Vouchers and checkout are visible again.'
+          : 'Online payments are on, but no Stripe keys are saved yet — add them below before taking a payment.',
+      });
+    }
+
     // A studio that is not selling online should not be forced through Stripe at all.
     // Recorded explicitly so the wizard can stop asking AND the voucher shop can be
     // switched off — an opt-out that only skipped the gate would leave a shop on the
@@ -807,6 +827,9 @@ router.get('/current', async (_req: Request, res: Response) => {
         // instead of an empty form that looks unset.
         googlePlacesApiKeySet: !!si?.google_places_api_key_encrypted,
         googlePlacesPlaceId: si?.google_places_place_id || '',
+        // Whether the studio sells online. NULL = never answered = on, matching every
+        // studio configured before the question existed.
+        ecommerceEnabled: si?.ecommerce_enabled !== false,
         ga4MeasurementId: sc?.ga4MeasurementId || '',
         metaPixelId: sc?.metaPixelId || '',
         pricingEmbedUrl: sc?.pricingEmbedUrl || '',

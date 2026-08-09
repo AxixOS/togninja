@@ -56,6 +56,18 @@ router.get('/branding', requireAuth, async (_req, res) => {
       defaultTaxRate: sc?.defaultTaxRate != null ? String(sc.defaultTaxRate) : '0',
       taxLabel: sc?.taxLabel || 'VAT',
       vatNumber: sc?.vatNumber || '',
+      // Set once in the onboarding wizard and, until now, editable NOWHERE afterwards.
+      // A studio that picked the wrong currency or timezone on day one was stuck with it.
+      website: sc?.website || '',
+      timezone: sc?.timezone || '',
+      currency: sc?.currency || 'EUR',
+      dateFormat: sc?.dateFormat || 'auto',
+      tagline: sc?.metaDescription || '',
+      facebookUrl: sc?.facebookUrl || '',
+      instagramUrl: sc?.instagramUrl || '',
+      // The language the public site is written in. Drives page visibility, generated
+      // copy and the public URLs, so it must be changeable after onboarding.
+      siteLanguage: (sc as any)?.siteLanguage || '',
     });
   } catch (error: any) {
     console.error('[studio-branding] GET failed:', error);
@@ -102,6 +114,14 @@ router.put('/branding', requireAuth, async (req, res) => {
       defaultTaxRate,
       taxLabel,
       vatNumber,
+      website,
+      timezone,
+      currency,
+      dateFormat,
+      tagline,
+      facebookUrl,
+      instagramUrl,
+      siteLanguage,
     } = req.body || {};
 
     const set: any = { updatedAt: new Date() };
@@ -122,6 +142,22 @@ router.put('/branding', requireAuth, async (req, res) => {
     }
     if (taxLabel !== undefined) set.taxLabel = String(taxLabel || 'VAT').slice(0, 40) || 'VAT';
     if (vatNumber !== undefined) set.vatNumber = vatNumber;
+    if (website !== undefined) set.website = website;
+    if (timezone !== undefined) set.timezone = timezone;
+    if (currency !== undefined) set.currency = String(currency || 'EUR').slice(0, 8).toUpperCase();
+    if (dateFormat !== undefined) set.dateFormat = dateFormat || 'auto';
+    if (tagline !== undefined) set.metaDescription = tagline;
+    if (facebookUrl !== undefined) set.facebookUrl = facebookUrl;
+    if (instagramUrl !== undefined) set.instagramUrl = instagramUrl;
+    // Only a VALID language code is stored. An unrecognised value here would silently
+    // change which public pages are on and how URLs are spelled, so it is ignored rather
+    // than written.
+    let languageChanged = false;
+    if (siteLanguage !== undefined) {
+      const { normalizeSiteLanguage } = await import('../lib/site-language');
+      const code = normalizeSiteLanguage(siteLanguage);
+      if (code) { set.siteLanguage = code; languageChanged = true; }
+    }
 
     const existing = await getSingleton();
     if (existing) {
@@ -132,6 +168,12 @@ router.put('/branding', requireAuth, async (req, res) => {
         ownerEmail: email || 'admin@localhost',
         ...set,
       });
+    }
+
+    // Page visibility, the sitemap and the public URLs read the language per request.
+    if (languageChanged) {
+      const { invalidateSiteLanguage } = await import('../lib/site-language');
+      invalidateSiteLanguage();
     }
 
     return res.json({ success: true });

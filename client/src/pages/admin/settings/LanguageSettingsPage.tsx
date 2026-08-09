@@ -25,6 +25,13 @@ const LanguageSettingsPage: React.FC = () => {
   const [genLang, setGenLang] = useState<string | null>(null);
   const [genStatus, setGenStatus] = useState<Record<string, string>>({});
 
+  // The language the PUBLIC SITE is written in — a different thing from the interface
+  // languages below, and stored separately (studio_configs.site_language, not
+  // i18n_settings). It was chosen in the onboarding wizard and, until now, could not be
+  // changed anywhere afterwards.
+  const [siteLanguage, setSiteLanguage] = useState('');
+  const [savingSite, setSavingSite] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -34,9 +41,29 @@ const LanguageSettingsPage: React.FC = () => {
           if (Array.isArray(d.enabledLanguages) && d.enabledLanguages.length) setEnabled(d.enabledLanguages);
           if (d.defaultLanguage) setDef(d.defaultLanguage);
         }
-      } catch { /* keep defaults */ } finally { setLoading(false); }
+      } catch { /* keep defaults */ }
+      try {
+        const b = await fetch('/api/studio/branding');
+        if (b.ok) setSiteLanguage((await b.json())?.siteLanguage || '');
+      } catch { /* leave unset — the control shows "not chosen" */ }
+      setLoading(false);
     })();
   }, []);
+
+  const saveSiteLanguage = async (code: string) => {
+    setSavingSite(true); setMsg(null);
+    try {
+      const res = await fetch('/api/studio/branding', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteLanguage: code }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Save failed');
+      setSiteLanguage(code);
+      setMsg({ type: 'success', text: 'Website language saved. Your public page addresses and which pages are switched on now follow it.' });
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e?.message || 'Could not save the website language.' });
+    } finally { setSavingSite(false); }
+  };
 
   const toggle = (code: string) => {
     if (code === 'en') return; // English is the fallback — always on
@@ -100,6 +127,49 @@ const LanguageSettingsPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* The website's OWN language. Chosen in the wizard; this is where it changes
+            afterwards. Saved on its own because it has consequences the interface
+            language list does not. */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 max-w-2xl space-y-3">
+          <div>
+            <h2 className="text-lg font-medium text-gray-900">Website language</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              The language your public website is written in. It decides which set of pages is
+              switched on, the language new copy is generated in, and the wording of your page
+              addresses.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {ALL.map(l => (
+              <button
+                key={l.code}
+                onClick={() => saveSiteLanguage(l.code)}
+                disabled={savingSite}
+                className={`px-4 py-2 rounded-lg border text-sm transition-colors disabled:opacity-50 ${
+                  siteLanguage === l.code
+                    ? 'border-purple-600 bg-purple-50 text-purple-800 font-medium'
+                    : 'border-gray-300 hover:border-gray-400 text-gray-700'
+                }`}
+              >
+                <span className="mr-2">{l.flag}</span>{l.name}
+              </button>
+            ))}
+          </div>
+
+          {siteLanguage ? (
+            <p className="text-xs text-amber-700">
+              Changing this changes your public page addresses (for example /contact becomes
+              /kontakt). The old addresses redirect to the new ones, so existing links keep working.
+            </p>
+          ) : (
+            <p className="text-xs text-gray-500">
+              Not set — your site keeps its current page addresses. Choosing a language here will
+              change them to match.
+            </p>
+          )}
+        </div>
 
         <div className="bg-white rounded-lg shadow p-6 space-y-4 max-w-2xl">
           {ALL.map(l => {
