@@ -21,7 +21,7 @@ export interface ScaffoldResult {
 }
 
 export async function scaffoldPillarPages(
-  opts: { city?: string; limit?: number } = {},
+  opts: { city?: string; limit?: number; publish?: boolean; language?: string } = {},
 ): Promise<{ results: ScaffoldResult[]; created: number; skipped: number; remaining: number }> {
   const map = await getAuthorityMap();
   const cap = Math.max(1, Math.min(opts.limit || 6, 8)); // bound OpenAI cost/latency per call
@@ -44,6 +44,9 @@ export async function scaffoldPillarPages(
       const context: LandingContext = {
         primaryService: pillar.label,
         city: opts.city || undefined,
+        // Without this the generator defaulted to English regardless of the studio, so a
+        // Spanish or German studio got English pillar pages under its own nav.
+        language: opts.language || undefined,
         tone: 'warm',
         pageType: 'landing',
         keywords: pillar.keyphrase || undefined,
@@ -59,6 +62,15 @@ export async function scaffoldPillarPages(
       await neonDb.updateLandingPage(page.id, {
         preview_token: previewToken,
         preview_token_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        // Onboarding publishes; the admin "Build pillar pages" button does not.
+        //
+        // Pages are drafts by default so a studio reviews additions before they go live.
+        // During ONBOARDING that default produced the opposite of what the wizard
+        // promises: the nav listed the studio's five services, every one of them resolved
+        // to a page with no copy, because getLandingPageBySlug only ever returns
+        // published rows. Onboarding already publishes the five main pages it generates;
+        // pillars are the same kind of output and belong in the same state.
+        ...(opts.publish ? { status: 'published', published_at: new Date().toISOString() } : {}),
       });
       results.push({
         pillar: pillar.label, slug: page.slug, status: 'created', id: page.id,

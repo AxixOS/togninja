@@ -193,9 +193,32 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     // studio_configs.authority_map stayed NULL, and every consumer fell back to the
     // seed: the nav, the pillar blocks and RelatedServices all advertised the seed
     // studio's Vienna services. Fire-and-forget; a failure must not fail the pipeline.
+    //
+    // …and then BUILD THE PAGES those pillars point at. The map alone puts the studio's
+    // services in the nav; it creates nothing behind them. Scaffolding only ever ran from
+    // the admin's "Build pillar pages" button, so a studio finished the wizard with a nav
+    // full of its own services where every link led to a page with no copy — the pillars
+    // landed, the content did not. Published, not drafted, for the reason given in
+    // authority-scaffold: onboarding publishes what it generates.
+    //
+    // Chained, because the scaffold reads the map the previous step writes. Both are
+    // fire-and-forget: a failure here must not fail the pipeline, and the studio can
+    // still click "Build pillar pages" afterwards.
     import('./authority-from-crawl.js')
       .then((m) => m.generateAuthorityMapFromCrawl(jobId))
-      .catch((err) => console.warn('[homepage-pipeline] authority map from crawl failed:', err?.message || err));
+      .then(async () => {
+        const { scaffoldPillarPages } = await import('./authority-scaffold.js');
+        // The SAME city and language the homepage was written from, so the pillar pages
+        // cannot describe a different place or arrive in a different language than the
+        // page linking to them.
+        const r = await scaffoldPillarPages({
+          city: context.city,
+          language: context.language,
+          publish: true,
+        });
+        console.log(`[homepage-pipeline] pillar pages: ${r.created} created, ${r.skipped} already existed, ${r.remaining} left for a later build`);
+      })
+      .catch((err) => console.warn('[homepage-pipeline] authority map / pillar pages failed:', err?.message || err));
 
     // Land the generated copy in the pages the studio actually edits. Until now the
     // output existed only as a landing page, so Website Studio still showed neutral

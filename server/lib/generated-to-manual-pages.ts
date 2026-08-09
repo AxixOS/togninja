@@ -43,6 +43,27 @@ export function mapGeneratedToHomeKeys(content: any): Record<string, string> {
   put('home.bookShootingButton', hero.ctaText);
   put('home.description', seo.metaDescription || offer.description);
 
+  // The two MOST prominent things in the hero — the H1 and the four rotating lines above
+  // it — were never mapped, so they kept their defaults: "Professional Photography –
+  // Studio & Outdoor" and family-portrait lines like "even camera-shy little ones shine".
+  // On a boudoir studio that is the first thing a visitor reads and it describes someone
+  // else's business. The trust bar is four short claims, which is exactly what the
+  // rotator needs; the offer headline is the strongest single statement for the H1.
+  put('home.heroHeading', offer.headline || hero.headline);
+  const trust: string[] = Array.isArray(content?.trustBar?.items) ? content.trustBar.items : [];
+  const benefits: any[] = Array.isArray(content?.benefits) ? content.benefits : [];
+  const rotatorPool = [...trust, ...benefits.map((b: any) => b?.title)]
+    .map((v) => clean(v))
+    .filter(Boolean);
+  // Cycle the pool rather than leave a slot unset. A slot left unset keeps its default,
+  // and the defaults are family-portrait lines — "even camera-shy little ones shine" —
+  // which on a boudoir studio reads as that studio's own promise about its own work.
+  // Repeating one of the studio's real claims is always better than stating someone
+  // else's. With an empty pool nothing is written and the defaults stand, as before.
+  if (rotatorPool.length) {
+    for (let i = 0; i < 4; i++) put(`home.heroRotator${i + 1}`, rotatorPool[i % rotatorPool.length]);
+  }
+
   // Service Highlights. The key names are historical ("pregnancyAndFamily") but the
   // block is simply "core offerings below the hero" — left unmapped it showed
   // "Pregnancy Shoot & Family Portraits" to a boudoir studio.
