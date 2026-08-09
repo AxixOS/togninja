@@ -49,6 +49,29 @@ export const db = url ? drizzle(pool, {
 
 if (url) {
   console.log(`📊 Database: node-postgres (portable) — SSL ${useSsl ? 'on' : 'off'}, pool max ${poolMax}`);
+
+  // THREE pools share one pooler budget: this one, the session store in auth.ts, and the
+  // legacy pool in database.js. Two of them were sized against the cap and documented as
+  // summing safely; the third asked for 20 and was never counted, so the real total was
+  // 31 against a session-mode cap of 15 and the site 500'd under load with
+  // "(EMAXCONNSESSION) max clients reached in session mode". Comments did not prevent
+  // that — they were correct and simply did not know about the third pool. So the sum is
+  // now asserted out loud at boot, where the next person adding a pool will see it.
+  const sessionMax = Math.max(1, parseInt(process.env.PG_SESSION_POOL_MAX || '', 10) || 3);
+  const legacyMax = Math.max(1, parseInt(process.env.PG_LEGACY_POOL_MAX || '', 10) || 3);
+  const budget = Math.max(1, parseInt(process.env.PG_POOLER_MAX || '', 10) || 15);
+  const total = poolMax + sessionMax + legacyMax;
+  const detail = `main ${poolMax} + session ${sessionMax} + legacy ${legacyMax} = ${total}, pooler allows ${budget}`;
+  if (total >= budget) {
+    console.error(
+      `🔴 DB connection budget EXCEEDED: ${detail}. Expect "(EMAXCONNSESSION) max clients ` +
+      `reached in session mode" and 500s. Lower PG_POOL_MAX / PG_SESSION_POOL_MAX / ` +
+      `PG_LEGACY_POOL_MAX, raise PG_POOLER_MAX if your pooler allows more, or switch ` +
+      `DATABASE_URL to the transaction-mode pooler (port 6543).`,
+    );
+  } else {
+    console.log(`📊 DB connection budget OK: ${detail}`);
+  }
 } else {
   console.warn(`⚠️ Database: No connection - DATABASE_URL not configured`);
 }

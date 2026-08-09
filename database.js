@@ -13,14 +13,27 @@ if (!connectionString) {
 } else {
   console.log('✅ DATABASE_URL found, creating connection pool...');
   
+  // THIRD pool in this process. server/db.ts (PG_POOL_MAX, default 8) and server/auth.ts
+  // (PG_SESSION_POOL_MAX, default 3) were both sized against Supabase's session-mode
+  // pooler cap of 15 and documented as summing to 11 — but this pool was never counted,
+  // and asked for 20 on its own. Total 31 against a cap of 15, so under any real load the
+  // pooler starts refusing with "(EMAXCONNSESSION) max clients reached in session mode"
+  // and every page 500s. Budgeted like the others: 8 + 3 + 3 = 14, one under the cap.
+  //
+  // Raise all three together only on the TRANSACTION-mode pooler (port 6543) or a direct
+  // connection, which allow far more clients than session mode does.
+  const legacyMax = Math.max(1, parseInt(process.env.PG_LEGACY_POOL_MAX || '', 10) || 3);
+
   const pool = new Pool({
     connectionString: connectionString,
     ssl: {
       rejectUnauthorized: false
     },
-    max: 20,
+    max: legacyMax,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    // 2s was long enough only when the pool was uncontended. Waiting for a free client is
+    // normal on a small pool; failing after two seconds turned contention into a 500.
+    connectionTimeoutMillis: 10000,
   });
 
   // Test the connection
