@@ -27,6 +27,7 @@ interface BasicsPhaseProps {
     businessName?: string;
     businessType?: string;
     timezone?: string;
+    siteLanguage?: string;
     currency?: string;
     dateFormat?: string;
     tagline?: string;
@@ -82,11 +83,28 @@ const CURRENCIES = [
   { value: 'AUD', label: '$ Australian Dollar (AUD)' }
 ];
 
+// Must stay in step with SUPPORTED_SITE_LANGUAGES in server/lib/site-language.ts —
+// the server normalises to these codes and rejects anything else.
+const SITE_LANGUAGES = [
+  { value: 'en', label: 'English' },
+  { value: 'de', label: 'Deutsch (German)' },
+  { value: 'fr', label: 'Français (French)' },
+  { value: 'es', label: 'Español (Spanish)' }
+];
+
+function detectBrowserLanguage(): string {
+  const code = String(navigator?.language || 'en').slice(0, 2).toLowerCase();
+  return SITE_LANGUAGES.some(l => l.value === code) ? code : 'en';
+}
+
 export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProps) {
   const [formData, setFormData] = useState({
     businessName: initialData?.businessName || '',
     businessType: initialData?.businessType || '',
     timezone: initialData?.timezone || 'Europe/Vienna',
+    // Default to the browser's own language when it is one we support, so a French
+    // photographer is not asked to notice that a field says English.
+    siteLanguage: initialData?.siteLanguage || detectBrowserLanguage(),
     currency: initialData?.currency || 'EUR',
     vatNumber: initialData?.vatNumber || '',
     dateFormat: (initialData?.dateFormat as DateFormatPreset) || getDateFormatPreset(),
@@ -359,6 +377,33 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        {/* Website language. The image shipped a German/English site because that was
+            the studio it was built for; every buyer needs its own choice. This drives
+            which set of public pages is switched on and what language the AI writes the
+            site in. */}
+        <div className="space-y-2">
+          <Label htmlFor="siteLanguage">Website language *</Label>
+          <Select
+            value={formData.siteLanguage}
+            onValueChange={(value) => handleChange('siteLanguage', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select the language your website is written in" />
+            </SelectTrigger>
+            <SelectContent>
+              {SITE_LANGUAGES.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-gray-500">
+            The language your public website is written in. We'll write your pages in it and
+            switch on the matching set of pages.
+          </p>
         </div>
 
         {/* Date Format */}

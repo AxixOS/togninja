@@ -609,6 +609,11 @@ app.use((req, res, next) => {
         // Which public pages this studio runs. NULL = use the language defaults in
         // shared/sitePages.ts. Disabled pages stay in the codebase as templates.
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS enabled_pages JSONB`);
+        // The language the studio's public site is written in, chosen at onboarding.
+        // Code already queried studio_configs.site_language in two places; the column had
+        // never existed, so those queries threw on every request and their callers
+        // silently fell back to defaults.
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS site_language TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_api_key TEXT`);
         // Authority Map — per-studio topical-cluster + internal-link structure (falls back
         // to the New Age seed in shared/authorityMap.ts when null).

@@ -7233,6 +7233,14 @@ Bitte versuchen Sie es später noch einmal.`;
       // a disabled page 301s to its live equivalent rather than staying quietly
       // crawlable and competing with the page the studio actually uses.
       studioConfig.enabledPages = (dbConfig as any)?.enabledPages || null;
+      // The language this studio's site is written in. The client read `lang` /
+      // `siteLanguage` off this response and neither was ever sent, so Header and the
+      // page gate both silently defaulted to English regardless of the studio.
+      try {
+        const { getSiteLanguage } = await import('./lib/site-language');
+        studioConfig.lang = await getSiteLanguage();
+        studioConfig.siteLanguage = studioConfig.lang;
+      } catch { /* client falls back to 'en' */ }
       // The studio's own PricingEmbed calculator (homepage price calculator).
       studioConfig.pricingEmbedUrl = dbConfig?.pricingEmbedUrl || null;
       // Public-site theme preset (tokens) — the client applies it to landing pages.
@@ -19565,11 +19573,12 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
   app.get("/api/admin/site-pages", authenticateUser, async (_req: Request, res: Response) => {
     try {
       const { SITE_PAGES, defaultEnabledPages, LOCALE_PAIRS } = await import('../shared/sitePages');
-      // No site_language column exists on studio_configs — selecting it threw, and the
-      // .catch(() => []) swallowed it, so this endpoint reported the DEFAULTS as if they
-      // were the studio's stored choices and any saved toggle read back as unset.
+      // This selected site_language, a column that did not exist — the query threw and
+      // the .catch(() => []) swallowed it, so this endpoint reported the DEFAULTS as if
+      // they were the studio's stored choices and any saved toggle read back as unset.
       const rows = await runSql(`SELECT enabled_pages FROM studio_configs LIMIT 1`).catch(() => []);
-      const lang = process.env.SITE_LANG || 'en';
+      const { getSiteLanguage } = await import('./lib/site-language');
+      const lang = await getSiteLanguage();
       const stored = rows[0]?.enabled_pages || null;
       res.json({
         pages: SITE_PAGES,

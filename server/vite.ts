@@ -85,16 +85,17 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
       try {
         const { SITE_PAGES, isPageEnabled } = await import("../shared/sitePages");
         const { pool } = await import("./db");
-        // studio_configs has NO site_language column. Selecting it threw on every
-        // request — "column site_language does not exist" — and the catch below turned
-        // that into a warning nobody read, so the visibility filter had never once run
-        // and every disabled page stayed in the live sitemap. Site language comes from
-        // SITE_LANG, which is what the fallback already resolved to anyway.
+        // This used to select studio_configs.site_language in the same query. That column
+        // did not exist, so the query threw on EVERY request and the catch below turned
+        // it into a warning nobody read — the visibility filter had never once run and
+        // every disabled page stayed in the live sitemap. The column now exists and is
+        // set at onboarding; getSiteLanguage() resolves it with an env/English fallback.
         const { rows } = await pool.query(
           `SELECT enabled_pages FROM studio_configs LIMIT 1`,
         );
         const enabled = rows?.[0]?.enabled_pages || null;
-        const lang = process.env.SITE_LANG || "en";
+        const { getSiteLanguage } = await import("./lib/site-language");
+        const lang = await getSiteLanguage();
 
         const disabledLocs = SITE_PAGES
           .filter((p) => !isPageEnabled(p.id, enabled, lang))

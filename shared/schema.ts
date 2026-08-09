@@ -100,6 +100,12 @@ export const studioConfigs = pgTable("studio_configs", {
   // Which public pages this studio runs — { [pageId]: boolean }. NULL means "use the
   // language defaults"; disabled pages stay in the codebase as reusable templates.
   enabledPages: jsonb("enabled_pages").$type<Record<string, boolean>>(),
+  // The language this studio's public site is written in, chosen during onboarding.
+  // German/English was the origin studio's requirement, not every buyer's: language was
+  // previously readable ONLY from the SITE_LANG env var, so a studio could not choose
+  // one and page visibility, generated copy and locale defaults all keyed off a value
+  // the studio never set. NULL means "fall back to SITE_LANG, then English".
+  siteLanguage: text("site_language"),
   // Studio's own PricingEmbed.com calculator embed URL (homepage price calculator).
   pricingEmbedUrl: text("pricing_embed_url"),
 

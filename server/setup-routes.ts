@@ -15,6 +15,7 @@
 import { Router, Request, Response } from 'express';
 import { hubIntegration } from './hub-integration';
 import { db } from './db';
+import { normalizeSiteLanguage, invalidateSiteLanguage } from './lib/site-language';
 import {
   studioConfigs,
   studioIntegrations,
@@ -572,7 +573,12 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // starts truly clean (these post-date the original reset).
     try { await db.execute(sql`UPDATE studio_configs SET authority_map = NULL, shootcleaner_api_key = NULL, shootcleaner_webhook_url = NULL, shootcleaner_webhook_secret = NULL`); } catch {}
     // Page visibility back to "use the language defaults" for the next studio.
-    try { await db.execute(sql`UPDATE studio_configs SET enabled_pages = NULL`); } catch {}
+    try { await db.execute(sql`UPDATE studio_configs SET enabled_pages = NULL, site_language = NULL`); } catch {}
+    // storage_region was left behind by the credential reset below, which cleared the
+    // key, secret, bucket and endpoint — a lone region is exactly the half-filled row
+    // that used to get blended with env credentials.
+    try { await db.execute(sql`UPDATE studio_integrations SET storage_region = NULL`); } catch {}
+    invalidateSiteLanguage();
     // Clear tenant-entered STORAGE credentials so a fresh test falls back to the instance's
     // env storage. A stale/invalid stored key (e.g. a Supabase publishable key pasted in a
     // prior run) otherwise overrides the valid env creds and fails uploads (InvalidAccessKeyId).
@@ -787,6 +793,7 @@ router.post('/basics', async (req: Request, res: Response) => {
       instagramUrl,
       twitterUrl,
       vatNumber,
+      siteLanguage,
     } = req.body;
 
     if (!businessName || !businessType || !timezone) {
@@ -799,6 +806,7 @@ router.post('/basics', async (req: Request, res: Response) => {
       businessName,
       businessType,
       timezone,
+      siteLanguage: normalizeSiteLanguage(siteLanguage) || 'en',
       currency: currency || 'EUR',
       dateFormat: dateFormat || 'auto',
       logo: logo || null,
@@ -831,6 +839,10 @@ router.post('/basics', async (req: Request, res: Response) => {
       twitterUrl: twitterUrl || null,
       currency: currency || 'EUR',
       vatNumber: vatNumber || null,
+      // The studio's own site language. Page visibility, generated copy and locale
+      // defaults all key off this; before it was captured here they keyed off SITE_LANG,
+      // a deploy-time variable the buyer never sees.
+      siteLanguage: normalizeSiteLanguage(siteLanguage) || undefined,
       updatedAt: new Date(),
     };
 
@@ -844,6 +856,8 @@ router.post('/basics', async (req: Request, res: Response) => {
         ...fields,
       } as any);
     }
+    // Page visibility and the sitemap read the language on the very next request.
+    invalidateSiteLanguage();
 
     res.json({ success: true, nextStep: 'integrations', businessInfo });
   } catch (error) {
