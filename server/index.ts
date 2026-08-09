@@ -1070,6 +1070,9 @@ app.use((req, res, next) => {
       try {
         serveStatic(app);
         console.log('✅ Static file serving configured');
+        // Resolve pillar meta once now, so the first visitor to a pillar page does not
+        // pay the cold-start cost and lose the 1.5s meta race. Never blocks boot.
+        import('./vite').then(m => m.warmPillarRouteMeta?.()).catch(() => {});
       } catch (e: any) {
         console.error('❌ Failed to setup static serving:', e?.message || e);
       }

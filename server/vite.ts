@@ -349,6 +349,63 @@ async function getHomepageLandingSlug(): Promise<string | null> {
   }
 }
 
+// Is this path one of the studio's own pillar pages?
+//
+// The meta branch below is gated on a path pattern — /blog/, /gutschein/, /lp/ — and a
+// pillar page lives at a path the studio chose (/boudoir-photography/), which matches
+// none of them. So lookupRouteMeta was never called for pillars and the resolver inside it
+// was unreachable: the pages existed, were published, appeared in the sitemap, and still
+// served a shell with the site name as its title. Pillar paths cannot be a static pattern,
+// so they are matched against the map. Cached, because this runs on every public request.
+let pillarPathCache: { paths: Set<string>; at: number } | null = null;
+const PILLAR_PATHS_TTL = 60_000;
+
+async function isPillarPath(reqPath: string): Promise<boolean> {
+  const key = "/" + String(reqPath || "").replace(/^\/+|\/+$/g, "");
+  if (key === "/") return false;
+  try {
+    if (!pillarPathCache || Date.now() - pillarPathCache.at > PILLAR_PATHS_TTL) {
+      const { getAuthorityMap } = await import("./lib/authority-map");
+      const map = await getAuthorityMap();
+      pillarPathCache = {
+        paths: new Set((map?.pillars || []).map((p: any) => "/" + String(p.href || "").replace(/^\/+|\/+$/g, ""))),
+        at: Date.now(),
+      };
+    }
+    return pillarPathCache.paths.has(key);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve every pillar's meta once, in the background, just after boot.
+ *
+ * The meta branch races a hard 1.5s timeout — deliberately, because a hung lookup once
+ * turned a missing blog slug into a 30s gateway timeout. But the FIRST request to a pillar
+ * pays for the dynamic imports and a cold connection pool as well as the query, and loses
+ * that race: the page was published, correct and healthy, and still served the bare shell.
+ * A crawler that visits once sees only that.
+ *
+ * Warming makes the cost fall on boot instead of on a visitor. Bounded by the number of
+ * pillars, entirely best-effort, and it only fills the same cache a request would.
+ */
+export async function warmPillarRouteMeta(): Promise<void> {
+  try {
+    const { getAuthorityMap } = await import("./lib/authority-map");
+    const map = await getAuthorityMap();
+    const paths = (map?.pillars || [])
+      .map((p: any) => "/" + String(p.href || "").replace(/^\/+|\/+$/g, ""))
+      .filter((p: string) => p !== "/");
+    for (const p of paths.slice(0, 12)) {
+      await lookupRouteMeta(p).catch(() => null);
+    }
+    if (paths.length) console.log(`[route-meta] warmed ${paths.length} pillar path(s)`);
+  } catch (e: any) {
+    console.warn("[route-meta] pillar warm-up skipped:", e?.message || e);
+  }
+}
+
 async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
   const cached = routeMetaCache.get(reqPath);
   if (cached && Date.now() - cached.at < ROUTE_META_TTL) return cached.meta;
@@ -929,7 +986,9 @@ export function serveStatic(app: Express) {
     // is wrapped — under NO circumstances may a meta lookup hang or 500 a
     // public page (a hung lookup previously turned /blog/<missing-slug> into
     // a 30s Heroku H12 → 503).
-    if (/^\/(blog|gutschein|lp)\//.test(requestPath)) {
+    // …plus the studio's own pillar paths, which are data-driven in exactly the same way
+    // but cannot be expressed as a static pattern.
+    if (/^\/(blog|gutschein|lp)\//.test(requestPath) || await isPillarPath(requestPath)) {
       let meta: RouteMeta | null = null;
       let diag = "miss";
       try {
