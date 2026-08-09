@@ -513,7 +513,10 @@ router.post('/test/smtp', async (req: Request, res: Response) => {
     console.error('[test-smtp]', error);
     res.status(400).json({
       success: false,
+      // Both fields: the wizard renders `message`, so sending only `error` showed a
+      // red cross with no reason at all — nothing a studio could act on.
       error: `SMTP test failed: ${(error as Error).message}`,
+      message: `SMTP test failed: ${(error as Error).message}`,
     });
   }
 });
@@ -591,9 +594,24 @@ router.post('/test/storage', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Access key, secret key, and bucket are required' });
     }
 
+    // Backblaze (and most S3-compatibles) encode the region IN the endpoint host —
+    // s3.eu-central-003.backblazeb2.com. A region field that disagrees with it is
+    // always a mistake, and the SDK's own error ("InvalidAccessKeyId", or a signature
+    // failure) never mentions the region, so it is close to undiagnosable. Caught here
+    // with the fix named, because a studio was saving eu-central-003 against
+    // us-west-004 and had no way to know why uploads failed.
+    const hostRegion = String(endpoint || '').match(/s3[.-]([a-z]{2}-[a-z]+-\d+)\./i)?.[1];
+    if (hostRegion && region && hostRegion.toLowerCase() !== String(region).toLowerCase()) {
+      return res.status(400).json({
+        success: false,
+        error: `Region mismatch`,
+        message: `Your endpoint is for region "${hostRegion}" but the Region field says "${region}". Set Region to "${hostRegion}" to match the endpoint.`,
+      });
+    }
+
     const { S3Client, ListObjectsV2Command } = await import('@aws-sdk/client-s3');
     const client = new S3Client({
-      region: region || 'us-east-1',
+      region: region || hostRegion || 'us-east-1',
       endpoint: endpoint || undefined,
       credentials: {
         accessKeyId,
@@ -617,6 +635,7 @@ router.post('/test/storage', async (req: Request, res: Response) => {
     res.status(400).json({
       success: false,
       error: `Storage test failed: ${(error as Error).message}`,
+      message: `Storage test failed: ${(error as Error).message}`,
     });
   }
 });

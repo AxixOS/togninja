@@ -8,6 +8,7 @@ import LanguageSelector from '../common/LanguageSelector';
 import { useManualPageContent } from '../../hooks/useManualPageContent';
 import { SITE } from '../../config/site';
 import { pageForRoute, isPageEnabled } from '../../../../shared/sitePages';
+import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 
 const Header: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -93,15 +94,31 @@ const Header: React.FC = () => {
     { path: '/schul-und-hochschulfotografie-wien/', label: t('nav.schoolPhotography') },
   ];
 
-  // Show only the pages this studio has switched on. Until the config loads we show
-  // none rather than all — briefly flashing services a studio does not offer is worse
-  // than a menu that fills in a moment later.
-  const fotoshootingItems = enabledPages === null
-    ? []
-    : allFotoshootingItems.filter((item) => {
-        const def = pageForRoute(item.path);
-        return def ? isPageEnabled(def.id, enabledPages, siteLang) : true;
-      });
+  // The studio's OWN services drive this menu, via the Authority Map the onboarding
+  // crawl builds. The list above is the legacy hardcoded set, kept only as a fallback
+  // for an instance that has a map matching those routes (New Age), and still filtered
+  // by page visibility so disabled pages never appear as links that merely redirect.
+  //
+  // Until both the map and the visibility config load we show NOTHING: briefly
+  // flashing services a studio does not offer is worse than a menu that fills a
+  // moment later.
+  const { map: authorityMap, loading: authorityLoading } = useAuthorityMap();
+
+  const fotoshootingItems = (() => {
+    if (enabledPages === null || authorityLoading) return [];
+
+    const fromMap = (authorityMap?.pillars || [])
+      .filter((p) => p.href && p.label)
+      .map((p) => ({ path: p.href, label: p.label }));
+
+    const source = fromMap.length ? fromMap : allFotoshootingItems;
+
+    return source.filter((item) => {
+      const def = pageForRoute(item.path);
+      // Pages we don't gate (a studio's own generated pillars) always show.
+      return def ? isPageEnabled(def.id, enabledPages, siteLang) : true;
+    });
+  })();
 
   const aboutItems = [
     { path: '/ueber-uns/', label: t('nav.about') },

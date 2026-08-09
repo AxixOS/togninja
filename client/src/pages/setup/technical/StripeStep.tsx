@@ -58,7 +58,11 @@ export default function StripeStep({ onComplete, onBack }: Props) {
       });
       return res.json();
     },
-    onSuccess: (data) => setTestResult(data),
+    onSuccess: (data: any) => setTestResult({
+      success: !!data?.success,
+      // message -> error -> generic, so a failed test never renders a bare red cross.
+      message: data?.message || data?.error || (data?.success ? 'Verified' : 'Test failed — check the details above.'),
+    }),
     onError: (err) => setTestResult({ success: false, message: (err as Error).message }),
   });
 

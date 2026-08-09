@@ -193,9 +193,9 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
             <Scan className="w-6 h-6 text-cyan-600" />
           </div>
           <div>
-            <CardTitle className="text-2xl">Let's analyze your content</CardTitle>
+            <CardTitle className="text-2xl">Review your CRM data</CardTitle>
             <CardDescription>
-              Our AI will scan your existing data to find quick wins
+              We check the data already in your CRM for quick wins. (Your website was analysed earlier — that is what produced the homepage draft above.)
             </CardDescription>
           </div>
         </div>
@@ -392,7 +392,7 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
                 <p className="text-3xl font-bold text-blue-600">
                   {scanState.results.pagesScanned}
                 </p>
-                <p className="text-sm text-blue-700">Pages Scanned</p>
+                <p className="text-sm text-blue-700">CRM Records Checked</p>
               </div>
               <div className="bg-amber-50 rounded-xl p-4 text-center">
                 <p className="text-3xl font-bold text-amber-600">

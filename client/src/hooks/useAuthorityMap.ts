@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { DEFAULT_AUTHORITY_MAP, type AuthorityMap } from '../../../shared/authorityMap';
+import { DEFAULT_AUTHORITY_MAP, EMPTY_AUTHORITY_MAP, type AuthorityMap } from '../../../shared/authorityMap';
 
 /**
  * Read the studio's Authority Map. `isCustom` is true only when the studio has saved its
@@ -17,7 +17,10 @@ export function useAuthorityMap(): { map: AuthorityMap; isCustom: boolean; loadi
     },
     staleTime: 5 * 60 * 1000,
   });
-  const map = data || DEFAULT_AUTHORITY_MAP;
+  // Fall back to EMPTY, not the seed. The seed is one specific studio's Vienna pillar
+  // graph, so defaulting to it meant every other studio rendered those services while
+  // the map loaded — and permanently if the request failed.
+  const map = data || EMPTY_AUTHORITY_MAP;
   const isCustom = !!data && JSON.stringify(data) !== JSON.stringify(DEFAULT_AUTHORITY_MAP);
   return { map, isCustom, loading: isLoading };
 }

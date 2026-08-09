@@ -81,8 +81,13 @@ export default function StorageStep({ onComplete, onBack }: Props) {
       });
       return res.json();
     },
-    onSuccess: (data) => setTestResult(data),
-    onError: (err) => setTestResult({ success: false, message: (err as Error).message }),
+    // Never render a bare cross: fall back through message -> error -> a generic line,
+    // so a failed test always says something the studio can act on.
+    onSuccess: (data: any) => setTestResult({
+      success: !!data?.success,
+      message: data?.message || data?.error || (data?.success ? 'Connected' : 'Connection failed — check the keys, bucket and endpoint.'),
+    }),
+    onError: (err) => setTestResult({ success: false, message: (err as Error).message || 'Connection failed' }),
   });
 
   const isValid = accessKeyId.trim() && bucket.trim() && (secretKey || current?.storage?.secretKeySet);
