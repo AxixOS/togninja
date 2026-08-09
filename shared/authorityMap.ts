@@ -48,6 +48,18 @@ export interface AuthorityMap {
  * server/vite.ts (BLOG_PILLARS + DEFAULT_BLOG_PILLAR) and the blog CTA footer links. Keeping
  * these values verbatim guarantees NAF's live SSR output is unchanged.
  */
+/**
+ * What a studio with no map of its own gets: nothing. The seed below belongs to one
+ * specific studio, so falling back to it made every other instance advertise that
+ * studio's Vienna service pages in its nav, pillar blocks and RelatedServices.
+ * An empty map renders no pillars, which is correct until the crawl builds a real one.
+ */
+export const EMPTY_AUTHORITY_MAP: AuthorityMap = {
+  pillars: [],
+  defaultPillar: { href: '/fotoshootings', label: 'Sessions', siblings: [] },
+  conversionLinks: [],
+};
+
 export const DEFAULT_AUTHORITY_MAP: AuthorityMap = {
   pillars: [
     {

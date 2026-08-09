@@ -187,6 +187,16 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
       throw e;
     }
 
+    // Build the studio's Authority Map from the SAME crawl. This only ever ran from
+    // POST /onboarding/run-crawl, a different route — so a studio that came through
+    // the wizard (which uses this pipeline) had its site crawled but no map generated.
+    // studio_configs.authority_map stayed NULL, and every consumer fell back to the
+    // seed: the nav, the pillar blocks and RelatedServices all advertised the seed
+    // studio's Vienna services. Fire-and-forget; a failure must not fail the pipeline.
+    import('./authority-from-crawl.js')
+      .then((m) => m.generateAuthorityMapFromCrawl(jobId))
+      .catch((err) => console.warn('[homepage-pipeline] authority map from crawl failed:', err?.message || err));
+
     // Land the generated copy in the pages the studio actually edits. Until now the
     // output existed only as a landing page, so Website Studio still showed neutral
     // defaults after onboarding and the optimised text was effectively invisible.
