@@ -7235,7 +7235,24 @@ Bitte versuchen Sie es später noch einmal.`;
       // Which public pages this studio runs. The client gates its routes on this, so
       // a disabled page 301s to its live equivalent rather than staying quietly
       // crawlable and competing with the page the studio actually uses.
-      studioConfig.enabledPages = (dbConfig as any)?.enabledPages || null;
+      // Effective visibility, with the studio's e-commerce answer folded in: a studio
+      // that said it is not selling online must not be left with voucher pages a visitor
+      // can reach and cannot buy from. One resolution point, so nav, the route gate and
+      // the sitemap cannot disagree.
+      try {
+        const { applyEcommerceVisibility } = await import('../shared/sitePages');
+        const { getSiteLanguage } = await import('./lib/site-language');
+        const { rows: ecom } = await pool.query(`SELECT ecommerce_enabled FROM studio_integrations LIMIT 1`);
+        const ecommerceEnabled = ecom?.[0]?.ecommerce_enabled ?? null;
+        studioConfig.ecommerceEnabled = ecommerceEnabled !== false;
+        studioConfig.enabledPages = applyEcommerceVisibility(
+          (dbConfig as any)?.enabledPages || null,
+          ecommerceEnabled,
+          await getSiteLanguage(),
+        );
+      } catch {
+        studioConfig.enabledPages = (dbConfig as any)?.enabledPages || null;
+      }
       // The language this studio's site is written in. The client read `lang` /
       // `siteLanguage` off this response and neither was ever sent, so Header and the
       // page gate both silently defaulted to English regardless of the studio.

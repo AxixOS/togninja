@@ -36,17 +36,28 @@ export default function StripeStep({ onComplete, onBack }: Props) {
     }
   }, [current]);
 
+  // What the server reported about the webhook it created on our behalf.
+  const [webhookNote, setWebhookNote] = useState<{ ok: boolean; message: string } | null>(null);
+
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts: { skipEcommerce?: boolean } = {}) => {
       const res = await fetch('/api/setup/technical/stripe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ publishableKey, secretKey, webhookSecret }),
+        body: JSON.stringify({ publishableKey, secretKey, webhookSecret, ...opts }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Save failed');
       return res.json();
     },
-    onSuccess: () => onComplete(),
+    onSuccess: (data: any) => {
+      // Opting out, or a webhook that was created cleanly, moves straight on. A webhook
+      // that could NOT be created holds the studio here with the reason — this is the
+      // failure that used to be silent and only surfaced as an unfulfilled voucher.
+      if (data?.ecommerceEnabled === false || !data?.webhook || data.webhook.ok) {
+        return onComplete();
+      }
+      setWebhookNote({ ok: false, message: data.webhook.message });
+    },
   });
 
   const testMutation = useMutation({
@@ -195,12 +206,31 @@ export default function StripeStep({ onComplete, onBack }: Props) {
           )}
         </div>
 
+        {/* The webhook is created for the studio; this reports when that failed. */}
+        {webhookNote && !webhookNote.ok && (
+          <div className="flex gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800">
+            <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-red-700 dark:text-red-300">
+              <strong>Payments would not be confirmed.</strong>
+              <div className="mt-1">{webhookNote.message}</div>
+              <div className="mt-2 text-xs">
+                Without this, a customer can pay for a voucher and never receive it. Fix it above, or
+                paste a signing secret from Stripe, then save again.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Info box */}
         <div className="flex gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800">
           <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-amber-700 dark:text-amber-300">
             <strong>Security:</strong> Your secret key is encrypted with AES-256-GCM before being stored
             in the database. It's never logged or exposed in API responses.
+            <div className="mt-2">
+              You don't need to create a webhook yourself — we create it in your Stripe account
+              from the secret key above, so payments are confirmed automatically.
+            </div>
           </div>
         </div>
       </CardContent>
@@ -210,11 +240,22 @@ export default function StripeStep({ onComplete, onBack }: Props) {
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={onComplete}>Skip for now</Button>
+        <div className="flex items-center gap-2">
+          {/* The opt-out. "Skip for now" left the studio with a voucher shop that could
+              take no money and no record of the decision; this is an explicit answer,
+              and it switches the shop off rather than leaving it broken. */}
           <Button
-            onClick={() => saveMutation.mutate()}
-            disabled={!isValid || saveMutation.isPending}
+            variant="ghost"
+            onClick={() => saveMutation.mutate({ skipEcommerce: true })}
+            disabled={saveMutation.isPending}
+            title="Hides vouchers and checkout from your site. You can turn payments on later."
+          >
+            I'm not selling online
+          </Button>
+          <Button
+            onClick={() => saveMutation.mutate({})}
+            disabled={!isValid || !testResult?.success || saveMutation.isPending}
+            title={!testResult?.success ? 'Verify your key first — this catches a wrong or revoked key before it costs you a sale.' : undefined}
           >
             {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Save & Continue

@@ -221,7 +221,24 @@ router.post('/email', async (req: Request, res: Response) => {
 // ──────────────────────────────────────────────────────────────
 router.post('/stripe', async (req: Request, res: Response) => {
   try {
-    const { publishableKey, secretKey, webhookSecret } = req.body;
+    const { publishableKey, secretKey, webhookSecret, skipEcommerce } = req.body;
+
+    // A studio that is not selling online should not be forced through Stripe at all.
+    // Recorded explicitly so the wizard can stop asking AND the voucher shop can be
+    // switched off — an opt-out that only skipped the gate would leave a shop on the
+    // site that cannot take money.
+    if (skipEcommerce) {
+      const siId = await ensureIntegrations();
+      await db.update(studioIntegrations)
+        .set({ ecommerce_enabled: false } as any)
+        .where(eq(studioIntegrations.id, siId));
+      config.invalidate();
+      return res.json({
+        success: true,
+        ecommerceEnabled: false,
+        message: 'Online payments are off. Vouchers and checkout are hidden from your site; you can turn them on later in Settings → Payments.',
+      });
+    }
 
     if (!publishableKey || !secretKey) {
       return res.status(400).json({ error: 'Publishable key and secret key are required' });
@@ -231,15 +248,33 @@ router.post('/stripe', async (req: Request, res: Response) => {
     const updateData: Record<string, any> = {
       stripe_publishable_key: publishableKey,
       stripe_secret_key_encrypted: encrypt(secretKey),
+      ecommerce_enabled: true,
     };
     if (webhookSecret) {
       updateData.stripe_webhook_secret_encrypted = encrypt(webhookSecret);
     }
 
+    // Create the webhook FOR them. Asking a photographer to paste a signing secret meant
+    // leaving the wizard for Stripe's dashboard to fetch a value whose purpose they could
+    // not judge — and skipping it failed silently, surfacing later as a voucher paid for
+    // and never fulfilled. The secret key entered above is enough to do it over the API.
+    let webhook: any = null;
+    if (!webhookSecret) {
+      const { ensureStripeWebhook } = await import('./services/stripeWebhookSetup.js');
+      webhook = await ensureStripeWebhook(secretKey);
+      if (webhook.ok && webhook.secret) {
+        updateData.stripe_webhook_secret_encrypted = encrypt(webhook.secret);
+      }
+    }
+
     await db.update(studioIntegrations).set(updateData).where(eq(studioIntegrations.id, siId));
 
     config.invalidate();
-    res.json({ success: true });
+    res.json({
+      success: true,
+      ecommerceEnabled: true,
+      ...(webhook ? { webhook: { ok: webhook.ok, message: webhook.message, url: webhook.url } } : {}),
+    });
   } catch (error) {
     console.error('[technical-setup] Stripe save error:', error);
     res.status(500).json({ error: 'Failed to save Stripe settings' });

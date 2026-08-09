@@ -93,9 +93,17 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
         const { rows } = await pool.query(
           `SELECT enabled_pages FROM studio_configs LIMIT 1`,
         );
-        const enabled = rows?.[0]?.enabled_pages || null;
         const { getSiteLanguage } = await import("./lib/site-language");
         const lang = await getSiteLanguage();
+        // Same resolution the site itself uses, so a studio that is not selling online
+        // does not advertise voucher pages to crawlers that its own nav hides.
+        const { applyEcommerceVisibility } = await import("../shared/sitePages");
+        let ecommerceEnabled: boolean | null = null;
+        try {
+          const { rows: e } = await pool.query(`SELECT ecommerce_enabled FROM studio_integrations LIMIT 1`);
+          ecommerceEnabled = e?.[0]?.ecommerce_enabled ?? null;
+        } catch { /* column not yet created — treat as enabled */ }
+        const enabled = applyEcommerceVisibility(rows?.[0]?.enabled_pages || null, ecommerceEnabled, lang);
 
         // Disabled pages, under BOTH the canonical path (what the shipped sitemap lists)
         // and this studio's localised path, so switching a page off removes it however

@@ -1611,7 +1611,12 @@ export const studioIntegrations = pgTable("studio_integrations", {
   stripe_publishable_key: text("stripe_publishable_key"),
   stripe_secret_key_encrypted: text("stripe_secret_key_encrypted"),
   stripe_webhook_secret_encrypted: text("stripe_webhook_secret_encrypted"),
-  
+  // Whether this studio sells online at all. Not every photographer wants a voucher
+  // shop, and forcing one through Stripe to finish onboarding is worse than the problem
+  // the gate solves. NULL means "not answered yet" — treated as enabled, which is the
+  // behaviour every existing studio already has.
+  ecommerce_enabled: boolean("ecommerce_enabled"),
+
   // OpenAI Configuration
   openai_api_key_encrypted: text("openai_api_key_encrypted"),
   openai_assistant_id: text("openai_assistant_id"),

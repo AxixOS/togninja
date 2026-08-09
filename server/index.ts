@@ -614,6 +614,9 @@ app.use((req, res, next) => {
         // never existed, so those queries threw on every request and their callers
         // silently fell back to defaults.
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS site_language TEXT`);
+        // Whether the studio sells online. NULL = not answered = enabled, so every
+        // existing studio keeps the behaviour it already has.
+        await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS ecommerce_enabled BOOLEAN`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS shootcleaner_api_key TEXT`);
         // Authority Map — per-studio topical-cluster + internal-link structure (falls back
         // to the New Age seed in shared/authorityMap.ts when null).

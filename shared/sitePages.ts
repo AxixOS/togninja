@@ -95,6 +95,31 @@ export const SITE_PAGES: SitePageDef[] = [
 ];
 
 /**
+ * Pages that only make sense if the studio takes money online. A studio that answered
+ * "I'm not selling online" in the wizard should not be left with a voucher shop that
+ * cannot complete a purchase — worse than not having one, because a visitor tries.
+ */
+export const ECOMMERCE_PAGE_IDS = ['vouchers', 'vouchers-en', 'gutschein-de', 'voucher-success'];
+
+/**
+ * Fold the studio's e-commerce choice into its page visibility, so nav, the sitemap, the
+ * route gate and the admin list all read the same answer from one place. `null`/undefined
+ * for ecommerceEnabled means "not answered" — left enabled, which is what every studio
+ * configured before this existed already had.
+ */
+export function applyEcommerceVisibility(
+  enabled: Record<string, boolean> | null | undefined,
+  ecommerceEnabled: boolean | null | undefined,
+  lang = 'en',
+): Record<string, boolean> {
+  const base = { ...defaultEnabledPages(lang), ...(enabled || {}) };
+  if (ecommerceEnabled === false) {
+    for (const id of ECOMMERCE_PAGE_IDS) base[id] = false;
+  }
+  return base;
+}
+
+/**
  * Locale pairs: enabling one side of a pair disables the other, so a studio never
  * publishes the same page twice in two languages and splits its own ranking.
  */
