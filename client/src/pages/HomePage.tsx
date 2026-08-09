@@ -92,15 +92,6 @@ const productDescriptionTranslations: Record<string, string> = {
     'approx. 60 minutes in studio; 5 retouched favorite photos digital; Canvas 40×30 cm; 2-3 sets (wraps + detail macros)',
 };
 
-// NO default embed. This used to fall back to a specific pricingembed.com id — the origin
-// studio's own price calculator — so every studio that had not configured one showed
-// ANOTHER STUDIO'S packages and prices on its homepage: euros on a pound studio, family
-// packages on a boudoir studio, and a live third-party widget nobody here controls.
-// A studio with no calculator configured shows no calculator.
-const PRICING_EMBED_URLS = {
-  de: (import.meta as any).env?.VITE_PRICING_EMBED_URL_DE || '',
-  en: (import.meta as any).env?.VITE_PRICING_EMBED_URL_EN || '',
-} as const;
 
 // Helper function to translate product text
 const translateProductText = (text: string, translations: Record<string, string>, language: string): string => {
@@ -184,49 +175,7 @@ const HomePage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const scrollToPreisrechner = () => {
-    const section = document.getElementById('preisrechner');
-    if (section) {
-      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
 
-  // Per-studio PricingEmbed calculator (set in Settings → Price Calculator). Falls
-  // back to the build-time env / default so existing sites keep working.
-  const { data: studioConfigData } = useQuery<any>({
-    queryKey: ['/api/studio-config'],
-    queryFn: async () => (await fetch('/api/studio-config')).json(),
-    staleTime: 300_000,
-  });
-  const pricingEmbedUrl = studioConfigData?.pricingEmbedUrl || PRICING_EMBED_URLS[language];
-  const pricingCalculatorCopy = language === 'en'
-    ? {
-        heading: 'Find your perfect photoshoot package',
-        subheading: 'In just 30 seconds, discover which package fits your family best.',
-        body: 'No hidden prices. No surprises. Plan your personal photoshoot online with ease. Extra digital portraits are €20 each. Packages available.',
-        label: `${SITE.name} Price Calculator`,
-        labelSub: 'Your personal package in just a few clicks',
-        badge: 'Fast & obligation-free',
-        // Neutral and true for any studio. These previously asserted "Over 5 million
-        // portraits created", "Family-run since 2012" and "Studio in 1050 Vienna" —
-        // one studio's history, published as every instance's own.
-        trustOne: 'Professional & experienced',
-        trustTwo: 'Personal service',
-        trustThree: SITE.address.city ? `Studio in ${SITE.address.city}` : 'Studio & outdoor sessions',
-        iframeTitle: `PricingEmbed price calculator for ${SITE.name}`,
-      }
-    : {
-        heading: 'Finden Sie Ihr perfektes Fotoshooting Paket',
-        subheading: 'In nur 30 Sekunden erfahren Sie, welches Paket am besten zu Ihrer Familie passt.',
-        body: 'Keine versteckten Preise. Keine Überraschungen. Planen Sie Ihr persönliches Fotoshooting ganz einfach online. Zusätzliche digitale Portraits je €20. Pakete verfügbar.',
-        label: `${SITE.name} Preisrechner`,
-        labelSub: 'Ihr persönliches Paket in wenigen Klicks',
-        badge: 'Schnell & unverbindlich',
-        trustOne: 'Professionell & erfahren',
-        trustTwo: 'Persönlicher Service',
-        trustThree: SITE.address.city ? `Studio in ${SITE.address.city}` : 'Studio & Outdoor',
-        iframeTitle: `PricingEmbed Preisrechner für ${SITE.name}`,
-      };
 
   // Fetch voucher products from API with persistent cache
   const { data: apiProducts } = useQuery({
@@ -572,13 +521,15 @@ const HomePage: React.FC = () => {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              <button
-                type="button"
-                onClick={scrollToPreisrechner}
+              {/* Was "Calculate package & price", scrolling to the price calculator. That
+                  section is gone, so the button pointed at nothing; it now goes to the
+                  studio's own prices page, which is what a visitor wanted from it. */}
+              <Link
+                to="/preise/"
                 className="inline-flex items-center justify-center bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-medium py-3 px-8 rounded-full text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
               >
-                💜 {t('homePage.calculatePackagePrice')}
-              </button>
+                {t('homePage.calculatePackagePrice')}
+              </Link>
               <Link
                 to="/warteliste/"
                 className="inline-flex items-center justify-center rounded-full border border-purple-200 px-6 py-3 text-lg font-medium text-purple-700 transition-colors duration-300 hover:border-purple-300 hover:bg-purple-50"
@@ -639,113 +590,6 @@ const HomePage: React.FC = () => {
         </section>
       )}
 
-      {/* The whole price-calculator section is hidden when the studio has not configured
-          one. It previously rendered regardless, filled with another studio's packages and
-          currency — and its surrounding copy makes promises ("no hidden prices", "in 30
-          seconds") that only mean anything if there is a calculator. */}
-      {pricingEmbedUrl && (
-      <section id="preisrechner" className="bg-white py-16 md:py-24 scroll-mt-24">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-4xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 md:text-5xl">
-              {pricingCalculatorCopy.heading}
-            </h2>
-            <p className="mt-4 text-lg font-medium bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent md:text-xl">
-              {pricingCalculatorCopy.subheading}
-            </p>
-            <p className="mx-auto mt-4 max-w-3xl text-base leading-relaxed text-gray-600 md:text-lg">
-              {pricingCalculatorCopy.body}
-            </p>
-          </div>
-
-          {/* Static anchor prices — visitors see real numbers immediately,
-              without waiting on the third-party (lazy-loaded) calculator below.
-              Photography buyers bounce when no price is visible. */}
-          <div className="mx-auto mt-8 max-w-3xl text-center">
-            <p className="text-lg font-semibold text-gray-900">
-              {language === 'en' ? 'Packages from €95 — no hidden costs' : 'Pakete ab €95 – keine versteckten Kosten'}
-            </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-3">
-              {[
-                { en: 'Family from €95', de: 'Familie ab €95' },
-                { en: 'Newborn from €95', de: 'Newborn ab €95' },
-                { en: 'Maternity from €95', de: 'Schwangerschaft ab €95' },
-                { en: 'Business Portraits from €95', de: 'Business Portraits ab €95' },
-              ].map((chip, i) => (
-                <span key={i} className="rounded-full border border-purple-200 bg-purple-50 px-4 py-1.5 text-sm font-medium text-purple-800">
-                  {language === 'en' ? chip.en : chip.de}
-                </span>
-              ))}
-            </div>
-            <div className="mt-4">
-              <Link to="/preise/" className="font-semibold text-purple-600 underline underline-offset-2 hover:text-purple-700">
-                {language === 'en' ? 'See all prices →' : 'Alle Preise ansehen →'}
-              </Link>
-            </div>
-          </div>
-
-          <div className="mx-auto mt-10 max-w-5xl rounded-[32px] border border-purple-100 bg-white p-4 shadow-[0_30px_80px_rgba(168,85,247,0.12)] md:p-8">
-            <div className="rounded-[24px] bg-gradient-to-br from-white via-pink-50/40 to-purple-50/60 p-3 md:p-5">
-              <div className="mx-auto max-w-[850px] overflow-hidden rounded-[20px] border border-white/70 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
-                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 text-left">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.24em] text-purple-500">
-                      {pricingCalculatorCopy.label}
-                    </p>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {pricingCalculatorCopy.labelSub}
-                    </p>
-                  </div>
-                  <div className="hidden rounded-full bg-gradient-to-r from-pink-500 to-purple-600 px-3 py-1 text-xs font-semibold text-white sm:block">
-                    {pricingCalculatorCopy.badge}
-                  </div>
-                </div>
-
-                <div className="bg-white p-2 sm:p-4">
-                  <div className="qk-widget mx-auto max-w-[720px]">
-                    <iframe
-                      title={pricingCalculatorCopy.iframeTitle}
-                      src={pricingEmbedUrl}
-                      width="100%"
-                      height="600"
-                      frameBorder="0"
-                      loading="lazy"
-                      className="block w-full rounded-xl border-none"
-                      style={{ border: 'none', borderRadius: '12px' }}
-                    />
-                    <div className="qk-credit px-2 py-3 text-center text-[13px] font-sans opacity-70">
-                      <a
-                        href="https://pricingembed.com"
-                        target="_blank"
-                        rel="noopener"
-                        className="text-green-500 no-underline"
-                      >
-                        ⚡ Powered by PricingEmbed
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-center text-sm font-medium text-gray-600 md:text-base">
-            <span className="inline-flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
-              {pricingCalculatorCopy.trustOne}
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
-              {pricingCalculatorCopy.trustTwo}
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
-              {pricingCalculatorCopy.trustThree}
-            </span>
-          </div>
-        </div>
-      </section>
-      )}
 
       {/* Content Sections */}
       <section className="py-16">
