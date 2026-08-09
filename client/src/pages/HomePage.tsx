@@ -7,7 +7,6 @@ import Typewriter from 'typewriter-effect';
 import CountUp from 'react-countup';
 import { Check } from 'lucide-react';
 import { proxyImage } from '../lib/imageProxy';
-import photoGridImage from '../assets/photo-grid.jpg';
 import { useLanguage } from '../context/LanguageContext';
 import { useCart } from '../context/CartContext';
 import { useManualPageContent } from '../hooks/useManualPageContent';
@@ -105,6 +104,17 @@ const translateProductText = (text: string, translations: Record<string, string>
   return translations[text] || text; // Return translation or original
 };
 
+/**
+ * An <img> that renders nothing when it has no src. Section images resolve to '' when
+ * the studio has not uploaded a photo for that slot — they used to fall back to a
+ * bundled collage of another studio's clients — and <img src=""> paints a
+ * broken-image icon, which looks worse than the leak it replaced.
+ */
+const SectionImage: React.FC<React.ImgHTMLAttributes<HTMLImageElement>> = ({ src, ...rest }) => {
+  if (!src || !String(src).trim()) return null;
+  return <img src={src} {...rest} />;
+};
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { language } = useLanguage();
@@ -151,10 +161,15 @@ const HomePage: React.FC = () => {
   // Utility: resolve image URL by section with local fallback
   // Homepage photos were served as full-resolution originals (multi-MB), which
   // is why the grid took seconds to appear. Serve a right-sized WebP instead.
+  // Returns '' when the studio has not uploaded an image for this slot. It used to
+  // fall back to a BUNDLED COLLAGE of New Age Fotografie's own client photographs
+  // (client/src/assets/photo-grid.jpg), so every studio's homepage, FAQ cards and
+  // section images showed another studio's clients — and the hero flashed that
+  // collage on every load before the real image arrived. Callers must handle ''.
   const imageForSection = (section: string, fallback?: string, width = 800) => {
     const hit = (homepageImages as any[])?.find((img: any) => img.section === section);
-    const url = (hit && (hit.url as string)) || fallback || photoGridImage;
-    return proxyImage(url, { w: width });
+    const url = (hit && (hit.url as string)) || fallback || '';
+    return url ? proxyImage(url, { w: width }) : '';
   };
 
   const heroImageUrl = useMemo(() => {
@@ -391,12 +406,12 @@ const HomePage: React.FC = () => {
           image: i.url,
           alt: i.alt || i.title || 'Image',
         }))) || [
-      { title: t('home.faqQuestion1'), image: photoGridImage, alt: 'Image' },
-      { title: t('home.faqQuestion2'), image: photoGridImage, alt: 'Image' },
-      { title: t('home.faqQuestion3'), image: photoGridImage, alt: 'Image' },
-      { title: t('home.faqQuestion4'), image: photoGridImage, alt: 'Image' },
-      { title: t('home.faqQuestion5'), image: photoGridImage, alt: 'Image' },
-      { title: t('home.faqQuestion6'), image: photoGridImage, alt: 'Image' },
+      { title: t('home.faqQuestion1'), image: '', alt: '' },
+      { title: t('home.faqQuestion2'), image: '', alt: '' },
+      { title: t('home.faqQuestion3'), image: '', alt: '' },
+      { title: t('home.faqQuestion4'), image: '', alt: '' },
+      { title: t('home.faqQuestion5'), image: '', alt: '' },
+      { title: t('home.faqQuestion6'), image: '', alt: '' },
     ];
 
   // LocalBusiness schema built ONLY from this studio's own identity. Anything the
@@ -569,20 +584,20 @@ const HomePage: React.FC = () => {
             </div>
           </div>
           <div className="w-full md:w-2/5">
-            <div className="aspect-square max-w-md mx-auto overflow-hidden rounded-lg shadow-lg">
-              <ZoomableImageV2
-                src={heroImageUrl || photoGridImage}
-                alt="Comprehensive family portrait showcase including family, newborn, maternity and lifestyle sessions"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  // Fallback for mobile/loading issues
-                  e.currentTarget.src = photoGridImage;
-                }}
-                priority={true}
-                width={600}
-                height={600}
-              />
-            </div>
+            {/* No hero image → no box. The fallback here was New Age's collage, which
+                is what flashed on every load before the studio's own image resolved. */}
+            {heroImageUrl && (
+              <div className="aspect-square max-w-md mx-auto overflow-hidden rounded-lg shadow-lg">
+                <ZoomableImageV2
+                  src={heroImageUrl}
+                  alt={SITE.name}
+                  className="w-full h-full object-cover"
+                  priority={true}
+                  width={600}
+                  height={600}
+                />
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -730,7 +745,7 @@ const HomePage: React.FC = () => {
             <div className="md:w-1/3">
               <div className="aspect-square overflow-hidden rounded-lg shadow-lg">
                 <ZoomableImageV2 
-                  src={imageForSection('content-1', photoGridImage)}
+                  src={imageForSection('content-1')}
                   alt="Professionelle Familienporträts im Studio"
                   className="w-full h-full object-cover"
                   priority={true}
@@ -760,7 +775,7 @@ const HomePage: React.FC = () => {
             <div className="md:w-1/3">
               <div className="aspect-square max-w-sm mx-auto overflow-hidden rounded-lg shadow-lg">
                 <ZoomableImageV2
-                  src={imageForSection('content-2', 'https://i.postimg.cc/RZjf8FsX/Whats-App-Image-2025-05-24-at-2-38-45-PM-1.jpg')}
+                  src={imageForSection('content-2')}
                   alt="Professionelle Businessfotografie im Studio"
                   className="w-full h-full object-cover object-top"
                   priority={true}
@@ -804,8 +819,8 @@ const HomePage: React.FC = () => {
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
-                <img 
-                  src={imageForSection('services-family', photoGridImage)}
+                <SectionImage 
+                  src={imageForSection('services-family')}
                   alt="Natürliche Familienfotografie im Studio und Outdoor"
                   className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
                   loading="lazy"
@@ -831,8 +846,8 @@ const HomePage: React.FC = () => {
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
-                <img 
-                  src={imageForSection('services-pregnancy', photoGridImage)}
+                <SectionImage 
+                  src={imageForSection('services-pregnancy')}
                   alt={language === 'en' 
                     ? "Professional Pregnancy Photoshoot in Studio"
                     : "Professionelle Schwangerschaftsfotos im Studio"}
@@ -860,8 +875,8 @@ const HomePage: React.FC = () => {
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
-                <img 
-                  src={imageForSection('services-newborn', photoGridImage)}
+                <SectionImage 
+                  src={imageForSection('services-newborn')}
                   alt={language === 'en'
                     ? "Professional Baby Photoshoot in Studio"
                     : "Professionelle Babyfotografie im Studio"}
@@ -889,8 +904,8 @@ const HomePage: React.FC = () => {
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
-                <img
-                  src={imageForSection('services-business', 'https://i.postimg.cc/6QqWdLLP/Whats-App-Image-2025-05-24-at-2-38-46-PM.jpg')}
+                <SectionImage
+                  src={imageForSection('services-business')}
                   alt="Professionelle Businessfotografie im Studio"
                   className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
                   loading="lazy"
@@ -916,8 +931,8 @@ const HomePage: React.FC = () => {
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
-                <img 
-                  src={imageForSection('services-event', photoGridImage)}
+                <SectionImage 
+                  src={imageForSection('services-event')}
                   alt="Professionelle Event & Konferenzfotografie"
                   className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
                   loading="lazy"
@@ -943,8 +958,8 @@ const HomePage: React.FC = () => {
               className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="aspect-[4/3] overflow-hidden relative">
-                <img 
-                  src={imageForSection('services-product', photoGridImage)}
+                <SectionImage 
+                  src={imageForSection('services-product')}
                   alt="E-Commerce & Amazon Produktfotos im Studio"
                   className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
                   loading="lazy"

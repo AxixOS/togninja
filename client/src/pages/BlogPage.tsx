@@ -334,7 +334,7 @@ const BlogPage: React.FC = () => {
         description={t('blog.tipsInspirationAndNews')}
         keywords={t('blog.photographyBlogViennaPhotoshoot')}
         canonical="/blog/"
-        ogImage="https://i.postimg.cc/wTdZVLdC/photo-grid.jpg"
+        ogImage={undefined}
         hreflang={[
           { lang: 'de', url: 'https://newagefotografie.at/blog/' },
           { lang: 'en', url: 'https://newagefotografie.at/en/blog/' },
@@ -363,7 +363,7 @@ const BlogPage: React.FC = () => {
               "@type": "BlogPosting",
               "headline": post.title,
               "description": post.excerpt || post.content?.substring(0, 160),
-              "image": post.imageUrl || "https://i.postimg.cc/wTdZVLdC/photo-grid.jpg",
+              "image": post.imageUrl || undefined,
               "datePublished": post.publishedAt || post.createdAt,
               "dateModified": post.updatedAt,
               "author": {

@@ -20,7 +20,7 @@ const giftCardPackages = [
     titleKey: 'giftCards.pregnancyTitle',
     descriptionKey: 'giftCards.pregnancyDescription',
     icon: Heart,
-    image: 'https://i.postimg.cc/WzrVSs3F/3-J9-A3679-renamed-3632.jpg',
+    image: '',
     link: '/gutschein/maternity'
   },
   {
@@ -70,11 +70,11 @@ const GutscheinPage: React.FC = () => {
                 className="bg-white rounded-lg shadow-lg overflow-hidden cursor-pointer transform transition-all hover:-translate-y-1 hover:shadow-xl"
               >
                 <div className="relative h-48">
-                  <img 
+                  {pkg.image && (<img 
                     src={pkg.image}
                     alt={t(pkg.titleKey)}
                     className="w-full h-full object-cover"
-                  />
+                  />)}
                   <div className="absolute top-4 right-4 bg-white p-2 rounded-full shadow-lg">
                     <Icon className="text-purple-600" size={24} />
                   </div>

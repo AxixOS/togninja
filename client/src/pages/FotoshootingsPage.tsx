@@ -22,19 +22,19 @@ const FotoshootingsPage: React.FC = () => {
     {
       title: t('photoshoots.familyTitle'),
       description: t('photoshoots.familyDescription'),
-      image: 'https://i.postimg.cc/gcKwDrqv/Baby-Pink-Bubbles-20x20.jpg',
+      image: '',
       link: '/gutschein/family'
     },
     {
       title: t('photoshoots.pregnancyTitle'),
       description: t('photoshoots.pregnancyDescription'),
-      image: 'https://i.postimg.cc/WzrVSs3F/3-J9-A3679-renamed-3632.jpg',
+      image: '',
       link: '/gutschein/maternity'
     },
     {
       title: t('photoshoots.newbornTitle'),
       description: t('photoshoots.newbornDescription'),
-      image: 'https://i.postimg.cc/43YQ9VD4/4-S8-A4770-105-1024x683-Copy.jpg',
+      image: '',
       link: '/gutschein/newborn'
     },
   ];
@@ -124,11 +124,11 @@ const FotoshootingsPage: React.FC = () => {
                 >
                   {/* Image Container */}
                   <div className="relative aspect-[4/3] overflow-hidden">
-                    <img 
+                    {type.image && (<img 
                       src={type.image}
                       alt={type.title}
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    />
+                    />)}
                     {/* Gradient Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-purple-900/80 via-purple-900/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
                     

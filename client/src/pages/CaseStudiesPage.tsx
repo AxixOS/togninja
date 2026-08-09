@@ -82,7 +82,7 @@ const CaseStudiesPage: React.FC = () => {
           ? 'Fallstudien Fotografie Wien, Familienshooting Beispiel, Business Portrait Fallstudie'
           : 'photography case studies Vienna, family shoot example, business portrait case study'}
         canonical="/case-studies/"
-        ogImage="https://i.postimg.cc/wTdZVLdC/photo-grid.jpg"
+        ogImage={undefined}
         hreflang={[
           { lang: 'de', url: '/case-studies/' },
           { lang: 'en', url: '/en/case-studies/' },

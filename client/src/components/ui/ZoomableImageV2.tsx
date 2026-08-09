@@ -23,6 +23,12 @@ const ZoomableImageV2: React.FC<ZoomableImageV2Props> = ({
   width,
   height
 }) => {
+  // No src → render NOTHING. Image slots fall back to '' when the studio has not
+  // uploaded a photo for them (they used to fall back to a bundled collage of another
+  // studio's clients), and an <img src=""> paints a broken-image icon — visibly worse
+  // than the leak that was removed.
+  if (!src || !String(src).trim()) return null;
+
   // Serve a right-sized WebP for the thumbnail instead of the full-resolution
   // original (homepage grids were downloading multi-MB files). The zoom modal
   // still gets a large version. Relative/already-proxied URLs pass through.
