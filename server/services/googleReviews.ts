@@ -49,6 +49,91 @@ async function getPlaceId(): Promise<string> {
   return (process.env.GOOGLE_PLACES_PLACE_ID || '').trim();
 }
 
+/**
+ * Find the studio's OWN place id from the details onboarding already captured.
+ *
+ * Requiring a studio to paste a place id was the real blocker here: it is not shown
+ * anywhere in Google's own interface, and a photographer has no way to find one. The
+ * name and address are already collected in the wizard, so Text Search can resolve it —
+ * meaning the studio pastes an API key and nothing else.
+ *
+ * Deliberately conservative: it only accepts a result when Text Search returns exactly
+ * one candidate. Picking the first of several would risk showing a DIFFERENT business's
+ * reviews as the studio's own, which is far worse than showing none.
+ */
+export async function resolvePlaceIdFromStudio(): Promise<{ placeId: string; name: string } | { error: string }> {
+  const key = await getPlacesKey();
+  if (!key) return { error: 'No Google Places API key is set.' };
+
+  let name = '';
+  let address = '';
+  try {
+    const { pool } = await import('../db.js');
+    const { rows } = await pool.query(
+      `SELECT business_name, studio_name, address FROM studio_configs LIMIT 1`,
+    );
+    name = String(rows?.[0]?.business_name || rows?.[0]?.studio_name || '').trim();
+    address = String(rows?.[0]?.address || '').replace(/\s+/g, ' ').trim();
+  } catch { /* handled below */ }
+
+  if (!name) return { error: 'No studio name is set — complete the Basics step first.' };
+
+  try {
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress',
+      },
+      body: JSON.stringify({ textQuery: [name, address].filter(Boolean).join(', '), maxResultCount: 5 }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      return { error: `Google Places returned ${res.status}. ${body.slice(0, 160)}` };
+    }
+    const json: any = await res.json();
+    const places: any[] = Array.isArray(json?.places) ? json.places : [];
+    if (!places.length) {
+      return { error: `Google found no business matching "${name}"${address ? ` at ${address}` : ''}. Check the name and address in Basics.` };
+    }
+    if (places.length > 1) {
+      const names = places.slice(0, 3).map((p) => p?.displayName?.text || p?.id).join(', ');
+      return { error: `Google returned several matches (${names}). Enter the place id by hand so the wrong business's reviews are never shown.` };
+    }
+    const placeId = String(places[0]?.id || '').trim();
+    if (!placeId) return { error: 'Google returned a match with no place id.' };
+    return { placeId, name: places[0]?.displayName?.text || name };
+  } catch (err: any) {
+    return { error: `Could not reach Google Places: ${err?.message || err}` };
+  }
+}
+
+/**
+ * What is stopping live reviews, if anything. The endpoint used to answer a bare
+ * `configured: false`, which told a studio owner neither what was missing nor where to
+ * put it.
+ */
+export async function googleReviewsStatus(): Promise<{ configured: boolean; needs?: 'api-key' | 'place-id'; message?: string }> {
+  const hasKey = !!(await getPlacesKey());
+  if (!hasKey) {
+    return {
+      configured: false,
+      needs: 'api-key',
+      message: 'Add a Google Places API key in Settings → Technical Setup → Google to show live reviews.',
+    };
+  }
+  const hasPlace = !!(await getPlaceId());
+  if (!hasPlace) {
+    return {
+      configured: false,
+      needs: 'place-id',
+      message: 'The API key is set but this studio\'s Google Business Profile has not been identified yet. Use "Find my business" in Settings → Technical Setup → Google.',
+    };
+  }
+  return { configured: true };
+}
+
 export async function isGoogleReviewsConfigured(): Promise<boolean> {
   // Require BOTH the key and the studio's own place id — never show another studio's reviews.
   return !!(await getPlacesKey()) && !!(await getPlaceId());

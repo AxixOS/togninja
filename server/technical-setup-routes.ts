@@ -285,6 +285,16 @@ router.post('/storage', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Access key and bucket are required' });
     }
 
+    // Reject a region that contradicts the endpoint HERE too, not only on Test
+    // Connection. Testing was optional, so a studio could save a mismatched pair, skip
+    // the test and discover it later as uploads failing with an error that never
+    // mentions the region.
+    const { describeRegionMismatch } = await import('./services/s3-storage');
+    const regionProblem = describeRegionMismatch(endpoint, region);
+    if (regionProblem) {
+      return res.status(400).json({ error: 'Region mismatch', message: regionProblem });
+    }
+
     const siId = await ensureIntegrations();
     // Store a clean, absolute endpoint. Owners paste bare hosts (Supabase or
     // Backblaze B2) without a scheme; normalise on save so the stored value is
@@ -356,6 +366,11 @@ router.post('/extras', async (req: Request, res: Response) => {
     // Social & Reviews (per-tenant). Secrets encrypted at rest like the rest.
     if (googlePlacesApiKey) siUpdate.google_places_api_key_encrypted = encrypt(googlePlacesApiKey);
     if (googlePlacesPlaceId !== undefined) siUpdate.google_places_place_id = googlePlacesPlaceId || null;
+    // Saving a key with no place id leaves reviews still off, and a place id is not
+    // something a photographer can look up — Google does not show it anywhere. Resolve
+    // it from the studio's own name and address, which onboarding already captured.
+    // Best effort: never block the save, and never guess when Google is ambiguous.
+    const resolvePlacesAfterSave = !!googlePlacesApiKey && !googlePlacesPlaceId;
     if (pulseApiKey) siUpdate.pulse_api_key_encrypted = encrypt(pulseApiKey);
     if (pulseMode) siUpdate.pulse_mode = String(pulseMode).toLowerCase();
     if (pulseProfiles && typeof pulseProfiles === 'object') {
@@ -372,6 +387,25 @@ router.post('/extras', async (req: Request, res: Response) => {
       await db.update(studioIntegrations).set(siUpdate).where(eq(studioIntegrations.id, siId));
     }
 
+    let placesNote: string | undefined;
+    if (resolvePlacesAfterSave) {
+      config.invalidate(); // the key was only just written; the resolver has to read it
+      try {
+        const { resolvePlaceIdFromStudio } = await import('./services/googleReviews.js');
+        const found = await resolvePlaceIdFromStudio();
+        if ('placeId' in found) {
+          await db.update(studioIntegrations)
+            .set({ google_places_place_id: found.placeId } as any)
+            .where(eq(studioIntegrations.id, siId));
+          placesNote = `Live Google reviews connected to "${found.name}".`;
+        } else {
+          placesNote = found.error;
+        }
+      } catch (e: any) {
+        placesNote = `Could not identify your Google listing automatically: ${e?.message || e}`;
+      }
+    }
+
     // Update studio_configs for analytics
     const scId = await ensureStudioConfig();
     const scUpdate: Record<string, any> = {};
@@ -384,7 +418,10 @@ router.post('/extras', async (req: Request, res: Response) => {
     }
 
     config.invalidate();
-    res.json({ success: true });
+    // placesNote reports whether live reviews actually got connected. Saving an API key
+    // and hearing only "saved" left a studio believing reviews were on when the place id
+    // was still missing and the section rendered nothing.
+    res.json({ success: true, ...(placesNote ? { placesNote } : {}) });
   } catch (error) {
     console.error('[technical-setup] Extras save error:', error);
     res.status(500).json({ error: 'Failed to save extra settings' });
@@ -594,19 +631,13 @@ router.post('/test/storage', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Access key, secret key, and bucket are required' });
     }
 
-    // Backblaze (and most S3-compatibles) encode the region IN the endpoint host —
-    // s3.eu-central-003.backblazeb2.com. A region field that disagrees with it is
-    // always a mistake, and the SDK's own error ("InvalidAccessKeyId", or a signature
-    // failure) never mentions the region, so it is close to undiagnosable. Caught here
-    // with the fix named, because a studio was saving eu-central-003 against
-    // us-west-004 and had no way to know why uploads failed.
+    // Same check the save handler applies — one implementation, so the two can never
+    // give different answers about the same pair of values.
     const hostRegion = String(endpoint || '').match(/s3[.-]([a-z]{2}-[a-z]+-\d+)\./i)?.[1];
-    if (hostRegion && region && hostRegion.toLowerCase() !== String(region).toLowerCase()) {
-      return res.status(400).json({
-        success: false,
-        error: `Region mismatch`,
-        message: `Your endpoint is for region "${hostRegion}" but the Region field says "${region}". Set Region to "${hostRegion}" to match the endpoint.`,
-      });
+    const { describeRegionMismatch } = await import('./services/s3-storage');
+    const regionProblem = describeRegionMismatch(endpoint, region);
+    if (regionProblem) {
+      return res.status(400).json({ success: false, error: 'Region mismatch', message: regionProblem });
     }
 
     const { S3Client, ListObjectsV2Command } = await import('@aws-sdk/client-s3');

@@ -93,7 +93,11 @@ export default function UnifiedSetupWizard() {
     { key: 'security', group: 'Account', label: 'Admin account', render: () => <SecurityStep onComplete={goNext} onBack={goBack} /> },
     { key: 'lead_sources', group: 'Content', label: 'Lead sources', render: () => <LeadSourcesPhase onComplete={goNext} /> },
     { key: 'integrations', group: 'Content', label: 'Integrations', render: () => <IntegrationsPhase status={setupStatus?.phases?.integrations} features={setupStatus?.features} onComplete={goNext} /> },
-    { key: 'scanning', group: 'Content', label: 'Scan content', render: () => <ScanningPhase onComplete={goNext} /> },
+    // "Scan content" read as a website crawl. This step reads the data already in the
+    // CRM (blog posts, gallery images, products, clients) — on a new studio that is
+    // empty and finishes instantly, which looked like a broken website scan. The
+    // website analysis is a separate, earlier step; it is what produces the homepage.
+    { key: 'scanning', group: 'Content', label: 'Review CRM data', render: () => <ScanningPhase onComplete={goNext} /> },
     { key: 'fix_first', group: 'Content', label: 'Fix-first', render: () => <FixFirstPhase onComplete={goNext} /> },
     { key: 'drafts', group: 'Content', label: 'Starter content', render: () => <DraftsPhase onComplete={finish} /> },
   ];

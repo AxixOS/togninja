@@ -178,11 +178,15 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
     startScanMutation.mutate();
   };
   
+  // The counts here used to be hardcoded (24, 8, 12, 45) — invented figures for a studio
+  // that had just installed the product and owned none of it. They were never rendered,
+  // which is the only reason nobody saw them; removed so they cannot start being shown
+  // by a later edit. The real figures come back in scanState.results.
   const scanningSteps = [
-    { id: 'portfolio', label: 'Portfolio Images', icon: FileImage, count: 24 },
-    { id: 'blog', label: 'Blog Posts', icon: FileText, count: 8 },
-    { id: 'products', label: 'Products & Services', icon: Package, count: 12 },
-    { id: 'clients', label: 'Client Records', icon: Users, count: 45 }
+    { id: 'portfolio', label: 'Portfolio Images', icon: FileImage },
+    { id: 'blog', label: 'Blog Posts', icon: FileText },
+    { id: 'products', label: 'Products & Services', icon: Package },
+    { id: 'clients', label: 'Client Records', icon: Users }
   ];
   
   return (

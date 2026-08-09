@@ -1,0 +1,57 @@
+// What a VISITOR actually sees.
+//
+// Grepping client/src counts every default string in the codebase, including ones no
+// studio ever renders — onboarding overwrites the five main pages, and disabled pages
+// never load at all. This renders each public page in a real browser and searches the
+// visible text, so the list is what a leak actually looks like on Susan's site.
+import puppeteer from 'puppeteer';
+
+// Usage: node scripts/check-visible-leaks.mjs [baseUrl]
+// Exits non-zero if anything is visible, so it can gate a release.
+const BASE = process.argv[2] || 'http://localhost:5000';
+const PAGES = [
+  '/', '/sessions/', '/pricing/', '/contact/', '/waitlist/', '/about/',
+  '/gift-vouchers/', '/reviews/', '/vouchers/', '/blog/', '/portfolio/',
+  '/faq/', '/case-studies/', '/imprint/', '/terms/', '/privacy/',
+  '/gift-vouchers/family', '/gift-vouchers/newborn', '/gift-vouchers/maternity',
+  '/calculator', '/galleries/', '/sessions/business/', '/sessions/wedding/',
+];
+const PATTERN = /(New Age|NewAge|newagefotografie|in Vienna|in Wien\b|Vienna|Wien\b|Wehrgasse|\+43)/gi;
+
+const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+const page = await browser.newPage();
+await page.setViewport({ width: 1280, height: 900 });
+
+let total = 0;
+const report = [];
+
+for (const path of PAGES) {
+  try {
+    await page.goto(BASE + path, { waitUntil: 'networkidle2', timeout: 45000 });
+    await new Promise(r => setTimeout(r, 1200)); // let client-rendered copy settle
+    const text = await page.evaluate(() => document.body.innerText || '');
+    const hits = [...text.matchAll(PATTERN)];
+    // Keep the surrounding sentence so each hit is actionable, not just a count.
+    const contexts = [...new Set(hits.map(m => {
+      const start = Math.max(0, m.index - 60);
+      return text.slice(start, m.index + m[0].length + 60).replace(/\s+/g, ' ').trim();
+    }))];
+    total += hits.length;
+    report.push({ path, count: hits.length, contexts: contexts.slice(0, 4) });
+  } catch (e) {
+    report.push({ path, count: -1, contexts: [`(failed to load: ${e.message.slice(0, 80)})`] });
+  }
+}
+
+await browser.close();
+
+console.log('\n=== VISIBLE origin-studio references, by page ===\n');
+for (const r of report) {
+  const mark = r.count === 0 ? 'clean' : r.count < 0 ? 'ERROR' : `${r.count} hit(s)`;
+  console.log(`${r.path.padEnd(18)} ${mark}`);
+  if (r.count > 0) r.contexts.forEach(c => console.log(`    … ${c}`));
+}
+console.log(`\nTOTAL visible: ${total}`);
+// Non-zero exit so this can gate a release: a leak that reaches a visitor should fail
+// the build, unlike a source-level default that no studio renders.
+process.exit(total > 0 ? 1 : 0);

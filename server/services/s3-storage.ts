@@ -92,6 +92,25 @@ async function resolveStorageConfig(): Promise<StorageConfig> {
   return envStorageConfig();
 }
 
+/**
+ * Backblaze (and most S3-compatibles) encode the region IN the endpoint host —
+ * s3.eu-central-003.backblazeb2.com. A Region field that disagrees with it is always a
+ * mistake, and the SDK's own error ("InvalidAccessKeyId", or a signature failure) never
+ * mentions the region, so it is close to undiagnosable.
+ *
+ * Returns the explanation when they disagree, or null. Shared by BOTH the save and the
+ * test handler: it used to live inline in the test only, so a studio that saved without
+ * testing still stored eu-central-003 against us-west-004 and had no way to know why
+ * every upload failed.
+ */
+export function describeRegionMismatch(endpoint: string, region: string): string | null {
+  const hostRegion = String(endpoint || '').match(/s3[.-]([a-z]{2}-[a-z]+-\d+)\./i)?.[1];
+  if (!hostRegion || !region) return null;
+  if (hostRegion.toLowerCase() === String(region).toLowerCase()) return null;
+  return `Your endpoint is for region "${hostRegion}" but the Region field says "${region}". ` +
+    `Set Region to "${hostRegion}" to match the endpoint.`;
+}
+
 type StorageProvider = 'backblaze' | 'supabase' | 'aws' | 'custom';
 
 /** Which provider an endpoint points at. No endpoint means AWS's default host. */

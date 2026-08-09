@@ -2759,10 +2759,13 @@ Bitte versuchen Sie es später noch einmal.`;
 
   app.get("/api/reviews/google", async (req: Request, res: Response) => {
     try {
-      const { isGoogleReviewsConfigured, getGoogleReviews } = await import('./services/googleReviews.js');
-      if (!(await isGoogleReviewsConfigured())) {
+      const { googleReviewsStatus, getGoogleReviews } = await import('./services/googleReviews.js');
+      // Report WHAT is missing. A bare `configured: false` told a studio owner neither
+      // what was absent nor where to set it, so "reviews don't work" had no next step.
+      const status = await googleReviewsStatus();
+      if (!status.configured) {
         res.setHeader('Cache-Control', 'public, max-age=300');
-        return res.json({ configured: false });
+        return res.json(status);
       }
       const force = req.query.force === '1';
       const data = await getGoogleReviews(force);
