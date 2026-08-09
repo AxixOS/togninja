@@ -7070,10 +7070,36 @@ Bitte versuchen Sie es später noch einmal.`;
   app.get("/api/authority-map", async (_req: Request, res: Response) => {
     try {
       const { getAuthorityMap } = await import('./lib/authority-map');
-      res.json(await getAuthorityMap());
+      const map: any = await getAuthorityMap();
+
+      // Tell the nav which pillars actually have a LIVE page behind them.
+      //
+      // The map is what puts a studio's services in the menu, but it says nothing about
+      // whether the page exists — so between the map being generated and the pages being
+      // built, every item in the menu led to a 404. A link the studio's own nav offers
+      // must go somewhere; anything else is worse than a shorter menu.
+      try {
+        const { slugify } = await import('./lib/landing-mapping');
+        const { rows } = await pool.query(
+          `SELECT slug FROM landing_pages WHERE status = 'published'`,
+        );
+        const live = new Set(rows.map((r: any) => String(r.slug)));
+        map.pillars = (map.pillars || []).map((p: any) => ({
+          ...p,
+          hasPage: live.has(slugify(String(p.href || '').replace(/^\/+|\/+$/g, '') || p.label)),
+        }));
+      } catch {
+        // Cannot tell — leave hasPage unset. The nav treats "unknown" as showable, so a
+        // lookup failure never empties a working menu.
+      }
+
+      res.json(map);
     } catch (e: any) {
-      const { DEFAULT_AUTHORITY_MAP } = await import('../shared/authorityMap.js');
-      res.json(DEFAULT_AUTHORITY_MAP);
+      // NOT the bundled seed. Falling back to DEFAULT_AUTHORITY_MAP here put the origin
+      // studio's Vienna service pages into another studio's navigation whenever this
+      // query failed — the exact leak the empty fallback in getAuthorityMap() removed.
+      const { EMPTY_AUTHORITY_MAP } = await import('../shared/authorityMap.js');
+      res.json(EMPTY_AUTHORITY_MAP);
     }
   });
 

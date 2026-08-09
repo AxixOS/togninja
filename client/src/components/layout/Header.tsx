@@ -114,7 +114,11 @@ const Header: React.FC = () => {
     if (enabledPages === null || authorityLoading) return [];
 
     const fromMap = (authorityMap?.pillars || [])
-      .filter((p) => p.href && p.label)
+      // hasPage === false means the page behind this pillar has not been built or
+      // published yet, and linking to it gives a visitor a 404 from the studio's own menu.
+      // `undefined` means the server could not tell — show it, so a lookup failure never
+      // empties a working nav.
+      .filter((p) => p.href && p.label && (p as any).hasPage !== false)
       .map((p) => ({ path: p.href, label: p.label }));
 
     const source = fromMap.length ? fromMap : allFotoshootingItems;
