@@ -13,7 +13,7 @@ const neonDb = require('../../database.js');
 export interface ScaffoldResult {
   pillar: string;
   slug: string;
-  status: 'created' | 'skipped' | 'error';
+  status: 'created' | 'published' | 'skipped' | 'error';
   id?: string;
   previewUrl?: string;
   editUrl?: string;
@@ -22,20 +22,48 @@ export interface ScaffoldResult {
 
 export async function scaffoldPillarPages(
   opts: { city?: string; limit?: number; publish?: boolean; language?: string } = {},
-): Promise<{ results: ScaffoldResult[]; created: number; skipped: number; remaining: number }> {
+): Promise<{ results: ScaffoldResult[]; created: number; published: number; skipped: number; remaining: number }> {
   const map = await getAuthorityMap();
   const cap = Math.max(1, Math.min(opts.limit || 6, 8)); // bound OpenAI cost/latency per call
   const results: ScaffoldResult[] = [];
   let created = 0;
+  let published = 0;
   let skipped = 0;
   let processed = 0;
 
   for (const pillar of map.pillars) {
     const slug = slugify(pillar.href.replace(/^\/+|\/+$/g, '') || pillar.label);
 
-    // Idempotent: if a landing page with this slug already exists, skip.
+    // Idempotent: if a landing page with this slug already exists, skip building it.
     const available = await neonDb.checkSlugAvailable(slug);
-    if (!available) { results.push({ pillar: pillar.label, slug, status: 'skipped' }); skipped++; continue; }
+    if (!available) {
+      // …but "already exists" and "already live" are different things, and skipping both
+      // made the operation impossible to complete. A page built by an earlier run — or by
+      // a run that predated the publish option — sits as a DRAFT, which the public site
+      // never serves. Asking again to publish then hit this guard and reported "skipped",
+      // so the studio had five pages it could not get live by any route short of
+      // publishing each by hand. When publishing is what was asked for, finish the job.
+      if (opts.publish) {
+        try {
+          const { pool } = await import('../db');
+          const upd = await pool.query(
+            `UPDATE landing_pages SET status = 'published', published_at = COALESCE(published_at, NOW()), updated_at = NOW()
+              WHERE slug = $1 AND status IS DISTINCT FROM 'published' RETURNING id`,
+            [slug],
+          );
+          if (upd.rowCount) {
+            results.push({ pillar: pillar.label, slug, status: 'published' });
+            published++;
+            continue;
+          }
+        } catch (e: any) {
+          console.warn(`[authority-scaffold] could not publish existing "${slug}":`, e?.message || e);
+        }
+      }
+      results.push({ pillar: pillar.label, slug, status: 'skipped' });
+      skipped++;
+      continue;
+    }
 
     if (processed >= cap) continue; // leave the rest for a follow-up "Build" click
     processed++;
@@ -84,5 +112,5 @@ export async function scaffoldPillarPages(
     }
   }
 
-  return { results, created, skipped, remaining: Math.max(0, map.pillars.length - results.length) };
+  return { results, created, published, skipped, remaining: Math.max(0, map.pillars.length - results.length) };
 }
