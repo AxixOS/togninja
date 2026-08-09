@@ -97,9 +97,19 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
         const { getSiteLanguage } = await import("./lib/site-language");
         const lang = await getSiteLanguage();
 
+        // Disabled pages, under BOTH the canonical path (what the shipped sitemap lists)
+        // and this studio's localised path, so switching a page off removes it however
+        // the sitemap happens to spell it.
+        const { localizePath } = await import("../shared/routeSlugs");
         const disabledLocs = SITE_PAGES
           .filter((p) => !isPageEnabled(p.id, enabled, lang))
-          .map((p) => `${SITE_ORIGIN}${p.route.replace(/\/+$/, "")}`);
+          .flatMap((p) => {
+            const canonical = p.route.replace(/\/+$/, "");
+            const localised = localizePath(canonical, lang).replace(/\/+$/, "");
+            return canonical === localised
+              ? [`${SITE_ORIGIN}${canonical}`]
+              : [`${SITE_ORIGIN}${canonical}`, `${SITE_ORIGIN}${localised}`];
+          });
 
         for (const loc of disabledLocs) {
           // Match the whole <url>…</url> block whose <loc> is this page, with or
@@ -113,6 +123,19 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
             "g",
           );
           base = base.replace(re, "");
+        }
+        // Advertise this studio's OWN paths. The shipped sitemap lists the canonical
+        // German routes; a studio whose site is in English serves those pages at
+        // /contact and /pricing, and a sitemap must list the URL that actually answers,
+        // not the one that redirects to it.
+        for (const { canonical, localized } of (await import("../shared/routeSlugs")).localizedRouteMap(lang)) {
+          const from = `${SITE_ORIGIN}${canonical}`;
+          const to = `${SITE_ORIGIN}${localized}`;
+          // Match on the PREFIX so nested pages follow their parent:
+          // /gutschein/family/ -> /gift-vouchers/family/. Anchored on "<loc>" and
+          // terminated by "/" or "<" so /preise can never match inside /preise-extra.
+          base = base.split(`<loc>${from}/`).join(`<loc>${to}/`);
+          base = base.split(`<loc>${from}<`).join(`<loc>${to}<`);
         }
       } catch (e: any) {
         console.warn("[sitemap] could not apply page visibility:", e?.message || e);

@@ -1,5 +1,7 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { localizePath, canonicalizePath, normalizePath } from '../../shared/routeSlugs';
+import { useSiteLanguage } from './hooks/useSiteLanguage';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { HelmetProvider } from 'react-helmet-async';
@@ -213,6 +215,44 @@ function LanguageRouteSync() {
  * sees paths no real route claimed. Unknown paths fall through to the homepage, as
  * they did before.
  */
+/**
+ * Serves the public routes at paths in the STUDIO'S language.
+ *
+ * The route table below is written with German paths (/kontakt, /fotoshootings) because
+ * that is what the image was built with, and ~420 link literals across the codebase
+ * already point at them. Rather than rewrite all of those, this wraps <Routes> and does
+ * two things:
+ *
+ *   • an incoming LOCALISED path (/contact) is matched against the CANONICAL route
+ *     (/kontakt) by handing <Routes> a rewritten location — the table is untouched and
+ *     the URL bar keeps the localised path;
+ *   • an incoming CANONICAL path, on a studio whose language names it differently, is
+ *     replaced with the localised one — so a German link in the code still lands the
+ *     visitor on /contact, and only one URL is ever canonical.
+ *
+ * A German studio is unaffected: localizePath returns the path it was given.
+ */
+function LocalizedRoutes({ children }: { children: React.ReactNode }) {
+  const lang = useSiteLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Until the language is known, behave exactly as before. Guessing 'en' here would
+  // rewrite a German studio's URLs for a moment on every load.
+  const canonical = lang ? canonicalizePath(location.pathname, lang) : null;
+  const localized = lang ? localizePath(location.pathname, lang) : null;
+  const shouldRedirect = !!lang && !canonical && !!localized && localized !== normalizePath(location.pathname);
+
+  useEffect(() => {
+    if (shouldRedirect && localized) {
+      navigate(`${localized}${location.search}${location.hash}`, { replace: true });
+    }
+  }, [shouldRedirect, localized, location.search, location.hash, navigate]);
+
+  const routeLocation = canonical ? { ...location, pathname: canonical } : location;
+  return <Routes location={routeLocation}>{children}</Routes>;
+}
+
 function PillarRoute() {
   const location = useLocation();
   const { map, loading } = useAuthorityMap();
@@ -319,7 +359,7 @@ function App() {
               <LanguageRouteSync />
               <ErrorBoundary>
               <Suspense fallback={<RouteFallback />}>
-              <Routes>
+              <LocalizedRoutes>
                 <Route path="/" element={<RootHome />} />
 
                 {/* TogNinja + ShootCleaner bundle: buy → thank-you (claim) → delivery */}
@@ -962,7 +1002,7 @@ function App() {
                     Everything above has already claimed its route, so this only sees
                     paths nothing else matched. */}
                 <Route path="*" element={<PillarRoute />} />
-              </Routes>
+              </LocalizedRoutes>
               </Suspense>
               </ErrorBoundary>
               <CookieConsent privacyPolicyUrl="/datenschutz/" imprintUrl="/impressum/" />

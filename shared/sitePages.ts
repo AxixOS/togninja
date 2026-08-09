@@ -41,11 +41,21 @@ export const SITE_PAGES: SitePageDef[] = [
   { id: 'gutschein-de', route: '/gutschein', label: 'Gutschein (DE)', group: 'locale-de', defaultEnabled: true, redirectTo: '/vouchers' },
   { id: 'ueber-uns-de', route: '/ueber-uns', label: 'Über uns (DE)', group: 'locale-de', defaultEnabled: true, redirectTo: '/en/about-us/' },
 
-  // ---- English-locale set. -----------------------------------------------
-  { id: 'contact-en', route: '/en/contact/', label: 'Contact (EN)', group: 'locale-en', defaultEnabled: true, redirectTo: '/kontakt' },
-  { id: 'waitlist-en', route: '/en/waitlist/', label: 'Waitlist (EN)', group: 'locale-en', defaultEnabled: true, redirectTo: '/warteliste' },
-  { id: 'vouchers-en', route: '/en/vouchers/', label: 'Vouchers (EN)', group: 'locale-en', defaultEnabled: true, redirectTo: '/vouchers' },
-  { id: 'about-us-en', route: '/en/about-us/', label: 'About Us (EN)', group: 'locale-en', defaultEnabled: true, redirectTo: '/ueber-uns' },
+  // ---- Second-language mirror set. ---------------------------------------
+  // The origin studio ran German AND English. A single-language studio gets these as
+  // duplicates of the canonical pages above, so they are off by default and redirect to
+  // the canonical route — which the localisation layer then serves at the studio's own
+  // path (/kontakt -> /contact for an English studio).
+  { id: 'contact-en', route: '/en/contact/', label: 'Contact (second language)', group: 'locale-en', defaultEnabled: false, redirectTo: '/kontakt' },
+  { id: 'waitlist-en', route: '/en/waitlist/', label: 'Waitlist (second language)', group: 'locale-en', defaultEnabled: false, redirectTo: '/warteliste' },
+  { id: 'vouchers-en', route: '/en/vouchers/', label: 'Vouchers (second language)', group: 'locale-en', defaultEnabled: false, redirectTo: '/vouchers' },
+  { id: 'about-us-en', route: '/en/about-us/', label: 'About Us (second language)', group: 'locale-en', defaultEnabled: false, redirectTo: '/ueber-uns' },
+  // The other three /en/ mirrors. They were registered as routes and listed in the
+  // shipped sitemap but never here, so the visibility system could not reach them and a
+  // single-language studio advertised /en/ alongside / — the same page at two URLs.
+  { id: 'home-en', route: '/en/', label: 'Homepage (second language)', group: 'locale-en', defaultEnabled: false, redirectTo: '/' },
+  { id: 'case-studies-en', route: '/en/case-studies/', label: 'Case Studies (second language)', group: 'locale-en', defaultEnabled: false, redirectTo: '/case-studies' },
+  { id: 'pricing-en', route: '/en/pricing/', label: 'Pricing (second language)', group: 'locale-en', defaultEnabled: false, redirectTo: '/preise' },
 
   // ---- Leftovers from the studio the image was built for. -----------------
   { id: 'preise-wien', route: '/fotoshooting-preise-wien/', label: 'Pricing (legacy city pillar)', group: 'legacy', defaultEnabled: false, redirectTo: '/preise' },
@@ -95,13 +105,25 @@ export const LOCALE_PAIRS: Array<[string, string]> = [
   ['ueber-uns-de', 'about-us-en'],
 ];
 
-/** Defaults for a studio that has chosen nothing, keyed by its site language. */
+/**
+ * Defaults for a studio that has chosen nothing.
+ *
+ * The 'locale-de' group is no longer "the German pages" — it is the CANONICAL set, and
+ * shared/routeSlugs.ts serves each of them at a path in the studio's own language
+ * (/kontakt -> /contact, /contact, /contacto). So it is always on.
+ *
+ * The 'locale-en' group is the origin studio's SECOND-language mirror (/en/contact/,
+ * /en/about-us/). Bilingual was New Age Fotografie's requirement, not every buyer's, and
+ * on a single-language studio those pages are pure duplicates of the canonical ones —
+ * two URLs for one page, splitting the ranking the visibility system exists to protect.
+ * Off by default; they stay in the codebase, so a genuinely bilingual studio switches
+ * them back on and its stored enabled_pages overrides this.
+ */
 export function defaultEnabledPages(lang = 'en'): Record<string, boolean> {
-  const german = String(lang).toLowerCase().startsWith('de');
   const out: Record<string, boolean> = {};
   for (const p of SITE_PAGES) {
-    if (p.group === 'locale-de') out[p.id] = german;
-    else if (p.group === 'locale-en') out[p.id] = !german;
+    if (p.group === 'locale-de') out[p.id] = true;
+    else if (p.group === 'locale-en') out[p.id] = false;
     else out[p.id] = p.defaultEnabled;
   }
   return out;

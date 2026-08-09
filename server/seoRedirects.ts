@@ -1,4 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
+import { localizePath } from "../shared/routeSlugs";
+import { peekSiteLanguage as cachedSiteLanguage } from "./lib/site-language";
 
 /**
  * 301 redirects for pruned thin blog posts → the most relevant pillar/cluster.
@@ -44,6 +46,23 @@ export function seoRedirects(req: Request, res: Response, next: NextFunction) {
   const path = req.path.replace(/\/+$/, "") || "/";
   const target = SEO_REDIRECTS[path];
   if (target) return res.redirect(301, target);
+
+  // 1b) The studio's own language for public paths. The route table is written with the
+  //     origin studio's German paths; a studio whose site is in English serves those
+  //     pages at /contact and /pricing. The client rewrites its own navigation, but a
+  //     direct hit — a crawler, a pasted link, an old bookmark — has to be answered
+  //     here, and with a 301 so the localised URL is the one that gets indexed.
+  //     Resolved synchronously from a cached language so this stays a cheap middleware;
+  //     before the language is known it simply does nothing.
+  const lang = cachedSiteLanguage();
+  if (lang) {
+    const localised = localizePath(path, lang);
+    if (localised !== path) {
+      const qIdx = req.originalUrl.indexOf("?");
+      const query = qIdx >= 0 ? req.originalUrl.slice(qIdx) : "";
+      return res.redirect(301, `${localised}/${query}`);
+    }
+  }
 
   // 2) Canonical URL convention: 301 to the trailing-slash form. Skip the root,
   //    API routes, and any path with a file extension (assets, sitemap.xml, the

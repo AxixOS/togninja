@@ -56,3 +56,15 @@ export async function getSiteLanguage(): Promise<SiteLanguageCode> {
 export function invalidateSiteLanguage(): void {
   cached = null;
 }
+
+/**
+ * The cached language, synchronously, for hot paths that cannot await — chiefly the
+ * redirect middleware, which runs on every request. Returns null until the first load
+ * completes and kicks that load off in the background; a caller that gets null must do
+ * nothing rather than assume a default, or it would redirect on a guess.
+ */
+export function peekSiteLanguage(): SiteLanguageCode | null {
+  if (cached && Date.now() - cached.at < TTL) return cached.lang;
+  getSiteLanguage().catch(() => {});
+  return cached?.lang ?? null;
+}

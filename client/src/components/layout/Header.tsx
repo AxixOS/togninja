@@ -8,6 +8,7 @@ import LanguageSelector from '../common/LanguageSelector';
 import { useManualPageContent } from '../../hooks/useManualPageContent';
 import { SITE } from '../../config/site';
 import { pageForRoute, isPageEnabled } from '../../../../shared/sitePages';
+import { localizePath } from '../../../../shared/routeSlugs';
 import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 
 const Header: React.FC = () => {
@@ -120,9 +121,14 @@ const Header: React.FC = () => {
     });
   })();
 
+  // Nav paths are written with the canonical (German) routes the route table uses.
+  // Localise them here so a visitor to an English studio sees /contact in the status bar
+  // and lands there directly, instead of being bounced off /kontakt by the redirect.
+  const L = (p: string) => localizePath(p, siteLang);
+
   const aboutItems = [
-    { path: '/ueber-uns/', label: t('nav.about') },
-    { path: '/kontakt', label: t('nav.contact') },
+    { path: L('/ueber-uns/'), label: t('nav.about') },
+    { path: L('/kontakt'), label: t('nav.contact') },
   ];
 
   const navItems = [
@@ -130,7 +136,7 @@ const Header: React.FC = () => {
     { path: '/vouchers', label: t('nav.vouchers') },
     { path: '/blog', label: t('nav.blog') },
     { path: '/case-studies', label: t('nav.caseStudies') },
-    { path: '/warteliste', label: t('nav.waitlist') },
+    { path: L('/warteliste'), label: t('nav.waitlist') },
   ];
 
   return (
@@ -246,7 +252,7 @@ const Header: React.FC = () => {
 
           {/* Primary conversion CTA — the header's most-viewed real estate. */}
           <Link
-            to="/warteliste"
+            to={L('/warteliste')}
             onClick={() => handleNavClick('/warteliste')}
             className="inline-flex items-center rounded-full bg-purple-600 px-5 py-2.5 font-semibold text-white shadow-sm transition-colors hover:bg-purple-700"
           >
@@ -258,7 +264,7 @@ const Header: React.FC = () => {
         {/* Mobile: always-visible CTA + menu button */}
         <div className="md:hidden flex items-center gap-3">
           <Link
-            to="/warteliste"
+            to={L('/warteliste')}
             onClick={() => handleNavClick('/warteliste')}
             className="inline-flex items-center rounded-full bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-purple-700"
           >
