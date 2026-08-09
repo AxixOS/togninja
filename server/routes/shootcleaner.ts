@@ -774,8 +774,27 @@ router.post('/galleries', requireScope('galleries:write'), async (req, res) => {
     const downloadEnabled = body.downloadEnabled === false ? false : true; // default true
     const visibleWatermark = body.visibleWatermark === true;
     const invisibleWatermark = body.invisibleWatermark === true;
+    // An unparseable or already-past expiry was accepted silently: the first was dropped
+    // to null (a gallery meant to expire never would), the second created a gallery that
+    // was expired the moment it existed and 410'd on the client's very first visit, with
+    // nothing in the response to say why. Both are caller mistakes worth reporting.
     let expiresAt: Date | null = null;
-    if (body.expiresAt) { const d = new Date(body.expiresAt); if (!isNaN(d.getTime())) expiresAt = d; }
+    if (body.expiresAt != null && body.expiresAt !== '') {
+      const d = new Date(body.expiresAt);
+      if (isNaN(d.getTime())) {
+        return res.status(400).json({
+          error: 'invalid_expires_at',
+          message: `expiresAt "${String(body.expiresAt)}" is not a valid date. Use an ISO 8601 timestamp, e.g. 2026-09-01T00:00:00Z.`,
+        });
+      }
+      if (d.getTime() <= Date.now()) {
+        return res.status(400).json({
+          error: 'expires_at_in_past',
+          message: `expiresAt ${d.toISOString()} is in the past, so the gallery would be expired on arrival. Send a future timestamp, or omit expiresAt for no expiry.`,
+        });
+      }
+      expiresAt = d;
+    }
     const slug = await ensureUniqueSlug(slugify(String(body.slug || title)));
 
     const insert = await pool.query(
