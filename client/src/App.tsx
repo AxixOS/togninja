@@ -87,6 +87,7 @@ const BundleDeliveriesPage = lazyWithRetry(() => import('./pages/admin/BundleDel
 const AdminLandingPageNewPage = lazyWithRetry(() => import('./pages/admin/AdminLandingPageNewPage'));
 const AdminLandingPageEditorPage = lazyWithRetry(() => import('./pages/admin/AdminLandingPageEditorPage'));
 import PublicLandingPage from './pages/PublicLandingPage';
+import { useAuthorityMap } from './hooks/useAuthorityMap';
 const WebsiteWizard = lazyWithRetry(() => import('./pages/admin/WebsiteWizard'));
 const PriceListSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/PriceListSettingsPage'));
 const StorageSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/StorageSettingsPage'));
@@ -197,6 +198,37 @@ function LanguageRouteSync() {
     }
   }, [location.pathname, language, setLanguage]);
   return null;
+}
+
+/**
+ * Serve a studio's OWN pillar pages at their real paths.
+ *
+ * "Build pillar pages" creates a landing page per pillar, but only at /lp/<slug> —
+ * while the Authority Map, the nav and every internal link point at the pillar path
+ * itself (/boudoir-photography/). Those paths had no route, so a studio's generated
+ * pillars existed and were unreachable.
+ *
+ * This matches the current path against the studio's own pillars and renders the
+ * corresponding landing page. It is deliberately LAST in the table, so it only ever
+ * sees paths no real route claimed. Unknown paths fall through to the homepage, as
+ * they did before.
+ */
+function PillarRoute() {
+  const location = useLocation();
+  const { map, loading } = useAuthorityMap();
+
+  // Trailing slashes vary between the map, the nav and what a visitor types.
+  const norm = (s: string) => '/' + String(s || '').replace(/^\/+|\/+$/g, '');
+  // Same rule authority-scaffold uses to name the page it creates.
+  const slugFor = (href: string) =>
+    String(href || '').replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+  if (loading) return null;
+
+  const hit = (map?.pillars || []).find((p: any) => norm(p.href) === norm(location.pathname));
+  if (!hit) return <RootHome />;
+
+  return <PublicLandingPage slugOverride={slugFor(hit.href)} />;
 }
 
 /**
@@ -918,6 +950,11 @@ function App() {
                     </NeonProtectedRoute>
                   }
                 />
+
+                {/* LAST: a studio's own pillar pages, served at their real paths.
+                    Everything above has already claimed its route, so this only sees
+                    paths nothing else matched. */}
+                <Route path="*" element={<PillarRoute />} />
               </Routes>
               </Suspense>
               </ErrorBoundary>
