@@ -19567,8 +19567,11 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
   app.get("/api/admin/site-pages", authenticateUser, async (_req: Request, res: Response) => {
     try {
       const { SITE_PAGES, defaultEnabledPages, LOCALE_PAIRS } = await import('../shared/sitePages');
-      const rows = await runSql(`SELECT enabled_pages, site_language FROM studio_configs LIMIT 1`).catch(() => []);
-      const lang = rows[0]?.site_language || process.env.SITE_LANG || 'en';
+      // No site_language column exists on studio_configs — selecting it threw, and the
+      // .catch(() => []) swallowed it, so this endpoint reported the DEFAULTS as if they
+      // were the studio's stored choices and any saved toggle read back as unset.
+      const rows = await runSql(`SELECT enabled_pages FROM studio_configs LIMIT 1`).catch(() => []);
+      const lang = process.env.SITE_LANG || 'en';
       const stored = rows[0]?.enabled_pages || null;
       res.json({
         pages: SITE_PAGES,

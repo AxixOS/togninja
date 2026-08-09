@@ -219,9 +219,16 @@ function PillarRoute() {
 
   // Trailing slashes vary between the map, the nav and what a visitor types.
   const norm = (s: string) => '/' + String(s || '').replace(/^\/+|\/+$/g, '');
-  // Same rule authority-scaffold uses to name the page it creates.
+  // Must stay byte-identical to slugify() in server/lib/landing-mapping.ts, which is
+  // what authority-scaffold names the created page with. Not imported because that
+  // module lives on the server side of the tree; if you change one, change both.
   const slugFor = (href: string) =>
-    String(href || '').replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    String(href || '')
+      .replace(/^\/+|\/+$/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'home';
 
   if (loading) return null;
 

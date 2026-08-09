@@ -25,7 +25,28 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-const SITE_ORIGIN = "https://www.newagefotografie.com";
+// The origin this instance is actually served from.
+//
+// This was the literal string "https://www.newagefotografie.com" — so EVERY canonical
+// tag and EVERY sitemap <loc> on EVERY deployment pointed at the studio the image was
+// built for. On another studio's site that is not a cosmetic leak: a canonical is a
+// declaration that the real version of this page lives at that other domain, i.e. the
+// tenant was telling Google to credit its pages to someone else.
+//
+// RENDER_EXTERNAL_URL is set automatically by Render, so an instance gets this right
+// with no configuration; PUBLIC_SITE_URL overrides it once a studio has its own domain.
+// If nothing resolves we emit RELATIVE canonicals rather than guess a host — a relative
+// canonical is valid and self-referential, which is the safe default.
+const SITE_ORIGIN = String(
+  process.env.PUBLIC_SITE_URL ||
+  process.env.SITE_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  "",
+).trim().replace(/\/+$/, "");
+
+// Same value, under a name the sitemap handler can shadow: a <loc> must be absolute,
+// so that handler falls back to the request's own host instead of a relative URL.
+const MODULE_SITE_ORIGIN = SITE_ORIGIN;
 
 // Serve /sitemap.xml dynamically: take the curated static sitemap as the base
 // and inject a <url> for every PUBLISHED blog post (publishedAt <= now). This
@@ -40,14 +61,20 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
     res.type("text/plain").send(INDEXNOW_KEY);
   });
 
-  app.get("/sitemap.xml", async (_req, res) => {
+  app.get("/sitemap.xml", async (req, res) => {
     try {
+      // A sitemap <loc> MUST be absolute, so unlike a canonical it cannot fall back to
+      // a relative URL. When no origin is configured, take the one the request arrived
+      // on — that is by definition the host this instance is reachable at.
+      const SITE_ORIGIN = MODULE_SITE_ORIGIN ||
+        `${req.protocol}://${req.get("host")}`.replace(/\/+$/, "");
+
       const rawBase = fs.existsSync(baseFilePath)
         ? fs.readFileSync(baseFilePath, "utf8")
         : '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>';
       // Re-brandable/re-hostable: rewrite the curated sitemap's hardcoded origin to
-      // the configured PUBLIC_SITE_URL so a moved or re-branded instance never emits
-      // the wrong host (a mixed-host sitemap gets dropped by Google).
+      // this instance's own origin so a moved or re-branded instance never emits the
+      // wrong host (a mixed-host sitemap gets dropped by Google).
       let base = rawBase.replace(/https?:\/\/(www\.)?newagefotografie\.com/g, SITE_ORIGIN);
 
       // Drop <url> blocks for pages this studio has switched off. They 301 when
@@ -58,11 +85,16 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
       try {
         const { SITE_PAGES, isPageEnabled } = await import("../shared/sitePages");
         const { pool } = await import("./db");
+        // studio_configs has NO site_language column. Selecting it threw on every
+        // request — "column site_language does not exist" — and the catch below turned
+        // that into a warning nobody read, so the visibility filter had never once run
+        // and every disabled page stayed in the live sitemap. Site language comes from
+        // SITE_LANG, which is what the fallback already resolved to anyway.
         const { rows } = await pool.query(
-          `SELECT enabled_pages, site_language FROM studio_configs LIMIT 1`,
+          `SELECT enabled_pages FROM studio_configs LIMIT 1`,
         );
         const enabled = rows?.[0]?.enabled_pages || null;
-        const lang = rows?.[0]?.site_language || process.env.SITE_LANG || "en";
+        const lang = process.env.SITE_LANG || "en";
 
         const disabledLocs = SITE_PAGES
           .filter((p) => !isPageEnabled(p.id, enabled, lang))
@@ -72,7 +104,11 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
           // Match the whole <url>…</url> block whose <loc> is this page, with or
           // without a trailing slash.
           const re = new RegExp(
-            `\\s*<url>(?:(?!</url>)[\\s\\S])*?<loc>${loc.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}/?</loc>[\\s\\S]*?</url>`,
+            // The escape class used to be /[.*+?^${}()|[\\]\\\\]/ — the class closes at
+            // [\\], so the trailing \\\\] fell OUTSIDE it and the pattern only matched a
+            // special char followed by a backslash. A URL contains no backslashes, so
+            // nothing was ever escaped and the loc went into the RegExp raw.
+            `\\s*<url>(?:(?!</url>)[\\s\\S])*?<loc>${loc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/?</loc>[\\s\\S]*?</url>`,
             "g",
           );
           base = base.replace(re, "");
@@ -117,9 +153,42 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
         .filter(Boolean)
         .join("\n");
 
+      // The studio's own pillar pages. The curated base sitemap can only list routes
+      // that exist in every deployment; pillars are generated per studio from its own
+      // services, so they have to be added at request time or the pages a studio
+      // builds specifically to rank never get advertised. Only PUBLISHED ones —
+      // getLandingPageBySlug filters on that, matching the meta path above.
+      let pillarUrls = "";
+      try {
+        const { getAuthorityMap } = await import("./lib/authority-map");
+        const { slugify } = await import("./lib/landing-mapping");
+        const neonMod: any = await import("../database.js");
+        const neonDb = neonMod.default || neonMod;
+        const map = await getAuthorityMap();
+        const locs: string[] = [];
+        for (const pillar of map?.pillars || []) {
+          const href = "/" + String(pillar.href || "").replace(/^\/+|\/+$/g, "");
+          if (href === "/") continue;
+          const loc = `${SITE_ORIGIN}${href}`;
+          if (existing.has(loc) || existing.has(`${loc}/`)) continue;
+          const slug = slugify(href.replace(/^\/+/, "") || pillar.label);
+          const page = typeof neonDb.getLandingPageBySlug === "function"
+            ? await neonDb.getLandingPageBySlug(slug)
+            : null;
+          if (!page) continue;
+          locs.push(
+            `  <url>\n    <loc>${loc}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>0.9</priority>\n  </url>`,
+          );
+        }
+        pillarUrls = locs.join("\n");
+      } catch (e: any) {
+        console.warn("[sitemap] could not add pillar pages:", e?.message || e);
+      }
+
       let xml = blogUrls
         ? base.replace("</urlset>", `${blogUrls}\n</urlset>`)
         : base;
+      if (pillarUrls) xml = xml.replace("</urlset>", `${pillarUrls}\n</urlset>`);
       // Declare the image-sitemap namespace on <urlset> when we emit image tags.
       if (hasImages && !xml.includes("xmlns:image")) {
         xml = xml.replace(
@@ -273,6 +342,43 @@ async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
         }
       } catch { /* fall through to the built-in homepage meta */ }
     }
+
+    // A studio's OWN pillar pages, served at their pillar paths (/boudoir-photography/).
+    // The client renders these via PillarRoute; without meta here a crawler got the
+    // generic shell, so the pages a studio builds to rank would carry no title,
+    // description or body. Resolved from the Authority Map, then the landing page
+    // named by the same slug rule authority-scaffold uses.
+    try {
+      const { getAuthorityMap } = await import("./lib/authority-map");
+      const map = await getAuthorityMap();
+      const norm = (s: string) => "/" + String(s || "").replace(/^\/+|\/+$/g, "");
+      const pillar = (map?.pillars || []).find((p: any) => norm(p.href) === norm(staticKey));
+      if (pillar) {
+        // The SAME slugify authority-scaffold names the page with — imported, not
+        // re-implemented, so the two can never drift apart.
+        const { slugify } = await import("./lib/landing-mapping");
+        const slug = slugify(String(pillar.href || "").replace(/^\/+|\/+$/g, "") || pillar.label);
+        const neonMod: any = await import("../database.js");
+        const neonDb = neonMod.default || neonMod;
+        const page = typeof neonDb.getLandingPageBySlug === "function"
+          ? await neonDb.getLandingPageBySlug(slug)
+          : null;
+        // getLandingPageBySlug already filters to status='published', so an
+        // unpublished pillar falls through to the generic shell rather than being
+        // advertised to crawlers. That is the intended behaviour, not an oversight:
+        // pillars are created as drafts and go live only when the studio publishes.
+        if (page) {
+          meta = {
+            title: page.seo_title || page.title || pillar.label,
+            description: String(page.meta_description || page.content_json?.hero?.subheadline || "").slice(0, 160),
+            canonical: `${SITE_ORIGIN}${norm(pillar.href)}/`,
+            bodyHtml: lpBodyHtml(page),
+          };
+          routeMetaCache.set(reqPath, { meta, at: Date.now() });
+          return meta;
+        }
+      }
+    } catch { /* fall through — a pillar lookup must never break a public page */ }
 
     if (STATIC_ROUTE_META[staticKey]) {
       meta = STATIC_ROUTE_META[staticKey];

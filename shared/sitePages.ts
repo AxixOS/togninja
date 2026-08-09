@@ -71,6 +71,13 @@ export const SITE_PAGES: SitePageDef[] = [
   { id: 'pillar-wedding', route: '/hochzeitsfotografie-wien/', label: 'Wedding Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
   { id: 'pillar-event', route: '/eventfotografie-wien/', label: 'Event Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
   { id: 'pillar-school', route: '/schul-und-hochschulfotografie-wien/', label: 'School & University Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  // Four more of the same, found still in the shipped sitemap because they were never
+  // registered here — so the visibility system could not switch them off and they stayed
+  // both crawlable and advertised on a studio that offers none of them.
+  { id: 'pillar-family-session', route: '/familien-fotoshooting-wien/', label: 'Family Session', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-baby-photography', route: '/baby-fotografie-wien/', label: 'Baby Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-children', route: '/kinder-fotografie-wien/', label: 'Children Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
+  { id: 'pillar-commercial', route: '/gewerbliche-fotografie-wien/', label: 'Commercial Photography', group: 'legacy', defaultEnabled: false, redirectTo: '/fotoshootings' },
 
   // ---- Duplicate gallery routes. One canonical, the rest redirect. --------
   { id: 'galerie-alias', route: '/galerie', label: 'Galerie (alias)', group: 'alias', defaultEnabled: false, redirectTo: '/galleries' },
