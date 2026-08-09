@@ -23,6 +23,12 @@ export interface SitePageDef {
    * and Google treats it as consolidation rather than a dead end.
    */
   redirectTo?: string;
+  /**
+   * This page existed as a route but was never registered here, so it rendered
+   * unconditionally. Bringing it under visibility control must not remove it from a
+   * studio that never chose a language — taking away a live page is not a default.
+   */
+  previouslyUngated?: boolean;
 }
 
 export const SITE_PAGES: SitePageDef[] = [
@@ -53,9 +59,13 @@ export const SITE_PAGES: SitePageDef[] = [
   // The other three /en/ mirrors. They were registered as routes and listed in the
   // shipped sitemap but never here, so the visibility system could not reach them and a
   // single-language studio advertised /en/ alongside / — the same page at two URLs.
-  { id: 'home-en', route: '/en/', label: 'Homepage (second language)', group: 'locale-en', defaultEnabled: false, redirectTo: '/' },
-  { id: 'case-studies-en', route: '/en/case-studies/', label: 'Case Studies (second language)', group: 'locale-en', defaultEnabled: false, redirectTo: '/case-studies' },
-  { id: 'pricing-en', route: '/en/pricing/', label: 'Pricing (second language)', group: 'locale-en', defaultEnabled: false, redirectTo: '/preise' },
+  // previouslyUngated: these three had no entry here at all, so they simply rendered on
+  // every instance. Registering them brings them under visibility control, but a studio
+  // that never chose a language must not silently LOSE three live pages to a default it
+  // did not opt into — so for those they stay on until a language is chosen.
+  { id: 'home-en', route: '/en/', label: 'Homepage (second language)', group: 'locale-en', defaultEnabled: false, previouslyUngated: true, redirectTo: '/' },
+  { id: 'case-studies-en', route: '/en/case-studies/', label: 'Case Studies (second language)', group: 'locale-en', defaultEnabled: false, previouslyUngated: true, redirectTo: '/case-studies' },
+  { id: 'pricing-en', route: '/en/pricing/', label: 'Pricing (second language)', group: 'locale-en', defaultEnabled: false, previouslyUngated: true, redirectTo: '/preise' },
 
   // ---- Leftovers from the studio the image was built for. -----------------
   { id: 'preise-wien', route: '/fotoshooting-preise-wien/', label: 'Pricing (legacy city pillar)', group: 'legacy', defaultEnabled: false, redirectTo: '/preise' },
@@ -111,8 +121,9 @@ export function applyEcommerceVisibility(
   enabled: Record<string, boolean> | null | undefined,
   ecommerceEnabled: boolean | null | undefined,
   lang = 'en',
+  languageWasChosen = false,
 ): Record<string, boolean> {
-  const base = { ...defaultEnabledPages(lang), ...(enabled || {}) };
+  const base = { ...defaultEnabledPages(lang, languageWasChosen), ...(enabled || {}) };
   if (ecommerceEnabled === false) {
     for (const id of ECOMMERCE_PAGE_IDS) base[id] = false;
   }
@@ -144,12 +155,22 @@ export const LOCALE_PAIRS: Array<[string, string]> = [
  * Off by default; they stay in the codebase, so a genuinely bilingual studio switches
  * them back on and its stored enabled_pages overrides this.
  */
-export function defaultEnabledPages(lang = 'en'): Record<string, boolean> {
+export function defaultEnabledPages(lang = 'en', languageWasChosen = false): Record<string, boolean> {
   const out: Record<string, boolean> = {};
+  const german = String(lang).toLowerCase().startsWith('de');
   for (const p of SITE_PAGES) {
-    if (p.group === 'locale-de') out[p.id] = true;
-    else if (p.group === 'locale-en') out[p.id] = false;
-    else out[p.id] = p.defaultEnabled;
+    if (p.group === 'locale-de') {
+      // Chosen a language → this is the canonical set, always on. Never answered → the
+      // original behaviour, because an existing bilingual site must not lose half itself
+      // to a default it never opted into.
+      out[p.id] = languageWasChosen ? true : german;
+    } else if (p.group === 'locale-en') {
+      // Not chosen: exactly what this instance did before — !german for the pages that
+      // were already gated, and still-on for the three that were never gated at all.
+      out[p.id] = languageWasChosen ? false : (p.previouslyUngated ? true : !german);
+    } else {
+      out[p.id] = p.defaultEnabled;
+    }
   }
   return out;
 }
@@ -166,7 +187,8 @@ export function isPageEnabled(
   id: string,
   enabled: Record<string, boolean> | null | undefined,
   lang = 'en',
+  languageWasChosen = false,
 ): boolean {
   if (enabled && Object.prototype.hasOwnProperty.call(enabled, id)) return !!enabled[id];
-  return defaultEnabledPages(lang)[id] ?? true;
+  return defaultEnabledPages(lang, languageWasChosen)[id] ?? true;
 }

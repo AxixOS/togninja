@@ -65,6 +65,10 @@ const Header: React.FC = () => {
   // every link led to a page that only redirects.
   const [enabledPages, setEnabledPages] = useState<Record<string, boolean> | null>(null);
   const [siteLang, setSiteLang] = useState<string>('en');
+  // The studio's EXPLICIT language choice, or '' when it has never made one. Nav links
+  // are localised only on this: an instance that predates the language question keeps
+  // pointing at the paths it already has.
+  const [routeLang, setRouteLang] = useState<string>('');
   useEffect(() => {
     let cancelled = false;
     fetch('/api/studio-config')
@@ -73,6 +77,7 @@ const Header: React.FC = () => {
         if (cancelled) return;
         setEnabledPages(d?.enabledPages || {});
         setSiteLang(d?.lang || d?.siteLanguage || 'en');
+        setRouteLang(d?.routeLanguage || '');
       })
       .catch(() => { if (!cancelled) setEnabledPages({}); });
     return () => { cancelled = true; };
@@ -124,7 +129,7 @@ const Header: React.FC = () => {
   // Nav paths are written with the canonical (German) routes the route table uses.
   // Localise them here so a visitor to an English studio sees /contact in the status bar
   // and lands there directly, instead of being bounced off /kontakt by the redirect.
-  const L = (p: string) => localizePath(p, siteLang);
+  const L = (p: string) => (routeLang ? localizePath(p, routeLang) : p);
 
   const aboutItems = [
     { path: L('/ueber-uns/'), label: t('nav.about') },

@@ -803,6 +803,10 @@ router.get('/current', async (_req: Request, res: Response) => {
         // create their own — the wizard hides the technical Client ID/Secret fields and
         // they just click "Connect Google Calendar" after login.
         googleOAuthManaged: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID.trim()),
+        // Live-reviews state, so Settings → Google can show what is already configured
+        // instead of an empty form that looks unset.
+        googlePlacesApiKeySet: !!si?.google_places_api_key_encrypted,
+        googlePlacesPlaceId: si?.google_places_place_id || '',
         ga4MeasurementId: sc?.ga4MeasurementId || '',
         metaPixelId: sc?.metaPixelId || '',
         pricingEmbedUrl: sc?.pricingEmbedUrl || '',

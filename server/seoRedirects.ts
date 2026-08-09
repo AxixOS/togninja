@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { localizePath } from "../shared/routeSlugs";
-import { peekSiteLanguage as cachedSiteLanguage } from "./lib/site-language";
+// The EXPLICIT choice, never the fallback: a studio that has not answered the language
+// question keeps the URLs it already has. See getExplicitSiteLanguage.
+import { peekExplicitSiteLanguage as cachedSiteLanguage } from "./lib/site-language";
 
 /**
  * 301 redirects for pruned thin blog posts → the most relevant pillar/cluster.

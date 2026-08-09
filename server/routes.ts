@@ -7241,14 +7241,21 @@ Bitte versuchen Sie es später noch einmal.`;
       // the sitemap cannot disagree.
       try {
         const { applyEcommerceVisibility } = await import('../shared/sitePages');
-        const { getSiteLanguage } = await import('./lib/site-language');
+        const { getSiteLanguage, getExplicitSiteLanguage } = await import('./lib/site-language');
         const { rows: ecom } = await pool.query(`SELECT ecommerce_enabled FROM studio_integrations LIMIT 1`);
         const ecommerceEnabled = ecom?.[0]?.ecommerce_enabled ?? null;
         studioConfig.ecommerceEnabled = ecommerceEnabled !== false;
+        // `lang` is the EFFECTIVE language (copy, locale defaults). `routeLanguage` is the
+        // studio's EXPLICIT choice and is null until it makes one — the client localises
+        // URLs only on that, so an instance predating the language question keeps its
+        // existing paths instead of having them redirected by a default.
+        const routeLanguage = await getExplicitSiteLanguage();
+        studioConfig.routeLanguage = routeLanguage;
         studioConfig.enabledPages = applyEcommerceVisibility(
           (dbConfig as any)?.enabledPages || null,
           ecommerceEnabled,
           await getSiteLanguage(),
+          !!routeLanguage,
         );
       } catch {
         studioConfig.enabledPages = (dbConfig as any)?.enabledPages || null;

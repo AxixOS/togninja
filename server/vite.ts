@@ -103,17 +103,24 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
           const { rows: e } = await pool.query(`SELECT ecommerce_enabled FROM studio_integrations LIMIT 1`);
           ecommerceEnabled = e?.[0]?.ecommerce_enabled ?? null;
         } catch { /* column not yet created — treat as enabled */ }
-        const enabled = applyEcommerceVisibility(rows?.[0]?.enabled_pages || null, ecommerceEnabled, lang);
+        const { getExplicitSiteLanguage: chosenLang } = await import("./lib/site-language");
+        const enabled = applyEcommerceVisibility(
+          rows?.[0]?.enabled_pages || null, ecommerceEnabled, lang, !!(await chosenLang()),
+        );
 
         // Disabled pages, under BOTH the canonical path (what the shipped sitemap lists)
         // and this studio's localised path, so switching a page off removes it however
         // the sitemap happens to spell it.
         const { localizePath } = await import("../shared/routeSlugs");
+        const { getExplicitSiteLanguage: explicitLang } = await import("./lib/site-language");
+        const disabledRouteLang = await explicitLang();
         const disabledLocs = SITE_PAGES
           .filter((p) => !isPageEnabled(p.id, enabled, lang))
           .flatMap((p) => {
             const canonical = p.route.replace(/\/+$/, "");
-            const localised = localizePath(canonical, lang).replace(/\/+$/, "");
+            const localised = disabledRouteLang
+              ? localizePath(canonical, disabledRouteLang).replace(/\/+$/, "")
+              : canonical;
             return canonical === localised
               ? [`${SITE_ORIGIN}${canonical}`]
               : [`${SITE_ORIGIN}${canonical}`, `${SITE_ORIGIN}${localised}`];
@@ -136,7 +143,13 @@ function registerDynamicSitemap(app: Express, baseFilePath: string) {
         // German routes; a studio whose site is in English serves those pages at
         // /contact and /pricing, and a sitemap must list the URL that actually answers,
         // not the one that redirects to it.
-        for (const { canonical, localized } of (await import("../shared/routeSlugs")).localizedRouteMap(lang)) {
+        // Only for a studio that explicitly chose a language — an instance that never
+        // answered keeps advertising the URLs it already has indexed.
+        const { getExplicitSiteLanguage } = await import("./lib/site-language");
+        const routeLang = await getExplicitSiteLanguage();
+        for (const { canonical, localized } of routeLang
+          ? (await import("../shared/routeSlugs")).localizedRouteMap(routeLang)
+          : []) {
           const from = `${SITE_ORIGIN}${canonical}`;
           const to = `${SITE_ORIGIN}${localized}`;
           // Match on the PREFIX so nested pages follow their parent:

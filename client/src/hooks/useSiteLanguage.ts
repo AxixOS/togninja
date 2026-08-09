@@ -17,7 +17,10 @@ async function loadSiteLanguage(): Promise<string | null> {
     inflight = fetch('/api/studio-config')
       .then((r) => (r.ok ? r.json() : null))
       .then((d: any) => {
-        const lang = String(d?.lang || d?.siteLanguage || '').slice(0, 2).toLowerCase();
+        // routeLanguage ONLY — the studio's explicit choice. `lang` carries an env/English
+        // fallback, and localising URLs on a fallback would 301 an existing German site's
+        // paths to English ones it never asked for. Null here means "leave URLs alone".
+        const lang = String(d?.routeLanguage || '').slice(0, 2).toLowerCase();
         if (lang) {
           cached = lang;
           subscribers.forEach((fn) => fn(lang));

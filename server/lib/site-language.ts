@@ -30,7 +30,38 @@ export function normalizeSiteLanguage(value: unknown): SiteLanguageCode | null {
 }
 
 let cached: { lang: SiteLanguageCode; at: number } | null = null;
+let cachedExplicit: { lang: SiteLanguageCode | null; at: number } | null = null;
 const TTL = 60_000;
+
+/**
+ * The language the studio ACTUALLY CHOSE — no env fallback, no default.
+ *
+ * This is the one that may change URLs, and the distinction is not academic. The origin
+ * studio runs a bilingual German site at German paths and has never answered the language
+ * question, so its stored value is NULL. Resolved through getSiteLanguage() that becomes
+ * "en" (the default for a new buyer), and localising on it would 301 every one of that
+ * studio's live German URLs to an English path that has no history, no inbound links and
+ * no ranking. An instance that never answered must keep exactly the URLs it has.
+ *
+ * So: null means "do not localise". Only an explicit choice moves a studio's URLs.
+ */
+export async function getExplicitSiteLanguage(): Promise<SiteLanguageCode | null> {
+  if (cachedExplicit && Date.now() - cachedExplicit.at < TTL) return cachedExplicit.lang;
+  let lang: SiteLanguageCode | null = null;
+  try {
+    const { rows } = await pool.query(`SELECT site_language FROM studio_configs LIMIT 1`);
+    lang = normalizeSiteLanguage(rows?.[0]?.site_language);
+  } catch { /* column missing — treat as unanswered */ }
+  cachedExplicit = { lang, at: Date.now() };
+  return lang;
+}
+
+/** Sync peek at the explicit choice, for the redirect middleware. */
+export function peekExplicitSiteLanguage(): SiteLanguageCode | null {
+  if (cachedExplicit && Date.now() - cachedExplicit.at < TTL) return cachedExplicit.lang;
+  getExplicitSiteLanguage().catch(() => {});
+  return null;
+}
 
 /**
  * The studio's site language. Cached briefly — it changes only when the studio changes
@@ -55,6 +86,7 @@ export async function getSiteLanguage(): Promise<SiteLanguageCode> {
 /** Call after the studio changes its language so the next request sees it. */
 export function invalidateSiteLanguage(): void {
   cached = null;
+  cachedExplicit = null;
 }
 
 /**
