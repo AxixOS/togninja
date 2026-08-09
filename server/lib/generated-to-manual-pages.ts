@@ -43,11 +43,30 @@ export function mapGeneratedToHomeKeys(content: any): Record<string, string> {
   put('home.bookShootingButton', hero.ctaText);
   put('home.description', seo.metaDescription || offer.description);
 
-  // FAQ maps cleanly: the manifest exposes six question/answer pairs.
+  // Service Highlights. The key names are historical ("pregnancyAndFamily") but the
+  // block is simply "core offerings below the hero" — left unmapped it showed
+  // "Pregnancy Shoot & Family Portraits" to a boudoir studio.
+  const why = content?.whyChooseUs || {};
+  const reasons: any[] = Array.isArray(why?.reasons) ? why.reasons : [];
+  put('home.pregnancyAndFamilyTitle', why.headline || offer.headline);
+  put('home.pregnancyDescription1', reasons[0]?.description);
+  put('home.pregnancyDescription2', reasons[1]?.description);
+  put('home.pregnancyDescription3', reasons[2]?.description);
+
+  // FAQ maps cleanly: the manifest exposes six question/answer pairs, and the
+  // generator is now asked for six. Slots it cannot fill keep a generic default,
+  // which is why the count matters — three left slots 4-6 describing family shoots.
   const faq = Array.isArray(content?.faq) ? content.faq : [];
   faq.slice(0, 6).forEach((entry: any, i: number) => {
     put(`home.faqQuestion${i + 1}`, entry?.question);
     put(`home.faq${i + 1}Text`, entry?.answer);
+  });
+
+  // The "Common Worries" grid is a SECOND six-card FAQ block on the same page. Fed
+  // from the same source so it cannot drift back to another studio's services.
+  faq.slice(0, 6).forEach((entry: any, i: number) => {
+    put(`faq.worry${i + 1}.q`, entry?.question);
+    put(`faq.worry${i + 1}.full`, entry?.answer);
   });
 
   // DELIBERATELY NOT MAPPED — `testimonials`. The generator is instructed to

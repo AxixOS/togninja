@@ -80,7 +80,10 @@ Your output must be a valid JSON object with this exact structure:
   "faq": [
     {"question": "FAQ question 1", "answer": "Answer 1"},
     {"question": "FAQ question 2", "answer": "Answer 2"},
-    {"question": "FAQ question 3", "answer": "Answer 3"}
+    {"question": "FAQ question 3", "answer": "Answer 3"},
+    {"question": "FAQ question 4", "answer": "Answer 4"},
+    {"question": "FAQ question 5", "answer": "Answer 5"},
+    {"question": "FAQ question 6", "answer": "Answer 6"}
   ],
   "finalCta": {
     "headline": "Final closing headline",
@@ -105,6 +108,9 @@ Rules:
   studio because the crawled source happened to lean that way.)
 - Generate believable but compelling testimonials if none are provided
 - Keep headlines concise and impactful
+- Return SIX FAQ entries, all about THIS studio's own services. The homepage has six
+  FAQ slots; any you leave short keeps a generic default that may describe services
+  this studio does not offer.
 - Return ONLY the JSON object, no markdown, no code fences`;
 
   // The studio's own language decides the output, not whatever the crawled source

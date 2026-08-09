@@ -1112,8 +1112,8 @@ const translations = {
   'faq.clarityTitle': 'Clarity & Value',
   
   'faq.clarity1.q': 'What does it cost?',
-  'faq.clarity1.micro': 'From €95 – transparent pricing',
-  'faq.clarity1.full': 'Our packages start at €95 for family sessions and go up to €599 for wedding photography. All prices include editing and digital files. No hidden fees – what you see is what you pay.',
+  'faq.clarity1.micro': 'Transparent pricing',
+  'faq.clarity1.full': 'Every package includes editing and digital files. No hidden fees - what you see is what you pay. See the pricing page for current packages.',
   'faq.clarity1.cta': 'View Pricing',
   'faq.clarity1.link': '/preise/',
   
@@ -1124,8 +1124,8 @@ const translations = {
   'faq.clarity2.link': '/preise/',
   
   'faq.clarity3.q': 'Why choose us?',
-  'faq.clarity3.micro': '10+ years, 500+ families',
-  'faq.clarity3.full': 'Over a decade of experience with families. Relaxed, playful approach. Natural editing style. We specialize in making camera-shy kids (and adults!) feel comfortable.',
+  'faq.clarity3.micro': 'Experienced and relaxed',
+  'faq.clarity3.full': 'A relaxed, unhurried approach and a natural editing style. We are good at making people who dislike being photographed feel at ease.',
   'faq.clarity3.cta': 'About Us',
   'faq.clarity3.link': '/ueber-uns/',
   
@@ -2241,8 +2241,8 @@ const translations = {
   'faq.clarityTitle': 'Klarheit & Mehrwert',
   
   'faq.clarity1.q': 'Was kostet es?',
-  'faq.clarity1.micro': 'Ab €95 – transparente Preise',
-  'faq.clarity1.full': 'Unsere Pakete beginnen bei €95 für Familien-Sessions und gehen bis €599 für Hochzeitsfotografie. Alle Preise inkl. Bearbeitung und digitalen Dateien. Keine versteckten Kosten.',
+  'faq.clarity1.micro': 'Transparente Preise',
+  'faq.clarity1.full': 'Jedes Paket enthält Bearbeitung und digitale Dateien. Keine versteckten Kosten - was Sie sehen, zahlen Sie. Aktuelle Pakete finden Sie auf der Preisseite.',
   'faq.clarity1.cta': 'Preise ansehen',
   'faq.clarity1.link': '/preise/',
   
