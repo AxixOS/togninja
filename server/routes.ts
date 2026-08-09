@@ -345,7 +345,7 @@ import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
 import { jsPDF } from 'jspdf';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { getS3Client, getS3Config, buildPublicUrl, storageHealth } from './services/s3-storage';
+import { getS3Client, getS3Config, buildPublicUrl, storageHealth, explainStorageError } from './services/s3-storage';
 import OpenAI from 'openai';
 import websiteWizardRoutes from './routes/website-wizard';
 import onboardingRoutes from './routes/onboarding';
@@ -14242,10 +14242,10 @@ ${getBizName()} CRM System
     } catch (error: any) {
       console.error("[HOMEPAGE IMAGE UPLOAD] ❌ Error:", error);
       console.error("[HOMEPAGE IMAGE UPLOAD] Error stack:", error.stack);
-      res.status(500).json({ 
-        error: "Failed to upload image",
-        message: error.message || "An unknown error occurred during upload"
-      });
+      // The provider's own wording ("Malformed Access Key Id") named neither the cause
+      // nor the fix; explainStorageError adds the bucket, the endpoint and what to do.
+      const message = explainStorageError(error);
+      res.status(500).json({ error: "Failed to upload image", message });
     }
   });
 
@@ -14458,10 +14458,8 @@ ${getBizName()} CRM System
     } catch (error: any) {
       console.error("[PORTFOLIO IMAGE UPLOAD] ❌ Error:", error);
       console.error("[PORTFOLIO IMAGE UPLOAD] Error stack:", error.stack);
-      res.status(500).json({ 
-        error: "Failed to upload image",
-        message: error.message || "An unknown error occurred during upload"
-      });
+      const message = explainStorageError(error);
+      res.status(500).json({ error: "Failed to upload image", message });
     }
   });
 

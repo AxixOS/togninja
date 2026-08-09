@@ -60,13 +60,110 @@ let _current: StorageConfig = envStorageConfig();
 let _lastLoad = 0;
 const STORAGE_TTL = 60_000;
 
+/**
+ * Storage config resolves as a COHERENT SET — all of it from the wizard/DB, or all of
+ * it from env. It used to fall back field by field, which silently built a hybrid: a
+ * studio that had configured Backblaze in the wizard and then had env switched to
+ * Supabase got Backblaze's endpoint and bucket with Supabase's keys, and every upload
+ * failed with the provider's raw "Malformed Access Key Id". Credentials only mean
+ * anything against the endpoint they were issued for, so they travel together.
+ *
+ * The DB wins only when it holds a usable PAIR (access key + secret). A half-filled
+ * row — the shape a partial wizard run or a partial reset leaves behind — is ignored
+ * rather than blended.
+ */
 async function resolveStorageConfig(): Promise<StorageConfig> {
-  const bucket = (await appConfig.get('storage_bucket')) || process.env.AWS_S3_BUCKET || '';
-  const endpoint = pickEndpoint(await appConfig.get('storage_endpoint'), process.env.AWS_S3_ENDPOINT);
-  const region = (await appConfig.get('storage_region')) || process.env.AWS_REGION || 'eu-central-1';
-  const accessKeyId = (await appConfig.get('storage_access_key_id')) || process.env.AWS_ACCESS_KEY_ID || '';
-  const secretAccessKey = (await appConfig.get('storage_secret_key')) || process.env.AWS_SECRET_ACCESS_KEY || '';
-  return { bucket, endpoint, region, accessKeyId, secretAccessKey, isConfigured: !!(bucket && accessKeyId && secretAccessKey) };
+  const dbAccessKeyId = (await appConfig.get('storage_access_key_id')) || '';
+  const dbSecretKey = (await appConfig.get('storage_secret_key')) || '';
+
+  if (dbAccessKeyId && dbSecretKey) {
+    const bucket = (await appConfig.get('storage_bucket')) || '';
+    const endpoint = pickEndpoint(await appConfig.get('storage_endpoint'), null);
+    // Region is the one safe cross-source value: it is not part of the credential and
+    // every provider here tolerates a default.
+    const region = (await appConfig.get('storage_region')) || process.env.AWS_REGION || 'eu-central-1';
+    return {
+      bucket, endpoint, region,
+      accessKeyId: dbAccessKeyId, secretAccessKey: dbSecretKey,
+      isConfigured: !!(bucket && dbAccessKeyId && dbSecretKey),
+    };
+  }
+
+  return envStorageConfig();
+}
+
+type StorageProvider = 'backblaze' | 'supabase' | 'aws' | 'custom';
+
+/** Which provider an endpoint points at. No endpoint means AWS's default host. */
+export function providerForEndpoint(endpoint: string): StorageProvider {
+  const ep = String(endpoint || '').toLowerCase();
+  if (!ep) return 'aws';
+  if (ep.includes('backblazeb2.com')) return 'backblaze';
+  if (ep.includes('supabase')) return 'supabase';
+  if (ep.includes('amazonaws.com')) return 'aws';
+  return 'custom';
+}
+
+/**
+ * Does this access key look like it was issued by the provider we are about to call?
+ * Key IDs have distinct, stable shapes: AWS starts AKIA/ASIA, Backblaze application
+ * key IDs are 25 hex characters, Supabase's are 20. Returns a human explanation when
+ * they disagree, or null when they look consistent (or we cannot tell).
+ */
+export function describeCredentialMismatch(cfg: Pick<StorageConfig, 'endpoint' | 'accessKeyId'>): string | null {
+  const key = String(cfg.accessKeyId || '').trim();
+  if (!key) return null;
+  const provider = providerForEndpoint(cfg.endpoint);
+  const looksAws = /^(AKIA|ASIA)/.test(key);
+  const looksBackblaze = /^[0-9a-f]{25}$/i.test(key);
+  const looksSupabase = /^[0-9a-f]{20}$/i.test(key);
+
+  const shape = looksAws ? 'an AWS' : looksBackblaze ? 'a Backblaze' : looksSupabase ? 'a Supabase' : null;
+  if (!shape) return null;
+
+  const endpointName =
+    provider === 'backblaze' ? 'Backblaze B2' :
+    provider === 'supabase' ? 'Supabase Storage' :
+    provider === 'aws' ? 'AWS S3' : null;
+  if (!endpointName) return null;
+
+  const agrees =
+    (provider === 'backblaze' && looksBackblaze) ||
+    (provider === 'supabase' && looksSupabase) ||
+    (provider === 'aws' && looksAws);
+  if (agrees) return null;
+
+  return `The storage endpoint is ${endpointName} (${cfg.endpoint || 'default AWS host'}) but the access key looks like ${shape} key. ` +
+    `Access keys only work against the provider that issued them — set the endpoint, bucket and both keys to the same provider in Settings → Technical Setup → Storage.`;
+}
+
+/**
+ * Turn a provider's raw S3 error into something a studio owner can act on. Uploads
+ * were surfacing bare strings like "Malformed Access Key Id" straight into the UI,
+ * which names neither the cause nor the fix.
+ */
+export function explainStorageError(err: any): string {
+  const cfg = getS3Config();
+  const raw = String(err?.message || err || 'Upload failed');
+  const code = String(err?.name || err?.Code || '');
+  const mismatch = describeCredentialMismatch(cfg);
+  const where = `(bucket "${cfg.bucket || 'not set'}", endpoint ${cfg.endpoint || 'default AWS host'})`;
+
+  if (/malformed access key|invalidaccesskeyid|signaturedoesnotmatch/i.test(`${raw} ${code}`)) {
+    return mismatch
+      ? `${mismatch} ${where}`
+      : `Storage rejected the credentials ${where}: ${raw}. Check the access key and secret in Settings → Technical Setup → Storage.`;
+  }
+  if (/nosuchbucket/i.test(`${raw} ${code}`)) {
+    return `The bucket "${cfg.bucket}" does not exist at ${cfg.endpoint || 'the configured endpoint'}. Create it, or correct the bucket name in Settings → Technical Setup → Storage.`;
+  }
+  if (/accessdenied|forbidden|403/i.test(`${raw} ${code}`)) {
+    return `Storage denied the upload ${where}. The key is valid but lacks write permission on this bucket.`;
+  }
+  if (/getaddrinfo|enotfound|econnrefused/i.test(raw)) {
+    return `Could not reach the storage endpoint ${cfg.endpoint || '(none set)'}. Check the endpoint URL in Settings → Technical Setup → Storage.`;
+  }
+  return mismatch ? `${mismatch} ${where}` : `${raw} ${where}`;
 }
 
 export async function refreshStorageConfig(): Promise<void> {

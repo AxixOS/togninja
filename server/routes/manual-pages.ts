@@ -35,6 +35,25 @@ async function resolveStudioId(): Promise<string> {
   return FALLBACK_STUDIO_ID;
 }
 
+// Pages whose values are properties of the STUDIO, not of a language: the logo, the
+// brand colours, the reviews link. manual_page_content is keyed per language, so these
+// were being stored once per language and silently diverging — a logo uploaded while
+// the editor was on English was invisible to the German site and to /api/studio-config
+// (which reads 'de' by default), so the panel showed one logo and the live header
+// another. Writes to these pages mirror across every language the studio has.
+const GLOBAL_PAGES = new Set(['site-settings']);
+
+/** Every language this studio already has rows for, plus the one being written. */
+async function languagesForStudio(studioId: string, include: string): Promise<string[]> {
+  const rows = await db
+    .select({ language: manualPageContent.language })
+    .from(manualPageContent)
+    .where(eq(manualPageContent.studioId, studioId));
+  const set = new Set<string>(rows.map((r) => r.language).filter(Boolean) as string[]);
+  set.add(include);
+  return [...set];
+}
+
 // Build the studio's brand + locale context for AI copy from the TENANT'S OWN identity
 // (env/config via siteIdentity) — never a hardcoded studio. Neutral when unconfigured, so
 // a boudoir studio in the UK doesn't get "New Age Fotografie in Vienna" or German.
@@ -141,13 +160,27 @@ router.get('/:pageId', async (req, res) => {
       )
       .limit(1);
 
+    // The logo the studio uploaded during onboarding lives on studio_configs. Website
+    // Studio edits a separate key (site.logo), so an untouched Logo & Branding panel
+    // rendered an empty box next to a site whose header was already showing the real
+    // logo. Fill the field from the studio's own logo whenever the key is unset.
+    const withLogoFallback = async (content: Record<string, any>) => {
+      if (pageId !== 'site-settings') return content;
+      if (String(content?.['site.logo'] || '').trim()) return content;
+      try {
+        const [cfg] = await db.select({ logo: studioConfigs.logoUrl }).from(studioConfigs).limit(1);
+        if (cfg?.logo) return { ...content, 'site.logo': cfg.logo };
+      } catch { /* the panel is still usable without it */ }
+      return content;
+    };
+
     if (!record) {
       // Return empty published content if no record exists (fallback to translation keys)
       res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
       return res.json({
         pageId,
         language,
-        publishedContent: {},
+        publishedContent: await withLogoFallback({}),
         status: 'none'
       });
     }
@@ -159,7 +192,7 @@ router.get('/:pageId', async (req, res) => {
       return res.json({
         pageId: record.pageId,
         language: record.language,
-        publishedContent: record.publishedContent || {},
+        publishedContent: await withLogoFallback((record.publishedContent || {}) as any),
         status: record.status,
         publishedAt: record.publishedAt
       });
@@ -167,7 +200,11 @@ router.get('/:pageId', async (req, res) => {
 
     // For authenticated admin users, return full record including drafts (never cached)
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.json(record);
+    res.json({
+      ...record,
+      draftContent: await withLogoFallback((record.draftContent || {}) as any),
+      publishedContent: await withLogoFallback((record.publishedContent || {}) as any),
+    });
   } catch (error) {
     // If the table doesn't exist yet or any DB error occurs, return a safe fallback
     console.warn('Manual page fetch fallback:', (error as any)?.message || error);
@@ -312,6 +349,52 @@ router.post('/:pageId', requireAuth, async (req, res) => {
         .insert(manualPageContent)
         .values(newRecord)
         .returning();
+    }
+
+    // A global page belongs to the studio, not to a language — mirror it to every
+    // language so the editor, the live site and /api/studio-config cannot disagree
+    // about something like the logo just because they read different rows.
+    if (GLOBAL_PAGES.has(pageId)) {
+      try {
+        const langs = (await languagesForStudio(studioId, language)).filter((l) => l !== language);
+        for (const lang of langs) {
+          const [peer] = await db
+            .select()
+            .from(manualPageContent)
+            .where(
+              and(
+                eq(manualPageContent.studioId, studioId),
+                eq(manualPageContent.pageId, pageId),
+                eq(manualPageContent.language, lang),
+              ),
+            )
+            .limit(1);
+
+          const mirrored: any = { draftContent, updatedAt: new Date() };
+          if (action === 'publish') {
+            mirrored.publishedContent = draftContent;
+            mirrored.publishedAt = new Date();
+            mirrored.status = 'published';
+          }
+
+          if (peer) {
+            await db.update(manualPageContent).set(mirrored).where(eq(manualPageContent.id, peer.id));
+          } else {
+            await db.insert(manualPageContent).values({
+              studioId, pageId, language: lang,
+              draftContent,
+              publishedContent: action === 'publish' ? draftContent : {},
+              status: action === 'publish' ? 'published' : 'draft',
+              publishedAt: action === 'publish' ? new Date() : null,
+              createdAt: new Date(), updatedAt: new Date(),
+            } as any);
+          }
+        }
+      } catch (e: any) {
+        // Mirroring is a consistency improvement, not the save itself — never fail the
+        // studio's edit because a peer-language row could not be written.
+        console.warn('[manual-pages] global page mirror failed:', e?.message || e);
+      }
     }
 
     res.json(result);
