@@ -92,10 +92,14 @@ const productDescriptionTranslations: Record<string, string> = {
     'approx. 60 minutes in studio; 5 retouched favorite photos digital; Canvas 40×30 cm; 2-3 sets (wraps + detail macros)',
 };
 
-const DEFAULT_PRICING_EMBED_URL = 'https://pricingembed.com/embed/embed_ai_1780913691468_2effx16uy';
+// NO default embed. This used to fall back to a specific pricingembed.com id — the origin
+// studio's own price calculator — so every studio that had not configured one showed
+// ANOTHER STUDIO'S packages and prices on its homepage: euros on a pound studio, family
+// packages on a boudoir studio, and a live third-party widget nobody here controls.
+// A studio with no calculator configured shows no calculator.
 const PRICING_EMBED_URLS = {
-  de: (import.meta as any).env?.VITE_PRICING_EMBED_URL_DE || DEFAULT_PRICING_EMBED_URL,
-  en: (import.meta as any).env?.VITE_PRICING_EMBED_URL_EN || DEFAULT_PRICING_EMBED_URL,
+  de: (import.meta as any).env?.VITE_PRICING_EMBED_URL_DE || '',
+  en: (import.meta as any).env?.VITE_PRICING_EMBED_URL_EN || '',
 } as const;
 
 // Helper function to translate product text
@@ -635,6 +639,11 @@ const HomePage: React.FC = () => {
         </section>
       )}
 
+      {/* The whole price-calculator section is hidden when the studio has not configured
+          one. It previously rendered regardless, filled with another studio's packages and
+          currency — and its surrounding copy makes promises ("no hidden prices", "in 30
+          seconds") that only mean anything if there is a calculator. */}
+      {pricingEmbedUrl && (
       <section id="preisrechner" className="bg-white py-16 md:py-24 scroll-mt-24">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-4xl text-center">
@@ -736,6 +745,7 @@ const HomePage: React.FC = () => {
           </div>
         </div>
       </section>
+      )}
 
       {/* Content Sections */}
       <section className="py-16">

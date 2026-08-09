@@ -4,16 +4,29 @@ import Layout from '../components/layout/Layout';
 import { SEOHead } from '../components/SEO/SEOHead';
 import { SITE } from '../config/site';
 import { useLanguage } from '../context/LanguageContext';
+import { useQuery } from '@tanstack/react-query';
 
 const CalculatorPage: React.FC = () => {
   const { language } = useLanguage();
   const de = language === 'de';
+  // The studio's OWN calculator. This page used to hardcode a pricingembed.com id — the
+  // origin studio's — so every studio's /calculator showed another studio's packages and
+  // prices. No configured calculator now means no iframe, not somebody else's.
+  const { data: studioConfig } = useQuery<any>({
+    queryKey: ['/api/studio-config'],
+    queryFn: () => fetch('/api/studio-config').then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const embedUrl = String(studioConfig?.pricingEmbedUrl || '').trim();
   return (
     <Layout>
+      {/* Title, description and keywords all named Vienna and quoted €95 — the origin
+          studio's city, currency and pricing, on every studio that installs this. */}
       <SEOHead
-        title={`Fotoshooting Preisrechner Wien | ${SITE.name}`}
-        description="Berechnen Sie die Kosten Ihres Fotoshootings in Wien sofort online. Familien-, Baby-, Business- und Schwangerschaftspakete ab €95 – transparent und ohne versteckte Gebühren."
-        keywords="Fotoshooting Preisrechner Wien, Fotoshooting Kosten berechnen, Fotografie Pakete Wien, Preiskalkulator Fotograf Wien"
+        title={de ? `Preisrechner | ${SITE.name}` : `Price Calculator | ${SITE.name}`}
+        description={de
+          ? 'Berechnen Sie die Kosten Ihres Fotoshootings sofort online – transparent und ohne versteckte Gebühren.'
+          : 'Work out the cost of your photo shoot instantly — transparent, with no hidden fees.'}
         canonical="/calculator/"
       />
 
@@ -21,20 +34,31 @@ const CalculatorPage: React.FC = () => {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl md:text-4xl font-bold mb-4 text-gray-900">
-              {de ? 'Fotoshooting Preisrechner Wien – Kosten sofort berechnen' : 'Vienna Photo Shoot Price Calculator – Get Your Cost Instantly'}
+              {de ? 'Preisrechner – Kosten sofort berechnen' : 'Price Calculator – Get Your Cost Instantly'}
             </h1>
+            {/* Named the city and quoted "ab €95" — the origin studio's location and price
+                list, shown to every studio's visitors regardless of what it charges. */}
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              {de ? 'Konfigurieren Sie Ihr persönliches Fotoshooting und erhalten Sie sofort eine transparente Preisauskunft. Wählen Sie aus Familien-, Baby-, Business- oder Eventpaketen ab €95.' : 'Configure your personal photo shoot and get a transparent price quote instantly. Choose from family, baby, business and event packages starting at €95.'}
+              {de
+                ? 'Konfigurieren Sie Ihr persönliches Fotoshooting und erhalten Sie sofort eine transparente Preisauskunft.'
+                : 'Configure your personal photo shoot and get a transparent price quote instantly.'}
             </p>
           </div>
+          {!embedUrl ? (
+            <p className="text-center text-gray-500">
+              {de
+                ? 'Der Preisrechner ist noch nicht eingerichtet.'
+                : 'The price calculator has not been set up yet.'}
+            </p>
+          ) : (
           <div className="qk-widget" style={{ maxWidth: '720px', margin: '0 auto' }}>
             <iframe
-              src="https://pricingembed.com/embed/embed_ai_1772535371344_q0lkcwv9x"
+              src={embedUrl}
               width="100%"
               height="600"
               frameBorder="0"
               style={{ border: 'none', borderRadius: '12px' }}
-              title="Fotoshooting Preisrechner Wien"
+              title={de ? 'Preisrechner' : 'Price calculator'}
             />
             <div className="qk-credit" style={{ textAlign: 'center', padding: '8px 0', fontSize: '13px', fontFamily: 'sans-serif', opacity: 0.7 }}>
               <a href="https://pricingembed.com" target="_blank" rel="noopener"
@@ -43,6 +67,7 @@ const CalculatorPage: React.FC = () => {
               </a>
             </div>
           </div>
+          )}
 
           {/* Package overview for SEO context */}
           <div className="mt-12 grid md:grid-cols-3 gap-6 text-center">

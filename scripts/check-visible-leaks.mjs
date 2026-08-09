@@ -29,8 +29,22 @@ for (const path of PAGES) {
   try {
     await page.goto(BASE + path, { waitUntil: 'networkidle2', timeout: 45000 });
     await new Promise(r => setTimeout(r, 1200)); // let client-rendered copy settle
-    const text = await page.evaluate(() => document.body.innerText || '');
-    const hits = [...text.matchAll(PATTERN)];
+    const text = await page.evaluate(() => {
+      const parts = [document.body.innerText || ''];
+      // Attribute text a reader never sees but a crawler does.
+      for (const el of document.querySelectorAll('[title],[alt],[aria-label]')) {
+        parts.push(el.getAttribute('title') || '', el.getAttribute('alt') || '', el.getAttribute('aria-label') || '');
+      }
+      // Every embedded source, so a foreign widget cannot hide inside an iframe.
+      for (const el of document.querySelectorAll('iframe,embed,object')) {
+        parts.push(el.getAttribute('src') || el.getAttribute('data') || '');
+      }
+      parts.push(document.title || '');
+      const meta = document.querySelector('meta[name="description"]');
+      if (meta) parts.push(meta.getAttribute('content') || '');
+      return parts.join('\n');
+    });
+    const hits = [...text.matchAll(PATTERN), ...FOREIGN_EMBEDS.flatMap(id => text.includes(id) ? [{ 0: id, index: text.indexOf(id) }] : [])];
     // Keep the surrounding sentence so each hit is actionable, not just a count.
     const contexts = [...new Set(hits.map(m => {
       const start = Math.max(0, m.index - 60);
