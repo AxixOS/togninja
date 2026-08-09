@@ -7132,11 +7132,24 @@ Bitte versuchen Sie es später noch einmal.`;
     }
   });
 
-  // Phase 2: scaffold a draft landing page for each pillar in the Authority Map.
+  // Phase 2: build a landing page for each pillar in the Authority Map.
+  //
+  // Drafts by default — adding a page to an established site should be reviewed first.
+  // Pass publish:true to have them go live immediately, which is what a studio wants when
+  // its nav ALREADY lists these services and every one of them currently leads nowhere.
   app.post("/api/authority-map/scaffold", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { scaffoldPillarPages } = await import('./lib/authority-scaffold');
-      const out = await scaffoldPillarPages({ city: req.body?.city, limit: req.body?.limit });
+      // The studio's own language. Without it this route generated English pages for a
+      // German or Spanish studio — the same bug the onboarding pipeline had.
+      const { getSiteLanguage } = await import('./lib/site-language');
+      const { rows: cfg } = await pool.query(`SELECT city, address FROM studio_configs LIMIT 1`).catch(() => ({ rows: [] as any[] }));
+      const out = await scaffoldPillarPages({
+        city: req.body?.city || cfg?.[0]?.city || undefined,
+        limit: req.body?.limit,
+        language: await getSiteLanguage(),
+        publish: req.body?.publish === true,
+      });
       res.json({ ok: true, ...out });
     } catch (e: any) {
       const noai = e?.name === 'NoOpenAIError';
