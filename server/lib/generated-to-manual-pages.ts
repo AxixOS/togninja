@@ -50,6 +50,11 @@ export function mapGeneratedToHomeKeys(content: any): Record<string, string> {
   // else's business. The trust bar is four short claims, which is exactly what the
   // rotator needs; the offer headline is the strongest single statement for the H1.
   put('home.heroHeading', offer.headline || hero.headline);
+
+  // The services block's own heading and subheading. The subheading read "From family
+  // shoots to business portraits" on every studio — a promise about someone else's
+  // services sitting directly above the studio's real ones.
+  put('home.servicesSubtitle', offer.description || problem.description);
   const trust: string[] = Array.isArray(content?.trustBar?.items) ? content.trustBar.items : [];
   const benefits: any[] = Array.isArray(content?.benefits) ? content.benefits : [];
   const rotatorPool = [...trust, ...benefits.map((b: any) => b?.title)]

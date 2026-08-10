@@ -9,6 +9,7 @@
  * fly (?language=en) and caches it, so the studio only authors once.
  */
 import { useState } from 'react';
+import Layout from '../components/layout/Layout';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -86,9 +87,16 @@ export default function PublicLandingPage({ slugOverride }: { slugOverride?: str
 
   const isPreview = !!page._isPreview;
 
-  return (
+  // A pillar page is reached FROM the studio's own navigation, so it has to carry that
+  // navigation: arriving from the menu at a page with no header, no menu and no footer
+  // reads as having left the site. A /lp/ page is the opposite — a standalone campaign
+  // page whose whole point is to remove every exit — so only the pillar case is wrapped.
+  const asPillar = !!slugOverride;
+  const body = (
     <>
-      <LanguageSwitch value={language} onChange={setLanguage} busy={isFetching} />
+      {/* The DE/EN switch is for a studio that authors once and offers both. On a
+          single-language site it advertises a language the studio does not publish. */}
+      {!asPillar && <LanguageSwitch value={language} onChange={setLanguage} busy={isFetching} />}
       <ThemeScope>
         <PublicLandingPageRenderer
           page={page}
@@ -98,4 +106,6 @@ export default function PublicLandingPage({ slugOverride }: { slugOverride?: str
       </ThemeScope>
     </>
   );
+
+  return asPillar ? <Layout>{body}</Layout> : body;
 }

@@ -9,6 +9,7 @@ import { Check } from 'lucide-react';
 import { proxyImage } from '../lib/imageProxy';
 import { useLanguage } from '../context/LanguageContext';
 import { useStudioCurrency } from '../hooks/useStudioCurrency';
+import { useAuthorityMap } from '../hooks/useAuthorityMap';
 import { useCart } from '../context/CartContext';
 import { useManualPageContent } from '../hooks/useManualPageContent';
 import { SEOHead } from '../components/SEO/SEOHead';
@@ -38,6 +39,28 @@ const HomePage: React.FC = () => {
   const { language } = useLanguage();
   // Prices in the STUDIO'S currency, not a hardcoded euro sign.
   const { format: formatPrice } = useStudioCurrency();
+
+  // The service cards below. Built from the studio's own Authority Map — the same source
+  // the nav uses — so the homepage advertises what this studio actually offers. Pillars
+  // without a live page are excluded: a card is a link, and a link must go somewhere.
+  const { map: authorityMap } = useAuthorityMap();
+  const serviceCards = React.useMemo(() => {
+    const pillars = (authorityMap?.pillars || []).filter((p: any) => p?.href && p?.label && (p as any).hasPage !== false);
+    if (pillars.length) {
+      return pillars.map((p: any) => ({
+        path: p.href,
+        label: p.label,
+        description: p.keyphrase ? `Professional ${String(p.keyphrase).toLowerCase()}.` : '',
+        imageSection: 'services-' + String(p.href || '').replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      }));
+    }
+    // No map yet (a studio mid-onboarding, or the origin studio) — keep what was there.
+    return [
+      { path: '/fotoshootings', label: t('home.familyPortraitsTitle'), description: t('home.familyPortraitsDescription'), imageSection: 'services-family' },
+      { path: '/fotoshootings', label: t('home.pregnancyPhotographyTitle'), description: t('home.pregnancyPhotographyDescription'), imageSection: 'services-pregnancy' },
+      { path: '/fotoshootings', label: t('home.newbornPhotographyTitle'), description: t('home.newbornPhotographyDescription'), imageSection: 'services-newborn' },
+    ];
+  }, [authorityMap, t]);
   const { addToCart } = useCart();
   
   // Use manual page content hook - allows admin to override any content
@@ -591,172 +614,41 @@ const HomePage: React.FC = () => {
             </p>
           </div>
 
+          {/* The studio's OWN services.
+              This was eight hardcoded cards — Family Portraits, Pregnancy, Newborn,
+              Wedding, Event, Product — that onboarding never touched, so a Brighton
+              boudoir studio advertised newborn and wedding sessions on its homepage as
+              though it offered them. The services already exist in exactly one place: the
+              Authority Map built from the studio's own site. Same source as the nav, so
+              the menu and the homepage can never disagree.
+              A studio with no map yet keeps the built-in cards rather than an empty grid. */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Family Portraits */}
-            <Link 
-              to="/fotoshootings"
-              className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
-            >
-              <div className="aspect-[4/3] overflow-hidden relative">
-                <SectionImage 
-                  src={imageForSection('services-family')}
-                  alt="Natürliche Familienfotografie im Studio und Outdoor"
-                  className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
-                  loading="lazy"
-                  width="400"
-                  height="300"
-                  style={{ backgroundColor: '#f3f4f6' }}
-                />
-              </div>
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-purple-900 mb-2">{t('home.familyPortraitsTitle')}</h3>
-                <p className="text-gray-600 mb-4">
-                  {t('home.familyPortraitsDescription')}
-                </p>
-                <span className="text-purple-600 font-semibold inline-flex items-center">
-                  {t('home.learnMore')} →
-                </span>
-              </div>
-            </Link>
-
-            {/* Pregnancy Photography */}
-            <Link 
-              to="/fotoshootings"
-              className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
-            >
-              <div className="aspect-[4/3] overflow-hidden relative">
-                <SectionImage 
-                  src={imageForSection('services-pregnancy')}
-                  alt={language === 'en' 
-                    ? "Professional Pregnancy Photoshoot in Studio"
-                    : "Professionelle Schwangerschaftsfotos im Studio"}
-                  className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
-                  loading="lazy"
-                  width="400"
-                  height="300"
-                  style={{ backgroundColor: '#f3f4f6' }}
-                />
-              </div>
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-purple-900 mb-2">{t('home.pregnancyPhotographyTitle')}</h3>
-                <p className="text-gray-600 mb-4">
-                  {t('home.pregnancyPhotographyDescription')}
-                </p>
-                <span className="text-purple-600 font-semibold inline-flex items-center">
-                  {t('home.learnMore')} →
-                </span>
-              </div>
-            </Link>
-
-            {/* Newborn Photography */}
-            <Link 
-              to="/fotoshootings"
-              className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
-            >
-              <div className="aspect-[4/3] overflow-hidden relative">
-                <SectionImage 
-                  src={imageForSection('services-newborn')}
-                  alt={language === 'en'
-                    ? "Professional Baby Photoshoot in Studio"
-                    : "Professionelle Babyfotografie im Studio"}
-                  className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
-                  loading="lazy"
-                  width="400"
-                  height="300"
-                  style={{ backgroundColor: '#f3f4f6' }}
-                />
-              </div>
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-purple-900 mb-2">{t('home.newbornPhotographyTitle')}</h3>
-                <p className="text-gray-600 mb-4">
-                  {t('home.newbornPhotographyDescription')}
-                </p>
-                <span className="text-purple-600 font-semibold inline-flex items-center">
-                  {t('home.learnMore')} →
-                </span>
-              </div>
-            </Link>
-
-            {/* Business Photography */}
-            <Link 
-              to="/fotoshootings"
-              className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
-            >
-              <div className="aspect-[4/3] overflow-hidden relative">
-                <SectionImage
-                  src={imageForSection('services-business')}
-                  alt="Professionelle Businessfotografie im Studio"
-                  className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
-                  loading="lazy"
-                  width="400"
-                  height="300"
-                  style={{ backgroundColor: '#f3f4f6' }}
-                />
-              </div>
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-purple-900 mb-2">{t('home.businessPhotographyTitle')}</h3>
-                <p className="text-gray-600 mb-4">
-                  {t('home.businessPhotographyDescription')}
-                </p>
-                <span className="text-purple-600 font-semibold inline-flex items-center">
-                  {t('home.learnMore')} →
-                </span>
-              </div>
-            </Link>
-
-            {/* Event Photography */}
-            <Link 
-              to="/fotoshootings"
-              className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
-            >
-              <div className="aspect-[4/3] overflow-hidden relative">
-                <SectionImage 
-                  src={imageForSection('services-event')}
-                  alt="Professionelle Event & Konferenzfotografie"
-                  className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
-                  loading="lazy"
-                  width="400"
-                  height="300"
-                  style={{ backgroundColor: '#f3f4f6' }}
-                />
-              </div>
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-purple-900 mb-2">{t('home.eventPhotographyTitle')}</h3>
-                <p className="text-gray-600 mb-4">
-                  {t('home.eventPhotographyDescription')}
-                </p>
-                <span className="text-purple-600 font-semibold inline-flex items-center">
-                  {t('home.learnMore')} →
-                </span>
-              </div>
-            </Link>
-
-            {/* Product Photography */}
-            <Link 
-              to="/fotoshootings"
-              className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
-            >
-              <div className="aspect-[4/3] overflow-hidden relative">
-                <SectionImage 
-                  src={imageForSection('services-product')}
-                  alt="E-Commerce & Amazon Produktfotos im Studio"
-                  className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
-                  loading="lazy"
-                  width="400"
-                  height="300"
-                  style={{ backgroundColor: '#f3f4f6' }}
-                />
-              </div>
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-purple-900 mb-2">{t('home.productPhotographyTitle')}</h3>
-                <p className="text-gray-600 mb-4">
-                  {t('home.productPhotographyDescription')}
-                </p>
-                <span className="text-purple-600 font-semibold inline-flex items-center">
-                  {t('home.learnMore')} →
-                </span>
-              </div>
-            </Link>
+            {serviceCards.map((card) => (
+              <Link
+                key={card.path}
+                to={card.path}
+                className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
+              >
+                <div className="aspect-[4/3] overflow-hidden relative">
+                  <SectionImage
+                    src={imageForSection(card.imageSection)}
+                    alt={card.label}
+                    className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
+                    loading="lazy"
+                    width="400"
+                    height="300"
+                    style={{ backgroundColor: '#f3f4f6' }}
+                  />
+                </div>
+                <div className="p-6">
+                  <h3 className="text-xl font-bold text-purple-900 mb-2">{card.label}</h3>
+                  {card.description && <p className="text-gray-600 mb-4">{card.description}</p>}
+                  <span className="text-purple-600 font-semibold inline-flex items-center">
+                    {t('home.learnMore')} →
+                  </span>
+                </div>
+              </Link>
+            ))}
           </div>
 
           {/* View All Services CTA */}
