@@ -23,7 +23,7 @@ const FAQPage: React.FC = () => {
     {
       category: de ? 'Buchung & Vorbereitung' : 'Booking & Preparation',
       question: de ? 'Wie buche ich ein Fotoshooting?' : 'How do I book a photo shoot?',
-      answer: de ? `Sie können ganz einfach über unser Kontaktformular, per E-Mail (${SITE.email}) oder telefonisch (+43 660 123 4567) einen Termin vereinbaren. Wir besprechen dann alle Details mit Ihnen.` : `Booking is easy: simply reach out via our contact form, by email (${SITE.email}) or by phone (+43 660 123 4567). We'll then go through all the details with you.`
+      answer: de ? `Sie können ganz einfach über unser Kontaktformular, per E-Mail (${SITE.email}) oder telefonisch${SITE.phone ? ` (${SITE.phone})` : ''} einen Termin vereinbaren. Wir besprechen dann alle Details mit Ihnen.` : `Booking is easy: simply reach out via our contact form, by email (${SITE.email}) or by phone${SITE.phone ? ` (${SITE.phone})` : ''}. We'll then go through all the details with you.`
     },
     {
       category: de ? 'Buchung & Vorbereitung' : 'Booking & Preparation',
@@ -55,7 +55,7 @@ const FAQPage: React.FC = () => {
     {
       category: de ? 'Während des Shootings' : 'During the Shoot',
       question: de ? 'Wo finden die Shootings statt?' : 'Where do the shoots take place?',
-      answer: de ? 'Je nach Paket in unserem Studio in Wien oder an einem Outdoor-Location Ihrer Wahl (Parks, Stadtlocations etc.). Gerne beraten wir Sie zu den schönsten Foto-Spots in Wien.' : 'Depending on the package, either at our studio in Vienna or at an outdoor location of your choice (parks, city spots and more). We\'re happy to recommend Vienna\'s most photogenic locations.'
+      answer: de ? 'Je nach Paket in unserem Studio oder an einem Outdoor-Location Ihrer Wahl (Parks, Stadtlocations etc.). Gerne beraten wir Sie zu den schönsten Foto-Spots in Ihrer Nähe.' : 'Depending on the package, either at our studio or at an outdoor location of your choice (parks, city spots and more). We\'re happy to recommend the most photogenic locations nearby.'
     },
     {
       category: de ? 'Während des Shootings' : 'During the Shoot',
@@ -82,12 +82,12 @@ const FAQPage: React.FC = () => {
     {
       category: de ? 'Nach dem Shooting' : 'After the Shoot',
       question: de ? 'Darf ich die Bilder auf Social Media teilen?' : 'Can I share the photos on social media?',
-      answer: de ? 'Ja! Die Nutzungsrechte für private Zwecke sind im Preis enthalten. Wir freuen uns über eine Markierung (@newagefotografie) – ist aber keine Pflicht.' : 'Yes! Usage rights for personal purposes are included in the price. We\'d love a tag (@newagefotografie) — but it\'s entirely optional.'
+      answer: de ? 'Ja! Die Nutzungsrechte für private Zwecke sind im Preis enthalten. Wir freuen uns über eine Markierung – ist aber keine Pflicht.' : 'Yes! Usage rights for personal purposes are included in the price. We\'d love a tag — but it\'s entirely optional.'
     },
     {
       category: de ? 'Nach dem Shooting' : 'After the Shoot',
       question: de ? 'Kann ich zusätzliche Bilder bekommen?' : 'Can I order additional photos?',
-      answer: de ? 'Ja, Sie können weitere bearbeitete Bilder für €20 pro Stück nachbestellen. Kontaktieren Sie uns einfach.' : 'Yes, additional edited photos are available for €20 each. Just get in touch.'
+      answer: de ? 'Ja, Sie können weitere bearbeitete Bilder nachbestellen. Kontaktieren Sie uns einfach.' : 'Yes, additional edited photos are available on request. Just get in touch.'
     },
 
     // Payment & Cancellation
@@ -157,8 +157,8 @@ const FAQPage: React.FC = () => {
     <Layout>
       <SEOHead
         title={`FAQ - Häufige Fragen | ${SITE.name}`}
-        description={`Antworten auf Ihre Fragen zu Fotoshootings bei ${SITE.name} Wien. Ablauf, Preise, Termine und mehr.`}
-        keywords="FAQ Fotoshooting, Fragen Fotograf Wien, Fotoshooting Ablauf"
+        description={`Antworten auf Ihre Fragen zu Fotoshootings bei ${SITE.name}. Ablauf, Preise, Termine und mehr.`}
+        keywords="FAQ Fotoshooting, Fragen Fotograf, Fotoshooting Ablauf"
         canonical="/faq/"
       />
       
@@ -184,13 +184,16 @@ const FAQPage: React.FC = () => {
                 {de ? 'Ihre Frage ist nicht dabei? Wir helfen gerne persönlich weiter!' : "Can't find your question? We're happy to help in person!"}
               </p>
               <div className="flex flex-wrap justify-center gap-4">
+                {/* A "call us" button with no number behind it is worse than no button. */}
+                {SITE.phone && (
                 <a
-                  href="tel:+436601234567"
+                  href={`tel:${String(SITE.phone).replace(/\s+/g, '')}`}
                   className="inline-flex items-center gap-2 bg-purple-600 text-white px-6 py-2 rounded-full font-semibold hover:bg-purple-700 transition-colors"
                 >
                   <Phone className="w-4 h-4" />
-                  +43 660 123 4567
+                  {SITE.phone}
                 </a>
+                )}
                 <a
                   href={`mailto:${SITE.email}`}
                   className="inline-flex items-center gap-2 bg-white text-purple-600 border-2 border-purple-600 px-6 py-2 rounded-full font-semibold hover:bg-purple-50 transition-colors"
@@ -324,7 +327,7 @@ const FAQPage: React.FC = () => {
           </div>
         </section>
       </div>
-      <PillarLinksBlock currentPath="/faq/" title={de ? 'Alle Fotoshootings in Wien' : 'All Photo Shoots in Vienna'} />
+      <PillarLinksBlock currentPath="/faq/" title={de ? 'Alle Fotoshootings' : 'All Photo Shoots'} />
     </Layout>
   );
 };
