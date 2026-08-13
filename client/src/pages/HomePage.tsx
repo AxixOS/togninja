@@ -40,6 +40,13 @@ const HomePage: React.FC = () => {
   // Prices in the STUDIO'S currency, not a hardcoded euro sign.
   const { format: formatPrice } = useStudioCurrency();
 
+  // Use manual page content hook - allows admin to override any content.
+  // Must stay ABOVE serviceCards: that useMemo lists `t` in its dependency array,
+  // which is evaluated eagerly as an argument at the call. Declared any later, `t`
+  // is still in its temporal dead zone and EVERY render throws a ReferenceError —
+  // whatever the studio's Authority Map holds.
+  const t = useManualPageContent('home');
+
   // The service cards below. Built from the studio's own Authority Map — the same source
   // the nav uses — so the homepage advertises what this studio actually offers. Pillars
   // without a live page are excluded: a card is a link, and a link must go somewhere.
@@ -62,9 +69,6 @@ const HomePage: React.FC = () => {
     ];
   }, [authorityMap, t]);
   const { addToCart } = useCart();
-  
-  // Use manual page content hook - allows admin to override any content
-  const t = useManualPageContent('home');
 
   // Fetch homepage images from API with persistent cache
   const { data: homepageImages, isLoading: isLoadingImages } = useQuery({
