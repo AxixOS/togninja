@@ -2675,11 +2675,20 @@ Bitte versuchen Sie es später noch einmal.`;
       
       let posts = await storage.getBlogPosts(published);
       
-      // Translate list content on the fly for a non-German language. The cards
-      // render title + excerpt, so those are what we translate here (the full
-      // body is translated on the single-post endpoint). Cached per string;
-      // falls back to the original German if AI translation is unavailable.
-      if (language && language !== 'de') {
+      // Translate list content on the fly when the visitor's language is not the
+      // one the posts were WRITTEN in. The cards render title + excerpt, so those
+      // are what we translate here (the full body is translated on the single-post
+      // endpoint). Cached per string; falls back to the original if AI translation
+      // is unavailable.
+      //
+      // The authoring language was hardcoded 'de' — true of the origin studio, not
+      // of a buyer. An English studio's English posts were only spared a pointless
+      // English->English round-trip through the model because the public client
+      // never asked for anything but German. It does now. Unanswered instances
+      // still resolve to 'de', so their behaviour is unchanged.
+      const { getExplicitSiteLanguage } = await import('./lib/site-language');
+      const authoringLanguage = (await getExplicitSiteLanguage()) || 'de';
+      if (language && language !== authoringLanguage) {
         const { translateText } = await import('./lib/translate.js');
         posts = await Promise.all(posts.map(async (post) => ({
           ...post,
@@ -2802,11 +2811,15 @@ Bitte versuchen Sie es später noch einmal.`;
         return res.status(404).json({ error: "Post not found" });
       }
 
-      // Translate the full post on the fly for a non-German language. Includes
-      // the rendered body (contentHtml) and SEO fields; cached per string so a
-      // given post is only translated once per process.
+      // Translate the full post on the fly when the visitor's language is not the
+      // one it was WRITTEN in. Includes the rendered body (contentHtml) and SEO
+      // fields; cached per string so a given post is only translated once per
+      // process. Authoring language resolves the same way as the list endpoint —
+      // the studio's own answer, or 'de' for an instance that never answered.
       const language = (req.query.language as string) || 'de';
-      if (language && language !== 'de') {
+      const { getExplicitSiteLanguage } = await import('./lib/site-language');
+      const authoringLanguage = (await getExplicitSiteLanguage()) || 'de';
+      if (language && language !== authoringLanguage) {
         const { translateFields } = await import('./lib/translate.js');
         post = await translateFields(
           post as any,

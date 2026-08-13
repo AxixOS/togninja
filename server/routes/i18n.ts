@@ -16,6 +16,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../db';
 import { requireAuth } from '../auth';
+import { getExplicitSiteLanguage } from '../lib/site-language';
 
 const router = Router();
 
@@ -46,19 +47,52 @@ async function ensureTables(): Promise<void> {
 }
 
 // GET /api/i18n/settings — public (the language provider + selector read this).
+//
+// PRECEDENCE LIVES HERE, and only here: this is the single reader of
+// default_language, and the client applies whatever it returns. The studio's OWN
+// answer (studio_configs.site_language) beats this table.
+//
+// It has to, because 'de' is this table's ambient default in three places — the
+// column default above, the `|| 'de'` below, and the catch. The write-time sync
+// (applySiteLanguageToI18n, called only from setup-routes and studio-branding)
+// is best-effort and swallows its own failures, so a studio that chose English
+// at onboarding could still be handed the German translation set — along with
+// the origin studio's Vienna copy, down to its phone number. Resolving at read
+// time cannot silently not happen; a third best-effort write could.
+//
+// getExplicitSiteLanguage() returns null when the studio NEVER ANSWERED the
+// question (see site-language.ts) — and null must defer to this table unchanged.
+// Such an instance is legitimately German and has no stored answer to promote,
+// so overriding it here would flip a live site to English. Null is the whole
+// safety story: on an unanswered instance this handler returns exactly what it
+// returned before.
 router.get('/i18n/settings', async (_req: Request, res: Response) => {
+  // Resolved OUTSIDE the try so the error path honours it too. Never throws —
+  // a missing column or table is swallowed into null.
+  const answered = await getExplicitSiteLanguage();
+  const explicit = answered && (SUPPORTED_LANGUAGES as readonly string[]).includes(answered) ? answered : null;
   try {
     await ensureTables();
     const { rows } = await pool.query(`SELECT default_language, enabled_languages FROM i18n_settings WHERE id = 1`);
     const r = rows[0] || {};
-    const enabled = Array.isArray(r.enabled_languages) ? r.enabled_languages : ['en', 'de'];
+    const stored = Array.isArray(r.enabled_languages) ? r.enabled_languages : ['en', 'de'];
+    const enabled = stored.filter((l: string) => (SUPPORTED_LANGUAGES as readonly string[]).includes(l));
+    // The default has to be selectable, or the selector offers a set that
+    // excludes the language the site is actually rendering. enabled_languages is
+    // otherwise left alone — narrowing it to [code] would silently remove a
+    // studio's language selector.
+    if (explicit && !enabled.includes(explicit)) enabled.unshift(explicit);
     res.json({
-      defaultLanguage: r.default_language || 'de',
-      enabledLanguages: enabled.filter((l: string) => (SUPPORTED_LANGUAGES as readonly string[]).includes(l)),
+      defaultLanguage: explicit || r.default_language || 'de',
+      enabledLanguages: enabled.length ? enabled : ['en', 'de'],
     });
   } catch (e: any) {
-    // Never break the site over i18n — fall back to en/de.
-    res.json({ defaultLanguage: 'de', enabledLanguages: ['en', 'de'] });
+    // Never break the site over i18n — fall back to en/de, still honouring an
+    // explicit answer if we resolved one before the failure.
+    res.json({
+      defaultLanguage: explicit || 'de',
+      enabledLanguages: explicit && explicit !== 'en' && explicit !== 'de' ? [explicit, 'en', 'de'] : ['en', 'de'],
+    });
   }
 });
 
