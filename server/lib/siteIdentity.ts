@@ -33,7 +33,14 @@ function env(name: string): string {
 }
 
 export function getSiteIdentity(): SiteIdentity {
-  const url = (env('PUBLIC_SITE_URL') || env('APP_URL') || '').replace(/\/+$/, '');
+  // Same candidate order server/vite.ts uses for sitemap <loc>s and injected
+  // canonicals. The two chains had diverged — this one stopped at APP_URL, that one
+  // continued to SITE_URL and RENDER_EXTERNAL_URL — so on any instance without
+  // PUBLIC_SITE_URL set, the client-rendered canonical and the server-injected one
+  // named different origins for the same page.
+  const url = (
+    env('PUBLIC_SITE_URL') || env('APP_URL') || env('SITE_URL') || env('RENDER_EXTERNAL_URL') || ''
+  ).replace(/\/+$/, '');
   // Neutral default (was the NAF-specific de_AT). A studio sets SITE_LOCALE — or, once
   // onboarding captures it, the studio's country — to localise; the product default is
   // English so a non-German studio (e.g. a UK studio) isn't pushed into German.
@@ -127,7 +134,7 @@ function clientConfig(id: SiteIdentity) {
  * tenant identity. Safe to run on any HTML string; unknown placeholders are left
  * untouched and a template with no placeholders is returned unchanged.
  */
-export function renderIndexHtml(template: string, studioAddress?: { street?: string; city?: string; postalCode?: string } | null): string {
+export function renderIndexHtml(template: string, studioAddress?: { name?: string; street?: string; city?: string; postalCode?: string } | null): string {
   const base = getSiteIdentity();
   // The studio's stored address, overlaid on the env-derived identity.
   //
@@ -151,6 +158,13 @@ export function renderIndexHtml(template: string, studioAddress?: { street?: str
   const id: SiteIdentity = studioAddress
     ? {
         ...base,
+        // The studio's own name beats the neutral placeholder, but NOT an explicit
+        // BUSINESS_NAME: an operator override stays authoritative, same rule as the
+        // address below. Without this a buyer completed onboarding and every page
+        // title, og:site_name and JSON-LD still named whatever the deploy env said —
+        // which on a reused instance is the previous tenant, and on a fresh one is
+        // "My Studio". The name was in the database the whole time.
+        name: env('BUSINESS_NAME') || studioAddress.name || base.name,
         address: {
           street: base.address.street || (studioAddress.street || ''),
           city: base.address.city || (studioAddress.city || ''),

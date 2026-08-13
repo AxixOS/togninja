@@ -957,7 +957,11 @@ export function serveStatic(app: Express) {
       const raw = fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
       let html = renderIndexHtml(raw, studioAddress);
       try {
-        const name = getSiteIdentity().name;
+        // Prefer the studio's OWN name over the env one, matching what
+        // renderIndexHtml just stamped — otherwise the placeholder baked into the
+        // prerendered body is replaced with a different business to the one in the
+        // <title> two lines above it.
+        const name = (process.env.BUSINESS_NAME || '').trim() || studioAddress?.name || getSiteIdentity().name;
         if (name && name !== "My Studio") html = html.split("My Studio").join(name);
       } catch { /* identity unavailable — serve as-is */ }
       cachedIndex = html;
@@ -1062,7 +1066,7 @@ export function serveStatic(app: Express) {
           let studioAddress = null;
           try { studioAddress = peekStudioAddress(); } catch { /* env-only identity */ }
           html = renderIndexHtml(html, studioAddress);
-          const name = getSiteIdentity().name;
+          const name = (process.env.BUSINESS_NAME || '').trim() || studioAddress?.name || getSiteIdentity().name;
           if (name && name !== "My Studio") {
             html = html.split("My Studio").join(name);
           }

@@ -15,12 +15,14 @@
 import { pool } from '../db';
 
 export interface StudioAddress {
+  /** The studio's own name, as entered at onboarding. */
+  name: string;
   street: string;
   city: string;
   postalCode: string;
 }
 
-const EMPTY: StudioAddress = { street: '', city: '', postalCode: '' };
+const EMPTY: StudioAddress = { name: '', street: '', city: '', postalCode: '' };
 const TTL = 60_000;
 
 let cached: { value: StudioAddress; at: number } | null = null;
@@ -46,9 +48,22 @@ function localityOf(value: unknown): string {
 async function load(): Promise<StudioAddress> {
   let next: StudioAddress = EMPTY;
   try {
-    const { rows } = await pool.query(`SELECT address, city FROM studio_configs LIMIT 1`);
+    const { rows } = await pool.query(
+      `SELECT business_name, studio_name, address, city FROM studio_configs LIMIT 1`,
+    );
     const row = rows?.[0];
-    if (row) next = { street: clean(row.address), city: localityOf(row.city), postalCode: '' };
+    if (row) {
+      next = {
+        // The name the studio gave at onboarding. Without this the site was titled
+        // from BUSINESS_NAME, a deploy-time variable the buyer never sees — so a
+        // studio could complete the wizard and still have someone else's business
+        // in its <title>, its og:site_name and its JSON-LD.
+        name: clean(row.business_name || row.studio_name),
+        street: clean(row.address),
+        city: localityOf(row.city),
+        postalCode: '',
+      };
+    }
   } catch {
     // Column or table missing, or a DB blip — an empty address is exactly what this
     // path produced before, so failing to today's behaviour is the safe outcome.
@@ -57,7 +72,7 @@ async function load(): Promise<StudioAddress> {
   // Version advances on CHANGE, not on load, so the TTL refresh does not thrash the
   // memoised HTML — a studio that never edits its city rebuilds the shell twice per
   // process, not once a minute.
-  const nextSignature = `${next.street}|${next.city}|${next.postalCode}`;
+  const nextSignature = `${next.name}|${next.street}|${next.city}|${next.postalCode}`;
   if (nextSignature !== signature) {
     signature = nextSignature;
     version += 1;
