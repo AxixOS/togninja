@@ -98,11 +98,16 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
     businessName: initialData?.businessName || '',
     businessType: initialData?.businessType || '',
     timezone: initialData?.timezone || 'Europe/Vienna',
-    // English by default. Browser detection was worse in practice: the buyer's OS locale
-    // is not their WEBSITE's language — someone on a German machine building an English
-    // site got German pre-selected, and a default that is wrong in a way you have to
-    // notice is worse than one that is plainly the first option in the list.
-    siteLanguage: initialData?.siteLanguage || 'en',
+    // Deliberately UNSET, not defaulted. Browser detection was tried and was worse —
+    // the buyer's OS locale is not their WEBSITE's language. But defaulting to English
+    // was worse still in a way that was invisible: the field is required and the studio
+    // picks a language, yet a stored value only had to be missing from the form for one
+    // save to write 'en' back over it. It also made "site_language is set" mean "this
+    // form was submitted" rather than "the studio chose", which is the distinction the
+    // URL localisation is gated on — an instance that never answered must keep the URLs
+    // it has. Empty means unanswered, the select shows its placeholder, and validate()
+    // makes the studio answer.
+    siteLanguage: initialData?.siteLanguage || '',
     currency: initialData?.currency || 'EUR',
     vatNumber: initialData?.vatNumber || '',
     dateFormat: (initialData?.dateFormat as DateFormatPreset) || getDateFormatPreset(),
@@ -234,6 +239,11 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
     if (!formData.timezone) {
       newErrors.timezone = 'Please select a timezone';
     }
+    // The label has always been marked required; nothing enforced it, because the field
+    // was pre-filled and so could never be empty.
+    if (!formData.siteLanguage) {
+      newErrors.siteLanguage = 'Please choose the language your website is written in';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -243,7 +253,7 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
     if (!validate()) {
       // The required fields sit near the top; make the reason visible next to
       // the (bottom) Continue button so it never looks like the button is dead.
-      setErrors(prev => ({ ...prev, submit: 'Please complete the required fields marked * above (Business name, Business type, Timezone).' }));
+      setErrors(prev => ({ ...prev, submit: 'Please complete the required fields marked * above (Business name, Business type, Timezone, Website language).' }));
       return;
     }
     setErrors(prev => ({ ...prev, submit: '' }));
@@ -387,7 +397,7 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
             value={formData.siteLanguage}
             onValueChange={(value) => handleChange('siteLanguage', value)}
           >
-            <SelectTrigger>
+            <SelectTrigger className={errors.siteLanguage ? 'border-red-500' : ''}>
               <SelectValue placeholder="Select the language your website is written in" />
             </SelectTrigger>
             <SelectContent>
@@ -398,6 +408,9 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
               ))}
             </SelectContent>
           </Select>
+          {errors.siteLanguage && (
+            <p className="text-sm text-red-500">{errors.siteLanguage}</p>
+          )}
           <p className="text-xs text-gray-500">
             The language your public website is written in. We'll write your pages in it and
             switch on the matching set of pages.

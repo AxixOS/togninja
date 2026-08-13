@@ -343,6 +343,13 @@ router.get('/status', async (_req: Request, res: Response) => {
               phone: config.phone || '',
               website: config.website || '',
               address: config.address || '',
+              // Round-trips the studio's stored language back into the form. Without it
+              // the control fell back to its default and the save wrote that default
+              // over the real answer, so a German studio that reopened this step was
+              // silently switched to English — and since the public site now follows
+              // this value, that switched its whole website too. Empty string when the
+              // studio never answered, which the form must keep as "unanswered".
+              siteLanguage: config.siteLanguage || '',
               latitude: config.latitude || '',
               longitude: config.longitude || '',
               facebookUrl: config.facebookUrl || '',
