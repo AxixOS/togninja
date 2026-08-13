@@ -454,33 +454,54 @@ function getBaseUrl(): string {
 // ---------------------------------------------------------------------------
 const NEWSLETTER_TRIGGER = 'newsletter_signup';
 
-function buildDefaultVoucherEmail(): { subject: string; html: string } {
-  const site = getBizWebsite() || 'https://www.newagefotografie.com';
-  let host = 'www.newagefotografie.com';
-  try { host = new URL(site).hostname; } catch { /* keep default */ }
-  const subject = '🎁 Ihr 50€ Foto-Gutschein von New Age Fotografie';
+/** Escape a value interpolated into the voucher email's HTML. */
+function escapeHtml(s: string): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * The voucher email a studio's own mailbox sends to its own subscribers.
+ *
+ * Every line of this was the origin studio's: a German subject naming it, a
+ * "NEW AGE FOTOGRAFIE" masthead, German body copy, and a footer carrying its
+ * Vienna street address — sent FROM the buyer's mailbox, to the buyer's
+ * subscriber, over the buyer's signature. A Brighton studio's new subscriber
+ * received a German gift card from a business in Austria they had never heard of.
+ *
+ * Now built from the studio's own identity and language. Nothing here names a
+ * business that is not the sender.
+ */
+function buildDefaultVoucherEmail(studio?: { name?: string; language?: string }): { subject: string; html: string } {
+  const site = getBizWebsite() || '';
+  let host = '';
+  try { host = site ? new URL(site).hostname : ''; } catch { /* no host is better than someone else's */ }
+  const name = (studio?.name || getBizName() || '').trim();
+  const de = String(studio?.language || '').slice(0, 2).toLowerCase() === 'de';
+  const subject = de
+    ? `🎁 Ihr Foto-Gutschein${name ? ` von ${name}` : ''}`
+    : `🎁 Your photo gift card${name ? ` from ${name}` : ''}`;
   const html = `
   <div style="background:#0a1834;padding:32px 12px;font-family:Arial,Helvetica,sans-serif;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#0a1834;border:2px solid #d4af37;border-radius:16px;">
       <tr><td style="padding:32px 36px;">
-        <p style="letter-spacing:4px;color:#d4af37;font-size:13px;margin:0 0 6px;">NEW AGE FOTOGRAFIE</p>
-        <p style="color:#d4af37;font-size:54px;font-weight:bold;margin:0;line-height:1;">50€</p>
-        <p style="color:#f5e7b8;font-size:28px;font-weight:bold;letter-spacing:3px;margin:2px 0 22px;">GIFT CARD</p>
-        <p style="color:#ffffff;font-size:16px;margin:0 0 14px;">Hallo {{clientName}},</p>
-        <p style="color:#cdd6e6;font-size:15px;line-height:1.6;margin:0 0 20px;">vielen Dank für Ihre Anmeldung! Hier ist Ihre <strong style="color:#d4af37;">50€ Geschenkkarte</strong> als Print-Guthaben für Ihr nächstes Fotoshooting.</p>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
-          <tr><td style="color:#f5e7b8;font-size:14px;line-height:1.7;padding:2px 0;">✉️&nbsp;&nbsp;50€ Print-Guthaben für Ihr nächstes Shooting</td></tr>
-          <tr><td style="color:#f5e7b8;font-size:14px;line-height:1.7;padding:2px 0;">👪&nbsp;&nbsp;Gültig für Familien-, Newborn-, Babybauch- &amp; Portrait-Shootings</td></tr>
-          <tr><td style="color:#f5e7b8;font-size:14px;line-height:1.7;padding:2px 0;">📅&nbsp;&nbsp;Studio-Termine auch am Wochenende verfügbar</td></tr>
-        </table>
+        ${name ? `<p style="letter-spacing:4px;color:#d4af37;font-size:13px;margin:0 0 6px;">${escapeHtml(name.toUpperCase())}</p>` : ''}
+        <p style="color:#f5e7b8;font-size:28px;font-weight:bold;letter-spacing:3px;margin:2px 0 22px;">${de ? 'GESCHENKKARTE' : 'GIFT CARD'}</p>
+        <p style="color:#ffffff;font-size:16px;margin:0 0 14px;">${de ? 'Hallo' : 'Hello'} {{clientName}},</p>
+        <p style="color:#cdd6e6;font-size:15px;line-height:1.6;margin:0 0 20px;">${de
+          ? 'vielen Dank für Ihre Anmeldung! Hier ist Ihre <strong style="color:#d4af37;">Geschenkkarte</strong> als Print-Guthaben für Ihr nächstes Fotoshooting.'
+          : 'thank you for signing up! Here is your <strong style="color:#d4af37;">gift card</strong> as print credit towards your next photo shoot.'}</p>
         <div style="background:#122048;border:1px dashed #d4af37;border-radius:10px;padding:16px;text-align:center;margin:0 0 24px;">
-          <p style="color:#9fb0cc;font-size:11px;margin:0 0 6px;text-transform:uppercase;letter-spacing:2px;">Ihr Gutschein</p>
+          <p style="color:#9fb0cc;font-size:11px;margin:0 0 6px;text-transform:uppercase;letter-spacing:2px;">${de ? 'Ihr Gutschein' : 'Your voucher'}</p>
           <p style="color:#d4af37;font-size:18px;font-weight:bold;margin:0;">{{voucherCode}}</p>
         </div>
-        <div style="text-align:center;margin:0 0 24px;">
-          <a href="${site}" style="background:#d4af37;color:#0a1834;text-decoration:none;font-weight:bold;font-size:16px;padding:14px 32px;border-radius:30px;display:inline-block;">Jetzt Termin sichern</a>
-        </div>
-        <p style="color:#8090ad;font-size:12px;line-height:1.6;margin:0;text-align:center;">New Age Fotografie · Wehrgasse 11A/2+5, 1050 Wien<br/>${host}</p>
+        ${site ? `<div style="text-align:center;margin:0 0 24px;">
+          <a href="${site}" style="background:#d4af37;color:#0a1834;text-decoration:none;font-weight:bold;font-size:16px;padding:14px 32px;border-radius:30px;display:inline-block;">${de ? 'Jetzt Termin sichern' : 'Book your session'}</a>
+        </div>` : ''}
+        <p style="color:#8090ad;font-size:12px;line-height:1.6;margin:0;text-align:center;">${escapeHtml(name)}${host ? `<br/>${escapeHtml(host)}` : ''}</p>
       </td></tr>
     </table>
   </div>`;
@@ -491,16 +512,46 @@ function buildDefaultVoucherEmail(): { subject: string; html: string } {
 // overwrites an existing row, so a studio's manual edits are preserved.
 export async function ensureNewsletterVoucherAutomation(): Promise<void> {
   try {
+    // The studio's own identity, for the template below.
+    let studio: { name?: string; language?: string } = {};
+    try {
+      const { rows } = await pool.query(
+        `SELECT business_name, studio_name, site_language FROM studio_configs LIMIT 1`,
+      );
+      const r = rows?.[0];
+      if (r) studio = { name: r.business_name || r.studio_name || '', language: r.site_language || '' };
+    } catch { /* fall back to env identity inside the builder */ }
+
     const existing = await db
-      .select({ id: emailAutomations.id })
+      .select({ id: emailAutomations.id, emailBodyHtml: emailAutomations.emailBodyHtml, emailSubject: emailAutomations.emailSubject })
       .from(emailAutomations)
       .where(eq(emailAutomations.triggerType, NEWSLETTER_TRIGGER))
       .limit(1);
-    if (existing.length > 0) return;
-    const { subject, html } = buildDefaultVoucherEmail();
+
+    const { subject, html } = buildDefaultVoucherEmail(studio);
+
+    if (existing.length > 0) {
+      // Not overwriting a studio's own edits -- but a row still carrying the ORIGIN
+      // studio's name and Vienna address was never edited by this studio; it is the
+      // bad default, seeded before this fix and then frozen by the early return that
+      // used to live here. That row is sent from the buyer's mailbox over the buyer's
+      // signature, so leaving it is worse than replacing it.
+      const stored = `${existing[0].emailSubject || ''}\n${existing[0].emailBodyHtml || ''}`;
+      const carriesOriginBranding = /New Age Fotografie|Wehrgasse|newagefotografie\.com/i.test(stored);
+      const isOriginStudio = /new\s*age/i.test(studio.name || getBizName());
+      if (carriesOriginBranding && !isOriginStudio) {
+        await db
+          .update(emailAutomations)
+          .set({ emailSubject: subject, emailBodyHtml: html })
+          .where(eq(emailAutomations.id, existing[0].id));
+        console.log('✅ Replaced newsletter voucher email that carried another studio\'s branding');
+      }
+      return;
+    }
+
     await db.insert(emailAutomations).values({
-      name: 'Newsletter 50€ Voucher',
-      description: 'Sent automatically when someone signs up via the €50 newsletter/voucher form. Edit the subject/body here to change the voucher email.',
+      name: 'Newsletter Voucher',
+      description: 'Sent automatically when someone signs up via the newsletter/voucher form. Edit the subject/body here to change the voucher email.',
       triggerType: NEWSLETTER_TRIGGER,
       offsetHours: 0,
       emailSubject: subject,

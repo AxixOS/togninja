@@ -191,10 +191,14 @@ const translations = {
     'nav.admin': 'Admin Dashboard',
     'nav.galleries': 'Client Galleries',
     'nav.myGallery': 'My Gallery',
-    'newsletter.signup': 'Get a €50 print credit for your photo shoot.',
-    'newsletter.subtitle': 'Join our newsletter and we’ll email your €50 voucher instantly.',
+    // No currency figure. This was "€50" in the ENGLISH set, so a studio pricing in
+    // pounds promised its visitors euros — and the voucher email that followed said
+    // something different again. The offer is the studio's to size; the copy should
+    // not name an amount the product invented.
+    'newsletter.signup': 'Get a print credit for your photo shoot.',
+    'newsletter.subtitle': 'Join our newsletter and we’ll email your voucher instantly.',
     'newsletter.thanks': 'Thank you for signing up! Please check your email for the voucher.',
-    'newsletter.button': 'Get my €50 voucher',
+    'newsletter.button': 'Get my voucher',
     'newsletter.placeholder': 'Your email address',
     'newsletter.error': 'An error occurred. Please try again later.',
     
@@ -1341,10 +1345,10 @@ const translations = {
     'nav.admin': 'Admin-Dashboard',
     'nav.galleries': 'Kundengalerien',
     'nav.myGallery': 'Meine Galerie',
-    'newsletter.signup': 'Sichern Sie sich einen Fotoshooting-Gutschein im Wert von €50 Print Guthaben.',
-    'newsletter.subtitle': 'Zum Newsletter anmelden – wir senden Ihren €50-Gutschein sofort per E-Mail.',
+    'newsletter.signup': 'Sichern Sie sich einen Fotoshooting-Gutschein als Print-Guthaben.',
+    'newsletter.subtitle': 'Zum Newsletter anmelden – wir senden Ihren Gutschein sofort per E-Mail.',
     'newsletter.thanks': 'Vielen Dank für Ihre Anmeldung! Bitte prüfen Sie Ihre E-Mails für den Gutschein.',
-    'newsletter.button': 'Meinen €50-Gutschein holen',
+    'newsletter.button': 'Meinen Gutschein holen',
     'newsletter.placeholder': 'Ihre E-Mail-Adresse',
     'newsletter.error': 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.',
     

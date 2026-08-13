@@ -115,7 +115,7 @@ const ExitIntentPopup: React.FC = () => {
         ) : (
           <>
             <h2 className="text-2xl font-bold text-gray-900">
-              {de ? 'Warten Sie – €50 geschenkt!' : 'Wait — here’s €50 off!'}
+              {de ? 'Warten Sie – ein Gutschein für Sie!' : 'Wait — here’s a voucher for you!'}
             </h2>
             <p className="mt-2 text-gray-600">{t('newsletter.subtitle')}</p>
             <form onSubmit={handleSubmit} className="mt-5 space-y-3">
