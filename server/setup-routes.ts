@@ -16,6 +16,7 @@ import { Router, Request, Response } from 'express';
 import { hubIntegration } from './hub-integration';
 import { db } from './db';
 import { normalizeSiteLanguage, invalidateSiteLanguage, applySiteLanguageToI18n } from './lib/site-language';
+import { invalidateStudioAddress } from './lib/site-address';
 import {
   studioConfigs,
   studioIntegrations,
@@ -343,6 +344,9 @@ router.get('/status', async (_req: Request, res: Response) => {
               phone: config.phone || '',
               website: config.website || '',
               address: config.address || '',
+              // Same round-trip reasoning as siteLanguage below: omitted, the field
+              // renders blank on a revisit and Continue writes blank over a good value.
+              city: config.city || '',
               // Round-trips the studio's stored language back into the form. Without it
               // the control fell back to its default and the save wrote that default
               // over the real answer, so a German studio that reopened this step was
@@ -579,7 +583,10 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // technical integration creds so storage keeps working).
     try { await db.execute(sql`UPDATE studio_configs SET creative_setup_complete = false, technical_setup_complete = false, onboarding_state = NULL`); } catch {}
     try { await db.execute(sql`UPDATE studio_configs SET homepage_gen_state = NULL, homepage_landing_slug = NULL, homepage_draft_landing_id = NULL, pricing_embed_url = NULL`); } catch {}
-    try { await db.execute(sql`UPDATE studio_configs SET business_name = NULL, logo_url = NULL, meta_description = NULL, address = NULL, phone = NULL, website = NULL, latitude = NULL, longitude = NULL`); } catch {}
+    // `city` belongs in this list for the same reason as `address`: it is now served as
+    // addressLocality in the crawler-visible head, so a city left behind by a reset is
+    // the previous tenant's locality published on the next tenant's pages.
+    try { await db.execute(sql`UPDATE studio_configs SET business_name = NULL, logo_url = NULL, meta_description = NULL, address = NULL, city = NULL, phone = NULL, website = NULL, latitude = NULL, longitude = NULL`); } catch {}
     // Revert Authority Map to the default seed + drop ShootCleaner creds, so a fresh test
     // starts truly clean (these post-date the original reset).
     try { await db.execute(sql`UPDATE studio_configs SET authority_map = NULL, shootcleaner_api_key = NULL, shootcleaner_webhook_url = NULL, shootcleaner_webhook_secret = NULL`); } catch {}
@@ -590,6 +597,7 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // that used to get blended with env credentials.
     try { await db.execute(sql`UPDATE studio_integrations SET storage_region = NULL`); } catch {}
     invalidateSiteLanguage();
+    invalidateStudioAddress();
     // Clear tenant-entered STORAGE credentials so a fresh test falls back to the instance's
     // env storage. A stale/invalid stored key (e.g. a Supabase publishable key pasted in a
     // prior run) otherwise overrides the valid env creds and fails uploads (InvalidAccessKeyId).
@@ -824,6 +832,7 @@ router.post('/basics', async (req: Request, res: Response) => {
       primaryColor,
       tagline,
       address,
+      city,
       phone,
       website,
       latitude,
@@ -869,6 +878,13 @@ router.post('/basics', async (req: Request, res: Response) => {
       logoUrl: logo || null,
       metaDescription: tagline || '',
       address: address || null,
+      // `|| undefined`, NOT `|| null`: drizzle drops an undefined key from the SET
+      // clause, so a form that submits nothing leaves the stored value alone. The
+      // adjacent `address || null` does the opposite and NULLs a studio's address
+      // every time someone reopens this step — and the wizard invites exactly that
+      // ("click any completed step to go back — nothing is lost"). City now feeds the
+      // served JSON-LD, so inheriting that behaviour would publish the wipe.
+      city: (typeof city === 'string' && city.trim()) ? city.trim().slice(0, 80) : undefined,
       phone: phone || null,
       website: website || null,
       latitude: latitude || null,
@@ -898,6 +914,7 @@ router.post('/basics', async (req: Request, res: Response) => {
     // Page visibility and the sitemap read the language on the very next request, and
     // the PUBLIC site reads i18n_settings — a different table that nothing kept in step.
     invalidateSiteLanguage();
+    invalidateStudioAddress();
     { const code = normalizeSiteLanguage(siteLanguage); if (code) await applySiteLanguageToI18n(code); }
 
     res.json({ success: true, nextStep: 'integrations', businessInfo });

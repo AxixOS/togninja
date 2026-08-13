@@ -7278,6 +7278,14 @@ Bitte versuchen Sie es später noch einmal.`;
       if (dbConfig?.address) {
         studioConfig.address = dbConfig.city ? `${dbConfig.address}, ${dbConfig.city}` : dbConfig.address;
       }
+      // City as a DISCRETE field, not only glued onto the end of `address` above. That
+      // concatenation only happens when an address exists, so a studio that gave a city
+      // and no street had one anyway — and a caller could not read the locality out of a
+      // free-text string. Env wins, matching siteIdentity, so an operator override and
+      // the served JSON-LD cannot disagree about where the studio is.
+      studioConfig.city = String(
+        (process.env.BUSINESS_CITY || '').trim() || (dbConfig?.city || ''),
+      ).split(',')[0].trim().slice(0, 80);
       // Studio tax settings — so invoices/orders can apply the studio's own rate + label.
       studioConfig.defaultTaxRate = dbConfig?.defaultTaxRate != null ? Number(dbConfig.defaultTaxRate) : 0;
       studioConfig.taxLabel = dbConfig?.taxLabel || 'VAT';
@@ -9835,8 +9843,16 @@ ${getBizName()} Team`;
         })
         .where(eq(studioConfigs.id, studioId));
       
-      res.json({ 
-        success: true, 
+      // Third writer of studio_configs.city, alongside the setup wizard and Studio
+      // Customization. The served JSON-LD is memoised per process, so without this a
+      // location saved here would not reach a visitor until the next deploy.
+      try {
+        const { invalidateStudioAddress } = await import('./lib/site-address');
+        invalidateStudioAddress();
+      } catch { /* never fail the save over a cache hint */ }
+
+      res.json({
+        success: true,
         message: 'Studio location updated successfully',
         location: { latitude, longitude, timezone, city, country, address }
       });

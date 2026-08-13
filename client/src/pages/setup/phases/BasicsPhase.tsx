@@ -33,6 +33,7 @@ interface BasicsPhaseProps {
     tagline?: string;
     primaryColor?: string;
     address?: string;
+    city?: string;
     phone?: string;
     website?: string;
     latitude?: string;
@@ -114,6 +115,7 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
     tagline: initialData?.tagline || '',
     primaryColor: initialData?.primaryColor || '#3B82F6',
     address: initialData?.address || '',
+    city: initialData?.city || '',
     phone: initialData?.phone || '',
     website: initialData?.website || '',
     latitude: initialData?.latitude || '',
@@ -414,6 +416,27 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
           <p className="text-xs text-gray-500">
             The language your public website is written in. We'll write your pages in it and
             switch on the matching set of pages.
+          </p>
+        </div>
+
+        {/* City. Deliberately here and not in the collapsed "Address & Location" panel
+            below: that panel is closed by default, which is exactly why most studios
+            have no address stored. This is the single most important local-search
+            signal — without it the site's structured data asserts a business with no
+            location at all — so it has to be visible without opening anything.
+            Optional: a mobile or travelling photographer has no premises to name. */}
+        <div className="space-y-2">
+          <Label htmlFor="city">City</Label>
+          <Input
+            id="city"
+            placeholder="Brighton"
+            value={formData.city}
+            onChange={(e) => handleChange('city', e.target.value)}
+          />
+          <p className="text-xs text-gray-500">
+            The town or city you work in. We use it in your website's search listing so
+            people nearby can find you. Just the city — leave it blank if you travel to
+            your clients rather than working from one place.
           </p>
         </div>
 

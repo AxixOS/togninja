@@ -7,6 +7,7 @@ import { type Server } from "http";
 // viteConfig imported dynamically in setupVite to avoid production issues
 import { nanoid } from "nanoid";
 import { renderIndexHtml, getSiteIdentity } from "./lib/siteIdentity.js";
+import { peekStudioAddress, addressVersion } from "./lib/site-address.js";
 import { INDEXNOW_KEY, keyFileName } from "./services/indexNow.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -937,16 +938,30 @@ export function serveStatic(app: Express) {
   // unchanged, so this is safe on both index.html variants. Additionally
   // stamp the tenant name over the prerender-baked "My Studio" fallback
   // (dist/index.html is the prerendered homepage, rendered without env).
+  // These shells are built ONCE and held for the life of the process, so anything
+  // read from the database has to tell them when it changed or it would never reach
+  // a visitor until the next deploy. Worse, the very first request can land before
+  // the address cache has loaded, which would pin an empty address permanently.
+  // Keying each memo on the address generation fixes both: request #1 may render at
+  // version 0, the background load bumps it, and request #2 rebuilds.
   let cachedIndex: string | null = null;
+  let cachedIndexVersion = -1;
   const renderedIndex = (): string => {
-    if (cachedIndex === null) {
+    // Resolved here, not inside renderIndexHtml, so a database fault degrades to the
+    // env-only identity instead of escaping this function — the catch below lands on
+    // a raw sendFile of dist/index.html, which serves literal %SITE_*% tokens at 200.
+    let studioAddress = null;
+    try { studioAddress = peekStudioAddress(); } catch { /* env-only identity */ }
+    const version = (() => { try { return addressVersion(); } catch { return 0; } })();
+    if (cachedIndex === null || cachedIndexVersion !== version) {
       const raw = fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
-      let html = renderIndexHtml(raw);
+      let html = renderIndexHtml(raw, studioAddress);
       try {
         const name = getSiteIdentity().name;
         if (name && name !== "My Studio") html = html.split("My Studio").join(name);
       } catch { /* identity unavailable — serve as-is */ }
       cachedIndex = html;
+      cachedIndexVersion = version;
     }
     return cachedIndex;
   };
@@ -954,9 +969,12 @@ export function serveStatic(app: Express) {
   // Shell with the prerendered homepage body stripped — for any route that
   // isn't the homepage itself (prevents the homepage-content flash).
   let cachedEmptyShell: string | null = null;
+  let cachedEmptyShellVersion = -1;
   const emptiedShell = (): string => {
-    if (cachedEmptyShell === null) {
+    const version = (() => { try { return addressVersion(); } catch { return 0; } })();
+    if (cachedEmptyShell === null || cachedEmptyShellVersion !== version) {
       cachedEmptyShell = emptyHydrationRoot(renderedIndex());
+      cachedEmptyShellVersion = version;
     }
     return cachedEmptyShell;
   };
@@ -1030,18 +1048,25 @@ export function serveStatic(app: Express) {
       // "My Studio" into the static HTML. Stamp the real tenant identity in
       // at serve time (cached per path).
       try {
-        let html = prerenderedCache.get(prerenderedHtmlPath);
+        // Keyed by the address generation as well as the path: this Map is never
+        // cleared, so a studio saving its city would otherwise never reach these
+        // snapshots for the life of the process.
+        const version = (() => { try { return addressVersion(); } catch { return 0; } })();
+        const cacheKey = `${version}:${prerenderedHtmlPath}`;
+        let html = prerenderedCache.get(cacheKey);
         if (html === undefined) {
           html = fs.readFileSync(prerenderedHtmlPath, "utf-8");
           // Fill any %SITE_*% placeholders the prerender snapshot carried
           // through (the prerender browser sees the raw template), then stamp
           // the tenant name over the env-less "My Studio" fallback.
-          html = renderIndexHtml(html);
+          let studioAddress = null;
+          try { studioAddress = peekStudioAddress(); } catch { /* env-only identity */ }
+          html = renderIndexHtml(html, studioAddress);
           const name = getSiteIdentity().name;
           if (name && name !== "My Studio") {
             html = html.split("My Studio").join(name);
           }
-          prerenderedCache.set(prerenderedHtmlPath, html);
+          prerenderedCache.set(cacheKey, html);
         }
         return res.status(200).type("html").send(html);
       } catch {

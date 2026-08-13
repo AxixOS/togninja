@@ -1070,6 +1070,10 @@ app.use((req, res, next) => {
       try {
         serveStatic(app);
         console.log('✅ Static file serving configured');
+        // Load the studio's address before the first request can memoise an HTML shell
+        // without one. The shell is version-keyed so it would self-heal on request #2
+        // anyway; this just means request #1 is not the one served address-less.
+        import('./lib/site-address').then(m => m.warmStudioAddress?.()).catch(() => {});
         // Resolve pillar meta once now, so the first visitor to a pillar page does not
         // pay the cold-start cost and lose the 1.5s meta race. Never blocks boot.
         import('./vite').then(m => m.warmPillarRouteMeta?.()).catch(() => {});

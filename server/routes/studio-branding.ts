@@ -170,6 +170,10 @@ router.put('/branding', requireAuth, async (req, res) => {
       });
     }
 
+    // The served JSON-LD is built once per process and memoised, so a saved address or
+    // city reaches visitors only if this fires.
+    { const { invalidateStudioAddress } = await import('../lib/site-address'); invalidateStudioAddress(); }
+
     // Page visibility, the sitemap and the public URLs read the language per request.
     if (languageChanged) {
       const { invalidateSiteLanguage, applySiteLanguageToI18n } = await import('../lib/site-language');

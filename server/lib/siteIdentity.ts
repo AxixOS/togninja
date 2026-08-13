@@ -127,8 +127,38 @@ function clientConfig(id: SiteIdentity) {
  * tenant identity. Safe to run on any HTML string; unknown placeholders are left
  * untouched and a template with no placeholders is returned unchanged.
  */
-export function renderIndexHtml(template: string): string {
-  const id = getSiteIdentity();
+export function renderIndexHtml(template: string, studioAddress?: { street?: string; city?: string; postalCode?: string } | null): string {
+  const base = getSiteIdentity();
+  // The studio's stored address, overlaid on the env-derived identity.
+  //
+  // Resolved by the CALLER (server/vite.ts) rather than read here, deliberately:
+  // getSiteIdentity() is a pure process.env read that cannot throw, and this function
+  // is called outside a try on the hot serve path. A DB read in here would turn a
+  // transient database fault into an untokenised HTML shell — literal %SITE_JSONLD%
+  // inside a JSON-LD script, no window.__SITE_CONFIG__ — served with HTTP 200 on
+  // every route. Passing a snapshot in keeps that path failing closed to env-only.
+  //
+  // Env wins per field, so an operator override in the deploy environment stays
+  // authoritative and matches what /api/studio-config reports.
+  //
+  // NOT sourced from the studio record, on purpose:
+  //   country — shared/schema.ts defaults it to "Austria" and nothing writes it, so
+  //     reading it would stamp addressCountry: Austria onto a Brighton studio: a new
+  //     de-localisation bug wearing a fix's clothes.
+  //   geo — latitude/longitude are filled from a Google Maps link during setup, which
+  //     for a home-based photographer is a home address. Publishing GeoCoordinates on
+  //     every page is a decision for the studio, not a side effect of adding a city.
+  const id: SiteIdentity = studioAddress
+    ? {
+        ...base,
+        address: {
+          street: base.address.street || (studioAddress.street || ''),
+          city: base.address.city || (studioAddress.city || ''),
+          postalCode: base.address.postalCode || (studioAddress.postalCode || ''),
+          country: base.address.country,
+        },
+      }
+    : base;
   const ga = id.gaId
     ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id.gaId)}"></script>\n` +
       `    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config',${JSON.stringify(id.gaId)});</script>`
