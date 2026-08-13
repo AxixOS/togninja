@@ -235,6 +235,23 @@ page had failed on a `ReferenceError`, and a false all-clear gets believed.
 - **Two bindings in two screens is a trap.** The campaign-coupon bug was exactly this: a
   coupon named its landing page, but the discount also required the *page* to name a product
   in a different screen. If a feature needs two things to agree, make one of them enough.
+- **A stored value can record the form, not the answer.** `studio_configs.site_language` is
+  documented as "the language the studio ACTUALLY CHOSE", and URL localisation is deliberately
+  gated on it being NULL — that null is what protects NAF's live German URLs. But the wizard's
+  language control is pre-filled `'en'` (`BasicsPhase.tsx:105`) and cannot fail validation, so
+  every studio that finishes onboarding has a non-null value whether or not it ever considered
+  the question. Non-null means "submitted the form", not "chose". Before gating behaviour on
+  "did they choose X", check whether the write path can tell a choice from a default — here it
+  cannot, and a German studio that accepted the prefill is indistinguishable from one that
+  meant English.
+- **A column inside a conflict key is not a value you can quietly change.**
+  `manual_page_content` upserts `ON CONFLICT (studio_id, page_id, language)`. The seeding call
+  passes `config?.language`, which is always `undefined` — the column is `siteLanguage` — so
+  every studio's generated copy is stored under `'en'`. The obvious one-word fix *forks* the
+  rows instead of updating them: `writePage`'s anti-clobber lookup uses the same key, stops
+  seeing the studio's own edits, and the next regenerate replaces hand-written copy with
+  generated copy. Reverting the code does not revert the rows. Changing what you write into a
+  key is a re-key migration, not an edit.
 
 ---
 
