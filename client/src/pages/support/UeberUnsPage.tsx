@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle, MapPin, Phone, Star, Linkedin, Instagram, Facebook } from 'lucide-react';
+import { CheckCircle, MapPin, Phone, Star } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import { RelatedTopicsBlock } from '../../components/SEO/RelatedTopicsBlock';
 import { PillarLinksBlock } from '../../components/SEO/PillarLinksBlock';
@@ -18,7 +18,10 @@ const UeberUnsPage: React.FC = () => {
   // key when unset, so treat that as "not set".
   const managed = t('manual.ueberuns.founderPhoto');
   const managedPhoto = managed && managed !== 'manual.ueberuns.founderPhoto' ? managed : '';
-  const SIMON_PHOTO = managedPhoto || '/team/simon-parrott.jpg';
+  // The studio's own founder photo, or none. The fallback was a hardcoded path to
+  // the origin studio's photographer; no /team/ directory ships, so it only ever
+  // 404'd and hid itself — while its alt text, naming him, stayed in the HTML.
+  const founderPhoto = managedPhoto;
 
   // Founder-story paragraphs are editable in Settings → Manual Website Update →
   // "About Us / Über uns" → Founder Story (per language). t() returns the raw
@@ -27,14 +30,42 @@ const UeberUnsPage: React.FC = () => {
     const v = t(key);
     return v && v !== key ? v : fallback;
   };
-  const SIMON_LINKEDIN = 'https://www.linkedin.com/in/simon-parrott-192b5867/';
-  const SIMON_INSTAGRAM = 'https://www.instagram.com/newagefotografie/';
-  const FACEBOOK_URL = 'https://www.facebook.com/NewAgeFotografie';
-  const GOOGLE_REVIEW_URL = 'https://g.page/r/CfWCViKtBrjuEAE/review';
+  // The studio's own founder story, if it has written one. Unset returns '' rather
+  // than a fallback: the built-in copy was one real person's first-person biography
+  // ("Hello, I'm Simon", learned his craft in Brighton, opened in Vienna in 2012),
+  // which is not a default any other studio can truthfully publish. No story means
+  // the section does not render — see hasFounderStory below.
+  const story = (key: string): string => {
+    const v = t(key);
+    return v && v !== key ? v : '';
+  };
+  const founderStory = {
+    intro: story('manual.ueberuns.bio.intro'),
+    craft: story('manual.ueberuns.bio.craft'),
+    journey: story('manual.ueberuns.bio.journey'),
+    closing: story('manual.ueberuns.bio.closing'),
+  };
+  const hasFounderStory = !!(founderPhoto || Object.values(founderStory).some(Boolean));
+  // The studio's OWN accounts, from its configured identity. These were four
+  // hardcoded literals: the origin studio's Instagram and Facebook, a named
+  // individual's personal LinkedIn, and — worst — a "Review us on Google" button
+  // pointing at the origin studio's Business Profile. Every buyer shipped a page
+  // inviting their own clients to review a competitor. Nothing to review here: no
+  // configured accounts means no links.
+  const socialLinks = SITE.social.filter(Boolean);
+  const socialLabel = (url: string): string => {
+    try {
+      const host = new URL(url).hostname.replace(/^www\./, '');
+      return host.split('.')[0].replace(/^./, (c) => c.toUpperCase());
+    } catch {
+      return url;
+    }
+  };
 
-  const trustLogos = de
-    ? ['BBC', 'Canon', 'Stadt Wien', 'ÖBB', 'Internationale Unternehmen']
-    : ['BBC', 'Canon', 'City of Vienna', 'ÖBB', 'International companies'];
+  // Was ['BBC', 'Canon', 'Stadt Wien', 'ÖBB'] — four real organisations named as
+  // clients of whichever studio happened to buy the product. A buyer cannot honestly
+  // publish that, and it is the origin studio's client list, not theirs.
+  const trustLogos: string[] = [];
   const storyRows = [
     {
       year: de ? 'Vor Wien' : 'Before Vienna',
@@ -292,64 +323,47 @@ const UeberUnsPage: React.FC = () => {
           </div>
         </section>
 
+        {/* Renders only for a studio that has written its own founder story in
+            Settings → Manual Website Update. There is no default: the previous one
+            was a real person's first-person biography, published under whichever
+            studio name happened to own the site. A missing section is honest; an
+            inherited one is not. */}
+        {hasFounderStory && (
         <section className="py-16 bg-white">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-            <h2 className="text-3xl md:text-4xl font-bold">{de ? <>Simon – der Fotograf hinter {SITE.name}</> : <>Simon – the photographer behind {SITE.name}</>}</h2>
-            {SIMON_PHOTO && (
+            <h2 className="text-3xl md:text-4xl font-bold">{de ? <>Der Fotograf hinter {SITE.name}</> : <>The photographer behind {SITE.name}</>}</h2>
+            {founderPhoto && (
               <img
-                src={SIMON_PHOTO}
-                alt={de ? 'Simon Parrott, Fotograf bei New Age Fotografie Wien' : 'Simon Parrott, photographer at New Age Fotografie Vienna'}
+                src={founderPhoto}
+                alt={de ? `Fotograf bei ${SITE.name}` : `Photographer at ${SITE.name}`}
                 loading="lazy"
                 className="w-40 h-40 rounded-2xl object-cover shadow-lg"
-                // Until the photo file is placed at SIMON_PHOTO, hide the
-                // element rather than showing a broken-image icon.
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             )}
-            <p className="text-lg text-slate-700">{mv('manual.ueberuns.bio.intro', de ? 'Hallo, ich bin Simon.' : 'Hello, I’m Simon.')}</p>
-            <p className="text-lg text-slate-700">{de ? 'Nach vielen Jahren hinter der Kamera habe ich eines gelernt: Die beste Technik der Welt bedeutet wenig, wenn Menschen sich vor der Kamera nicht wohlfühlen.' : 'After many years behind the camera, I’ve learned one thing: the best technology in the world means little if people don’t feel comfortable in front of the camera.'}</p>
+            {founderStory.intro && <p className="text-lg text-slate-700">{founderStory.intro}</p>}
             <p className="text-lg text-slate-700">{de ? 'Ein gutes Portrait beginnt nicht mit dem Auslösen der Kamera. Es beginnt mit Vertrauen.' : 'A good portrait doesn’t begin with the click of the shutter. It begins with trust.'}</p>
-            <p className="text-lg text-slate-700">{mv('manual.ueberuns.bio.craft', de ? <>Mein Handwerk habe ich in Brighton (UK) und Südafrika gelernt, bevor Wien mein Zuhause wurde. Diese internationale Erfahrung prägt bis heute meinen Stil: <strong>moderne, natürliche und authentische Portraits – voller Persönlichkeit Ihrer Familie.</strong></> : <>I learned my craft in Brighton (UK) and South Africa before making Vienna my home. This international experience still shapes my style today: <strong>modern, natural and authentic portraits, full of your family’s personality.</strong></>)}</p>
-            <p className="text-lg text-slate-700">{mv('manual.ueberuns.bio.journey', de ? 'Seit der Eröffnung unseres Studios in Wien im Jahr 2012 durften wir Familien wachsen sehen: Babys, die heute schon zur Schule gehen, Teenager, deren Hochzeiten wir später fotografiert haben – und Menschen begleiten, die normalerweise sagen:' : 'Since opening our studio in Vienna in 2012, we’ve watched families grow — babies who are already at school today, teenagers whose weddings we later photographed — and worked with people who usually say:')}</p>
-            <p className="text-lg italic text-slate-800">{de ? '“Ich bin nicht fotogen.”' : '“I’m not photogenic.”'}</p>
-            <p className="text-lg text-slate-700">{de ? 'Meine Antwort ist immer dieselbe:' : 'My answer is always the same:'}</p>
-            <p className="text-xl font-semibold text-slate-950">{mv('manual.ueberuns.bio.closing', de ? 'Doch. Du brauchst nur jemanden hinter der Kamera, der dich wirklich sieht – und das authentische „Du“ einfängt, das man nicht stellen kann.' : 'You are. You just need someone behind the camera who truly sees you — someone who captures the authentic “you” that can’t be posed.')}</p>
-            <div className="flex flex-wrap gap-3 pt-2">
-              <a
-                href={SIMON_LINKEDIN}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-              >
-                <Linkedin className="h-5 w-5 text-[#0a66c2]" /> {de ? 'Simon auf LinkedIn' : 'Simon on LinkedIn'}
-              </a>
-              <a
-                href={SIMON_INSTAGRAM}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-              >
-                <Instagram className="h-5 w-5 text-[#e1306c]" /> {de ? 'Auf Instagram folgen' : 'Follow on Instagram'}
-              </a>
-              <a
-                href={FACEBOOK_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-              >
-                <Facebook className="h-5 w-5 text-[#1877f2]" /> {de ? 'Auf Facebook folgen' : 'Follow on Facebook'}
-              </a>
-              <a
-                href={GOOGLE_REVIEW_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
-              >
-                <Star className="h-5 w-5 fill-current text-yellow-300" /> {de ? 'Auf Google bewerten' : 'Review us on Google'}
-              </a>
-            </div>
+            {founderStory.craft && <p className="text-lg text-slate-700">{founderStory.craft}</p>}
+            {founderStory.journey && <p className="text-lg text-slate-700">{founderStory.journey}</p>}
+            {founderStory.closing && <p className="text-xl font-semibold text-slate-950">{founderStory.closing}</p>}
+            {socialLinks.length > 0 && (
+              <div className="flex flex-wrap gap-3 pt-2">
+                {socialLinks.map((url) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    {socialLabel(url)}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </section>
+        )}
 
         <section className="py-16 bg-slate-50">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
