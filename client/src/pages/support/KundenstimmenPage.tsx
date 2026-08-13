@@ -428,7 +428,13 @@ const KundenstimmenPage: React.FC = () => {
           </div>
         </section>
       </div>
-      <PillarLinksBlock currentPath="/kundenstimmen/" title={de ? 'Unsere Fotoshootings in Wien' : 'Our Photo Shoots in Vienna'} />
+      <PillarLinksBlock
+        currentPath="/kundenstimmen/"
+        title={(() => {
+          const inCity = SITE.address.city ? ` in ${SITE.address.city}` : '';
+          return de ? `Unsere Fotoshootings${inCity}` : `Our Photo Shoots${inCity}`;
+        })()}
+      />
       <RelatedTopicsBlock pathname="/kundenstimmen/" />
     </Layout>
   );

@@ -327,7 +327,10 @@ const FAQPage: React.FC = () => {
           </div>
         </section>
       </div>
-      <PillarLinksBlock currentPath="/faq/" title={de ? 'Alle Fotoshootings' : 'All Photo Shoots'} />
+      {/* No title override: this one existed only to strip "in Wien" from the default
+          heading. The default is the studio's own city now, so overriding it here would
+          be the one page that never says where the studio is. */}
+      <PillarLinksBlock currentPath="/faq/" />
     </Layout>
   );
 };

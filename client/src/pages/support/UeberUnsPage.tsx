@@ -495,7 +495,15 @@ const UeberUnsPage: React.FC = () => {
           </div>
         </section>
       </div>
-      <PillarLinksBlock currentPath="/ueber-uns/" title={de ? 'Unsere Fotoshootings in Wien entdecken' : 'Discover our photo shoots in Vienna'} />
+      <PillarLinksBlock
+        currentPath="/ueber-uns/"
+        title={(() => {
+          // City and preposition together, so an unset city reads "Unsere Fotoshootings
+          // entdecken" rather than leaving a hole mid-sentence.
+          const inCity = SITE.address.city ? ` in ${SITE.address.city}` : '';
+          return de ? `Unsere Fotoshootings${inCity} entdecken` : `Discover our photo shoots${inCity}`;
+        })()}
+      />
       <RelatedTopicsBlock pathname="/ueber-uns/" />
     </Layout>
   );

@@ -49,7 +49,11 @@ export function PillarLinksBlock({
 }: PillarLinksBlockProps) {
   const { language } = useLanguage();
   const de = language === 'de';
-  const headingText = title ?? (de ? 'Alle Fotoshootings in Wien' : 'All Photo Sessions in Vienna');
+  // Same guard as the strapline below: the city and its preposition live or die
+  // together, so an unset city yields "Alle Fotoshootings" rather than a dangling
+  // "in " — and a studio in Hove is not advertised as being in Vienna.
+  const inCity = SITE.address.city ? ` in ${SITE.address.city}` : '';
+  const headingText = title ?? (de ? `Alle Fotoshootings${inCity}` : `All Photo Sessions${inCity}`);
   const normalizedCurrent = currentPath
     ? currentPath.endsWith('/') ? currentPath : `${currentPath}/`
     : null;
