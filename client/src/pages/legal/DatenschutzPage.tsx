@@ -3,10 +3,14 @@ import { Helmet } from 'react-helmet-async';
 import Layout from '../../components/layout/Layout';
 import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
+import { useCanonicalPath } from '../../hooks/useCanonicalPath';
 
 const DatenschutzPage: React.FC = () => {
   const { language, t } = useLanguage();
   const de = language === 'de';
+  // Sets its own canonical rather than going through SEOHead — on an English studio
+  // this route is served at /privacy/.
+  const canonicalPath = useCanonicalPath('/datenschutz');
 
   // Same studio-supplied legal fields as the Impressum — see ImpressumPage.
   const legal = (key: string): string => {
@@ -27,7 +31,7 @@ const DatenschutzPage: React.FC = () => {
           ? `Datenschutzerklärung und Impressum von ${SITE.name}. DSGVO-konform und transparent.`
           : `Privacy policy and legal notice of ${SITE.name}. GDPR compliant and transparent.`
         } />
-        <link rel="canonical" href={`${SITE.url}/datenschutz/`} />
+        <link rel="canonical" href={`${SITE.url}${canonicalPath}/`} />
       </Helmet>
 
       <div className="min-h-screen bg-gray-50 py-16">

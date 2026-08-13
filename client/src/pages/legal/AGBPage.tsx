@@ -3,10 +3,14 @@ import { Helmet } from 'react-helmet-async';
 import Layout from '../../components/layout/Layout';
 import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
+import { useCanonicalPath } from '../../hooks/useCanonicalPath';
 
 const AGBPage: React.FC = () => {
   const { language } = useLanguage();
   const de = language === 'de';
+  // This page sets its own canonical rather than going through SEOHead, so it needs
+  // the same localisation: on an English studio this route is served at /terms/.
+  const canonicalPath = useCanonicalPath('/agb');
 
   return (
     <Layout>
@@ -16,7 +20,7 @@ const AGBPage: React.FC = () => {
           ? `AGB von ${SITE.name} Wien. Buchung, Storno, Urheberrecht, Nutzung – alle wichtigen Bedingungen auf einen Blick.`
           : `Terms and conditions of ${SITE.name} Vienna. Booking, cancellation, copyright, usage – all key terms at a glance.`
         } />
-        <link rel="canonical" href={`${SITE.url}/agb/`} />
+        <link rel="canonical" href={`${SITE.url}${canonicalPath}/`} />
       </Helmet>
 
       <div className="min-h-screen bg-gray-50 py-16">

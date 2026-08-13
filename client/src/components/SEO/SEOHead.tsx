@@ -2,6 +2,7 @@ import { Helmet } from 'react-helmet-async';
 import { useLocation } from 'react-router-dom';
 import { SITE } from '../../config/site';
 import { getAlternates } from '../../config/localeRoutes';
+import { useCanonicalPath } from '../../hooks/useCanonicalPath';
 
 interface SEOProps {
   title: string;
@@ -56,7 +57,12 @@ export function SEOHead({
 
   // Canonical on every page: mapped canonical → passed prop → current path,
   // always normalised to the trailing-slash convention.
-  const fullCanonical = `${origin}${withSlash(alt ? alt.canonical : (canonical || location.pathname))}`;
+  //
+  // Then localised to the studio's own URLs — see useCanonicalPath. Emitted raw, every
+  // English page told search engines the real version lived at a German URL, which is
+  // both the wrong URL and one this studio does not serve.
+  const localisedCanonical = useCanonicalPath(alt ? alt.canonical : (canonical || location.pathname));
+  const fullCanonical = `${origin}${withSlash(localisedCanonical)}`;
 
   const ogImageAbs = abs(ogImage) || `${origin}/og-default.jpg`;
 

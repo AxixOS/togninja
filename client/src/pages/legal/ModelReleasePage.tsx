@@ -4,10 +4,15 @@ import Layout from '../../components/layout/Layout';
 import { Users, Baby, Briefcase } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
+import { useCanonicalPath } from '../../hooks/useCanonicalPath';
 
 const ModelReleasePage: React.FC = () => {
   const { language } = useLanguage();
   const de = language === 'de';
+  // Sets its own canonical rather than going through SEOHead. /model-release has no
+  // localised slug today, so this is a no-op — it is here so it stays correct if one
+  // is added, rather than silently drifting like /agb and /datenschutz did.
+  const canonicalPath = useCanonicalPath('/model-release');
 
   return (
     <Layout>
@@ -17,7 +22,7 @@ const ModelReleasePage: React.FC = () => {
           ? `Model-Release Klauseln für Familien-, Baby- und Business-Shootings bei ${SITE.name} Wien. DSGVO-konform.`
           : `Model release clauses for family, baby and business photoshoots at ${SITE.name} Vienna. GDPR compliant.`
         } />
-        <link rel="canonical" href={`${SITE.url}/model-release/`} />
+        <link rel="canonical" href={`${SITE.url}${canonicalPath}/`} />
       </Helmet>
 
       <div className="min-h-screen bg-gray-50 py-16">
