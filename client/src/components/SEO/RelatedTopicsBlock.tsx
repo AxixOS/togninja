@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { SITE } from '../../config/site';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 
 /**
  * Additive "Das könnte Sie auch interessieren" block.
@@ -148,11 +149,40 @@ export const RelatedTopicsBlock: React.FC<RelatedTopicsBlockProps> = ({
   // selected language. An explicit prop wins if given.
   const { language: contextLanguage } = useLanguage();
   const language = languageProp ?? contextLanguage;
+
+  // Every table above is the origin studio's internal-link map: /familienfotos-wien/,
+  // /babyfotos-wien/, /gewerbliche-fotografie-wien/ and — worst — a link labelled
+  // "Why <studio>?" pointing at /warum-new-age-fotografie/, another business's name
+  // in the buyer's own URL. None of those routes exist for a studio with its own
+  // Authority Map, so they fell through the catch-all and returned the visitor to
+  // the homepage: a "you might also be interested in" list where most entries go
+  // nowhere.
+  //
+  // A studio with its OWN map gets its own services here, plus only the pages every
+  // instance really has. The legacy tables stay for the origin studio, whose map is
+  // the default one and whose routes those are. Same isCustom test PillarLinksBlock
+  // uses, so the two blocks cannot disagree about whose services these are.
+  const { map: authorityMap, isCustom } = useAuthorityMap();
+
+  const fromMap: LinkItem[] = isCustom
+    ? (authorityMap?.pillars || [])
+        .filter((p: any) => p?.href && p?.label && p.hasPage !== false)
+        .slice(0, 3)
+        .map((p: any) => ({ to: p.href, de: p.label, en: p.label }))
+    : [];
+
   const items =
     links ??
-    DEFAULTS[pathname] ??
-    DEFAULTS[pathname.endsWith('/') ? pathname.slice(0, -1) : pathname + '/'] ??
-    FALLBACK;
+    (isCustom
+      ? [...fromMap, KUNDENSTIMMEN, PREISE, KONTAKT].filter(
+          (item, i, all) => all.findIndex((x) => x.to === item.to) === i && item.to !== pathname,
+        )
+      : DEFAULTS[pathname] ??
+        DEFAULTS[pathname.endsWith('/') ? pathname.slice(0, -1) : pathname + '/'] ??
+        FALLBACK);
+
+  // Nothing worth linking to — say nothing, rather than a heading over an empty list.
+  if (!items.length) return null;
 
   const heading = title
     ? title[language]

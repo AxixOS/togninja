@@ -108,7 +108,7 @@ const Header: React.FC = () => {
   // Until both the map and the visibility config load we show NOTHING: briefly
   // flashing services a studio does not offer is worse than a menu that fills a
   // moment later.
-  const { map: authorityMap, loading: authorityLoading } = useAuthorityMap();
+  const { map: authorityMap, isCustom: authorityIsCustom, loading: authorityLoading } = useAuthorityMap();
 
   const fotoshootingItems = (() => {
     if (enabledPages === null || authorityLoading) return [];
@@ -121,7 +121,13 @@ const Header: React.FC = () => {
       .filter((p) => p.href && p.label && (p as any).hasPage !== false)
       .map((p) => ({ path: p.href, label: p.label }));
 
-    const source = fromMap.length ? fromMap : allFotoshootingItems;
+    // The legacy list is reachable ONLY for the studio those fourteen Vienna routes
+    // belong to. Falling back on `fromMap.length` alone meant a studio with its own
+    // map but nothing publishable in it — mid-onboarding, or a crawl that found no
+    // services — was handed a services menu offering family, newborn, maternity and
+    // school photography in Vienna, every entry pointing at a route that does not
+    // exist on its instance. An empty menu is the honest answer there.
+    const source = fromMap.length ? fromMap : (authorityIsCustom ? [] : allFotoshootingItems);
 
     return source.filter((item) => {
       const def = pageForRoute(item.path);
