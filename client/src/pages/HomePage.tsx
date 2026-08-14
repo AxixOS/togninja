@@ -339,17 +339,21 @@ const HomePage: React.FC = () => {
     const description = t('home.description');
     if (description && description !== 'home.description') schema.description = description;
 
-    if (street || city || postalCode || country) {
+    // Premises only when there is a street — see server/lib/siteIdentity.ts. A city on
+    // its own is where the studio works, not an address it can be visited at.
+    if (street) {
       schema.address = {
         '@type': 'PostalAddress',
-        ...(street ? { streetAddress: street } : {}),
+        streetAddress: street,
         ...(city ? { addressLocality: city } : {}),
         ...(postalCode ? { postalCode } : {}),
         ...(country ? { addressCountry: country } : {}),
       };
     }
     if (SITE.phone) schema.telephone = SITE.phone;
-    if (city) schema.areaServed = { '@type': 'City', name: city };
+    // Array, not a bare object: a studio covering several places is the norm, and this
+    // was declaring a UK-wide company as serving one city.
+    if (city) schema.areaServed = [{ '@type': 'City', name: city }];
     if (SITE.social?.length) schema.sameAs = SITE.social;
 
     // Service names come from the studio's own translated copy, same

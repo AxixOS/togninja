@@ -97,15 +97,34 @@ function buildJsonLd(id: SiteIdentity): string {
   if (id.phone) node.telephone = id.phone;
   if (id.email) node.email = id.email;
   if (id.description) node.description = id.description;
-  const hasAddress = id.address.street || id.address.city || id.address.postalCode || id.address.country;
-  if (hasAddress) {
+  // A locality on its own is a SERVICE AREA, not an address.
+  //
+  // This gate was `street || city || postalCode || country`, so a studio that told us
+  // only its city published a PostalAddress — a positive claim to a physical business
+  // location — on every page. Plenty of photographers travel to their clients or work
+  // from home; for them that claim is false, and it is not one they would ever make
+  // themselves. It is the same reasoning that already stops geo being sourced from the
+  // setup address a few lines down.
+  //
+  // A street is what distinguishes premises from a patch of the map. With one, the
+  // address is real and the locality belongs inside it. Without one, the city says
+  // where the studio WORKS, which is exactly what areaServed means.
+  const hasPremises = !!id.address.street;
+  if (hasPremises) {
     node.address = {
       '@type': 'PostalAddress',
-      ...(id.address.street ? { streetAddress: id.address.street } : {}),
+      streetAddress: id.address.street,
       ...(id.address.city ? { addressLocality: id.address.city } : {}),
       ...(id.address.postalCode ? { postalCode: id.address.postalCode } : {}),
       ...(id.address.country ? { addressCountry: id.address.country } : {}),
     };
+  }
+  // Emitted as an ARRAY even with a single entry. schema.org accepts either, and a
+  // studio covering several places is the common case, not the exception — the demo
+  // tenant is a UK-wide wedding company that had been narrowed to one city. Keeping
+  // the shape plural means adding the rest later is a data change, not a schema one.
+  if (id.address.city) {
+    node.areaServed = [{ '@type': 'City', name: id.address.city }];
   }
   if (id.geo.lat && id.geo.lng) {
     node.geo = { '@type': 'GeoCoordinates', latitude: id.geo.lat, longitude: id.geo.lng };

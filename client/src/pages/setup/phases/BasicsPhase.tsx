@@ -426,7 +426,7 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
             location at all — so it has to be visible without opening anything.
             Optional: a mobile or travelling photographer has no premises to name. */}
         <div className="space-y-2">
-          <Label htmlFor="city">City</Label>
+          <Label htmlFor="city">City or service area</Label>
           <Input
             id="city"
             placeholder="Brighton"
@@ -435,8 +435,8 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
           />
           <p className="text-xs text-gray-500">
             The town or city you work in. We use it in your website's search listing so
-            people nearby can find you. Just the city — leave it blank if you travel to
-            your clients rather than working from one place.
+            people nearby can find you. This says where you <em>work</em>, not where you
+            are registered — if you travel to clients, name the area you cover.
           </p>
         </div>
 

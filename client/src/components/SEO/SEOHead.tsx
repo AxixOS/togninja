@@ -76,8 +76,12 @@ export function SEOHead({
 
   // Build the LocalBusiness structured data from the tenant's identity,
   // omitting any fields that aren't configured yet.
-  const hasAddress =
-    SITE.address.street || SITE.address.city || SITE.address.postalCode || SITE.address.country;
+  //
+  // A street is what makes this an address rather than a service area — see the
+  // matching gate in server/lib/siteIdentity.ts. Without one, the city is emitted as
+  // areaServed below instead, so a photographer who travels to clients is not made to
+  // claim premises they do not have.
+  const hasPremises = !!SITE.address.street;
   const structuredData: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'ProfessionalService',
@@ -89,10 +93,13 @@ export function SEOHead({
   };
   if (SITE.phone) structuredData.telephone = SITE.phone;
   if (SITE.email) structuredData.email = SITE.email;
-  if (hasAddress) {
+  if (SITE.address.city) {
+    structuredData.areaServed = [{ '@type': 'City', name: SITE.address.city }];
+  }
+  if (hasPremises) {
     structuredData.address = {
       '@type': 'PostalAddress',
-      ...(SITE.address.street ? { streetAddress: SITE.address.street } : {}),
+      streetAddress: SITE.address.street,
       ...(SITE.address.city ? { addressLocality: SITE.address.city } : {}),
       ...(SITE.address.postalCode ? { postalCode: SITE.address.postalCode } : {}),
       ...(SITE.address.country ? { addressCountry: SITE.address.country } : {}),
