@@ -110,60 +110,86 @@ const KontaktPage: React.FC = () => {
           <div className="space-y-8">
             <h2 className="text-2xl font-semibold text-gray-900">{t('contact.studioTitle')}</h2>
             <div className="space-y-6">
-              <div className="flex items-center space-x-4">
-                <Mail className="w-6 h-6 text-gray-600" />
-                <span className="text-gray-700">{SITE.email}</span>
-              </div>
-              <div className="flex items-center space-x-4">
-                <Phone className="w-6 h-6 text-gray-600" />
-                <div className="flex flex-col space-y-2">
-                  <span className="text-gray-700">{SITE.phone}</span>
-                  <div className="flex space-x-3">
-                    <a
-                      href={`tel:+${SITE.phone.replace(/[^0-9]/g,'')}`}
-                      className="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
-                    >
-                      <Phone className="w-4 h-4 mr-2" />
-                      {t('contact.call')}
-                    </a>
-                    <a
-                      href={`https://wa.me/${SITE.phone.replace(/[^0-9]/g,'')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
-                    >
-                      <MessageCircle className="w-4 h-4 mr-2" />
-                      WhatsApp
-                    </a>
+              {/* Same guard as the rows below. Unconditional, these rendered an icon
+                  beside nothing on a studio that has not configured an email or a
+                  phone — and the phone block additionally emitted a "Call Now" linking
+                  to tel:+ and a WhatsApp button linking to wa.me/ with no number, both
+                  of which look like features and do nothing. */}
+              {SITE.email && (
+                <div className="flex items-center space-x-4">
+                  <Mail className="w-6 h-6 text-gray-600" />
+                  <span className="text-gray-700">{SITE.email}</span>
+                </div>
+              )}
+              {SITE.phone && (
+                <div className="flex items-center space-x-4">
+                  <Phone className="w-6 h-6 text-gray-600" />
+                  <div className="flex flex-col space-y-2">
+                    <span className="text-gray-700">{SITE.phone}</span>
+                    <div className="flex space-x-3">
+                      <a
+                        href={`tel:+${SITE.phone.replace(/[^0-9]/g,'')}`}
+                        className="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        <Phone className="w-4 h-4 mr-2" />
+                        {t('contact.call')}
+                      </a>
+                      <a
+                        href={`https://wa.me/${SITE.phone.replace(/[^0-9]/g,'')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
+                      >
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        WhatsApp
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <Clock className="w-6 h-6 text-gray-600" />
-                <span className="text-gray-700">{t('contact.openingHours')}</span>
-              </div>
-              <div className="flex items-center space-x-4">
-                <MapPin className="w-6 h-6 text-gray-600" />
-                <div className="text-gray-700">
-                  <div>{t('contact.studioAddress')}</div>
-                  <div className="text-sm text-gray-600 mt-1">{t('contact.addressNote')}</div>
+              )}
+              {/* Each row appears only when the studio has that detail. These used to
+                  default to the origin studio's opening hours, door and U-Bahn stop, so
+                  a buyer published someone else's directions. An empty row would leave
+                  an orphaned icon, which is why the guards are here and not only in the
+                  translation values. */}
+              {t('contact.openingHours') && (
+                <div className="flex items-center space-x-4">
+                  <Clock className="w-6 h-6 text-gray-600" />
+                  <span className="text-gray-700">{t('contact.openingHours')}</span>
                 </div>
-              </div>
+              )}
+              {(t('contact.studioAddress') || t('contact.addressNote')) && (
+                <div className="flex items-center space-x-4">
+                  <MapPin className="w-6 h-6 text-gray-600" />
+                  <div className="text-gray-700">
+                    {t('contact.studioAddress') && <div>{t('contact.studioAddress')}</div>}
+                    {t('contact.addressNote') && (
+                      <div className="text-sm text-gray-600 mt-1">{t('contact.addressNote')}</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-gray-900">{t('contact.transport')}</h3>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <Train className="w-5 h-5 text-gray-600" />
-                  <span className="text-gray-700">{t('contact.trainInfo')}</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Car className="w-5 h-5 text-gray-600" />
-                  <span className="text-gray-700">{t('contact.streetParking')}</span>
+            {(t('contact.trainInfo') || t('contact.streetParking')) && (
+              <div className="space-y-4">
+                <h3 className="text-xl font-semibold text-gray-900">{t('contact.transport')}</h3>
+                <div className="space-y-3">
+                  {t('contact.trainInfo') && (
+                    <div className="flex items-center space-x-3">
+                      <Train className="w-5 h-5 text-gray-600" />
+                      <span className="text-gray-700">{t('contact.trainInfo')}</span>
+                    </div>
+                  )}
+                  {t('contact.streetParking') && (
+                    <div className="flex items-center space-x-3">
+                      <Car className="w-5 h-5 text-gray-600" />
+                      <span className="text-gray-700">{t('contact.streetParking')}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Map of the studio's OWN address. The embed URL was a fixed pin on
                 Wehrgasse 11A, 1050 Wien, so every studio's contact page showed a map

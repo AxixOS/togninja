@@ -777,15 +777,21 @@ const translations = {
     'contact.submit': 'Send Message',
     'contact.submitting': 'Sending...',
     'contact.successMessage': 'Your message has been sent successfully. We will get back to you soon.',
-    'contact.openingHours': 'Fri-Sun: 09:00 - 17:00',
+    // Empty by default, for the same reason as studioAddress below: every one of
+    // these is a proposition about ONE building. A door on Schönbrunnerstraße, a
+    // walk from Kettenbrückengasse U-Bahn, weekend-only hours and street parking
+    // are facts about the origin studio, and they were being published as facts
+    // about every buyer. Wrong directions are worse than no directions. All stay
+    // editable in Website Studio, and a studio that fills them in gets its own.
+    'contact.openingHours': '',
     'contact.officeAddress': 'Office and Correspondence Address',
-    'contact.addressNote': 'Entrance corner Schönbrunnerstraße',
+    'contact.addressNote': '',
     // Empty by default — the studio's address comes from its own setup, and this
     // key stays editable in Website Studio. It used to hardcode a Vienna street.
     'contact.studioAddress': '',
     'contact.transport': 'Transportation',
-    'contact.trainInfo': '5 minutes from Kettenbrückengasse',
-    'contact.streetParking': 'Street parking available',
+    'contact.trainInfo': '',
+    'contact.streetParking': '',
     'contact.mapTitle': 'Studio Location',
     'contact.call': 'Call Now',
     
@@ -1906,15 +1912,17 @@ const translations = {
     'contact.submit': 'Nachricht senden',
     'contact.submitting': 'Wird gesendet...',
     'contact.successMessage': 'Ihre Nachricht wurde erfolgreich gesendet. Wir werden uns bald bei Ihnen melden.',
-    'contact.openingHours': 'Fr-So: 09:00 - 17:00',
+    // Empty by default — see the English set. Facts about one building, published
+    // as facts about every studio that buys the product.
+    'contact.openingHours': '',
     'contact.officeAddress': '',
-    'contact.addressNote': 'Eingang Ecke Schönbrunnerstraße',
+    'contact.addressNote': '',
     // Empty by default — the studio's address comes from its own setup, and this
     // key stays editable in Website Studio. It used to hardcode a Vienna street.
     'contact.studioAddress': '',
     'contact.transport': 'Anfahrt',
-    'contact.trainInfo': '5 Minuten von Kettenbrückengasse',
-    'contact.streetParking': 'Straßenparkplätze verfügbar',
+    'contact.trainInfo': '',
+    'contact.streetParking': '',
     'contact.mapTitle': 'Studio Location',
     'contact.call': 'Jetzt anrufen',
     

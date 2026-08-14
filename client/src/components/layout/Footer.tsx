@@ -226,12 +226,20 @@ const Footer: React.FC = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">{t('footer.contact')}</h3>
             <ul className="space-y-2 text-gray-300">
-              <li className="text-sm">
-                {t('contact.studioAddress')}
-              </li>
-              <li className="text-sm">
-                {t('contact.addressNote')}
-              </li>
+              {/* Rendered only when the studio has an address of its own. The second
+                  line defaulted to the origin studio's door — "Entrance corner
+                  Schönbrunnerstraße" — which appeared in the footer of every page of
+                  every buyer's site. Empty lines here would leave blank <li>s. */}
+              {t('contact.studioAddress') && (
+                <li className="text-sm">
+                  {t('contact.studioAddress')}
+                </li>
+              )}
+              {t('contact.addressNote') && (
+                <li className="text-sm">
+                  {t('contact.addressNote')}
+                </li>
+              )}
               {phone && (
                 <li>
                   <a
