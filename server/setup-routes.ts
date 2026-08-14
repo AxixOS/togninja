@@ -590,6 +590,15 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // Revert Authority Map to the default seed + drop ShootCleaner creds, so a fresh test
     // starts truly clean (these post-date the original reset).
     try { await db.execute(sql`UPDATE studio_configs SET authority_map = NULL, shootcleaner_api_key = NULL, shootcleaner_webhook_url = NULL, shootcleaner_webhook_secret = NULL`); } catch {}
+    // The studio's DOMAIN. These are not cosmetic: config-reader hydrates app_url,
+    // frontend_url and public_site_base_url into APP_URL / FRONTEND_URL /
+    // PUBLIC_SITE_BASE_URL at boot, and siteIdentity resolves its canonical origin
+    // as PUBLIC_SITE_URL || APP_URL. Left behind by a reset, the previous tenant's
+    // domain becomes the NEXT tenant's canonical, og:url and JSON-LD @id -- every
+    // page of a new studio's site telling search engines it really lives on someone
+    // else's domain. Nothing in the deploy environment is involved; the value comes
+    // from this row.
+    try { await db.execute(sql`UPDATE studio_configs SET app_url = NULL, frontend_url = NULL, public_site_base_url = NULL`); } catch {}
     // Page visibility back to "use the language defaults" for the next studio.
     try { await db.execute(sql`UPDATE studio_configs SET enabled_pages = NULL, site_language = NULL`); } catch {}
     // storage_region was left behind by the credential reset below, which cleared the
