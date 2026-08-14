@@ -207,7 +207,10 @@ const Footer: React.FC = () => {
                   onClick={scrollToTop}
                   className="text-gray-300 hover:text-white transition-colors text-sm"
                 >
-                  {language === 'de' ? 'Kundenstimmen – 4.9★ auf Google' : 'Reviews – 4.9★ on Google'}
+                  {/* Was "– 4.9★ on Google". A rating, in the footer of every page,
+                      for a studio that may have no Google listing at all. The link
+                      still goes to the reviews page; the claim does not. */}
+                  {language === 'de' ? 'Kundenstimmen' : 'Reviews'}
                 </Link>
               </li>
               <li>

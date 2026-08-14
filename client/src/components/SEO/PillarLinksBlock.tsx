@@ -70,6 +70,13 @@ export function PillarLinksBlock({
     return lp !== normalizedCurrent;
   }).slice(0, limit ?? pillarSource.length);
 
+  // Nothing to link to, nothing to render. A studio whose Authority Map exists but
+  // is empty — mid-onboarding, or one whose crawl found no services — otherwise got
+  // a heading and a strapline sitting over an empty grid. Same contract as
+  // PartnerLogos and GoogleReviews, which already return null rather than announce
+  // a section with no contents.
+  if (links.length === 0) return null;
+
   return (
     <section className="py-14 bg-white border-t border-gray-100" data-seo="pillar-links">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
