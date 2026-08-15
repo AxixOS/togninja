@@ -180,7 +180,12 @@ const PreisePage: React.FC = () => {
           <div className="absolute inset-0 bg-black/20"></div>
           <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h1 className="text-5xl md:text-6xl font-bold mb-6">
-              {de ? 'Fotoshooting Preise in Wien – Faire Pakete für jeden Anlass' : 'Photo Shoot Prices in Vienna – Fair Packages for Every Occasion'}
+              {/* The page's <title> was fixed in v1.8.96; this h1, the largest text on
+                  the page, still named Vienna. Same guard: the studio's own service
+                  area or nothing. */}
+              {de
+                ? `Fotoshooting Preise${SITE.address.city ? ` in ${SITE.address.city}` : ''} – Faire Pakete für jeden Anlass`
+                : `Photo Shoot Prices${SITE.address.city ? ` in ${SITE.address.city}` : ''} – Fair Packages for Every Occasion`}
             </h1>
             <p className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto">
               {de ? 'Transparente Preise, faire Pakete – alle bearbeiteten Bilder inklusive' : 'Transparent prices, fair packages – all edited images included'}

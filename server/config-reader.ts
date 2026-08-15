@@ -311,6 +311,8 @@ async function isTechnicalSetupComplete(): Promise<boolean> {
  *
  * @returns the number of env vars filled from the DB.
  */
+const hydratedEnvKeys = new Set<string>();
+
 async function hydrateEnvFromDb(): Promise<number> {
   let filled = 0;
   try {
@@ -322,6 +324,15 @@ async function hydrateEnvFromDb(): Promise<number> {
       const val = await get(key);           // DB (decrypted) → null if absent
       if (val) {
         process.env[envName] = val;
+        // Record the provenance. Downstream, "env is set" is ambiguous: it can mean
+        // an operator configured the deployment, or it can mean this function copied
+        // a database row here seconds ago. Consumers that also have a live read of
+        // the same row (siteIdentity, via site-address) need to tell those apart —
+        // an operator override must still win, but a boot snapshot must not outrank
+        // the row it was copied from. Carried in env rather than exported so
+        // siteIdentity can stay import-free; see the note there.
+        hydratedEnvKeys.add(envName);
+        process.env.CONFIG_HYDRATED_ENV_KEYS = Array.from(hydratedEnvKeys).join(',');
         filled++;
       }
     }

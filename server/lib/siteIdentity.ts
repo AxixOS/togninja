@@ -32,6 +32,22 @@ function env(name: string): string {
   return (process.env[name] || '').trim();
 }
 
+/**
+ * True when this env var was copied out of studio_configs at boot by
+ * config-reader's hydrateEnvFromDb, rather than set by an operator.
+ *
+ * The distinction is not academic. A studio that renames itself — or a demo
+ * instance re-onboarded onto a different business — writes the new name to
+ * studio_configs, but BUSINESS_NAME still holds the boot-time copy of the old
+ * row, and every server-rendered page keeps announcing the previous owner. Read
+ * from env rather than importing config-reader on purpose: this module has no
+ * imports, which is what lets renderIndexHtml stay safe to call from the fatal
+ * fallback path where a DB read must not be attempted.
+ */
+function isBootSnapshot(name: string): boolean {
+  return (process.env.CONFIG_HYDRATED_ENV_KEYS || '').split(',').includes(name);
+}
+
 export function getSiteIdentity(): SiteIdentity {
   // Same candidate order server/vite.ts uses for sitemap <loc>s and injected
   // canonicals. The two chains had diverged — this one stopped at APP_URL, that one
@@ -177,13 +193,16 @@ export function renderIndexHtml(template: string, studioAddress?: { name?: strin
   const id: SiteIdentity = studioAddress
     ? {
         ...base,
-        // The studio's own name beats the neutral placeholder, but NOT an explicit
-        // BUSINESS_NAME: an operator override stays authoritative, same rule as the
-        // address below. Without this a buyer completed onboarding and every page
-        // title, og:site_name and JSON-LD still named whatever the deploy env said —
-        // which on a reused instance is the previous tenant, and on a fresh one is
-        // "My Studio". The name was in the database the whole time.
-        name: env('BUSINESS_NAME') || studioAddress.name || base.name,
+        // The studio's own name beats the neutral placeholder, and it also beats a
+        // BUSINESS_NAME that config-reader copied out of this same table at boot —
+        // otherwise a stale snapshot outranks the row it was copied from, and a
+        // studio that renames itself sees nothing until the service restarts. An
+        // operator who actually set BUSINESS_NAME on the deployment still wins.
+        // Observed live: after re-onboarding the demo, studio_configs said "DM
+        // Photography" and all eight rendered routes said "Big Day Productions".
+        name: (isBootSnapshot('BUSINESS_NAME') ? (studioAddress.name || env('BUSINESS_NAME'))
+                                               : (env('BUSINESS_NAME') || studioAddress.name))
+              || base.name,
         address: {
           street: base.address.street || (studioAddress.street || ''),
           city: base.address.city || (studioAddress.city || ''),
