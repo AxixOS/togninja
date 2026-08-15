@@ -76,6 +76,145 @@ router.post('/upload-logo', setupLogoUpload.single('file'), async (req: any, res
   }
 });
 
+/**
+ * Setup-phase SITE IMAGE upload — the hero, the two content blocks, and one image per
+ * pillar the crawl discovered.
+ *
+ * Why this exists next to /upload-logo rather than reusing /api/upload/image: that route
+ * is gated on authOrApiKey('media:write'), and the wizard collects the site-wide images
+ * BEFORE the admin account step, so there is no session to authenticate with. Same
+ * reasoning, and the same guard, as the logo route above.
+ *
+ * Writes straight into homepage_images, which is the table imageForSection() already reads
+ * on the public site — so an image uploaded here appears with no further wiring. One row
+ * per section: uploading again replaces rather than accumulates, because these are slots,
+ * not a gallery.
+ */
+const setupImageUpload = multer({
+  storage: multer.memoryStorage(),
+  // Photographers upload photographs. 2 MB is right for a logo and much too small for a
+  // hero — a lightly-compressed 2000px JPEG lands around 800 KB and a good one exceeds it.
+  limits: { fileSize: 12 * 1024 * 1024 },
+});
+
+// Slots the wizard is allowed to write. An allow-list, so a mistyped or hostile section
+// cannot create arbitrary rows in a table the public site renders from. Pillar slots are
+// validated separately against the studio's own map.
+const FIXED_IMAGE_SECTIONS = new Set(['hero', 'content-1', 'content-2']);
+
+router.post('/upload-image', setupImageUpload.single('file'), async (req: any, res: Response) => {
+  try {
+    const section = String(req.body?.section || '').trim();
+    if (!section) return res.status(400).json({ error: 'Missing section' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    // A pillar slot must correspond to a pillar this studio actually has. The section key
+    // convention is the one HomePage already uses for its service cards: services-<slug>.
+    if (!FIXED_IMAGE_SECTIONS.has(section)) {
+      if (!/^services-[a-z0-9-]{1,80}$/.test(section)) {
+        return res.status(400).json({ error: `Unknown image slot "${section}".` });
+      }
+      const { rows } = await db.execute(sql`SELECT authority_map FROM studio_configs LIMIT 1`) as any;
+      const map = (rows ?? [])[0]?.authority_map;
+      const known = new Set(
+        ((map?.pillars || []) as any[]).map(
+          (p) => 'services-' + String(p?.href || '').replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        ),
+      );
+      if (!known.has(section)) {
+        return res.status(400).json({ error: `"${section}" is not one of this studio's services.` });
+      }
+    }
+
+    const mime = String(req.file.mimetype || '');
+    // No SVG here, unlike the logo: these render as photographs, and an SVG is a script
+    // vector served from the studio's own origin.
+    if (!/^image\/(png|jpe?g|webp|avif)$/.test(mime)) {
+      return res.status(400).json({ error: 'Please upload a JPG, PNG, WebP or AVIF image.' });
+    }
+
+    const { getS3Client, getS3Config, buildPublicUrl } = await import('./services/s3-storage');
+    const cfg = getS3Config();
+    if (!cfg.isConfigured) {
+      return res.status(503).json({ error: 'File storage is not configured yet — add your storage keys first.' });
+    }
+    const ext = path.extname(req.file.originalname) ||
+      (mime === 'image/png' ? '.png' : mime === 'image/webp' ? '.webp' : mime === 'image/avif' ? '.avif' : '.jpg');
+    const key = `Site Images/${section}-${crypto.randomUUID()}${ext}`;
+    const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+    await getS3Client().send(new PutObjectCommand({
+      Bucket: cfg.bucket, Key: key, Body: req.file.buffer, ContentType: mime,
+    }));
+    const url = buildPublicUrl(cfg.bucket, cfg.endpoint, key);
+
+    const alt = String(req.body?.alt || '').trim().slice(0, 200) || null;
+    await db.execute(sql`DELETE FROM homepage_images WHERE section = ${section}`);
+    await db.execute(sql`
+      INSERT INTO homepage_images (section, url, alt, title, sort_order, is_active)
+      VALUES (${section}, ${url}, ${alt}, ${null}, ${0}, ${true})
+    `);
+
+    return res.json({ url, section });
+  } catch (e: any) {
+    const reason = e?.Code || e?.name || e?.code || 'StorageError';
+    const detail = e?.message ? String(e.message).replace(/\s+/g, ' ').slice(0, 180) : '';
+    console.error('[setup] image upload failed:', reason, detail || e);
+    return res.status(500).json({
+      error: `Image upload failed (${reason}). Check your File storage keys, bucket and endpoint in setup.${detail ? ' — ' + detail : ''}`,
+    });
+  }
+});
+
+/**
+ * What the wizard should ask for, and what is already filled.
+ *
+ * The pillar slots are not knowable until the crawl has produced an Authority Map, which
+ * is exactly the sequencing the owner identified: ask for the logo and hero early, ask for
+ * "a photograph for your Wedding Photography page" only once we know they do weddings.
+ * Returns `pillarsReady: false` before that, so the step can say so rather than showing an
+ * empty list that looks broken.
+ */
+router.get('/site-images', async (_req: Request, res: Response) => {
+  try {
+    const { rows: cfgRows } = await db.execute(sql`SELECT authority_map, logo_url FROM studio_configs LIMIT 1`) as any;
+    const cfg = (cfgRows ?? [])[0] || {};
+    const pillars = (cfg.authority_map?.pillars || []) as any[];
+
+    const { rows: imgRows } = await db.execute(sql`SELECT section, url, alt FROM homepage_images WHERE is_active`) as any;
+    const have = new Map<string, any>(((imgRows ?? []) as any[]).map((r) => [r.section, r]));
+
+    const slot = (section: string, label: string, hint: string, group: string) => ({
+      section, label, hint, group,
+      url: have.get(section)?.url || null,
+      alt: have.get(section)?.alt || null,
+      filled: !!have.get(section)?.url,
+    });
+
+    const slots = [
+      slot('hero', 'Homepage hero', 'The first image a visitor sees. Landscape, at least 1600px wide.', 'site'),
+      slot('content-1', 'First content block', 'Sits beside your opening paragraphs. Square or portrait works best.', 'site'),
+      slot('content-2', 'Second content block', 'Sits beside your second section. Square or portrait.', 'site'),
+      ...pillars
+        .filter((p) => p?.href && p?.label)
+        .map((p) => {
+          const key = 'services-' + String(p.href).replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          return slot(key, p.label, `Shown on the ${p.label} card and page.`, 'pillar');
+        }),
+    ];
+
+    return res.json({
+      logoUrl: cfg.logo_url || null,
+      pillarsReady: pillars.length > 0,
+      slots,
+      filled: slots.filter((s) => s.filled).length,
+      total: slots.length,
+    });
+  } catch (e: any) {
+    console.error('[setup] site-images failed:', e?.message || e);
+    return res.status(500).json({ error: 'Could not read site images' });
+  }
+});
+
 // ==================== HELPERS ====================
 
 const hasVal = (v: any) => !!(v !== null && v !== undefined && String(v).trim() !== '');

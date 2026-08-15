@@ -1,5 +1,5 @@
-/**
- * UnifiedSetupWizard — the single onboarding wizard.
+﻿/**
+ * UnifiedSetupWizard â€” the single onboarding wizard.
  *
  * Runs the entire onboarding as ONE continuous flow at ONE URL (/setup),
  * composing the existing technical steps and creative phases in a logical order
@@ -36,6 +36,7 @@ import CalendarPhase from './phases/CalendarPhase';
 import LeadSourcesPhase from './phases/LeadSourcesPhase';
 import IntegrationsPhase from './phases/IntegrationsPhase';
 import ScanningPhase from './phases/ScanningPhase';
+import SiteImagesPhase from './phases/SiteImagesPhase';
 import FixFirstPhase from './phases/FixFirstPhase';
 import DraftsPhase from './phases/DraftsPhase';
 
@@ -94,10 +95,14 @@ export default function UnifiedSetupWizard() {
     { key: 'lead_sources', group: 'Content', label: 'Lead sources', render: () => <LeadSourcesPhase onComplete={goNext} /> },
     { key: 'integrations', group: 'Content', label: 'Integrations', render: () => <IntegrationsPhase status={setupStatus?.phases?.integrations} features={setupStatus?.features} onComplete={goNext} /> },
     // "Scan content" read as a website crawl. This step reads the data already in the
-    // CRM (blog posts, gallery images, products, clients) — on a new studio that is
+    // CRM (blog posts, gallery images, products, clients) â€” on a new studio that is
     // empty and finishes instantly, which looked like a broken website scan. The
     // website analysis is a separate, earlier step; it is what produces the homepage.
     { key: 'scanning', group: 'Content', label: 'Review CRM data', render: () => <ScanningPhase onComplete={goNext} /> },
+    // Images come AFTER scanning because that step triggers the website crawl, and half
+    // the slots are per-service â€” unknowable until the Authority Map exists. It is also
+    // after Storage, without which there is nowhere to put an upload.
+    { key: 'site_images', group: 'Content', label: 'Your photographs', render: () => <SiteImagesPhase onComplete={goNext} /> },
     { key: 'fix_first', group: 'Content', label: 'Fix-first', render: () => <FixFirstPhase onComplete={goNext} /> },
     { key: 'drafts', group: 'Content', label: 'Starter content', render: () => <DraftsPhase onComplete={finish} /> },
   ];
@@ -132,7 +137,7 @@ export default function UnifiedSetupWizard() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">Studio Setup</h1>
-              <p className="text-sm text-gray-500">Step {index + 1} of {STEPS.length} — {current.label}</p>
+              <p className="text-sm text-gray-500">Step {index + 1} of {STEPS.length} â€” {current.label}</p>
             </div>
           </div>
           <div className="text-right hidden sm:block">
@@ -151,7 +156,7 @@ export default function UnifiedSetupWizard() {
                   wizard as one-way and carry a mistake all the way to the end. */}
               {index > 0 && (
                 <p className="text-xs text-gray-500 px-1 -mb-2">
-                  Click any completed step to go back and change it — nothing is lost.
+                  Click any completed step to go back and change it â€” nothing is lost.
                 </p>
               )}
               {groups.map((g) => (
@@ -168,10 +173,10 @@ export default function UnifiedSetupWizard() {
                           onClick={() => visited && setIndex(idx)}
                           disabled={!visited}
                           // A completed step has always been clickable, but nothing said
-                          // so — no pointer, no hint — so someone who realised at step 13
+                          // so â€” no pointer, no hint â€” so someone who realised at step 13
                           // that they had skipped their address assumed the wizard was
                           // one-way. The cursor and the title now say it out loud.
-                          title={done ? `Go back to "${def.label}" — your answers are kept` : undefined}
+                          title={done ? `Go back to "${def.label}" â€” your answers are kept` : undefined}
                           className={cn(
                             'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-all',
                             visited && !active && 'cursor-pointer',
