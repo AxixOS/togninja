@@ -38,7 +38,25 @@ function resolveChromePath(): string | undefined {
   return undefined;
 }
 
-// Public routes to prerender for SEO
+// Public routes to prerender for SEO.
+//
+// UNIVERSAL ONLY. Every path here must exist on every instance, because prerendering
+// writes a real HTML file into dist that gets served to crawlers.
+//
+// Twenty-five "…-wien/" routes and /warum-new-age-fotografie/ used to be in this list.
+// They are the Vienna studio's service pages, so every buyer's build produced static
+// files for services they do not offer, at URLs their app does not route — and each one
+// was captured mid-load, freezing the Vienna pillar grid into the markup. A studio's own
+// pillar pages come from its Authority Map at runtime and cannot be known at build time.
+//
+// A deployment that DOES own extra routes supplies them itself:
+//   PRERENDER_EXTRA_ROUTES="/familienfotos-wien/,/babyfotos-wien/,…"
+// The Vienna deployment's full list is kept in deploy/newage-prerender-routes.txt.
+const extraRoutes = (process.env.PRERENDER_EXTRA_ROUTES || '')
+  .split(',')
+  .map((r) => r.trim())
+  .filter(Boolean);
+
 const publicRoutes = [
   '/',
   '/portfolio',
@@ -50,49 +68,15 @@ const publicRoutes = [
   '/vouchers',
 
   // English (EN) URLs — keep in sync with client/src/config/localeRoutes.ts.
-  // Separately indexable English versions of the top-searched pages.
   '/en/',
-  '/en/family-photography-vienna/',
-  '/en/newborn-photography-vienna/',
-  '/en/maternity-photography-vienna/',
-  '/en/business-portraits-vienna/',
   '/en/case-studies/',
-  '/en/application-photos-vienna/',
-  '/en/wedding-photography-vienna/',
-  '/en/baby-photos-vienna/',
-  '/en/portrait-photography-vienna/',
   '/en/pricing/',
   '/en/vouchers/',
   '/en/contact/',
   '/en/waitlist/',
   '/en/about-us/',
 
-  // SEO Cornerstone Pages
-  '/familienfotos-wien/',
-  '/neugeborenenfotos-wien/',
-  '/babyfotos-wien/',
-  '/schwangerschaftsfotos-wien/',
-  '/business-portrait-wien/',
-  '/teamfotos-wien/',
-  '/bewerbungsfotos-wien/',
-  '/eventfotografie-wien/',
-  '/hochzeitsfotografie-wien/',
-  '/produkt-fotografie-wien/',
-  '/immobilien-fotografie-wien/',
-  '/studio-fotografie-wien/',
-  '/familien-fotoshooting-wien/',
-  '/baby-fotografie-wien/',
-  
-  // SEO Pillar Pages
-  '/kinder-fotografie-wien/',
-  '/portrait-fotografie-wien/',
-  '/schul-und-hochschulfotografie-wien/',
-  '/gewerbliche-fotografie-wien/',
-  '/warum-new-age-fotografie/',
-  
   // Support Pages
-  // NOTE: /fotoshooting-preise-wien/ intentionally absent — it 301s to /preise/
-  // (duplicate-pricing consolidation, July 2026 SEO audit).
   '/ueber-uns/',
   '/preise/',
   '/faq/',
@@ -123,6 +107,8 @@ const publicRoutes = [
   // toward its 15-minute kill limit once the backlog grew. Blog posts get
   // their <title>/<meta>/canonical injected at request time from the DB
   // (server/vite.ts lookupRouteMeta) and Googlebot renders the JS content.
+
+  ...extraRoutes,
 ];
 
 // Prerendering is controlled by a single explicit opt-in: the PRERENDER env var.

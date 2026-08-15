@@ -71,16 +71,20 @@ const CaseStudiesPage: React.FC = () => {
     ? 'Echte Shootings, echte Familien, echte Ergebnisse – jede Fallstudie zeigt Ausgangslage, unseren Ansatz und das Resultat, belegt mit echten Google-Bewertungen.'
     : 'Real shoots, real families, real results — each case study shows the starting point, our approach and the outcome, backed by genuine Google reviews.';
 
+  // The description and keywords below named Vienna and the origin studio's three
+  // specialisms. Both live in <meta> tags, so they were invisible to any check that reads
+  // rendered text. The service area is now the studio's own or absent, and the specialisms
+  // are gone — this page cannot know what a given studio shoots.
   return (
     <Layout>
       <SEOHead
         title={de ? `Fallstudien | ${SITE.name}` : `Case Studies | ${SITE.name}`}
         description={de
-          ? 'Fotografie-Fallstudien aus Wien: Familien-, Schwangerschafts- und Business-Shootings – Ausgangslage, Ablauf und Ergebnis, mit echten Kundenbewertungen.'
-          : 'Photography case studies from Vienna: family, maternity and business shoots — the challenge, our approach and the result, with genuine client reviews.'}
+          ? `Fotografie-Fallstudien${SITE.address.city ? ` aus ${SITE.address.city}` : ''}: Ausgangslage, Ablauf und Ergebnis – mit echten Kundenbewertungen.`
+          : `Photography case studies${SITE.address.city ? ` from ${SITE.address.city}` : ''}: the challenge, our approach and the result, with genuine client reviews.`}
         keywords={de
-          ? 'Fallstudien Fotografie Wien, Familienshooting Beispiel, Business Portrait Fallstudie'
-          : 'photography case studies Vienna, family shoot example, business portrait case study'}
+          ? `Fallstudien Fotografie${SITE.address.city ? ` ${SITE.address.city}` : ''}, Shooting Beispiele`
+          : `photography case studies${SITE.address.city ? ` ${SITE.address.city}` : ''}, shoot examples`}
         canonical="/case-studies/"
         ogImage={undefined}
         hreflang={[

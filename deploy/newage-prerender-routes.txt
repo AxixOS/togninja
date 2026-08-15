@@ -1,0 +1,52 @@
+# New Age Fotografie (Vienna) — extra prerender routes for THAT deployment only.
+#
+# These were hardcoded in vite.config.ts's publicRoutes, so every buyer's build emitted
+# static HTML for Vienna services their instance does not route. They are one tenant's
+# pages and belong to one tenant's build.
+#
+# Set on the Vienna deployment as a single comma-separated value:
+#
+#   PRERENDER_EXTRA_ROUTES="$(grep -v '^#' deploy/newage-prerender-routes.txt | grep . | paste -sd,)"
+#
+# Prerendering still only runs when PRERENDER is set, unchanged.
+#
+# Any other studio's pillar pages come from their Authority Map at runtime and cannot be
+# prerendered — the build has no database. They get request-time meta injection instead
+# (server/vite.ts lookupRouteMeta), the same path blog posts already use.
+
+/familienfotos-wien/
+/neugeborenenfotos-wien/
+/babyfotos-wien/
+/schwangerschaftsfotos-wien/
+/business-portrait-wien/
+/teamfotos-wien/
+/bewerbungsfotos-wien/
+/eventfotografie-wien/
+/hochzeitsfotografie-wien/
+/produkt-fotografie-wien/
+/immobilien-fotografie-wien/
+/studio-fotografie-wien/
+/familien-fotoshooting-wien/
+/baby-fotografie-wien/
+/kinder-fotografie-wien/
+/portrait-fotografie-wien/
+/schul-und-hochschulfotografie-wien/
+/gewerbliche-fotografie-wien/
+/en/family-photography-vienna/
+/en/newborn-photography-vienna/
+/en/maternity-photography-vienna/
+/en/business-portraits-vienna/
+/en/application-photos-vienna/
+/en/wedding-photography-vienna/
+/en/baby-photos-vienna/
+/en/portrait-photography-vienna/
+
+# DELIBERATELY NOT LISTED:
+#
+#   /warum-new-age-fotografie/  — no route exists for it in App.tsx, so prerendering it
+#     produced a file containing whatever the SPA catch-all rendered. It was linked from
+#     RelatedTopicsBlock on every instance as "Why <studio>?", putting one business's
+#     name inside every other business's URL. Both the link and the route are now gone.
+#
+#   /fotoshooting-preise-wien/  — 301s to /preise/ (July 2026 duplicate-pricing
+#     consolidation). Its page component has been deleted.

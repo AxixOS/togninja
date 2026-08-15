@@ -15,24 +15,11 @@ interface PillarLink {
   badgeEn?: string;
 }
 
-// All primary pillar + cluster pages grouped for cross-linking from support pages
-const ALL_PILLARS: PillarLink[] = [
-  { title: 'Familienfotos Wien', titleEn: 'Family Photos Vienna', path: '/familienfotos-wien/', description: 'Studio & Outdoor, bis 12 Personen', descriptionEn: 'Studio & outdoor, up to 12 people', badge: 'Beliebt', badgeEn: 'Popular' },
-  { title: 'Neugeborenenfotos Wien', titleEn: 'Newborn Photos Vienna', path: '/neugeborenenfotos-wien/', description: 'Ab 5 Tage nach der Geburt', descriptionEn: 'From 5 days after birth', badge: 'Top', badgeEn: 'Top' },
-  { title: 'Schwangerschaftsfotos Wien', titleEn: 'Maternity Photos Vienna', path: '/schwangerschaftsfotos-wien/', description: 'Babybauch-Shooting im Studio', descriptionEn: 'Baby bump shoot in the studio' },
-  { title: 'Babyfotos Wien', titleEn: 'Baby Photos Vienna', path: '/babyfotos-wien/', description: 'Babys von 3–12 Monaten', descriptionEn: 'Babies aged 3–12 months' },
-  { title: 'Kinderfotografie Wien', titleEn: 'Children’s Photography Vienna', path: '/kinder-fotografie-wien/', description: 'Natürliche Kinderportraits', descriptionEn: 'Natural portraits of children' },
-  { title: 'Business Portrait Wien', titleEn: 'Business Portraits Vienna', path: '/business-portrait-wien/', description: 'LinkedIn, Website & HR', descriptionEn: 'LinkedIn, website & HR', badge: 'Business', badgeEn: 'Business' },
-  { title: 'Teamfotos Wien', titleEn: 'Team Photos Vienna', path: '/teamfotos-wien/', description: 'Einheitliche Mitarbeiterbilder', descriptionEn: 'Consistent staff headshots' },
-  { title: 'Bewerbungsfotos Wien', titleEn: 'Application Headshots Vienna', path: '/bewerbungsfotos-wien/', description: 'Professionelle Bewerbungsbilder', descriptionEn: 'Professional application photos' },
-  { title: 'Hochzeitsfotografie Wien', titleEn: 'Wedding Photography Vienna', path: '/hochzeitsfotografie-wien/', description: 'Für euren besonderen Tag', descriptionEn: 'For your special day' },
-  { title: 'Eventfotografie Wien', titleEn: 'Event Photography Vienna', path: '/eventfotografie-wien/', description: 'Firmen- & Privatevent-Reportagen', descriptionEn: 'Corporate & private event coverage' },
-  { title: 'Studio-Fotografie Wien', titleEn: 'Studio Photography Vienna', path: '/studio-fotografie-wien/', description: 'Modernes Fotostudio Wien 5', descriptionEn: 'Modern photo studio in Vienna 5' },
-  { title: 'Portraitfotografie Wien', titleEn: 'Portrait Photography Vienna', path: '/portrait-fotografie-wien/', description: 'Persönliche Portraits', descriptionEn: 'Personal portraits' },
-  { title: 'Produktfotografie Wien', titleEn: 'Product Photography Vienna', path: '/produkt-fotografie-wien/', description: 'E-Commerce & Amazon Produktfotos', descriptionEn: 'E-commerce & Amazon product photos' },
-  { title: 'Immobilienfotografie Wien', titleEn: 'Real Estate Photography Vienna', path: '/immobilien-fotografie-wien/', description: 'Architektur- & Immobilienfotos', descriptionEn: 'Architecture & real estate photos' },
-  { title: 'Schul- & Hochschulfotografie Wien', titleEn: 'School & University Photography Vienna', path: '/schul-und-hochschulfotografie-wien/', description: 'Klassenfotos, Matura & Sponsion', descriptionEn: 'Class photos, Matura & graduation', badge: 'Bildung', badgeEn: 'Education' },
-];
+// The fifteen "… Wien" cards that used to live here have moved to studio_configs as the
+// Vienna studio's OWN Authority Map (shared/authorityMap.ts NEW_AGE_AUTHORITY_MAP, loaded
+// by scripts/seed-authority-map.mjs). They were never a default — they were one tenant's
+// service catalogue standing in for everybody's, and because this block renders on nine
+// prerendered routes they were baked into static HTML shipped to every buyer.
 
 interface PillarLinksBlockProps {
   /** Exclude the current page from the list */
@@ -58,23 +45,27 @@ export function PillarLinksBlock({
     ? currentPath.endsWith('/') ? currentPath : `${currentPath}/`
     : null;
 
-  // Studios with their own Authority Map list their pillars; New Age (default map) keeps
-  // its full hard-coded pillar grid.
-  const { map, isCustom } = useAuthorityMap();
-  const pillarSource: PillarLink[] = isCustom
-    ? map.pillars.map((p) => ({ title: p.label, titleEn: p.label, path: p.href, description: '', descriptionEn: '' }))
-    : ALL_PILLARS;
+  const { map, loading } = useAuthorityMap();
+
+  // Render nothing until the map has actually loaded. The prerenderer fires 'ready' two
+  // animation frames after mount, well before /api/authority-map resolves, so whatever
+  // this returns during loading is what gets written into the static HTML for nine public
+  // routes. Returning null here means those files contain no pillar grid at all rather
+  // than the wrong studio's.
+  if (loading) return null;
+
+  const pillarSource: PillarLink[] = map.pillars.map((p) => ({
+    title: p.label, titleEn: p.label, path: p.href, description: '', descriptionEn: '',
+  }));
 
   const links = pillarSource.filter(l => {
     const lp = l.path.endsWith('/') ? l.path : `${l.path}/`;
     return lp !== normalizedCurrent;
   }).slice(0, limit ?? pillarSource.length);
 
-  // Nothing to link to, nothing to render. A studio whose Authority Map exists but
-  // is empty — mid-onboarding, or one whose crawl found no services — otherwise got
-  // a heading and a strapline sitting over an empty grid. Same contract as
-  // PartnerLogos and GoogleReviews, which already return null rather than announce
-  // a section with no contents.
+  // No pillars, no section. A studio mid-onboarding, or one whose crawl found no
+  // services, gets silence rather than a heading and strapline over an empty grid —
+  // the same contract PartnerLogos and GoogleReviews already keep.
   if (links.length === 0) return null;
 
   return (

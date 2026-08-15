@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Sparkles, Save, Check, AlertCircle, Network, ArrowRight, RefreshCw, Pencil, Plus, Trash2, X, LayoutTemplate } from 'lucide-react';
 import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 import type { AuthorityMap, AuthorityPillar } from '../../../../shared/authorityMap';
 
 /**
- * Authority Map panel — generate a per-studio topical-cluster + internal-link structure
+ * Authority Map panel â€” generate a per-studio topical-cluster + internal-link structure
  * from the studio's niche, edit it by hand, and save it. Once saved, the SSR blog uplinks
  * and the (guarded) SEO components render from it. Lives in the Website Studio "Analyse" tab.
  */
@@ -13,7 +13,7 @@ const LANGS = ['English', 'German', 'French', 'Spanish'];
 const clone = (m: AuthorityMap): AuthorityMap => JSON.parse(JSON.stringify(m));
 
 const AuthorityMapPanel: React.FC = () => {
-  const { map: current, isCustom, loading } = useAuthorityMap();
+  const { map: current, hasMap: isCustom, loading } = useAuthorityMap();
   const queryClient = useQueryClient();
 
   const [form, setForm] = useState({ businessName: '', niche: '', services: '', city: '', language: 'English' });
@@ -35,7 +35,7 @@ const AuthorityMapPanel: React.FC = () => {
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Generation failed');
       setWorking(d.map);
-      setMsg({ type: 'success', text: `Generated ${d.map.pillars?.length || 0} pillar pages — review/edit below, then Save.` });
+      setMsg({ type: 'success', text: `Generated ${d.map.pillars?.length || 0} pillar pages â€” review/edit below, then Save.` });
     } catch (e: any) { setMsg({ type: 'error', text: e?.message || 'Generation failed' }); }
     finally { setBusy(null); }
   };
@@ -51,7 +51,7 @@ const AuthorityMapPanel: React.FC = () => {
       if (!r.ok) throw new Error(d.error || 'Save failed');
       await queryClient.invalidateQueries({ queryKey: ['/api/authority-map'] });
       setWorking(null);
-      setMsg({ type: 'success', text: 'Saved — your site now uses this authority structure.' });
+      setMsg({ type: 'success', text: 'Saved â€” your site now uses this authority structure.' });
     } catch (e: any) { setMsg({ type: 'error', text: e?.message || 'Save failed' }); }
     finally { setBusy(null); }
   };
@@ -65,7 +65,7 @@ const AuthorityMapPanel: React.FC = () => {
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Build failed');
       setScaffold(d);
-      setMsg({ type: 'success', text: `Built ${d.created} page(s)${d.skipped ? `, skipped ${d.skipped} existing` : ''}${d.remaining ? `, ${d.remaining} remaining — click Build again` : ''}.` });
+      setMsg({ type: 'success', text: `Built ${d.created} page(s)${d.skipped ? `, skipped ${d.skipped} existing` : ''}${d.remaining ? `, ${d.remaining} remaining â€” click Build again` : ''}.` });
     } catch (e: any) { setMsg({ type: 'error', text: e?.message || 'Build failed' }); }
     finally { setBuilding(false); }
   };
@@ -93,13 +93,13 @@ const AuthorityMapPanel: React.FC = () => {
         <div className="flex-1">
           <h2 className="text-lg font-semibold text-gray-900">Authority Map</h2>
           <p className="text-gray-600 text-sm">
-            Your topical clusters + internal-link structure — the pillar pages and the supporting
+            Your topical clusters + internal-link structure â€” the pillar pages and the supporting
             articles that link to them. This is what builds topical authority in search.
           </p>
           {!loading && !working && (
             <p className="text-xs mt-1">
               {isCustom
-                ? <span className="text-green-700 font-medium">✓ Using your studio's map — {current.pillars.length} pillar pages.</span>
+                ? <span className="text-green-700 font-medium">âœ“ Using your studio's map â€” {current.pillars.length} pillar pages.</span>
                 : <span className="text-gray-500">Currently using the default starter map ({current.pillars.length} pillars). Generate or edit your own below.</span>}
             </p>
           )}
@@ -134,7 +134,7 @@ const AuthorityMapPanel: React.FC = () => {
       <div className="flex flex-wrap gap-3">
         <button onClick={generate} disabled={busy !== null} className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
           {busy === 'generate' ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          {busy === 'generate' ? 'Generating…' : (isCustom ? 'Regenerate' : 'Generate my authority map')}
+          {busy === 'generate' ? 'Generatingâ€¦' : (isCustom ? 'Regenerate' : 'Generate my authority map')}
         </button>
         {working && (
           <>
@@ -151,7 +151,7 @@ const AuthorityMapPanel: React.FC = () => {
       {/* Structure: editable when `working`, else read-only current */}
       <div className="mt-5 border-t border-gray-100 pt-5">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          {working ? 'Editing — Save to apply' : 'Current structure'}
+          {working ? 'Editing â€” Save to apply' : 'Current structure'}
         </p>
 
         {working ? (
@@ -176,7 +176,7 @@ const AuthorityMapPanel: React.FC = () => {
                   <button onClick={() => addCluster(pi)} className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800"><Plus size={13} /> Add cluster article</button>
                 </div>
                 {p.siblings && p.siblings.length > 0 && (
-                  <p className="text-[11px] text-gray-400 mt-2">Cross-links to: {p.siblings.map((s) => s.label).join(' · ')}</p>
+                  <p className="text-[11px] text-gray-400 mt-2">Cross-links to: {p.siblings.map((s) => s.label).join(' Â· ')}</p>
                 )}
               </div>
             ))}
@@ -203,7 +203,7 @@ const AuthorityMapPanel: React.FC = () => {
                   </ul>
                 )}
                 {p.siblings && p.siblings.length > 0 && (
-                  <p className="text-[11px] text-gray-400 mt-2">Links to: {p.siblings.map((s) => s.label).join(' · ')}</p>
+                  <p className="text-[11px] text-gray-400 mt-2">Links to: {p.siblings.map((s) => s.label).join(' Â· ')}</p>
                 )}
               </div>
             ))}
@@ -217,12 +217,12 @@ const AuthorityMapPanel: React.FC = () => {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <p className="text-sm font-semibold text-gray-900">Pillar pages</p>
-              <p className="text-xs text-gray-500">Generate a draft landing page for each pillar — review &amp; publish each from the editor.</p>
+              <p className="text-xs text-gray-500">Generate a draft landing page for each pillar â€” review &amp; publish each from the editor.</p>
             </div>
             <button onClick={buildPages} disabled={building}
               className="inline-flex items-center gap-2 border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
               {building ? <RefreshCw size={16} className="animate-spin" /> : <LayoutTemplate size={16} />}
-              {building ? 'Building…' : 'Build pillar pages'}
+              {building ? 'Buildingâ€¦' : 'Build pillar pages'}
             </button>
           </div>
           {scaffold && scaffold.results.length > 0 && (

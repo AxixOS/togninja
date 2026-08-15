@@ -12,11 +12,11 @@
     <!-- Viewport & Icons — no maximum-scale so pinch-zoom works (WCAG 1.4.4) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Speed up image loading: open the TLS connection to the image hosts
-         early (most site photos are on i.postimg.cc; uploads on Backblaze B2)
-         so the first images don't wait on connection setup. -->
-    <link rel="preconnect" href="https://i.postimg.cc" crossorigin>
-    <link rel="dns-prefetch" href="https://i.postimg.cc">
+    <!-- Speed up image loading: open the TLS connection to the upload host early so the
+         first images don't wait on connection setup. Preconnect only to hosts EVERY
+         instance uses — a hint for one studio's image library is a third-party
+         connection on every other studio's site. NB comments here are served to
+         visitors, so keep the reasoning in the commit, not in the markup. -->
     <link rel="preconnect" href="https://s3.eu-central-003.backblazeb2.com" crossorigin>
     <link rel="dns-prefetch" href="https://s3.eu-central-003.backblazeb2.com">
     <!-- On-the-fly image resizer (images.weserv.nl) — public marketing photos are

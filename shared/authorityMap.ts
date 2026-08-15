@@ -44,15 +44,9 @@ export interface AuthorityMap {
 }
 
 /**
- * New Age Fotografie seed — byte-for-byte the pillar/sibling graph previously hard-coded in
- * server/vite.ts (BLOG_PILLARS + DEFAULT_BLOG_PILLAR) and the blog CTA footer links. Keeping
- * these values verbatim guarantees NAF's live SSR output is unchanged.
- */
-/**
- * What a studio with no map of its own gets: nothing. The seed below belongs to one
- * specific studio, so falling back to it made every other instance advertise that
- * studio's Vienna service pages in its nav, pillar blocks and RelatedServices.
- * An empty map renders no pillars, which is correct until the crawl builds a real one.
+ * What a studio with no map of its own gets: nothing. An empty map renders no pillars,
+ * which is correct until the crawl builds a real one. Every consumer must treat this as
+ * a terminal state and render nothing — NOT as a cue to substitute another studio's map.
  */
 export const EMPTY_AUTHORITY_MAP: AuthorityMap = {
   pillars: [],
@@ -60,7 +54,19 @@ export const EMPTY_AUTHORITY_MAP: AuthorityMap = {
   conversionLinks: [],
 };
 
-export const DEFAULT_AUTHORITY_MAP: AuthorityMap = {
+/**
+ * New Age Fotografie's map — the Vienna studio this product was built for.
+ *
+ * This is TENANT DATA that happens to live in the repo, not a default. It is exported for
+ * exactly one purpose: seeding that studio's own deployment (see scripts/seed-authority-map.mjs),
+ * so it holds the pillar/sibling graph their live SSR output depends on.
+ *
+ * Do NOT import this into a component, a hook or a request path. It named one studio's
+ * Vienna services on every buyer's site for months, because "sensible default" and
+ * "another company's data" looked identical at the call site. If you want a value when a
+ * studio has no map, the answer is EMPTY_AUTHORITY_MAP and rendering nothing.
+ */
+export const NEW_AGE_AUTHORITY_MAP: AuthorityMap = {
   pillars: [
     {
       id: 'hochzeit',
@@ -169,6 +175,9 @@ export function normalizeAuthorityMap(input: any): AuthorityMap | null {
   return {
     pillars: input.pillars,
     defaultPillar: input.defaultPillar,
-    conversionLinks: Array.isArray(input.conversionLinks) ? input.conversionLinks : DEFAULT_AUTHORITY_MAP.conversionLinks,
+    // Was DEFAULT_AUTHORITY_MAP.conversionLinks — so a studio whose stored map omitted
+    // conversionLinks silently inherited the Vienna studio's German "Kundenstimmen /
+    // Termin anfragen / Gutscheine" anchors. An absent list means no conversion links.
+    conversionLinks: Array.isArray(input.conversionLinks) ? input.conversionLinks : [],
   };
 }

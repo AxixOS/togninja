@@ -8,6 +8,7 @@ import { useManualPageContent } from '../hooks/useManualPageContent';
 import { SEOHead } from '../components/SEO/SEOHead';
 import { Helmet } from 'react-helmet-async';
 import { SITE } from '../config/site';
+import { useAuthorityMap } from '../hooks/useAuthorityMap';
 
 interface BlogPost {
   id: string;
@@ -104,6 +105,13 @@ function NewsletterForm({ language }: { language: string }) {
 const BlogPage: React.FC = () => {
   const { language } = useLanguage();
   const t = useManualPageContent('blog');
+  // The studio's own services for the intro paragraph below, and its own service area.
+  const { map: authorityMap } = useAuthorityMap();
+  const blogIntroServices = (authorityMap?.pillars || [])
+    .filter((p: any) => p?.href && p?.label && p.hasPage !== false)
+    .slice(0, 4)
+    .map((p: any) => ({ to: p.href, label: p.label }));
+  const areaPhrase = SITE.address.city ? (language === 'de' ? ` in ${SITE.address.city}` : ` in ${SITE.address.city}`) : '';
   const [searchParams, setSearchParams] = useSearchParams();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [tags, setTags] = useState<BlogTag[]>([]);
@@ -322,16 +330,20 @@ const BlogPage: React.FC = () => {
           {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Blog",
+            // Four newagefotografie.at literals used to sit in this block — the blog URL,
+            // the publisher logo twice, and every post's @id. Structured data is the one
+            // place a wrong URL is stated as fact to a search engine, and because it lives
+            // in a <script> tag rather than in text, no amount of checking rendered copy
+            // would ever surface it. SITE.url is resolved per instance.
             "name": `${SITE.name} Blog`,
-            "description": language === 'de' ? "Fotografie-Tipps, Behind-the-Scenes und Inspiration für Fotoshootings in Wien" : "Photography tips, behind-the-scenes and inspiration for photoshoots in Vienna",
-            "url": "https://newagefotografie.at/blog/",
+            "description": language === 'de'
+              ? `Fotografie-Tipps, Behind-the-Scenes und Inspiration${SITE.address.city ? ` aus ${SITE.address.city}` : ''}`
+              : `Photography tips, behind-the-scenes and inspiration${SITE.address.city ? ` from ${SITE.address.city}` : ''}`,
+            "url": `${SITE.url}/blog/`,
             "publisher": {
               "@type": "Organization",
               "name": SITE.name,
-              "logo": {
-                "@type": "ImageObject",
-                "url": "https://newagefotografie.at/logo.png"
-              }
+              ...(SITE.logo ? { "logo": { "@type": "ImageObject", "url": SITE.logo } } : {}),
             },
             "inLanguage": language === 'de' ? "de-AT" : "en",
             "blogPost": posts.slice(0, 5).map(post => ({
@@ -348,39 +360,27 @@ const BlogPage: React.FC = () => {
               "publisher": {
                 "@type": "Organization",
                 "name": SITE.name,
-                "logo": {
-                  "@type": "ImageObject",
-                  "url": "https://newagefotografie.at/logo.png"
-                }
+                ...(SITE.logo ? { "logo": { "@type": "ImageObject", "url": SITE.logo } } : {}),
               },
               "mainEntityOfPage": {
                 "@type": "WebPage",
-                "@id": `https://newagefotografie.at/blog/${post.slug}`
+                "@id": `${SITE.url}/blog/${post.slug}`
               }
             }))
           })}
         </script>
 
-        {/* Additive FAQPage schema – mirrors visible FAQ below */}
-        <script type="application/ld+json">
-          {JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'FAQPage',
-            mainEntity: (language === 'de' ? [
-              { q: 'Was soll ich für ein Familienfotoshooting anziehen?', a: 'Neutrale Töne und abgestimmte Outfits wirken bei zeitlosen Familienportraits in Wien am besten.' },
-              { q: 'Wann ist der beste Zeitpunkt für ein Neugeborenen-Shooting?', a: 'Ideal sind die ersten 10–14 Tage nach der Geburt für natürliche, entspannte Posen.' },
-              { q: 'Bieten Sie Studio- und Outdoor-Fotografie an?', a: 'Ja, je nach Wunsch bieten wir sowohl Studio- als auch Outdoor-Fotoshootings an.' }
-            ] : [
-              { q: 'What should I wear for a family photoshoot?', a: 'Neutral tones and coordinated outfits work best for timeless family portraits in Vienna.' },
-              { q: 'When is the best time for a newborn photoshoot?', a: 'The ideal time is within the first 10–14 days after birth for natural, relaxed poses.' },
-              { q: 'Do you offer studio and outdoor photography?', a: 'Yes, we offer both studio and outdoor photoshoots depending on your preference.' }
-            ]).map(({ q, a }) => ({
-              '@type': 'Question',
-              name: q,
-              acceptedAnswer: { '@type': 'Answer', text: a }
-            }))
-          })}
-        </script>
+        {/* A hardcoded FAQPage schema used to sit here: three invented Q&As about family
+            and newborn shoots, one of them naming Vienna, submitted to search engines as
+            this studio's own answers.
+
+            Removed rather than parameterised, for two reasons. It asserted a specialism —
+            a wedding or commercial photographer does not answer questions about newborn
+            posing timelines. And its comment claimed it "mirrors visible FAQ below", which
+            was not true: none of the three appears anywhere on this page, and Google's
+            FAQ structured-data guidelines require the content to be visible on the page it
+            is emitted from. A studio's real FAQ belongs on /faq/, driven by its own
+            content, and that is where its schema should be emitted. */}
       </Helmet>
 
       {/* Hero Section */}
@@ -404,21 +404,27 @@ const BlogPage: React.FC = () => {
             {t('blog.photographyTipsIdeasGuides')}
           </h2>
           <p className="text-gray-700 leading-relaxed mb-8">
-            {language === 'de' ? (
+            {/* Four links, all to /fotoshootings, under four different keyword anchors
+                naming the Vienna studio's specialisms — the same shape as the pricing
+                page's intro. The studio's own pillars or none. */}
+            {language === 'de' ? 'Unser Fotografie-Blog bietet Experten-Tipps rund um ' : 'Our photography blog covers expert advice on '}
+            {blogIntroServices.length > 0 ? (
               <>
-                Unser Fotografie-Blog bietet Experten-Tipps rund um{' '}
-                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Familienfotoshootings</Link>,{' '}
-                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">Neugeborenenfotografie</Link>, Schwangerschafts-Sessions und{' '}
-                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">professionelle Headshots</Link>{' '}in Wien. Ob Sie sich auf Ihr erstes Shooting vorbereiten oder Inspiration suchen – hier finden Sie praxisnahe Tipps und Beispiele aus unserem Studio.
+                {blogIntroServices.map((s, i) => (
+                  <React.Fragment key={s.to}>
+                    {i > 0 && (i === blogIntroServices.length - 1 ? (language === 'de' ? ' und ' : ' and ') : ', ')}
+                    <Link to={s.to} className="text-purple-700 underline hover:text-purple-900">{s.label}</Link>
+                  </React.Fragment>
+                ))}
+                {areaPhrase}
+                {'. '}
               </>
             ) : (
-              <>
-                Our photography blog covers expert advice on{' '}
-                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">family photoshoots</Link>,{' '}
-                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">newborn photography</Link>, maternity sessions, and{' '}
-                <Link to="/fotoshootings" className="text-purple-700 underline hover:text-purple-900">professional headshots</Link>{' '}in Vienna. Whether you're preparing for your first shoot or looking for inspiration, you'll find practical tips and real examples from our studio.
-              </>
+              <>{language === 'de' ? 'Fotografie' : 'photography'}{areaPhrase}{'. '}</>
             )}
+            {language === 'de'
+              ? 'Ob Sie sich auf Ihr erstes Shooting vorbereiten oder Inspiration suchen – hier finden Sie praxisnahe Tipps und echte Beispiele.'
+              : "Whether you're preparing for your first shoot or looking for inspiration, you'll find practical tips and real examples."}
           </p>
 
           <h2 className="text-xl md:text-2xl font-bold text-purple-900 mb-4">

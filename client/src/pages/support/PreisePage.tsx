@@ -162,45 +162,26 @@ const PreisePage: React.FC = () => {
     }).filter((group) => group.items.length > 0);
   }, [products]);
 
-  // Whose services are these? A studio that came through onboarding has its own
-  // Authority Map; until then the map is the origin studio's seed.
-  const { map: authorityMap, isCustom } = useAuthorityMap();
-
-  // isCustom alone is NOT a sufficient gate here, and getting that wrong is how the
-  // Vienna copy survived v1.8.98. A buyer whose generation was skipped — no AI key, a
-  // blocked crawl, a failed run — has no custom map, so isCustom is false and they
-  // would be served the origin studio's Vienna paragraphs as the "safe" fallback. The
-  // legacy copy belongs to exactly one business, so ask that question directly: show it
-  // only when this IS that business. Same test as the voucher-email repair in v1.8.87.
-  const isOriginStudio = /new\s*age/i.test(SITE.name || '');
-  const showOwnCopy = isCustom || !isOriginStudio;
+  // This page had two Vienna blocks: an intro paragraph naming ten "… Wien" services and
+  // a four-tile "Popular Photo Shoots" list, every link pointing at /fotoshootings.
+  //
+  // In v1.8.100 I kept both and gated them on "is this the origin studio", which was the
+  // wrong instinct: it left the copy in the bundle and made correctness depend on a name
+  // test. Both are now the studio's own pillars or nothing at all — the Vienna versions
+  // are that studio's map rows like anyone else's.
+  const { map: authorityMap, loading: mapLoading } = useAuthorityMap();
 
   const ownServices = useMemo(() => {
-    // Only a CUSTOM map names real routes. The seed map's hrefs are the origin
-    // studio's /familienfotos-wien/-style paths, which do not exist on a buyer's
-    // site — linking them would trade a wrong city for a set of dead links.
-    if (!isCustom) return [] as Array<{ to: string; label: string }>;
     return (authorityMap?.pillars || [])
       .filter((p: any) => p?.href && p?.label && p.hasPage !== false)
       .slice(0, 4)
       .map((p: any) => ({ to: p.href, label: p.label }));
-  }, [authorityMap, isCustom]);
+  }, [authorityMap]);
 
   // Only ever the studio's own service area, never a place name we invented for them.
-  const areaSuffix = SITE.address.city ? (de ? ` in ${SITE.address.city}` : ` in ${SITE.address.city}`) : '';
+  const areaSuffix = SITE.address.city ? ` in ${SITE.address.city}` : '';
 
-  // The "Popular Photo Shoots" list was four hardcoded Vienna anchors, all pointing at
-  // the same /fotoshootings route. A custom studio gets its own; the origin studio
-  // keeps exactly what it had.
-  const popularShoots = useMemo(() => {
-    if (showOwnCopy) return ownServices;
-    return [
-      { to: '/fotoshootings', label: de ? 'Familienfotos Wien' : 'Family Photos Vienna' },
-      { to: '/fotoshootings', label: de ? 'Babyfotografie Wien' : 'Baby Photography Vienna' },
-      { to: '/fotoshootings', label: de ? 'Bewerbungsfotos Wien' : 'Application Photos Vienna' },
-      { to: '/fotoshootings', label: de ? 'Business Portrait Wien' : 'Business Portrait Vienna' },
-    ];
-  }, [isCustom, ownServices, de]);
+  const popularShoots = mapLoading ? [] : ownServices;
 
   return (
     <Layout>
@@ -287,111 +268,33 @@ const PreisePage: React.FC = () => {
           </div>
         </section>
 
-        {/* Intro with contextual keyword-rich links.
-
-            Both paragraphs below are the ORIGIN studio's: twelve links, every one of
-            them to /fotoshootings, each with a different Vienna-suffixed anchor. On a
-            buyer's site that is another city's name in their body copy, and the anchor
-            spread is poor practice even for the studio it was written for.
-
-            A studio with its own Authority Map gets its own services named here
-            instead, with their own hrefs and their own service area. Same isCustom
-            test as RelatedTopicsBlock and PillarLinksBlock, so the three cannot
-            disagree about whose services these are. */}
+        {/* Intro paragraph — the studio's own services, from their own Authority Map.
+            Replaced two hand-written paragraphs carrying twelve links that all pointed
+            at /fotoshootings under twelve different keyword anchors. */}
         <section className="py-10 bg-white">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            {showOwnCopy ? (
-              <p className="text-lg text-gray-700 leading-relaxed">
-                {de ? 'Hier finden Sie alle Preise für unsere Fotoshootings' : 'Here you will find all the prices for our photo shoots'}
-                {areaSuffix}
-                {ownServices.length > 0 ? (
-                  <>
-                    {de ? ' – von ' : ' – from '}
-                    {ownServices.map((s, i) => (
-                      <React.Fragment key={s.to}>
-                        {i > 0 && (i === ownServices.length - 1 ? (de ? ' bis hin zu ' : ' to ') : ', ')}
-                        <Link to={s.to} className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">{s.label}</Link>
-                      </React.Fragment>
-                    ))}
-                  </>
-                ) : null}
-                {'. '}
-                {de ? 'Jedes Shooting ist individuell – ' : 'Every shoot is individual – '}
-                <Link to="/kontakt" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">
-                  {de ? 'sprechen Sie uns an' : 'get in touch'}
-                </Link>
-                {de ? ' oder schauen Sie ins ' : ' or take a look at our '}
-                <Link to="/portfolio/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Portfolio</Link>.
-              </p>
-            ) : (
-            <>
             <p className="text-lg text-gray-700 leading-relaxed">
-              {de ? (
+              {de ? 'Hier finden Sie alle Preise für unsere Fotoshootings' : 'Here you will find all the prices for our photo shoots'}
+              {areaSuffix}
+              {ownServices.length > 0 ? (
                 <>
-                  Hier finden Sie alle Preise für unsere Fotoshootings in Wien – von{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Familienfotos Wien</Link> über{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Babyfotografie Wien</Link>{' '}
-                  und{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Neugeborenenfotografie Wien</Link>{' '}
-                  bis hin zu{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Business Portraits</Link>.
+                  {de ? ' – von ' : ' – from '}
+                  {ownServices.map((s, i) => (
+                    <React.Fragment key={s.to}>
+                      {i > 0 && (i === ownServices.length - 1 ? (de ? ' bis hin zu ' : ' to ') : ', ')}
+                      <Link to={s.to} className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">{s.label}</Link>
+                    </React.Fragment>
+                  ))}
                 </>
-              ) : (
-                <>
-                  Here you will find all the prices for our photo shoots in Vienna – from{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Family Photos Vienna</Link> and{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Baby Photography Vienna</Link>{' '}
-                  to{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Newborn Photography Vienna</Link>{' '}
-                  and{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Business Portraits</Link>.
-                </>
-              )}
+              ) : null}
+              {'. '}
+              {de ? 'Jedes Shooting ist individuell – ' : 'Every shoot is individual – '}
+              <Link to="/kontakt" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">
+                {de ? 'sprechen Sie uns an' : 'get in touch'}
+              </Link>
+              {de ? ' oder schauen Sie ins ' : ' or take a look at our '}
+              <Link to="/portfolio/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Portfolio</Link>.
             </p>
-            <p className="text-lg text-gray-700 leading-relaxed mt-4">
-              {de ? (
-                <>
-                  Jedes Shooting ist individuell. Viele Kunden kombinieren mehrere Shootings wie{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Schwangerschaftsfotos Wien</Link>{' '}
-                  und{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Babyfotos Wien</Link>, oder
-                  buchen ergänzend{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Kinderfotografie Wien</Link>{' '}
-                  und{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Hochzeitsfotografie Wien</Link>.
-                  Für Teams empfehlen wir{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Teamfotos Wien</Link>{' '}
-                  oder{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Bewerbungsfotos Wien</Link>.
-                  Jetzt{' '}
-                  <Link to="/warteliste/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Termin sichern</Link>{' '}
-                  oder ins{' '}
-                  <Link to="/portfolio/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Portfolio</Link>{' '}
-                  schauen.
-                </>
-              ) : (
-                <>
-                  Every shoot is individual. Many clients combine several shoots, such as{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Maternity Photos Vienna</Link>{' '}
-                  and{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Baby Photos Vienna</Link>, or
-                  add on{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Children's Photography Vienna</Link>{' '}
-                  and{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Wedding Photography Vienna</Link>.
-                  For teams we recommend{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Team Photos Vienna</Link>{' '}
-                  or{' '}
-                  <Link to="/fotoshootings" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Application Photos Vienna</Link>.
-                  Now{' '}
-                  <Link to="/warteliste/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">reserve a date</Link>{' '}
-                  or take a look at our{' '}
-                  <Link to="/portfolio/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Portfolio</Link>.
-                </>
-              )}
-            </p>
-            </>
-            )}
           </div>
         </section>
 

@@ -83,22 +83,9 @@ const Header: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const allFotoshootingItems = [
-    { path: '/familienfotos-wien/', label: t('nav.familyPhotos') },
-    { path: '/neugeborenenfotos-wien/', label: t('nav.newbornPhotos') },
-    { path: '/babyfotos-wien/', label: t('nav.babyPhotos') },
-    { path: '/schwangerschaftsfotos-wien/', label: t('nav.maternityPhotos') },
-    { path: '/business-portrait-wien/', label: t('nav.businessPortraits') },
-    { path: '/teamfotos-wien/', label: t('nav.teamPhotos') },
-    { path: '/bewerbungsfotos-wien/', label: t('nav.linkedinPhotos') },
-    { path: '/portrait-fotografie-wien/', label: t('nav.portraitPhotography') },
-    { path: '/produkt-fotografie-wien/', label: t('nav.productPhotography') },
-    { path: '/immobilien-fotografie-wien/', label: t('nav.realEstatePhotography') },
-    { path: '/studio-fotografie-wien/', label: t('nav.studioPhotography') },
-    { path: '/hochzeitsfotografie-wien/', label: t('nav.weddingPhotography') },
-    { path: '/eventfotografie-wien/', label: t('nav.eventPhotography') },
-    { path: '/schul-und-hochschulfotografie-wien/', label: t('nav.schoolPhotography') },
-  ];
+  // The fourteen /…-wien/ nav entries that stood here are the Vienna studio's own
+  // services and now live in its Authority Map. The Sessions menu is built from the
+  // map alone; see fotoshootingItems below.
 
   // The studio's OWN services drive this menu, via the Authority Map the onboarding
   // crawl builds. The list above is the legacy hardcoded set, kept only as a fallback
@@ -108,7 +95,7 @@ const Header: React.FC = () => {
   // Until both the map and the visibility config load we show NOTHING: briefly
   // flashing services a studio does not offer is worse than a menu that fills a
   // moment later.
-  const { map: authorityMap, isCustom: authorityIsCustom, loading: authorityLoading } = useAuthorityMap();
+  const { map: authorityMap, loading: authorityLoading } = useAuthorityMap();
 
   const fotoshootingItems = (() => {
     if (enabledPages === null || authorityLoading) return [];
@@ -121,13 +108,12 @@ const Header: React.FC = () => {
       .filter((p) => p.href && p.label && (p as any).hasPage !== false)
       .map((p) => ({ path: p.href, label: p.label }));
 
-    // The legacy list is reachable ONLY for the studio those fourteen Vienna routes
-    // belong to. Falling back on `fromMap.length` alone meant a studio with its own
-    // map but nothing publishable in it — mid-onboarding, or a crawl that found no
-    // services — was handed a services menu offering family, newborn, maternity and
-    // school photography in Vienna, every entry pointing at a route that does not
-    // exist on its instance. An empty menu is the honest answer there.
-    const source = fromMap.length ? fromMap : (authorityIsCustom ? [] : allFotoshootingItems);
+    // The map is now the only source. allFotoshootingItems — fourteen Vienna routes —
+    // used to be the fallback for any instance without its own map, which put family,
+    // newborn, maternity and school photography in Vienna into the top-level nav of
+    // every buyer's site, each entry pointing at a route their instance does not serve.
+    // An empty Sessions menu is the honest answer when a studio has no pillars yet.
+    const source = fromMap;
 
     return source.filter((item) => {
       const def = pageForRoute(item.path);
