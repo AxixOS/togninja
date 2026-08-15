@@ -49,9 +49,13 @@ const CHECKLIST = [
   {
     icon: Sparkles,
     title: 'AI & Extras',
-    description: 'OpenAI key, Google OAuth, Analytics, SMS — all optional',
+    // Was "all optional", and the OpenAI key sat inside it. That key is what reads the
+    // studio's existing website and writes the new one — skip it and onboarding crawls
+    // the site, generates nothing, and finishes without saying so. The single thing the
+    // product promises cannot be an optional step a buyer is invited to skip.
+    description: 'OpenAI key (required — this writes your website). Google, Analytics and SMS optional',
     time: '2 min',
-    required: false,
+    required: true,
   },
   {
     icon: Shield,

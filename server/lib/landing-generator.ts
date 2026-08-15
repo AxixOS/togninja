@@ -16,6 +16,25 @@ export function hasOpenAI(): boolean {
   return !!(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim());
 }
 
+/**
+ * The model that writes a studio's website.
+ *
+ * This is the highest-stakes model call in the product — its output IS the thing the
+ * buyer paid for, it runs a handful of times per customer ever, and the cost difference
+ * across an entire onboarding is cents. It was defaulting to gpt-4o-mini, the cheapest
+ * option available, chosen when the input was 2,000 characters of tag-stripped nav.
+ *
+ * OPENAI_LANDING_MODEL overrides it without a deploy, which is how to move to a newer
+ * model as one becomes available on the account.
+ *
+ * Deliberately NOT falling through to OPENAI_PRICE_MODEL any more: that variable is set
+ * for a high-volume, low-stakes background task and quietly dragged the site-writing
+ * model down with it wherever it happened to be configured.
+ */
+export function landingModel(): string {
+  return (process.env.OPENAI_LANDING_MODEL || 'gpt-4o').trim();
+}
+
 /** The generator input. Every field is optional — the prompt fills sensible defaults. */
 export interface LandingContext {
   /** The studio's own language ('en' | 'de' | …). Decides the output language. */
@@ -164,13 +183,16 @@ export async function generateLandingContent(
   const { systemPrompt, userPrompt } = buildLandingPrompts(context);
 
   const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_LANDING_MODEL || process.env.OPENAI_PRICE_MODEL || 'gpt-4o-mini',
+    model: landingModel(),
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
     temperature: 0.8,
-    max_tokens: 3000,
+    // 3000 was sized against a model writing from almost no context. The crawler now
+    // supplies real material and the page has more sections to fill than the old cap
+    // allowed, so a long site was being truncated mid-JSON and losing whole blocks.
+    max_tokens: Number(process.env.OPENAI_LANDING_MAX_TOKENS || 8000),
     response_format: { type: 'json_object' },
   });
 

@@ -185,12 +185,119 @@ export function extractTitleAndLinks(
   return out;
 }
 
+/**
+ * Pull schema.org JSON-LD out of a page BEFORE htmlToText destroys it.
+ *
+ * This is the single richest thing on most photography sites and it was being thrown
+ * away: htmlToText's <script> strip removes application/ld+json along with the
+ * analytics, taking the studio's exact service names, phone, email, address, opening
+ * hours and often their aggregate rating with it. Everything downstream then had to
+ * infer those from prose.
+ *
+ * Returns a compact, human-readable FACTS block — the generator reads text, so there is
+ * no point handing it raw JSON.
+ */
+export function extractStructuredFacts(html: string): string {
+  const blocks: any[] = [];
+  const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    try {
+      const parsed = JSON.parse(m[1].trim());
+      blocks.push(...(Array.isArray(parsed) ? parsed : [parsed]));
+    } catch { /* a malformed block must not cost us the rest of the page */ }
+  }
+  // @graph is how most CMSs (Yoast, RankMath) wrap their nodes.
+  const nodes = blocks.flatMap((b) => (Array.isArray(b?.['@graph']) ? b['@graph'] : [b])).filter(Boolean);
+
+  const facts: string[] = [];
+  const seen = new Set<string>();
+  const add = (label: string, value: unknown) => {
+    if (value === undefined || value === null) return;
+    const v = typeof value === 'string' ? value.trim() : String(value);
+    if (!v || v.length > 300) return;
+    const key = `${label}:${v}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    facts.push(`${label}: ${v}`);
+  };
+
+  for (const n of nodes) {
+    const type = Array.isArray(n['@type']) ? n['@type'].join('/') : n['@type'];
+    if (!type) continue;
+    if (/Organization|LocalBusiness|ProfessionalService|Photograph/i.test(type)) {
+      add('Business name', n.name);
+      add('Description', n.description);
+      add('Telephone', n.telephone);
+      add('Email', n.email);
+      if (n.address) {
+        add('Street', n.address.streetAddress);
+        add('Locality', n.address.addressLocality);
+        add('Region', n.address.addressRegion);
+        add('Postcode', n.address.postalCode);
+        add('Country', n.address.addressCountry?.name || n.address.addressCountry);
+      }
+      const area = Array.isArray(n.areaServed) ? n.areaServed : n.areaServed ? [n.areaServed] : [];
+      for (const a of area) add('Serves', typeof a === 'string' ? a : a?.name);
+      if (n.aggregateRating) {
+        add('Rating', n.aggregateRating.ratingValue);
+        add('Review count', n.aggregateRating.reviewCount || n.aggregateRating.ratingCount);
+      }
+      const hours = Array.isArray(n.openingHoursSpecification) ? n.openingHoursSpecification : [];
+      for (const h of hours) {
+        const days = Array.isArray(h.dayOfWeek) ? h.dayOfWeek.join(', ') : h.dayOfWeek;
+        if (days) add('Opening hours', `${days} ${h.opens || ''}–${h.closes || ''}`.trim());
+      }
+    }
+    if (/Service|Product|Offer/i.test(type)) {
+      add('Service', n.name);
+      const price = n.offers?.price ?? n.price;
+      const cur = n.offers?.priceCurrency ?? n.priceCurrency;
+      if (price) add('Price', `${n.name || 'item'} — ${price}${cur ? ` ${cur}` : ''}`);
+    }
+    if (/BreadcrumbList/i.test(type) && Array.isArray(n.itemListElement)) {
+      const trail = n.itemListElement.map((i: any) => i?.name || i?.item?.name).filter(Boolean).join(' > ');
+      add('Section', trail);
+    }
+  }
+  return facts.length ? `[STRUCTURED FACTS FROM THE SITE]\n${facts.join('\n')}` : '';
+}
+
 export function htmlToText(html: string): string {
   return html
+    // Comments FIRST. Without this, "<!-- Facebook Pixel Code -->" and every other
+    // tracking-snippet comment survives the tag strip as body text — and because the
+    // generator only reads the first couple of thousand characters, that debris was
+    // consuming the window before a single word the studio wrote reached the model.
+    .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    // Chrome, not content. A mega-nav repeated in header, drawer and footer was being
+    // counted three times ahead of the page's own copy. Measured on a real studio site,
+    // the first sentence the business actually wrote began at character 2,648 — past the
+    // point where the context builder stops reading.
+    .replace(/<header[\s\S]*?<\/header>/gi, ' ')
+    .replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
+    // Keep block boundaries as line breaks so headings do not run into body text.
+    .replace(/<\/(h[1-6]|p|li|div|section|article|br)>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    // CSS that reached the text layer anyway. Squarespace and several page builders emit
+    // rules outside <style> (injected, or trailing a malformed comment), so stripping the
+    // tag is not enough: a selector plus a declaration block reads as prose to the model
+    // and eats the context window. Matches "<selector> { prop: value }" only — a brace
+    // pair with no colon inside is left alone.
+    .replace(/[.#@][^{}\n]{0,120}\{[^{}]*:[^{}]*\}/g, ' ')
+    // Collapse whitespace LAST and in the right order. Doing \n{3,} first never fired:
+    // closing every nested <div> yields "\n \n \n" with spaces between, which that
+    // pattern does not match, so a deeply nested page came out as hundreds of blank lines.
+    .replace(/[ \t]+/g, ' ')
+    .replace(/[ \t]*\n[ \t]*/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -234,7 +341,13 @@ export async function crawlSite(
       const { title, links, assets, meta } = html
         ? extractTitleAndLinks(html, current)
         : { title: null, links: [] as string[], assets: [] as string[], meta: {} as Record<string, string> };
-      const text_content = html ? htmlToText(html).slice(0, 20000) : null;
+      // Facts first, prose second. The context builder reads from the FRONT of this
+      // column and stops after a couple of thousand characters, so anything the studio
+      // stated machine-readably has to lead — otherwise it is truthful data that never
+      // reaches the model.
+      const facts = html ? extractStructuredFacts(html) : '';
+      const prose = html ? htmlToText(html) : '';
+      const text_content = html ? `${facts ? `${facts}\n\n` : ''}${prose}`.slice(0, 20000) : null;
       const trimmedHtml = html ? html.slice(0, 200000) : null;
       await pool.query(
         `INSERT INTO website_pages(crawl_job_id, url, status, http_status, content_type, title, html, text_content, links, assets, meta)

@@ -53,7 +53,11 @@ function buildContext(config: any, rows: Array<{ url: string; title: string | nu
   const businessName = config?.businessName || config?.studioName || '';
   const tagline = config?.metaDescription || '';
   const address = config?.address || '';
-  const city = deriveCity(address);
+  // The wizard asks for the city directly, so use the answer. deriveCity takes the LAST
+  // comma-separated segment of the address, which on any normally-written address is the
+  // COUNTRY: a Brighton studio's pillar pages and landing_pages.city were all built around
+  // "United Kingdom". It stays as the fallback for a studio that gave an address but no city.
+  const city = (config?.city || '').trim() || deriveCity(address);
 
   const keywordsSet = new Set<string>();
   rows.forEach((r) => {
@@ -61,10 +65,18 @@ function buildContext(config: any, rows: Array<{ url: string; title: string | nu
     if (kw) String(kw).split(',').forEach((k) => { const t = k.trim(); if (t) keywordsSet.add(t); });
   });
 
+  // 2,000 characters per page was set when text_content was tag-stripped HTML, i.e. mostly
+  // nav and tracking debris — a small window was a reasonable defence against feeding the
+  // model rubbish. The crawler now leads each page with a STRUCTURED FACTS block and strips
+  // chrome, comments and stray CSS, so the window is real content and being stingy with it
+  // is just discarding the studio's own words. Measured on a live site, the first sentence
+  // the business wrote used to begin at character 2,648 — past the old cut.
+  const PER_PAGE = Number(process.env.CRAWL_CONTEXT_PER_PAGE || 6000);
+  const TOTAL = Number(process.env.CRAWL_CONTEXT_TOTAL || 40000);
   const aggregated = rows
-    .map((r) => `## ${r.title || r.url}\n${(r.text_content || '').slice(0, 2000)}`)
+    .map((r) => `## ${r.title || r.url}\n${(r.text_content || '').slice(0, PER_PAGE)}`)
     .join('\n\n')
-    .slice(0, 12000);
+    .slice(0, TOTAL);
 
   const extras = [
     businessName ? `Business name: ${businessName}` : '',
@@ -82,7 +94,12 @@ function buildContext(config: any, rows: Array<{ url: string; title: string | nu
     // The studio's configured language, so the generated copy is written for its
     // market rather than matching whatever language the crawled pages happened to
     // be in. A Brighton studio was getting German copy without this.
-    language: config?.language || config?.siteLanguage || process.env.SITE_LANG || 'en',
+    // config.language does NOT exist on studio_configs — the column is site_language. The
+    // dead first term was harmless here (undefined falls through) but the same expression
+    // downstream decided which language row the generated copy was written to, so every
+    // studio's content was filed under 'en' while its site read another row. Named
+    // explicitly now so the two cannot drift apart again.
+    language: config?.siteLanguage || process.env.SITE_LANG || 'en',
     primaryService: tagline || 'Photography',
     city: city || undefined,
     tone: 'warm',
@@ -232,7 +249,13 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     // defaults after onboarding and the optimised text was effectively invisible.
     // Best-effort: a failure here must not fail the pipeline.
     try {
-      const seeded = await seedManualPagesFromGenerated(content, (config?.language || 'en'), { overwrite: !!opts.force });
+      // THE bug that made onboarding look like it did nothing for a non-English studio.
+      // config.language is not a column on studio_configs, so this was always 'en': the
+      // copy was generated correctly in the studio's language and then written to the
+      // language='en' row, while the public site reads the row matching site_language.
+      // Correct German copy, generated and then made invisible. Reuse the language the
+      // context was actually built with so the two can never disagree.
+      const seeded = await seedManualPagesFromGenerated(content, (context.language || 'en'), { overwrite: !!opts.force });
       if (seeded) {
         console.log(`[homepage-pipeline] seeded ${seeded.written} homepage field(s) into Website Studio (${seeded.skipped} already set)`);
       }

@@ -1,7 +1,7 @@
 // Generate a per-studio Authority Map (topical clusters + internal-link graph) from the
 // studio's niche. Mirrors the OpenAI usage in landing-generator.ts. The result is reviewed
 // and saved by the studio (POST .../generate returns it; PUT /api/authority-map persists it).
-import { hasOpenAI, NoOpenAIError } from './landing-generator.js';
+import { hasOpenAI, NoOpenAIError, landingModel } from './landing-generator.js';
 import { normalizeAuthorityMap, type AuthorityMap } from '../../shared/authorityMap.js';
 
 export interface AuthorityMapInput {
@@ -56,7 +56,10 @@ Return ONLY a JSON object exactly matching this shape:
 ${SHAPE}`;
 
   const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_LANDING_MODEL || process.env.OPENAI_PRICE_MODEL || 'gpt-4o-mini',
+    // Same model as the site copy, from the same accessor. The Authority Map decides the
+    // studio's whole page structure and internal-link graph, so it is if anything the more
+    // consequential of the two calls — it should never be the cheaper one by accident.
+    model: landingModel(),
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },

@@ -60,6 +60,15 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
     staleTime: 5000,
   });
 
+  // Declared AFTER `current`, deliberately. A const cannot be read above its own
+  // declaration — the reference is hoisted into the temporal dead zone and throws at
+  // runtime, which esbuild does not flag and the build therefore passes. That is exactly
+  // how the homepage shipped a ReferenceError in v1.8.81. See HANDOVER §9.
+  //
+  // A key already stored counts: a studio revisiting this step must not be forced to
+  // re-enter a secret it cannot read back out of a password field.
+  const hasAiKey = !!openaiApiKey.trim() || !!current?.extras?.openaiKeySet;
+
   useEffect(() => {
     if (current?.extras) {
       const e = current.extras;
@@ -142,7 +151,8 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
           <div>
             <CardTitle>AI & Extras</CardTitle>
             <CardDescription>
-              All optional. Configure AI assistants, Google integrations, analytics, and SMS.
+              The OpenAI key is required — it reads your existing website and writes your new
+              one. Google, analytics and SMS below are optional.
             </CardDescription>
           </div>
         </div>
@@ -158,6 +168,7 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
           <div className="space-y-2">
             <Label htmlFor="openaiApiKey">
               OpenAI API Key
+              <span className="text-red-600 text-xs ml-2">required</span>
               {current?.extras?.openaiKeySet && <span className="text-green-600 text-xs ml-2">(saved)</span>}
             </Label>
             <Input
@@ -168,6 +179,22 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
               onChange={e => setOpenaiApiKey(e.target.value)}
               className="font-mono text-sm"
             />
+            {/* Say what it is FOR and what happens without it. The previous copy said
+                "all optional", so skipping looked free — and the consequence only showed
+                up much later as a site with no content and no explanation. */}
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              We use this to read your current website and write your new pages, services
+              and SEO structure. Without it, setup will still run but your site will have
+              no content of its own.{' '}
+              <a
+                href="https://platform.openai.com/api-keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                Get a key
+              </a>
+            </p>
           </div>
 
           {/* Test AI */}
@@ -467,16 +494,31 @@ export default function ExtrasStep({ onComplete, onBack }: Props) {
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={onComplete}>Skip all extras</Button>
-          <Button
-            onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-          >
-            {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Save & Continue
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-2">
+            {/* "Skip all extras" used to skip the OpenAI key too, which is the one thing on
+                this screen that is not an extra. The optional integrations below can still
+                be left blank — this button just no longer walks past the key. */}
+            <Button
+              variant="ghost"
+              onClick={onComplete}
+              disabled={!hasAiKey}
+              title={hasAiKey ? undefined : 'Add an OpenAI key first — it writes your website'}
+            >
+              Skip other extras
+            </Button>
+            <Button
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending || !hasAiKey}
+            >
+              {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save & Continue
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+          {!hasAiKey && (
+            <p className="text-xs text-red-600">An OpenAI API key is required to continue.</p>
+          )}
         </div>
       </CardFooter>
 

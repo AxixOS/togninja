@@ -1,6 +1,6 @@
 import { pool } from '../db';
 import { generateAuthorityMap } from './authority-map-generator.js';
-import { hasOpenAI } from './landing-generator.js';
+import { hasOpenAI, landingModel } from './landing-generator.js';
 
 /**
  * P2a — connect the onboarding site-analysis to the Authority Map.
@@ -41,7 +41,9 @@ export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void
     // 1) Distil a concise business profile from the crawled content.
     const OpenAI = (await import('openai')).default;
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const model = process.env.OPENAI_LANDING_MODEL || process.env.OPENAI_PRICE_MODEL || 'gpt-4o-mini';
+    // Shared with the site copy and the Authority Map — this call distils the business
+    // profile those two are built from, so a weaker model here degrades everything after it.
+    const model = landingModel();
     const distil = await openai.chat.completions.create({
       model,
       messages: [

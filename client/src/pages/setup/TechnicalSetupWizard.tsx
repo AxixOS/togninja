@@ -49,7 +49,8 @@ const STEPS: StepDef[] = [
   { key: 'email',    label: 'Email / SMTP',   icon: Mail,       required: true  },
   { key: 'stripe',   label: 'Payments',       icon: CreditCard, required: true  },
   { key: 'storage',  label: 'File Storage',   icon: HardDrive,  required: true  },
-  { key: 'extras',   label: 'AI & Extras',    icon: Sparkles,   required: false },
+  // required: the OpenAI key lives here and it is what writes the studio's website.
+  { key: 'extras',   label: 'AI & Extras',    icon: Sparkles,   required: true },
   { key: 'security', label: 'Admin Account',  icon: Shield,     required: true  },
 ];
 
