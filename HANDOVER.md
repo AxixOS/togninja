@@ -184,15 +184,37 @@ restricted to campaign landing pages; admin sidebar made to actually scroll.
 
 ## 7. Outstanding
 
+Updated 14–15 Aug, after `v1.8.80 → v1.8.96` (18 commits). The demo instance was reset
+and re-onboarded from scratch onto a real UK wedding company, `bigdayproductions.co.uk`,
+which is what surfaced most of what follows. **Susan Grace Hinman is no longer the test
+tenant** — that was consumed by the reset, because one database is one studio.
+
 | Item | Notes |
 |---|---|
-| Port sidebar scroll fix to product line | `f351a5f`. Plain bug, every studio has it. |
+| Port sidebar scroll fix to product line | `f351a5f`. Plain bug, every studio has it. Still the cheapest thing on this list. |
 | Port campaign-page coupons to product line | `be1a47e`, if wanted in the image. |
-| `/gift-vouchers/{family,newborn,maternity}` | ~62 hardcoded German Vienna strings. Separate page components, not translation keys. Disabled by default for a single-language studio — confirm on the deployed build first. |
-| Make the city configurable | The blunt fix was deleting "Wien" from strings. Correct fix: interpolate `studio_configs.city`, so a buyer gets nothing and NAF gets Wien back. This is the difference between de-branding and de-localising. |
+| Service area is a single value | `studio_configs.city` holds one string, so a studio covering nine cities can name one. Comma-splitting was considered and rejected: "Brighton, UK" is one place written two ways, and the normaliser already strips the segment after the comma. Needs a UI that asks for a list. |
+| Identity is a boot-time snapshot | `config-reader.ts` hydrates `BUSINESS_NAME` and `APP_URL` from `studio_configs` into `process.env` at startup, only when not already set. So "env wins" in `siteIdentity` does not mean an operator override wins — it means **a frozen copy of the same database row wins**. A studio that renames itself sees no change until the service restarts. Decide whether the live row should beat the snapshot. |
+| Currency | `€` still renders on pillar pages for a GBP studio; voucher prices format as `299,00 £` — German number formatting on sterling. |
+| Three Vienna case studies are seeded into every tenant | `server/index.ts` → `seed-case-studies.ts` writes them as **drafts** into `blog_posts` at boot. One publish click puts the origin studio's real client outcomes on a buyer's site. Needs a de-seed and a data migration, not a code default change. |
+| `blogImageAnalysis.ts:61-70` | Stamps `© New Age Fotografie, Wien` and Vienna GPS into the IPTC/XMP of every analysed blog image. Unlike HTML this is **not repairable after the fact**. |
+| `STATIC_ROUTE_META` (`server/vite.ts:796-833`) | German, NAF-branded titles and crawlable body injected **server-side for every tenant** on `/gutschein*`. No client fix reaches it. |
+| Prerender manifest + shipped static files | `vite.config.ts:42-126` is a hardcoded list of NAF German URLs; `client/public/sitemap.xml` has 48 `<loc>`s on newagefotografie.com and `robots.txt` points its `Sitemap:` there. All shipped into `dist` for every buyer. |
+| `FotoshootingPreiseWienPage` | A geo-targeted landing page that is *about* Vienna. Do not interpolate a city into it — gate it on tenancy. |
+| Structured data | Three overlapping business entities (`PhotoStudio`, `ProfessionalService`, `LocalBusiness`) each carry the same claims on one page. |
+| `manual_page_content` re-key | `homepage-pipeline.ts:235` seeds every studio's copy under `language='en'` because `config?.language` is undefined (the column is `siteLanguage`). **Do not just fix the expression** — see §9. |
 | Sidebar reordering | Requested, not started. Needs a stored order, a UI, and — the part to get right — appending unknown items so a future nav entry isn't invisible to existing studios. |
 | Image upload docs | Never written: where homepage/portfolio photos are uploaded and how sections are chosen. |
 | `tsc` | Crashes with an out-of-memory dump on the current machine. Try `node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc --noEmit -p tsconfig.json`. **Baseline is 613 pre-existing errors** — that is the bar, not zero. |
+
+**Done since the last revision**, so you don't go looking for it: the homepage TDZ crash;
+language precedence (`GET /api/i18n/settings` now resolves the studio's own answer ahead of
+the table); canonical localisation; the studio's name, city and domain reaching its own
+pages; the crawler rendering JavaScript; and the removal of the origin studio's
+photographer, social accounts, Google review link, client list, address, opening hours,
+history, review score, twelve invented testimonials, business metrics and dead internal
+links. `/gift-vouchers/{family,newborn,maternity}` no longer carry Vienna in their titles,
+though their body copy is still German-first.
 
 ---
 
@@ -215,6 +237,24 @@ sources, `title`/`alt`/`aria-label`, document title and meta description. A grep
 `innerText` — the pricing-calculator leak was invisible to both. It exits non-zero on a leak
 **or on a page it could not inspect**: it once reported "23 pages, 0 visible" while every
 page had failed on a `ReferenceError`, and a false all-clear gets believed.
+
+**It has three blind spots, all of which hid a real defect.**
+
+1. **It never reads link targets.** It sweeps text and attributes, never `href`. So a
+   "Review us on Google" button pointing at the origin studio's Business Profile, and a
+   named individual's personal LinkedIn, were invisible to it by construction. One line
+   fixes it: collect `a[href]`.
+2. **Its pattern is too narrow.** It matches `New Age|Vienna|Wien|Wehrgasse|+43` — so it
+   scored `/about/` clean while that page's biggest heading read "Simon — the photographer
+   behind <the buyer's name>". Add the origin photographer's name, the fabricated client
+   list, and a bare currency symbol.
+3. **It cannot tell a rendered page from a crashed one.** The ErrorBoundary's fallback
+   contains no Vienna strings, so a page showing "Something went wrong" scores *clean*.
+   That is how the homepage crash of `v1.8.81` passed the gate. Assert on the boundary's
+   marker text.
+
+Until those are closed, a passing run means less than it looks. Every leak found on 13–15
+Aug was found by rendering a page and reading it, not by this script.
 
 ---
 
@@ -244,6 +284,22 @@ page had failed on a `ReferenceError`, and a false all-clear gets believed.
   "did they choose X", check whether the write path can tell a choice from a default — here it
   cannot, and a German studio that accepted the prefill is indistinguishable from one that
   meant English.
+- **Never round-trip a source file through PowerShell text cmdlets.** `Get-Content` reads
+  as the system codepage and `Set-Content -Encoding UTF8` writes as UTF-8, so every
+  non-ASCII character is encoded twice. A line-range deletion done that way shipped 81
+  mangled characters to production in `v1.8.92`: every en dash and umlaut on the About page
+  rendered as the three-character Windows-1252 soup, in front of visitors. The render check
+  printed it and it was read as a console display artefact rather than the defect. Use Node's `fs` with an explicit `'utf8'`. If it has already happened,
+  do **not** reverse the whole file: a corrupted file is a MIX of mangled and intact
+  characters, and a blanket reverse damages the good ones. Enumerate the distinct bad
+  sequences, map them explicitly, apply longest-first, assert to zero.
+- **A JSX comment is not an attribute.** `{/* … */}` between props inside a tag is a parse
+  error, not a comment. Twice in one day. Put the note above the tag.
+- **An imperative `document.title` beats the declarative one on the same page.** BlogPage
+  set title, description and og:title in a `useEffect` that ran after its own `SEOHead` and
+  overwrote it — and its cleanup set the origin studio's name as the title of whichever
+  page you navigated to next. If a page has `SEOHead`, that is the only thing allowed to
+  touch its head.
 - **A column inside a conflict key is not a value you can quietly change.**
   `manual_page_content` upserts `ON CONFLICT (studio_id, page_id, language)`. The seeding call
   passes `config?.language`, which is always `undefined` — the column is `siteLanguage` — so
