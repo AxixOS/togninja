@@ -611,18 +611,21 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // env storage. A stale/invalid stored key (e.g. a Supabase publishable key pasted in a
     // prior run) otherwise overrides the valid env creds and fails uploads (InvalidAccessKeyId).
     try { await db.execute(sql`UPDATE studio_integrations SET storage_access_key_id = NULL, storage_secret_key_encrypted = NULL, storage_bucket = NULL, storage_endpoint = NULL`); } catch {}
-    // The SMTP SERVER details are deliberately kept (infrastructure — re-entering them
-    // every demo run is pointless), but the sender IDENTITY is the studio's own. Left
-    // behind, a fresh wizard pre-filled the PREVIOUS studio's name in "From Name", so
-    // the next tenant's emails would have gone out signed as them.
+    // The sender IDENTITY is the studio's own. Left behind, a fresh wizard pre-filled
+    // the PREVIOUS studio's name in "From Name", so the next tenant's emails would have
+    // gone out signed as them. (The SMTP server details themselves are cleared with the
+    // rest of the credentials below — an earlier version of this comment claimed they
+    // were kept, which stopped being true when that block was added.)
     try { await db.execute(sql`UPDATE studio_integrations SET email_from_name = NULL`); } catch {}
 
-    // EVERY credential the wizard collects — not just storage. A reset that left SMTP,
-    // Stripe and the OpenAI key behind meant the next run of the wizard opened with the
-    // previous studio's settings already filled in and marked "(saved)", which is not
-    // what a new customer would ever see and quietly hides whether a step actually works.
-    // Listed column by column, and each in its own statement, so a column that does not
-    // exist on an older instance skips itself instead of aborting the whole reset.
+    // TENANT credentials the wizard collects. A reset that left Stripe or SMTP behind
+    // meant the next run of the wizard opened with the previous studio's settings
+    // already filled in and marked "(saved)", which is not what a new customer would
+    // ever see and quietly hides whether a step actually works. Listed column by column,
+    // and each in its own statement, so a column that does not exist on an older
+    // instance skips itself instead of aborting the whole reset.
+    //
+    // NOT listed here: the AI provider keys. See INSTANCE_CREDENTIALS below.
     const INTEGRATION_COLUMNS = [
       // Email / SMTP + IMAP + inbound
       'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass_encrypted', 'smtp_secure',
@@ -631,8 +634,7 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       // Payments
       'stripe_account_id', 'stripe_publishable_key', 'stripe_secret_key_encrypted',
       'stripe_webhook_secret_encrypted', 'ecommerce_enabled',
-      // AI
-      'openai_api_key_encrypted', 'openai_assistant_id', 'anthropic_api_key_encrypted',
+      // AI — deliberately absent, see INSTANCE_CREDENTIALS below.
       // Google
       'google_client_id', 'google_client_secret_encrypted', 'google_calendar_id',
       'google_places_api_key_encrypted', 'google_places_place_id',
@@ -644,13 +646,61 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     for (const col of INTEGRATION_COLUMNS) {
       try { await db.execute(sql.raw(`UPDATE studio_integrations SET ${col} = NULL`)); } catch { /* column absent on this instance */ }
     }
+
+    // INSTANCE_CREDENTIALS — kept on purpose, and the reason is worth keeping written down.
+    //
+    // These are not the studio's credentials, they are OURS: the AI provider keys are what
+    // make this instance able to generate anything at all. Clearing them alongside the
+    // tenant's Stripe and SMTP settings looked consistent and was not, because a demo
+    // instance is a machine we hand to prospects, and the reset is how we hand it over.
+    //
+    // The symptom, observed 15 Aug on the togninja demo: reset-demo nulled
+    // openai_api_key_encrypted, Render then redeployed, config-reader found no key to
+    // hydrate into OPENAI_API_KEY, and the next onboarding crawled the studio's site
+    // perfectly (10 pages, 48,832 chars) and generated nothing. homepage_gen_state
+    // recorded stage 'skipped' with 'AI is not configured on this instance' and the wizard
+    // carried on. The demo had become single-use: the first onboarding produced a site,
+    // every one after it produced an empty one.
+    //
+    // Note it needed the RESTART to bite — technical-setup-routes.ts sets
+    // process.env.OPENAI_API_KEY on save, so within one process the key outlived its own
+    // row. That is why this went unnoticed: it only reproduces across a deploy.
+    //
+    // A studio running their own instance never hits this path; reset-demo is gated to
+    // pre-setup and is a demo tool. If you ever need a true factory wipe including our
+    // keys, add a separate explicit endpoint rather than folding it back in here.
+    const INSTANCE_CREDENTIALS = [
+      'openai_api_key_encrypted', 'openai_assistant_id', 'anthropic_api_key_encrypted',
+    ];
+    // Report what survived, rather than leaving the operator to infer it. If the AI key
+    // is missing here the NEXT onboarding will crawl fine and generate nothing, so this
+    // is the last moment at which that is cheap to notice.
+    const preserved: string[] = [];
+    for (const col of INSTANCE_CREDENTIALS) {
+      try {
+        const r: any = await db.execute(sql.raw(`SELECT ${col} IS NOT NULL AS present FROM studio_integrations LIMIT 1`));
+        const row = (r?.rows ?? r)?.[0];
+        if (row && (row.present === true || row.present === 't')) preserved.push(col);
+      } catch { /* column absent on this instance */ }
+    }
+    const aiReady = preserved.includes('openai_api_key_encrypted') || !!(process.env.OPENAI_API_KEY || '').trim();
+    if (!aiReady) {
+      console.warn('[reset-demo] no OpenAI key on this instance — the next onboarding will crawl but generate nothing');
+    }
     try {
       const { config } = await import('./config-reader');
       config.invalidate();
       const { invalidateStorageConfig } = await import('./services/s3-storage');
       invalidateStorageConfig();
     } catch { /* cache refresh is best-effort */ }
-    return res.json({ ok: true, message: 'Demo data cleared. Open /setup to start onboarding again.' });
+    return res.json({
+      ok: true,
+      message: aiReady
+        ? 'Demo data cleared. Open /setup to start onboarding again.'
+        : 'Demo data cleared, but no OpenAI key is configured — onboarding will crawl the site and generate no content. Set one before running /setup.',
+      aiReady,
+      preservedInstanceCredentials: preserved,
+    });
   } catch (error: any) {
     console.error('[reset-demo] error:', error?.message || error);
     return res.status(500).json({ error: 'Failed to reset demo data', detail: String(error?.message || error).slice(0, 200) });
