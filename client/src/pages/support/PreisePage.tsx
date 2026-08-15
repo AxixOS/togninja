@@ -7,6 +7,7 @@ import { RelatedTopicsBlock } from '../../components/SEO/RelatedTopicsBlock';
 import { PillarLinksBlock } from '../../components/SEO/PillarLinksBlock';
 import { SEOHead } from '../../components/SEO/SEOHead';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 import { SITE } from '../../config/site';
 
 // Map API categories → grouped sections for the Preise page.
@@ -161,6 +162,46 @@ const PreisePage: React.FC = () => {
     }).filter((group) => group.items.length > 0);
   }, [products]);
 
+  // Whose services are these? A studio that came through onboarding has its own
+  // Authority Map; until then the map is the origin studio's seed.
+  const { map: authorityMap, isCustom } = useAuthorityMap();
+
+  // isCustom alone is NOT a sufficient gate here, and getting that wrong is how the
+  // Vienna copy survived v1.8.98. A buyer whose generation was skipped — no AI key, a
+  // blocked crawl, a failed run — has no custom map, so isCustom is false and they
+  // would be served the origin studio's Vienna paragraphs as the "safe" fallback. The
+  // legacy copy belongs to exactly one business, so ask that question directly: show it
+  // only when this IS that business. Same test as the voucher-email repair in v1.8.87.
+  const isOriginStudio = /new\s*age/i.test(SITE.name || '');
+  const showOwnCopy = isCustom || !isOriginStudio;
+
+  const ownServices = useMemo(() => {
+    // Only a CUSTOM map names real routes. The seed map's hrefs are the origin
+    // studio's /familienfotos-wien/-style paths, which do not exist on a buyer's
+    // site — linking them would trade a wrong city for a set of dead links.
+    if (!isCustom) return [] as Array<{ to: string; label: string }>;
+    return (authorityMap?.pillars || [])
+      .filter((p: any) => p?.href && p?.label && p.hasPage !== false)
+      .slice(0, 4)
+      .map((p: any) => ({ to: p.href, label: p.label }));
+  }, [authorityMap, isCustom]);
+
+  // Only ever the studio's own service area, never a place name we invented for them.
+  const areaSuffix = SITE.address.city ? (de ? ` in ${SITE.address.city}` : ` in ${SITE.address.city}`) : '';
+
+  // The "Popular Photo Shoots" list was four hardcoded Vienna anchors, all pointing at
+  // the same /fotoshootings route. A custom studio gets its own; the origin studio
+  // keeps exactly what it had.
+  const popularShoots = useMemo(() => {
+    if (showOwnCopy) return ownServices;
+    return [
+      { to: '/fotoshootings', label: de ? 'Familienfotos Wien' : 'Family Photos Vienna' },
+      { to: '/fotoshootings', label: de ? 'Babyfotografie Wien' : 'Baby Photography Vienna' },
+      { to: '/fotoshootings', label: de ? 'Bewerbungsfotos Wien' : 'Application Photos Vienna' },
+      { to: '/fotoshootings', label: de ? 'Business Portrait Wien' : 'Business Portrait Vienna' },
+    ];
+  }, [isCustom, ownServices, de]);
+
   return (
     <Layout>
       <SEOHead
@@ -246,9 +287,44 @@ const PreisePage: React.FC = () => {
           </div>
         </section>
 
-        {/* Intro with contextual keyword-rich links */}
+        {/* Intro with contextual keyword-rich links.
+
+            Both paragraphs below are the ORIGIN studio's: twelve links, every one of
+            them to /fotoshootings, each with a different Vienna-suffixed anchor. On a
+            buyer's site that is another city's name in their body copy, and the anchor
+            spread is poor practice even for the studio it was written for.
+
+            A studio with its own Authority Map gets its own services named here
+            instead, with their own hrefs and their own service area. Same isCustom
+            test as RelatedTopicsBlock and PillarLinksBlock, so the three cannot
+            disagree about whose services these are. */}
         <section className="py-10 bg-white">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            {showOwnCopy ? (
+              <p className="text-lg text-gray-700 leading-relaxed">
+                {de ? 'Hier finden Sie alle Preise für unsere Fotoshootings' : 'Here you will find all the prices for our photo shoots'}
+                {areaSuffix}
+                {ownServices.length > 0 ? (
+                  <>
+                    {de ? ' – von ' : ' – from '}
+                    {ownServices.map((s, i) => (
+                      <React.Fragment key={s.to}>
+                        {i > 0 && (i === ownServices.length - 1 ? (de ? ' bis hin zu ' : ' to ') : ', ')}
+                        <Link to={s.to} className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">{s.label}</Link>
+                      </React.Fragment>
+                    ))}
+                  </>
+                ) : null}
+                {'. '}
+                {de ? 'Jedes Shooting ist individuell – ' : 'Every shoot is individual – '}
+                <Link to="/kontakt" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">
+                  {de ? 'sprechen Sie uns an' : 'get in touch'}
+                </Link>
+                {de ? ' oder schauen Sie ins ' : ' or take a look at our '}
+                <Link to="/portfolio/" className="text-purple-600 hover:text-purple-700 underline underline-offset-2 font-medium">Portfolio</Link>.
+              </p>
+            ) : (
+            <>
             <p className="text-lg text-gray-700 leading-relaxed">
               {de ? (
                 <>
@@ -314,6 +390,8 @@ const PreisePage: React.FC = () => {
                 </>
               )}
             </p>
+            </>
+            )}
           </div>
         </section>
 
@@ -517,33 +595,24 @@ const PreisePage: React.FC = () => {
         </section>
       </div>
 
-      {/* Beliebte Fotoshootings – compact internal link block */}
+      {/* Beliebte Fotoshootings – compact internal link block.
+          Hidden entirely when there is nothing to list: a heading over an empty grid
+          is worse than no section, and a studio whose map has no pillars with pages
+          would otherwise get exactly that. */}
+      {popularShoots.length > 0 && (
       <section className="py-12 bg-gray-50 border-t border-gray-100">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
             {de ? 'Beliebte Fotoshootings' : 'Popular Photo Shoots'}
           </h3>
           <ul className="grid sm:grid-cols-2 gap-3 mb-6 max-w-2xl mx-auto">
-            <li>
-              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
-                {de ? 'Familienfotos Wien' : 'Family Photos Vienna'}
-              </Link>
-            </li>
-            <li>
-              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
-                {de ? 'Babyfotografie Wien' : 'Baby Photography Vienna'}
-              </Link>
-            </li>
-            <li>
-              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
-                {de ? 'Bewerbungsfotos Wien' : 'Application Photos Vienna'}
-              </Link>
-            </li>
-            <li>
-              <Link to="/fotoshootings" className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
-                {de ? 'Business Portrait Wien' : 'Business Portrait Vienna'}
-              </Link>
-            </li>
+            {popularShoots.map((s) => (
+              <li key={s.to + s.label}>
+                <Link to={s.to} className="text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2">
+                  {s.label}
+                </Link>
+              </li>
+            ))}
           </ul>
           <p className="text-center text-gray-700">
             <Link to="/warteliste/" className="text-purple-700 hover:text-purple-900 font-semibold underline underline-offset-2">
@@ -552,6 +621,7 @@ const PreisePage: React.FC = () => {
           </p>
         </div>
       </section>
+      )}
 
       <PillarLinksBlock currentPath="/preise/" />
       <RelatedTopicsBlock pathname="/preise/" />

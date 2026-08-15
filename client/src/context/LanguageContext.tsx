@@ -765,7 +765,11 @@ const translations = {
     'blog.noPostsYet': 'We haven\'t published any blog posts yet. Check back soon!',
     
     // Contact Page
-    'contact.title': 'Contact - Family Photographer',
+    // Was 'Contact - Family Photographer'. That is the origin studio's specialism, not
+    // every buyer's: it headed the contact page of a wedding photographer during the
+    // 15 Aug smoke test. The page has no way of knowing what the studio shoots, so it
+    // should not claim to.
+    'contact.title': 'Contact',
     'contact.subtitle': 'Schedule your personal photoshoot',
     'contact.studioTitle': 'Photo Studio - Contact Information',
     'contact.contactForm': 'Contact Form',
@@ -1900,7 +1904,7 @@ const translations = {
     'blog.noPostsYet': 'Wir haben noch keine Blog-Beiträge veröffentlicht. Schauen Sie bald wieder vorbei!',
     
     // Contact Page
-    'contact.title': 'Kontakt - Familienfotograf',
+    'contact.title': 'Kontakt',
     'contact.subtitle': 'Vereinbaren Sie Ihr persönliches Fotoshooting',
     'contact.studioTitle': 'Fotostudio - Kontaktinformationen',
     'contact.contactForm': 'Kontaktformular',
