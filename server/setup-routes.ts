@@ -793,6 +793,10 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       'ga4_measurement_id', 'meta_pixel_id',
       // Presentation the wizard collects.
       'tagline', 'primary_color',
+      // The chosen style preset. Now that it drives the whole public site rather than just
+      // the landing pages, a preset left behind means the next studio opens on the previous
+      // studio's colours and typeface.
+      'site_theme_preset',
       // Money and locale — the quietest of the lot and the most misleading during a test.
       // A re-onboarded studio inherited the previous tenant's currency and timezone, so a
       // GBP studio following a GBP studio looks right for the wrong reason and any currency
