@@ -1,6 +1,7 @@
 import { pool } from '../db';
 import { generateAuthorityMap } from './authority-map-generator.js';
 import { hasOpenAI, landingModel } from './landing-generator.js';
+import { saveAuthorityMap } from './authority-map.js';
 
 /**
  * P2a — connect the onboarding site-analysis to the Authority Map.
@@ -76,8 +77,15 @@ export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void
       language: profile.language || undefined,
     });
 
-    // 3) Persist to the studio's config (jsonb).
-    await pool.query(`UPDATE studio_configs SET authority_map = $1 WHERE id = $2`, [JSON.stringify(map), studio.id]);
+    // 3) Persist to the studio's config, THROUGH saveAuthorityMap so the read cache is
+    //    invalidated. Writing with a raw UPDATE left getAuthorityMap()'s 60-second cache
+    //    holding the pre-write value, and scaffoldPillarPages reads through that cache
+    //    immediately afterwards — so the map was correct in the database while the
+    //    scaffolder saw an empty one and built nothing. Observed live: "Authority Map
+    //    generated" followed by "pillar pages: 0 created, 0 already existed, 0 left".
+    //    Because ordinary traffic primes the cache, whether a studio got its pillar pages
+    //    depended on whether anyone had loaded a page in the previous minute.
+    await saveAuthorityMap(map);
     console.log('✅ Authority Map generated from crawl for studio', studio.id, '(niche:', profile.niche || 'n/a', ')');
   } catch (e: any) {
     console.warn('⚠️ generateAuthorityMapFromCrawl failed (non-fatal):', e?.message || e);

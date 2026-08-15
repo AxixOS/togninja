@@ -135,11 +135,30 @@ export function sameHost(a: string, b: string): boolean {
   }
 }
 
+/**
+ * Identify the crawler like a browser, and say who we are.
+ *
+ * This request carried NO headers, so Node sent its default User-Agent — which
+ * Squarespace, Wix, Cloudflare and most managed hosts reject outright. The buyer's site
+ * is then recorded as a failed page and, before the guard in homepage-pipeline, the
+ * whole site was written from nothing. Measured against mariotestino.com: the bare
+ * fetch fails, the same URL with these headers returns HTTP 200 and 169 KB.
+ *
+ * The UA names the product and links to it, which is what a well-behaved crawler does
+ * and is also what gets it allowed rather than blocked. Accept-Language asks for the
+ * studio's own language where the site serves several.
+ */
+const CRAWL_HEADERS: Record<string, string> = {
+  'user-agent': 'Mozilla/5.0 (compatible; TogNinjaBot/1.0; +https://togninja.com/bot)',
+  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'accept-language': 'en,de;q=0.8,*;q=0.5',
+};
+
 export async function fetchWithTimeout(u: string, ms = 12000): Promise<Response> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), ms);
   try {
-    return await fetch(u, { signal: ac.signal, redirect: 'follow' });
+    return await fetch(u, { signal: ac.signal, redirect: 'follow', headers: CRAWL_HEADERS });
   } finally {
     clearTimeout(t);
   }

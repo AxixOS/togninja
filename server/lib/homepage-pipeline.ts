@@ -186,6 +186,50 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
       `SELECT url, title, text_content, meta FROM website_pages WHERE crawl_job_id = $1 AND status = 'ok' ORDER BY created_at`,
       [jobId],
     );
+
+    // STOP if the crawl produced nothing to write from.
+    //
+    // Nothing used to check this, and the consequence is not a thin page — it is a
+    // confident, fully-formed website about a business that does not exist. Observed
+    // 15 Aug against mariotestino.com: the fetch failed, one row was stored with
+    // status='error' and zero characters, crawl_jobs recorded 'completed' with no error,
+    // and generation ran on a context containing only a name and a city. The model did
+    // what a model does with no facts — it invented some. The resulting Authority Map was
+    //
+    //     /plumbing-services/  /electrical-services/  /hvac-services/  /landscaping-services/
+    //
+    // for a fashion photographer, and the pipeline reported status 'ready'. Homepage copy
+    // was generated too, plausible enough to pass a glance and entirely fabricated: it
+    // offered "family portraits to corporate events" for a man who shoots Vogue covers.
+    //
+    // A studio is far better served by "we could not read your site" than by a polished
+    // site about somebody else's trade. Fail loudly, name the reason, publish nothing.
+    const usableChars = pages.rows.reduce((n, r: any) => n + (r.text_content || '').trim().length, 0);
+    const MIN_CHARS = Number(process.env.CRAWL_MIN_USABLE_CHARS || 400);
+    if (pages.rows.length === 0 || usableChars < MIN_CHARS) {
+      const { rows: attempted } = await pool.query(
+        `SELECT count(*)::int AS n, count(*) FILTER (WHERE status <> 'ok')::int AS failed
+         FROM website_pages WHERE crawl_job_id = $1`,
+        [jobId],
+      );
+      const n = attempted[0]?.n ?? 0;
+      const failed = attempted[0]?.failed ?? 0;
+      state.status = 'error';
+      state.stage = 'error';
+      state.error = n === 0
+        ? `Could not read ${website} — no pages were retrieved. Check the URL is correct and publicly reachable.`
+        : failed === n
+          ? `Could not read ${website} — all ${n} page(s) failed to fetch. The site may be blocking automated requests.`
+          : `Read ${n} page(s) from ${website} but found only ${usableChars} characters of text — too little to write from. If the site renders with JavaScript, the crawler may need a browser it could not launch.`;
+      await writeGenState(state);
+      await pool.query(
+        `UPDATE crawl_jobs SET status = 'failed', error = $2 WHERE id = $1`,
+        [jobId, String(state.error).slice(0, 500)],
+      ).catch(() => {});
+      console.warn(`[homepage-pipeline] refusing to generate: ${state.error}`);
+      return;
+    }
+
     const context = buildContext(config, pages.rows);
 
     // Generate.
