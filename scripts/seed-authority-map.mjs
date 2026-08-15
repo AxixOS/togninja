@@ -95,6 +95,22 @@ try {
     process.exit(1);
   }
 
+  // --newage carries ONE studio's Vienna services. The overwrite guard below does not
+  // protect against the likeliest accident, which is running this against the wrong
+  // database: a freshly onboarded studio has no map, so "do not overwrite" happily lets
+  // the Vienna services through. A local .env commonly points at the demo instance.
+  // Check the studio you are actually connected to before writing somebody else's
+  // services into it.
+  if (has('--newage')) {
+    const looksLikeNewAge = /new\s*age/i.test(`${studio.business_name || ''} ${studio.studio_name || ''}`);
+    if (!looksLikeNewAge) {
+      console.error(`Refusing: --newage targets the New Age map, but this database's studio is "${name}".`);
+      console.error(`Check DATABASE_URL — it is probably pointing somewhere you did not intend.`);
+      console.error(`If "${name}" really is that studio under a different name, pass --i-mean-it.`);
+      if (!has('--i-mean-it')) process.exit(1);
+    }
+  }
+
   if (existingPillars && !has('--force')) {
     console.error(`${name} already has an authority map with ${existingPillars} pillars.`);
     console.error('Refusing to overwrite. Pass --force if you really mean to replace it.');
