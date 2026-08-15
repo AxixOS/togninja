@@ -1,33 +1,20 @@
-   import React, { useState, useEffect, useCallback } from 'react';
+   import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { useLanguage } from '../../context/LanguageContext';
 import { Save, Eye, RotateCcw, FileText, Globe, Check, X, Upload, Trash2, Image as ImageIcon, Sparkles, TrendingUp, Wand2 } from 'lucide-react';
 import { manualPageManifest, type ManualPageDefinition, type ManualPageSection, type ManualPageField } from '../../../../shared/manualPages';
 import { SITE } from '../../config/site';
+import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 import Cropper, { Area } from 'react-easy-crop';
 
 // Default the editor's language to the studio's own locale (window.__SITE_CONFIG__ →
 // SITE.lang) rather than always German, so an English-market studio starts in English.
 const DEFAULT_EDITOR_LANG: 'de' | 'en' = (SITE.lang || '').toLowerCase().startsWith('de') ? 'de' : 'en';
 
-// Homepage image slots. `value` is structural — the homepage filters images on it, so
-// it must not change. `labelKey` reads the studio's OWN service name from its homepage
-// copy: these six were previously labelled with New Age's services (Family, Pregnancy,
-// Newborn, Business, Event, Product), which mean nothing to, say, a boudoir studio.
-// Rename a service in Website Studio and this dropdown follows.
-const IMAGE_SECTIONS: { value: string; labelKey?: string; fallback: string }[] = [
-  { value: 'hero', fallback: 'Hero / Main Grid' },
-  { value: 'content-1', fallback: 'Content Block 1' },
-  { value: 'content-2', fallback: 'Content Block 2' },
-  { value: 'services-family', labelKey: 'home.familyPortraitsTitle', fallback: 'Services - Slot 1' },
-  { value: 'services-pregnancy', labelKey: 'home.pregnancyPhotographyTitle', fallback: 'Services - Slot 2' },
-  { value: 'services-newborn', labelKey: 'home.newbornPhotographyTitle', fallback: 'Services - Slot 3' },
-  { value: 'services-business', labelKey: 'home.businessPhotographyTitle', fallback: 'Services - Slot 4' },
-  { value: 'services-event', labelKey: 'home.eventPhotographyTitle', fallback: 'Services - Slot 5' },
-  { value: 'services-product', labelKey: 'home.productPhotographyTitle', fallback: 'Services - Slot 6' },
-  { value: 'faq', fallback: 'FAQ' },
-];
+// The image-slot list is built per studio inside HomepageImagesManager, from its own
+// Authority Map. The fixed list that stood here named six of the origin studio's services
+// as the only addressable slots.
 
 interface PageContent {
   id?: string;
@@ -90,6 +77,23 @@ const getCroppedImageBlob = async (imageSrc: string, crop: Area, mimeType: strin
 const HomepageImagesManager: React.FC = () => {
   // Needed for the section labels, which read the studio's own service names.
   const { t } = useLanguage();
+  // The service slots come from the studio's own Authority Map — see the note at the
+  // <select> below for why a fixed list was wrong.
+  const { map: authorityMap } = useAuthorityMap();
+  const imageSections = useMemo(() => {
+    const fixed = [
+      { value: 'hero', label: 'Hero / Main Grid' },
+      { value: 'content-1', label: 'Content Block 1' },
+      { value: 'content-2', label: 'Content Block 2' },
+    ];
+    const services = (authorityMap?.pillars || [])
+      .filter((p: any) => p?.href && p?.label)
+      .map((p: any) => ({
+        value: 'services-' + String(p.href).replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        label: `Services – ${p.label}`,
+      }));
+    return [...fixed, ...services, { value: 'faq', label: 'FAQ' }];
+  }, [authorityMap]);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [newImageSection, setNewImageSection] = useState('hero');
   const [uploadMethod, setUploadMethod] = useState<'url' | 'file'>('file');
@@ -362,20 +366,19 @@ const HomepageImagesManager: React.FC = () => {
               onChange={(e) => setNewImageSection(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
-              {/* The section VALUES are structural slots the homepage filters on, so they
-                  stay fixed. The LABELS were New Age's own service list (Family,
-                  Pregnancy, Newborn, Business, Event, Product) shown to every studio —
-                  meaningless to, say, a boudoir studio. They now read from the studio's
-                  own homepage service titles, so renaming a service in Website Studio
-                  renames it here too. */}
-              {IMAGE_SECTIONS.map(({ value, labelKey, fallback }) => {
-                const label = labelKey ? t(labelKey) : '';
-                return (
-                  <option key={value} value={value}>
-                    {label && label !== labelKey ? `Services - ${label}` : fallback}
-                  </option>
-                );
-              })}
+              {/* The three fixed slots, then one per service from the studio's own
+                  Authority Map.
+
+                  A previous pass relabelled the six services- entries but left their
+                  VALUES as services-family|pregnancy|newborn|business|event|product. Those
+                  are the origin studio's slots. A studio whose crawl produced, say,
+                  services-fashion-photography had no way to address its own slot from this
+                  screen at all — so "you can add images later in Website Studio", which
+                  the onboarding step tells them, was not true. Derived with the same
+                  expression HomePage uses for its cards, so the two cannot drift. */}
+              {imageSections.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </div>
 

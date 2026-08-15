@@ -123,6 +123,12 @@ const HomePage: React.FC = () => {
     return imageForSection('hero', undefined);
   }, [homepageImages]);
 
+  // Declared here, beside heroImageUrl and AFTER imageForSection — a const read above its
+  // own declaration is a temporal dead zone, which esbuild does not flag and the build
+  // does not catch. See HANDOVER §9.
+  const content1Image = useMemo(() => imageForSection('content-1'), [homepageImages]);
+  const content2Image = useMemo(() => imageForSection('content-2'), [homepageImages]);
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -524,21 +530,28 @@ const HomePage: React.FC = () => {
       {/* Content Sections */}
       <section className="py-16">
         <div className="container mx-auto px-4">
-          {/* First Content Block */}
+          {/* First Content Block.
+              The image column is gated the way the hero already is at :474. ZoomableImageV2
+              returns null on an empty src, but the aspect-square wrapper around it did not,
+              so a studio that had not uploaded this slot got an empty shadowed square. The
+              column div goes with it — otherwise the copy keeps two thirds of the row and
+              leaves a third blank beside it. */}
           <div className="flex flex-col md:flex-row items-center gap-8 mb-16">
-            <div className="md:w-1/3">
-              <div className="aspect-square overflow-hidden rounded-lg shadow-lg">
-                <ZoomableImageV2 
-                  src={imageForSection('content-1')}
-                  alt="Professionelle Familienporträts im Studio"
-                  className="w-full h-full object-cover"
-                  priority={true}
-                  width={400}
-                  height={400}
-                />
+            {content1Image && (
+              <div className="md:w-1/3">
+                <div className="aspect-square overflow-hidden rounded-lg shadow-lg">
+                  <ZoomableImageV2
+                    src={content1Image}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    priority={true}
+                    width={400}
+                    height={400}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="md:w-2/3">
+            )}
+            <div className={content1Image ? 'md:w-2/3' : 'w-full'}>
               <h2 className="text-2xl md:text-3xl font-bold text-purple-600 mb-4">
                 {t('home.pregnancyAndFamilyTitle')}
               </h2>
@@ -554,21 +567,23 @@ const HomePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Second Content Block */}
+          {/* Second Content Block — same gating as the first. */}
           <div className="flex flex-col md:flex-row-reverse items-center gap-8">
-            <div className="md:w-1/3">
-              <div className="aspect-square max-w-sm mx-auto overflow-hidden rounded-lg shadow-lg">
-                <ZoomableImageV2
-                  src={imageForSection('content-2')}
-                  alt="Professionelle Businessfotografie im Studio"
-                  className="w-full h-full object-cover object-top"
-                  priority={true}
-                  width={400}
-                  height={400}
-                />
+            {content2Image && (
+              <div className="md:w-1/3">
+                <div className="aspect-square max-w-sm mx-auto overflow-hidden rounded-lg shadow-lg">
+                  <ZoomableImageV2
+                    src={content2Image}
+                    alt=""
+                    className="w-full h-full object-cover object-top"
+                    priority={true}
+                    width={400}
+                    height={400}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="md:w-2/3">
+            )}
+            <div className={content2Image ? 'md:w-2/3' : 'w-full'}>
               <h2 className="text-2xl md:text-3xl font-bold text-purple-600 mb-4">
                 {t('home.businessHeadshotsTitle')}
               </h2>
@@ -614,17 +629,22 @@ const HomePage: React.FC = () => {
                 to={card.path}
                 className="bg-white rounded-lg shadow-lg overflow-hidden block cursor-pointer transform transition-transform hover:-translate-y-1 hover:shadow-xl"
               >
-                <div className="aspect-[4/3] overflow-hidden relative">
-                  <SectionImage
-                    src={imageForSection(card.imageSection)}
-                    alt={card.label}
-                    className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
-                    loading="lazy"
-                    width="400"
-                    height="300"
-                    style={{ backgroundColor: '#f3f4f6' }}
-                  />
-                </div>
+                {/* Gated: SectionImage returns null on an empty src but this 4:3 wrapper
+                    did not, so a service with no photograph yet showed an empty grey box
+                    above its own title. The card still reads as a card without it. */}
+                {imageForSection(card.imageSection) && (
+                  <div className="aspect-[4/3] overflow-hidden relative">
+                    <SectionImage
+                      src={imageForSection(card.imageSection)}
+                      alt={card.label}
+                      className="w-full h-full object-cover transition-all duration-500 hover:scale-110"
+                      loading="lazy"
+                      width="400"
+                      height="300"
+                      style={{ backgroundColor: '#f3f4f6' }}
+                    />
+                  </div>
+                )}
                 <div className="p-6">
                   <h3 className="text-xl font-bold text-purple-900 mb-2">{card.label}</h3>
                   {card.description && <p className="text-gray-600 mb-4">{card.description}</p>}

@@ -108,9 +108,18 @@ function SlotCard({ slot, onUploaded }: { slot: Slot; onUploaded: () => void }) 
 
 export default function SiteImagesPhase({ onComplete }: { onComplete: () => void }) {
   const qc = useQueryClient();
+  // Poll while the pillars are still missing.
+  //
+  // homepage-pipeline fires the Authority-Map and scaffold chain WITHOUT awaiting it and
+  // then reports status 'ready', so the crawl step can hand over before the map exists. A
+  // single fetch here meant a studio who clicked through promptly saw pillarsReady:false,
+  // read "we'll ask once we've finished reading your website", and was never asked — the
+  // one part of this step that cannot be done later without knowing the slot names.
+  // Stops polling the moment the pillars arrive.
   const { data, isLoading } = useQuery<SiteImages>({
     queryKey: ['setup-site-images'],
     queryFn: () => fetch('/api/setup/site-images').then((r) => r.json()),
+    refetchInterval: (q) => (q.state.data?.pillarsReady ? false : 4000),
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['setup-site-images'] });
@@ -163,13 +172,17 @@ export default function SiteImagesPhase({ onComplete }: { onComplete: () => void
               </div>
             </>
           ) : (
-            /* Honest about WHY the list is empty. Without this the section reads as broken
-               rather than as not-ready-yet, and the studio has no idea what to do. */
-            <p className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4">
-              We'll ask for a picture for each of your services once we've finished reading
-              your website. If you skipped that step, you can add these any time from
-              Website Studio.
-            </p>
+            /* Honest about WHY the list is empty, and actively waiting rather than
+               inviting the studio to move on — this is the one part of the step that
+               cannot be done later, because the slot names come from the crawl. */
+            <div className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4 flex items-start gap-3">
+              <Loader2 className="w-4 h-4 mt-0.5 animate-spin flex-shrink-0" />
+              <span>
+                Still reading your website. Your services will appear here in a moment, and
+                we'll ask for one photograph each. If you skipped the website step there
+                won't be any — you can add images from Website Studio later.
+              </span>
+            </div>
           )}
         </section>
       </CardContent>

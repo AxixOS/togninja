@@ -154,7 +154,39 @@ router.post('/upload-image', setupImageUpload.single('file'), async (req: any, r
       VALUES (${section}, ${url}, ${alt}, ${null}, ${0}, ${true})
     `);
 
-    return res.json({ url, section });
+    // A pillar image belongs on the pillar PAGE as well as the homepage card, which is
+    // what this step tells the studio it does. Nothing wrote landing_pages.hero_image_url —
+    // the column is created by a migration and never populated — so pillar pages rendered
+    // the fallback purple gradient no matter what was uploaded.
+    //
+    // The landing-page slug is NOT the services- key: authority-scaffold.ts:35 derives it
+    // with slugify() from landing-mapping, which additionally trims dashes and caps at 60
+    // characters. Deriving it any other way silently matches no row on a long href, so it
+    // is imported and reused rather than reimplemented.
+    let pillarPage: string | null = null;
+    if (!FIXED_IMAGE_SECTIONS.has(section)) {
+      try {
+        const { slugify: landingSlugify } = await import('./lib/landing-mapping');
+        const { rows } = await db.execute(sql`SELECT authority_map FROM studio_configs LIMIT 1`) as any;
+        const pillars = ((rows ?? [])[0]?.authority_map?.pillars || []) as any[];
+        const hit = pillars.find(
+          (p) => 'services-' + String(p?.href || '').replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-') === section,
+        );
+        if (hit) {
+          const slug = landingSlugify(String(hit.href || '').replace(/^\/+|\/+$/g, '') || hit.label);
+          const r: any = await db.execute(
+            sql`UPDATE landing_pages SET hero_image_url = ${url}, updated_at = now() WHERE slug = ${slug}`,
+          );
+          if ((r?.rowCount ?? 0) > 0) pillarPage = slug;
+        }
+      } catch (e: any) {
+        // The homepage image is already saved; failing to also reach the pillar page is
+        // not worth losing that. Logged, not surfaced.
+        console.warn('[setup] pillar hero update failed:', e?.message || e);
+      }
+    }
+
+    return res.json({ url, section, pillarPage });
   } catch (e: any) {
     const reason = e?.Code || e?.name || e?.code || 'StorageError';
     const detail = e?.message ? String(e.message).replace(/\s+/g, ' ').slice(0, 180) : '';
