@@ -61,13 +61,13 @@ const HomePage: React.FC = () => {
         imageSection: 'services-' + String(p.href || '').replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       }));
     }
-    // No map yet (a studio mid-onboarding, or the origin studio) — keep what was there.
-    return [
-      { path: '/fotoshootings', label: t('home.familyPortraitsTitle'), description: t('home.familyPortraitsDescription'), imageSection: 'services-family' },
-      { path: '/fotoshootings', label: t('home.pregnancyPhotographyTitle'), description: t('home.pregnancyPhotographyDescription'), imageSection: 'services-pregnancy' },
-      { path: '/fotoshootings', label: t('home.newbornPhotographyTitle'), description: t('home.newbornPhotographyDescription'), imageSection: 'services-newborn' },
-    ];
-  }, [authorityMap, t]);
+    // No map yet — no cards. The three that stood here were Family Portraits, Pregnancy
+    // Photography and Newborn Photography, all linking to /fotoshootings, and they are
+    // what a wedding or fashion photographer saw under the heading "Our Photography
+    // Services" on their own homepage. Same rule as every other block since v1.9.0: the
+    // studio's own data or nothing.
+    return [];
+  }, [authorityMap]);
   const { addToCart } = useCart();
 
   // Fetch homepage images from API with persistent cache
@@ -149,39 +149,18 @@ const HomePage: React.FC = () => {
     refetchOnWindowFocus: false, // Don't refetch on window focus for homepage
   });
 
-  // Fallback voucher products - NO PLACEHOLDER IMAGES
-  const defaultVouchers = [
-    {
-      id: 'pregnancy-shooting',
-      name: t('home.pregnancyShootingTitle'),
-      description: t('home.pregnancyShootingDescription'),
-      originalPrice: 195,
-      price: 95,
-      image: '', // Removed placeholder - use actual uploaded images
-      category: 'pregnancy',
-      route: '/gutschein/maternity'
-    },
-    {
-      id: 'family-shooting',
-      name: t('home.familyShootingTitle'),
-      description: t('home.familyShootingDescription'),
-      originalPrice: 295,
-      price: 95,
-      image: '', // Removed placeholder - use actual uploaded images
-      category: 'family',
-      route: '/gutschein/family'
-    },
-    {
-      id: 'newborn-shooting',
-      name: t('home.newbornShootingTitle'),
-      description: t('home.newbornShootingDescription'),
-      originalPrice: 395,
-      price: 95,
-      image: '', // Removed placeholder - use actual uploaded images
-      category: 'newborn',
-      route: '/gutschein/newborn'
-    }
-  ];
+  // There is no such thing as a fallback voucher product.
+  //
+  // Three packages used to be declared here — Pregnancy/Family/Newborn Shooting, €95 each,
+  // struck through from €195/€295/€395 — and they rendered on the homepage of any studio
+  // whose own catalogue was empty, which is every studio that has just onboarded. They were
+  // not illustrations: each carried a working Add to Cart into the checkout, so a buyer's
+  // visitor could purchase a package the buyer does not sell, at a price they never set,
+  // in a currency that may not be theirs. The struck-through "original" prices are a
+  // discount claim made on the buyer's behalf.
+  //
+  // A studio with no products sells nothing until it has some. The section hides itself
+  // (see voucherProducts.length below) rather than inventing a catalogue.
 
   // Transform API products or use fallback
   const voucherProducts = useMemo(() => {
@@ -205,15 +184,10 @@ const HomePage: React.FC = () => {
           return !(/newborn|neugeboren|neugeborenen|neugeborenes|baby/i.test(s));
         });
 
-      // If we have fewer than 3 after filtering, fill from defaults (also excluding newborns)
+      // Show what the studio actually has, however many that is. Topping up to three from
+      // a default list meant a studio with one real package had two invented ones beside
+      // it, indistinguishable to a visitor.
       let final = mapped.slice(0, 3);
-      if (final.length < 3) {
-        const defaultsFiltered = defaultVouchers.filter((d) => {
-          const s = `${d.category} ${d.id} ${d.name}`.toString().toLowerCase();
-          return !(/newborn|neugeboren|neugeborenen|neugeborenes|baby/i.test(s));
-        });
-        final = [...final, ...defaultsFiltered].slice(0, 3);
-      }
 
       // Ensure the family package is featured in the middle (index 1) when present
       if (final.length >= 2) {
@@ -229,8 +203,8 @@ const HomePage: React.FC = () => {
 
       return final;
     }
-    return defaultVouchers;
-  }, [apiProducts, t]);
+    return [];
+  }, [apiProducts]);
 
   // Preload all images to prevent flashing
   const imageUrlsToPreload = useMemo(() => {
@@ -612,7 +586,10 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* Our Services Section */}
+      {/* Our Services Section — hidden until the studio has services of its own. A heading
+          reading "Our Photography Services" over an empty grid is worse than no section,
+          and a grid of another studio's services is worse still. */}
+      {serviceCards.length > 0 && (
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
@@ -673,10 +650,13 @@ const HomePage: React.FC = () => {
           </div>
         </div>
       </section>
+      )}
 
       {/* Testimonials handled site-wide by <GoogleReviews /> in Layout — inline grid removed to avoid duplicate reviews on the homepage */}
 
-      {/* Gift Voucher Section */}
+      {/* Gift Voucher Section — only when the studio has products of its own. This block
+          used to fall back to three invented packages with live Add to Cart buttons. */}
+      {voucherProducts.length > 0 && (
       <section className="py-16 bg-purple-50">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-purple-900">
@@ -786,6 +766,7 @@ const HomePage: React.FC = () => {
           </div>
         </div>
       </section>
+      )}
 
       {/* FAQ / Confidence Section */}
       <HomepageConfidenceSection />

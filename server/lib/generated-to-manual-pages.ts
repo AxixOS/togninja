@@ -79,6 +79,31 @@ export function mapGeneratedToHomeKeys(content: any): Record<string, string> {
   put('home.pregnancyDescription2', reasons[1]?.description);
   put('home.pregnancyDescription3', reasons[2]?.description);
 
+  // The SECOND full-width content block, keyed "businessHeadshots*". Same situation as
+  // the one above: a historical key name for what is really "the second thing we want to
+  // say". Nothing was mapped onto it, so every studio's homepage carried a pitch for
+  // LinkedIn portraits and office shoots — measured at 36% key coverage, this block was
+  // the largest single piece of another studio's copy left on the page.
+  //
+  // benefits[] is already generated and was being discarded entirely. It is a list of
+  // {title, description}, which is exactly the shape of a heading plus paragraphs. Falls
+  // back to the remaining whyChooseUs reasons so a model that returns one and not the
+  // other still fills the block.
+  // The schema asks for exactly three benefits, so this consumes all three: the first
+  // supplies the heading and opening paragraph, the other two the remaining paragraphs.
+  const b0 = benefits[0] || {};
+  put('home.businessHeadshotsTitle', b0.title);
+  put('home.businessDescription1', b0.description);
+  put('home.businessDescription2', benefits[1]?.description);
+  put('home.businessDescription3', benefits[2]?.description);
+
+  // NOT mapped, deliberately: home.servicesTitle ("Our Photography Services"),
+  // home.giftVouchersTitle/Subtitle, and the "Why Our Vouchers" band. Those describe the
+  // page furniture and how gift vouchers work as a product — true for any photographer,
+  // and not a claim about this studio. There is also no `vouchers` section in the
+  // generator's schema to map them from; inventing one would mean asking the model to
+  // write a heading for a block whose contents it never sees.
+
   // FAQ maps cleanly: the manifest exposes six question/answer pairs, and the
   // generator is now asked for six. Slots it cannot fill keep a generic default,
   // which is why the count matters — three left slots 4-6 describing family shoots.
