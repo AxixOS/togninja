@@ -7,6 +7,7 @@ import { RelatedTopicsBlock } from '../../components/SEO/RelatedTopicsBlock';
 import { PillarLinksBlock } from '../../components/SEO/PillarLinksBlock';
 import { SEOHead } from '../../components/SEO/SEOHead';
 import { useLanguage } from '../../context/LanguageContext';
+import { SITE } from '../../config/site';
 
 // Map API categories → grouped sections for the Preise page.
 // Shared with the Vouchers page categorisation so cards stay in sync.
@@ -163,9 +164,13 @@ const PreisePage: React.FC = () => {
   return (
     <Layout>
       <SEOHead
-        title={`Fotoshooting Preise Wien – Pakete ab €95`}
-        description="Alle Fotoshooting-Preise auf einen Blick: Familien, Baby & Newborn, Schwangerschaft und Business Portraits – Pakete ab €95. Faire Preise, keine versteckten Kosten."
-        keywords="Fotoshooting Preise Wien, Fotograf Kosten Wien, Preisliste Fotografie Wien, Familienfotoshooting Preise"
+        title={de
+          ? `Fotoshooting Preise${SITE.address.city ? ` ${SITE.address.city}` : ''} | ${SITE.name}`
+          : `Photo Shoot Prices${SITE.address.city ? ` – ${SITE.address.city}` : ''} | ${SITE.name}`}
+        description={de
+          ? `Alle Fotoshooting-Preise von ${SITE.name} auf einen Blick. Faire Preise, keine versteckten Kosten.`
+          : `All photo shoot prices from ${SITE.name} at a glance. Fair pricing, no hidden costs.`}
+        keywords="Fotoshooting Preise, Fotograf Kosten, Preisliste Fotografie"
         canonical="/preise/"
       />
       

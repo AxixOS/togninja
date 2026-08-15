@@ -60,9 +60,12 @@ const FotoshootingsPage: React.FC = () => {
   return (
     <Layout>
       <SEOHead
-        title={`Fotoshootings in Wien buchen | ${SITE.name}`}
-        description="Professionelle Fotoshootings in Wien: Familien-, Baby-, Neugeborenen-, Business- und Hochzeitsfotografie. Flexible Pakete ab €95, Studio & Outdoor. Jetzt Wunschtermin sichern!"
-        keywords="Fotoshooting Wien buchen, Fotoshooting Pakete Wien, Familienfotoshooting Wien, Business Fotoshooting Wien"
+        title={de
+          ? `Fotoshootings buchen${SITE.address.city ? ` in ${SITE.address.city}` : ''} | ${SITE.name}`
+          : `Book a Photo Shoot${SITE.address.city ? ` in ${SITE.address.city}` : ''} | ${SITE.name}`}
+        description={de
+          ? `Professionelle Fotoshootings${SITE.address.city ? ` in ${SITE.address.city}` : ''} bei ${SITE.name}. Jetzt Wunschtermin sichern.`
+          : `Professional photo shoots${SITE.address.city ? ` in ${SITE.address.city}` : ''} with ${SITE.name}. Book your date today.`}
         canonical="/fotoshootings/"
       />
       

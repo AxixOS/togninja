@@ -151,11 +151,13 @@ const FamilyGutscheinPage: React.FC = () => {
 
   return (
     <GutscheinLayout
-      title={de ? "Familien-Fotoshooting Gutschein Wien" : "Family Photo Shoot Voucher Vienna"}
+      title={de ? "Familien-Fotoshooting Gutschein" : "Family Photo Shoot Voucher"}
       subtitle={de ? "Unvergessliche Momente für die ganze Familie verschenken" : "Gift unforgettable moments for the whole family"}
       image="https://i.imgur.com/o9HCqp0.jpg"
-      seoTitle={`Familien-Fotoshooting Gutschein Wien – Geschenkidee`}
-      seoDescription="Verschenken Sie Familienglück: Gutschein für ein professionelles Familien-Fotoshooting in Wien. Sofort per E-Mail, 3 Jahre gültig. Ab €95 – das perfekte Geschenk für jeden Anlass."
+      seoTitle={de ? `Familien-Fotoshooting Gutschein – Geschenkidee` : `Family Photo Shoot Gift Voucher`}
+      seoDescription={de
+        ? 'Verschenken Sie Familienglück: Gutschein für ein professionelles Familien-Fotoshooting. Sofort per E-Mail – das perfekte Geschenk für jeden Anlass.'
+        : 'Give the gift of family memories: a voucher for a professional family photo shoot. Delivered by email — the perfect present for any occasion.'}
       seoKeywords="Familien Fotoshooting Gutschein Wien, Familienfotos Geschenk, Gutschein Familie Fotograf Wien"
       canonical="/gutschein/family/"
     >

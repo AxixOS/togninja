@@ -41,9 +41,11 @@ const GutscheinPage: React.FC = () => {
   return (
     <Layout>
       <SEOHead
-        title={`Gutscheine für Fotoshootings | ${SITE.name}`}
-        description={`Fotoshooting-Gutscheine von ${SITE.name}. Das perfekte Geschenk für Familie und Freunde in Wien.`}
-        keywords="Gutschein Fotoshooting, Geschenk Fotograf Wien, Erlebnisgutschein Foto"
+        title={de ? `Gutscheine für Fotoshootings | ${SITE.name}` : `Photo Shoot Gift Vouchers | ${SITE.name}`}
+        description={de
+          ? `Fotoshooting-Gutscheine von ${SITE.name}. Das perfekte Geschenk für Familie und Freunde.`
+          : `Photo shoot gift vouchers from ${SITE.name}. The perfect gift for family and friends.`}
+        keywords="Gutschein Fotoshooting, Geschenk Fotograf, Erlebnisgutschein Foto"
         canonical="/gutschein/"
       />
       

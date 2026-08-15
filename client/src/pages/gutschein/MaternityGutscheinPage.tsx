@@ -149,11 +149,13 @@ const MaternityGutscheinPage: React.FC = () => {
 
   return (
     <GutscheinLayout
-      title={de ? "Schwangerschafts-Fotoshooting Gutschein Wien" : "Maternity Photo Shoot Voucher Vienna"}
+      title={de ? "Schwangerschafts-Fotoshooting Gutschein" : "Maternity Photo Shoot Voucher"}
       subtitle={de ? "Magische Babybauch-Momente zum Verschenken" : "Gift magical baby-bump moments"}
       image="https://i.postimg.cc/xjZzq5Mc/4S8A5701.jpg"
-      seoTitle={`Schwangerschafts-Fotoshooting Gutschein Wien`}
-      seoDescription="Verschenken Sie unvergessliche Erinnerungen: Gutschein für ein einfühlsames Schwangerschafts-Fotoshooting in Wien. Babybauch-Bilder im Studio. Sofort per E-Mail, 3 Jahre gültig."
+      seoTitle={de ? `Schwangerschafts-Fotoshooting Gutschein` : `Maternity Photo Shoot Gift Voucher`}
+      seoDescription={de
+        ? 'Verschenken Sie unvergessliche Erinnerungen: Gutschein für ein einfühlsames Schwangerschafts-Fotoshooting. Babybauch-Bilder. Sofort per E-Mail verfügbar.'
+        : 'Give unforgettable memories: a voucher for a sensitive maternity photo shoot. Baby-bump portraits, delivered by email.'}
       seoKeywords="Schwangerschaft Fotoshooting Gutschein Wien, Babybauch Geschenk, Maternity Gutschein Fotograf Wien"
       canonical="/gutschein/maternity/"
     >

@@ -130,7 +130,9 @@ const VouchersPage: React.FC = () => {
     return (
       <Layout>
         <SEOHead
-          title={language === 'de' ? `Fotoshooting Gutscheine in Wien | ${SITE.name}` : 'Photoshoot Vouchers in Vienna | New Age Photography'}
+          title={language === 'de'
+            ? `Fotoshooting Gutscheine${SITE.address.city ? ` in ${SITE.address.city}` : ''} | ${SITE.name}`
+            : `Photoshoot Vouchers${SITE.address.city ? ` in ${SITE.address.city}` : ''} | ${SITE.name}`}
           description={t('vouchers.photoshootVouchersAsThe')}
           keywords={t('vouchers.photoshootVoucherViennaGift')}
           canonical="/vouchers/"
@@ -218,7 +220,9 @@ const VouchersPage: React.FC = () => {
   return (
     <Layout>
       <SEOHead
-        title={language === 'de' ? `Fotoshooting Gutscheine in Wien | ${SITE.name}` : 'Photoshoot Vouchers in Vienna | New Age Photography'}
+        title={language === 'de'
+          ? `Fotoshooting Gutscheine${SITE.address.city ? ` in ${SITE.address.city}` : ''} | ${SITE.name}`
+          : `Photoshoot Vouchers${SITE.address.city ? ` in ${SITE.address.city}` : ''} | ${SITE.name}`}
         description={t('vouchers.photoshootVouchersAsThe3')}
         keywords={t('vouchers.photoshootVoucherViennaGift2')}
         canonical="/vouchers/"

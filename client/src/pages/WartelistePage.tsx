@@ -52,7 +52,7 @@ const WartelistePage: React.FC = () => {
   return (
     <Layout>
       <SEOHead
-        title={language === 'de' ? `Warteliste für Fotoshootings | ${SITE.name}` : 'Photoshoot Waitlist | New Age Photography'}
+        title={language === 'de' ? `Warteliste für Fotoshootings | ${SITE.name}` : `Photoshoot Waitlist | ${SITE.name}`}
         description={t('waitlist.signUpForOur')}
         keywords={t('waitlist.photoshootWaitlistPhotographerAppointment')}
         canonical="/warteliste/"

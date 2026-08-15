@@ -148,11 +148,13 @@ const NewbornGutscheinPage: React.FC = () => {
 
   return (
     <GutscheinLayout
-      title={de ? "Neugeborenen-Fotoshooting Gutschein Wien" : "Newborn Photo Shoot Voucher Vienna"}
+      title={de ? "Neugeborenen-Fotoshooting Gutschein" : "Newborn Photo Shoot Voucher"}
       subtitle={de ? "Die ersten kostbaren Momente Ihres Babys festhalten" : "Capture your baby's first precious moments"}
       image="https://i.postimg.cc/WzrVSs3F/3-J9-A3679-renamed-3632.jpg"
-      seoTitle={`Neugeborenen-Fotoshooting Gutschein Wien – Geschenk`}
-      seoDescription="Das perfekte Geschenk für werdende Eltern: Gutschein für ein professionelles Neugeborenen-Fotoshooting in Wien. Sanfte Babyfotografie im warmen Studio. Sofort per E-Mail verfügbar."
+      seoTitle={de ? `Neugeborenen-Fotoshooting Gutschein – Geschenk` : `Newborn Photo Shoot Gift Voucher`}
+      seoDescription={de
+        ? 'Das perfekte Geschenk für werdende Eltern: Gutschein für ein professionelles Neugeborenen-Fotoshooting. Sanfte Babyfotografie. Sofort per E-Mail verfügbar.'
+        : 'The perfect gift for expectant parents: a voucher for a professional newborn photo shoot. Gentle baby photography, delivered by email.'}
       seoKeywords="Neugeborenen Fotoshooting Gutschein Wien, Newborn Geschenk, Baby Gutschein Fotograf Wien"
       canonical="/gutschein/newborn/"
     >

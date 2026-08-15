@@ -17,10 +17,10 @@ const ModelReleasePage: React.FC = () => {
   return (
     <Layout>
       <Helmet>
-        <title>{de ? `Model-Release Klauseln | ${SITE.name} Wien` : `Model Release Clauses | ${SITE.name} Vienna`}</title>
+        <title>{de ? `Model-Release Klauseln | ${SITE.name}` : `Model Release Clauses | ${SITE.name}`}</title>
         <meta name="description" content={de
-          ? `Model-Release Klauseln für Familien-, Baby- und Business-Shootings bei ${SITE.name} Wien. DSGVO-konform.`
-          : `Model release clauses for family, baby and business photoshoots at ${SITE.name} Vienna. GDPR compliant.`
+          ? `Model-Release Klauseln für Fotoshootings bei ${SITE.name}. DSGVO-konform.`
+          : `Model release clauses for photoshoots at ${SITE.name}. GDPR compliant.`
         } />
         <link rel="canonical" href={`${SITE.url}${canonicalPath}/`} />
       </Helmet>

@@ -221,35 +221,15 @@ const BlogPage: React.FC = () => {
     fetchData();
   }, [page, tag, search]);
 
-  useEffect(() => {
-    // SEO Meta Tags
-    document.title = language === 'de'
-      ? `Blog - Fotografie Tipps & Inspiration | ${SITE.name} Wien`
-      : 'Blog - Photography Tips & Inspiration | New Age Photography Vienna';
-    
-    // Update meta description
-    let metaDescription = document.querySelector('meta[name="description"]');
-    if (!metaDescription) {
-      metaDescription = document.createElement('meta');
-      metaDescription.setAttribute('name', 'description');
-      document.head.appendChild(metaDescription);
-    }
-    metaDescription.setAttribute('content', t('blog.photographyBlogWithTips'));
+  // The imperative title/description/og block that used to live here is gone. It
+  // duplicated the SEOHead below and then overwrote it, so the page ended up titled
+  // "Blog - Photography Tips & Inspiration | New Age Photography Vienna" whatever
+  // SEOHead had set. Its cleanup was worse: navigating AWAY from the blog set
+  // document.title to "New Age Photography - Family Photographer Vienna", stamping
+  // the origin studio's name onto whichever page the visitor went to next.
+  //
+  // SEOHead is the single owner of this page's head now.
 
-    // Open Graph tags
-    let ogTitle = document.querySelector('meta[property="og:title"]');
-    if (!ogTitle) {
-      ogTitle = document.createElement('meta');
-      ogTitle.setAttribute('property', 'og:title');
-      document.head.appendChild(ogTitle);
-    }
-    ogTitle.setAttribute('content', language === 'de' ? `Fotografie Blog - ${SITE.name} Wien` : 'Photography Blog - New Age Photography Vienna');
-
-    return () => {
-      document.title = language === 'de' ? `${SITE.name} - Familienfotograf Wien` : 'New Age Photography - Family Photographer Vienna';
-    };
-  }, [language]);
-  
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -330,16 +310,11 @@ const BlogPage: React.FC = () => {
   return (
     <Layout>
       <SEOHead
-        title={language === 'de' ? `Fotografie Blog | ${SITE.name}` : 'Photography Blog | New Age Photography'}
+        title={language === 'de' ? `Fotografie Blog | ${SITE.name}` : `Photography Blog | ${SITE.name}`}
         description={t('blog.tipsInspirationAndNews')}
         keywords={t('blog.photographyBlogViennaPhotoshoot')}
         canonical="/blog/"
         ogImage={undefined}
-        hreflang={[
-          { lang: 'de', url: 'https://newagefotografie.at/blog/' },
-          { lang: 'en', url: 'https://newagefotografie.at/en/blog/' },
-          { lang: 'x-default', url: 'https://newagefotografie.at/blog/' }
-        ]}
       />
       
       <Helmet>

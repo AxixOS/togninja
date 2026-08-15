@@ -156,8 +156,10 @@ const FAQPage: React.FC = () => {
   return (
     <Layout>
       <SEOHead
-        title={`FAQ - Häufige Fragen | ${SITE.name}`}
-        description={`Antworten auf Ihre Fragen zu Fotoshootings bei ${SITE.name}. Ablauf, Preise, Termine und mehr.`}
+        title={de ? `FAQ – Häufige Fragen | ${SITE.name}` : `FAQ – Frequently Asked Questions | ${SITE.name}`}
+        description={de
+          ? `Antworten auf Ihre Fragen zu Fotoshootings bei ${SITE.name}. Ablauf, Preise, Termine und mehr.`
+          : `Answers to your questions about photo shoots with ${SITE.name}. How it works, pricing, booking and more.`}
         keywords="FAQ Fotoshooting, Fragen Fotograf, Fotoshooting Ablauf"
         canonical="/faq/"
       />
