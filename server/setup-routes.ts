@@ -601,6 +601,39 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     try { await db.execute(sql`UPDATE studio_configs SET app_url = NULL, frontend_url = NULL, public_site_base_url = NULL`); } catch {}
     // Page visibility back to "use the language defaults" for the next studio.
     try { await db.execute(sql`UPDATE studio_configs SET enabled_pages = NULL, site_language = NULL`); } catch {}
+    // Everything else the wizard writes and the reset was leaving behind.
+    //
+    // ONE COLUMN PER STATEMENT, deliberately. The catch is there so a column that does not
+    // exist on an older instance skips itself — but a multi-column UPDATE fails as a unit,
+    // so bundling means one absent column silently takes its neighbours with it. That is
+    // exactly how primary_color survived a reset that named it: it shared a statement with
+    // `tagline`, which does not exist on this schema.
+    //
+    // studio_name is NOT NULL, so it clears to '' rather than NULL. It matters more than it
+    // looks: config-reader hydrates it into STUDIO_NAME, which server/lib/galleryWatermark.ts
+    // stamps into every preview image a studio's clients download. Left behind, the next
+    // studio's clients receive images watermarked with the previous studio's name.
+    const CLEAR_TO_EMPTY = ['studio_name'];
+    const CLEAR_TO_NULL = [
+      // The studio's own accounts — published on their site as their socials.
+      'facebook_url', 'instagram_url', 'twitter_url',
+      // Analytics: left behind, the next studio's visitors are tracked into the previous
+      // studio's property.
+      'ga4_measurement_id', 'meta_pixel_id',
+      // Presentation the wizard collects.
+      'tagline', 'primary_color',
+      // Money and locale — the quietest of the lot and the most misleading during a test.
+      // A re-onboarded studio inherited the previous tenant's currency and timezone, so a
+      // GBP studio following a GBP studio looks right for the wrong reason and any currency
+      // defect stays invisible until the first tenant who uses a different one.
+      'currency', 'vat_number', 'timezone', 'date_format',
+    ];
+    for (const col of CLEAR_TO_EMPTY) {
+      try { await db.execute(sql.raw(`UPDATE studio_configs SET ${col} = ''`)); } catch { /* absent on this instance */ }
+    }
+    for (const col of CLEAR_TO_NULL) {
+      try { await db.execute(sql.raw(`UPDATE studio_configs SET ${col} = NULL`)); } catch { /* absent on this instance */ }
+    }
     // storage_region was left behind by the credential reset below, which cleared the
     // key, secret, bucket and endpoint — a lone region is exactly the half-filled row
     // that used to get blended with env credentials.
@@ -962,7 +995,13 @@ router.post('/basics', async (req: Request, res: Response) => {
 
     const existing = await getConfigRow();
     if (existing) {
-      await db.update(studioConfigs).set(fields).where(eq(studioConfigs.id, existing.id));
+      // studioName was set on INSERT only, so every RE-onboard kept the previous
+      // studio's name in that column indefinitely. It is not cosmetic: config-reader
+      // hydrates it into STUDIO_NAME, which is what server/lib/galleryWatermark.ts
+      // stamps into the preview images a studio's clients download.
+      await db.update(studioConfigs)
+        .set({ ...fields, studioName: businessName })
+        .where(eq(studioConfigs.id, existing.id));
     } else {
       await db.insert(studioConfigs).values({
         studioName: businessName,
