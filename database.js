@@ -1810,14 +1810,27 @@ if (!connectionString) {
     },
 
     // Voucher Products Functions
-    async getVoucherProducts() {
+    // includeInactive: the ADMIN needs to see products the public must not.
+    //
+    // Onboarding creates one starter product per service, deliberately inactive with a
+    // price of 0 — generation supplies the words, the studio supplies the money, and
+    // nothing is purchasable until it does. That design was sound and then unreachable:
+    // this was the only accessor, it filtered is_active=true unconditionally, so the
+    // studio's own product screen could not show the very products the wizard had just
+    // told it were created. There was no way to price them, so the catalogue stayed empty
+    // and /vouchers and /preise/ stayed empty with it.
+    //
+    // Public callers keep the default and still see only active products.
+    async getVoucherProducts(opts = {}) {
       try {
         console.log('🔍 Getting voucher products from database...');
-        const result = await pool.query(`
-          SELECT * FROM voucher_products 
-          WHERE is_active = true 
-          ORDER BY display_order ASC, created_at DESC
-        `);
+        const result = await pool.query(
+          opts.includeInactive
+            ? `SELECT * FROM voucher_products ORDER BY display_order ASC, created_at DESC`
+            : `SELECT * FROM voucher_products
+                WHERE is_active = true
+                ORDER BY display_order ASC, created_at DESC`,
+        );
         console.log('✅ Found voucher products:', result.rows.length);
         if (result.rows.length > 0) {
           console.log('📋 First product:', result.rows[0].name, '- €' + result.rows[0].price);

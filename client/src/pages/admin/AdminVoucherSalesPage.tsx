@@ -70,9 +70,20 @@ export default function AdminVoucherSalesPage() {
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [isCouponDialogOpen, setIsCouponDialogOpen] = useState(false);
 
-  // Fetch data
+  // Fetch data.
+  //
+  // The admin list, not the public one. This read /api/vouchers/products, which filters
+  // is_active = true — so the starter products onboarding creates (deliberately inactive
+  // at price 0, because nothing may be purchasable before the studio prices it) were
+  // invisible on the very screen built to price them. The studio was told five products
+  // had been created and saw none.
   const { data: products = [], isLoading: productsLoading } = useQuery({
-    queryKey: ["/api/vouchers/products"],
+    queryKey: ["/api/admin/vouchers/products"],
+    queryFn: async () => {
+      const r = await fetch('/api/admin/vouchers/products', { credentials: 'include' });
+      if (!r.ok) throw new Error('Failed to load products');
+      return r.json();
+    },
   });
 
   const { data: coupons = [], isLoading: couponsLoading } = useQuery({

@@ -15159,6 +15159,40 @@ ${getBizName()} CRM System
     }
   });
 
+  /**
+   * Admin: every voucher product, INCLUDING the inactive ones.
+   *
+   * There was no admin list endpoint — only /:id — so the product manager read the public
+   * /api/vouchers/products, which filters is_active = true. Onboarding creates one starter
+   * product per service, deliberately inactive at price 0 so nothing is purchasable before
+   * the studio prices it. Correct design, and unreachable: the studio was told five
+   * products had been created and could not see one of them, so it could not set a price,
+   * so the catalogue stayed empty and /vouchers and /preise/ stayed empty with it.
+   *
+   * Authenticated. The public endpoint is unchanged and still shows only active products —
+   * an unpriced product must never be purchasable.
+   */
+  app.get("/api/admin/vouchers/products", authenticateUser, async (_req: Request, res: Response) => {
+    try {
+      const raw = await neonDb.getVoucherProducts({ includeInactive: true });
+      const products = (raw || []).map((p: any) => ({
+        ...p,
+        isActive: p.isActive ?? p.is_active,
+        displayOrder: p.displayOrder ?? p.display_order,
+        imageUrl: p.imageUrl ?? p.image_url,
+        createdAt: p.createdAt ?? p.created_at,
+        updatedAt: p.updatedAt ?? p.updated_at,
+        // Surfaced so the UI can prompt for the thing that actually blocks publication.
+        needsPrice: !(Number(p.price) > 0),
+      }));
+      res.set('Cache-Control', 'no-store');
+      res.json(products);
+    } catch (error: any) {
+      console.error('[ADMIN VOUCHERS] list failed:', error?.message || error);
+      res.status(500).json({ error: 'Failed to load voucher products' });
+    }
+  });
+
   // Admin endpoint for voucher products
   app.get("/api/admin/vouchers/products/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
