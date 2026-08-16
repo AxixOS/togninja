@@ -7,8 +7,86 @@ import crypto from 'crypto';
 import { generateLandingContent, NoOpenAIError, type LandingContext } from './landing-generator';
 import { mapGeneratedToLandingPage, slugify } from './landing-mapping';
 import { getAuthorityMap } from './authority-map';
+import { pool } from '../db';
 
 const neonDb = require('../../database.js');
+
+/**
+ * The studio's own words, selected for ONE pillar.
+ *
+ * The pillar pages are the money pages, and they were being written from six strings:
+ * the pillar label, a keyphrase and a city. The sibling homepage path hands the model a
+ * 40,000-character block of the studio's crawled site (homepage-pipeline buildContext) —
+ * this path handed it "Fashion Photography" and "London" and asked for a page. A model
+ * given no facts writes the only thing it can, which is generic marketing, and until
+ * v1.9.12 the prompt then told it to invent the testimonials too.
+ *
+ * The crawl already stored the whole site. This reads it back and picks the pages that
+ * actually concern this service, so each pillar page is written from what the studio
+ * genuinely says about that service rather than from its title.
+ *
+ * Scored rather than filtered: a page mentioning the service in its title or URL leads,
+ * body mentions follow, and if nothing matches we fall back to the largest pages so the
+ * model still has the business's voice, tone and offering rather than nothing at all.
+ */
+async function crawledContextForPillar(
+  pillar: { label: string; keyphrase?: string; match?: string; href?: string },
+  perPageChars = 4000,
+  totalChars = 24000,
+): Promise<string> {
+  let rows: any[] = [];
+  try {
+    const r = await pool.query(
+      `SELECT url, title, text_content
+         FROM website_pages
+        WHERE status = 'ok' AND coalesce(text_content, '') <> ''
+        ORDER BY created_at DESC
+        LIMIT 40`,
+    );
+    rows = r.rows || [];
+  } catch {
+    return '';
+  }
+  if (!rows.length) return '';
+
+  // Terms that identify this pillar: its label words, its keyphrase, its slug, and the
+  // regex alternation the map already carries for routing related content.
+  const terms = new Set<string>();
+  for (const src of [pillar.label, pillar.keyphrase, String(pillar.href || '').replace(/[^a-z0-9]+/gi, ' ')]) {
+    for (const w of String(src || '').toLowerCase().split(/[^a-z0-9]+/)) {
+      if (w.length > 3) terms.add(w);
+    }
+  }
+  try {
+    for (const w of String(pillar.match || '').toLowerCase().split('|')) {
+      const t = w.replace(/[^a-z0-9]+/g, '');
+      if (t.length > 3) terms.add(t);
+    }
+  } catch { /* a malformed match must not cost us the page */ }
+
+  const scored = rows.map((row) => {
+    const title = String(row.title || '').toLowerCase();
+    const url = String(row.url || '').toLowerCase();
+    const body = String(row.text_content || '').toLowerCase();
+    let score = 0;
+    for (const t of terms) {
+      if (title.includes(t)) score += 10;
+      if (url.includes(t)) score += 6;
+      if (body.includes(t)) score += 1;
+    }
+    return { row, score };
+  });
+
+  const relevant = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score);
+  const chosen = (relevant.length ? relevant : scored.sort(
+    (a, b) => String(b.row.text_content).length - String(a.row.text_content).length,
+  )).slice(0, 6);
+
+  return chosen
+    .map(({ row }) => `## ${row.title || row.url}\n${String(row.text_content || '').slice(0, perPageChars)}`)
+    .join('\n\n')
+    .slice(0, totalChars);
+}
 
 export interface ScaffoldResult {
   pillar: string;
@@ -69,6 +147,9 @@ export async function scaffoldPillarPages(
     processed++;
 
     try {
+      // What this studio actually says about THIS service, from its own site.
+      const crawled = await crawledContextForPillar(pillar as any);
+
       const context: LandingContext = {
         primaryService: pillar.label,
         city: opts.city || undefined,
@@ -79,6 +160,23 @@ export async function scaffoldPillarPages(
         pageType: 'landing',
         keywords: pillar.keyphrase || undefined,
         offerSummary: pillar.keyphrase ? `${pillar.label} — ${pillar.keyphrase}` : pillar.label,
+        // The field the homepage path uses to hand over the studio's own words, and which
+        // this path left empty. Without it the page could only ever be written from the
+        // service's NAME.
+        extras: crawled
+          ? [
+              `This is a page about ONE service: ${pillar.label}.`,
+              '',
+              'Below is content from the studio\'s existing website. Write only what it',
+              'supports. Use their own service names, their process, their inclusions and',
+              'their turnaround. Where it states a price, keep the figure exactly. Do not',
+              'add facts it does not contain — no invented reviews, awards or statistics.',
+              'If it says nothing about a section, leave that section short rather than',
+              'filling it with generic copy.',
+              '',
+              crawled,
+            ].join('\n')
+          : undefined,
       };
       const gen = await generateLandingContent(context);
       const payload = mapGeneratedToLandingPage(gen.content, context, { userId: null });
