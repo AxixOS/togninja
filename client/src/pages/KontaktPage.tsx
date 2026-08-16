@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { StudioServicesList } from '../components/SEO/StudioServicesList';
 import { Link } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import { Mail, Phone, Clock, MapPin, Train, Car, MessageCircle, Camera, Gift, ChevronRight } from 'lucide-react';
@@ -315,33 +316,9 @@ const KontaktPage: React.FC = () => {
       {/* Services CTA Section */}
       <div className="bg-gray-50 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">{t('contactPage.ourPopularServices')}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Link to="/fotoshootings" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
-              <div className="flex items-center mb-3">
-                <Camera className="w-6 h-6 text-purple-600 mr-3" />
-                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">{t('contactPage.familyPhotos')}</h3>
-              </div>
-              <p className="text-gray-600 text-sm mb-2">{t('contactPage.professionalFamilyPortraits')}</p>
-              <span className="text-purple-600 text-sm flex items-center">{t('contactPage.learnMore')} <ChevronRight className="w-4 h-4 ml-1" /></span>
-            </Link>
-            <Link to="/fotoshootings" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
-              <div className="flex items-center mb-3">
-                <Camera className="w-6 h-6 text-purple-600 mr-3" />
-                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">{t('contactPage.newbornPhotos')}</h3>
-              </div>
-              <p className="text-gray-600 text-sm mb-2">{t('contactPage.gentleBabyPhotographyFor')}</p>
-              <span className="text-purple-600 text-sm flex items-center">{t('contactPage.learnMore2')} <ChevronRight className="w-4 h-4 ml-1" /></span>
-            </Link>
-            <Link to="/fotoshootings" className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow group">
-              <div className="flex items-center mb-3">
-                <Camera className="w-6 h-6 text-purple-600 mr-3" />
-                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600">Business Portraits</h3>
-              </div>
-              <p className="text-gray-600 text-sm mb-2">{t('contactPage.professionalHeadshotsAndBusiness')}</p>
-              <span className="text-purple-600 text-sm flex items-center">{t('contactPage.learnMore3')} <ChevronRight className="w-4 h-4 ml-1" /></span>
-            </Link>
-          </div>
+          {/* Was a hardcoded list of the origin studio's services, hidden in translation
+              keys so no search for "Vienna" or "New Age" ever found it. */}
+          <StudioServicesList heading={t('contactPage.ourPopularServices')} variant="cards" />
           <div className="text-center mt-8">
             <Link 
               to="/vouchers" 

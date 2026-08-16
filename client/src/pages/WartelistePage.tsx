@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { StudioServicesList } from '../components/SEO/StudioServicesList';
 import { Link } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import { PillarLinksBlock } from '../components/SEO/PillarLinksBlock';
@@ -264,20 +265,12 @@ const WartelistePage: React.FC = () => {
         {/* Services Sidebar/Section */}
         <div className="max-w-4xl mx-auto mt-12">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">{t('waitlist.whileYouWaitDiscover')}</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link to="/fotoshootings" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
-              <Camera className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-              <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{t('waitlist.familyPhotos')}</h3>
-            </Link>
-            <Link to="/fotoshootings" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
-              <Camera className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-              <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{t('waitlist.newborn')}</h3>
-            </Link>
-            <Link to="/fotoshootings" className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow text-center group">
-              <Camera className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-              <h3 className="font-medium text-gray-900 group-hover:text-purple-600">{t('waitlist.maternity')}</h3>
-            </Link>
-            <Link to="/vouchers" className="bg-purple-600 text-white p-4 rounded-lg shadow hover:bg-purple-700 transition-colors text-center">
+          {/* A SECOND hardcoded trio on the same page — family, newborn, maternity — which
+              the first pass missed because it uses different translation keys. Vouchers
+              stays: it is a real route every instance has, not a claim about services. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <StudioServicesList variant="links" limit={6} />
+            <Link to="/vouchers" className="bg-purple-600 text-white p-4 rounded-lg shadow hover:bg-purple-700 transition-colors text-center self-start">
               <Gift className="w-8 h-8 mx-auto mb-2" />
               <h3 className="font-medium">{t('waitlist.vouchers')}</h3>
             </Link>
@@ -290,31 +283,9 @@ const WartelistePage: React.FC = () => {
 
           {/* Additive: Explore our photography services link block */}
           <section className="mt-10" aria-labelledby="waitlist-explore-heading">
-            <h3 id="waitlist-explore-heading" className="text-xl md:text-2xl font-bold text-purple-900 mb-4 text-center">
-              {t('waitlist.exploreOurPhotographyServices')}
-            </h3>
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
-              <li>
-                <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
-                  {t('waitlist.familyPhotographyVienna')}
-                </Link>
-              </li>
-              <li>
-                <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
-                  {t('waitlist.newbornPhotographyVienna')}
-                </Link>
-              </li>
-              <li>
-                <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
-                  {t('waitlist.maternityPhotoshootsVienna')}
-                </Link>
-              </li>
-              <li>
-                <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors text-center">
-                  {t('waitlist.businessHeadshotsVienna')}
-                </Link>
-              </li>
-            </ul>
+            {/* Was a hardcoded list of the origin studio's services, hidden in translation
+                keys so no search for "Vienna" or "New Age" ever found it. */}
+            <StudioServicesList heading={t('waitlist.exploreOurPhotographyServices')} variant="links" />
           </section>
         </div>
       </div>

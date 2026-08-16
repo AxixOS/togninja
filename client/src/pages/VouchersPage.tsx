@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
+import { StudioServicesList } from '../components/SEO/StudioServicesList';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Layout from '../components/layout/Layout';
@@ -473,31 +474,9 @@ const VouchersPage: React.FC = () => {
       {/* Additive: Explore our photography services link block */}
       <section className="bg-white border-t border-gray-100" aria-labelledby="vouchers-explore-heading">
         <div className="container mx-auto px-4 py-10 max-w-4xl">
-          <h3 id="vouchers-explore-heading" className="text-xl md:text-2xl font-bold text-purple-900 mb-4 text-center">
-            {t('vouchers.exploreOurPhotographyServices')}
-          </h3>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-center">
-            <li>
-              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {t('vouchers.familyPhotographyVienna')}
-              </Link>
-            </li>
-            <li>
-              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {t('vouchers.newbornPhotographyVienna')}
-              </Link>
-            </li>
-            <li>
-              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {t('vouchers.maternityPhotographyVienna')}
-              </Link>
-            </li>
-            <li>
-              <Link to="/fotoshootings" className="block py-2 px-4 rounded-lg text-purple-700 hover:bg-purple-50 hover:text-purple-900 font-medium transition-colors">
-                {t('vouchers.businessHeadshotsVienna')}
-              </Link>
-            </li>
-          </ul>
+          {/* Was a hardcoded list of the origin studio's services, hidden in translation
+              keys so no search for "Vienna" or "New Age" ever found it. */}
+          <StudioServicesList heading={t('vouchers.exploreOurPhotographyServices')} variant="links" />
         </div>
       </section>
 

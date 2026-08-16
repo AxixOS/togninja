@@ -115,9 +115,28 @@ export function mapGeneratedToHomeKeys(content: any): Record<string, string> {
 
   // The "Common Worries" grid is a SECOND six-card FAQ block on the same page. Fed
   // from the same source so it cannot drift back to another studio's services.
+  //
+  // .micro is the one-line summary shown ON the card, and it was NOT mapped — so the
+  // question came from the studio's own generated FAQ while the line beneath it kept the
+  // built-in default. The result was not merely generic, it was incoherent: a fashion
+  // photographer's card read "Do you offer consultations before the photoshoot?" above
+  // "Ideally 5–14 days after birth". Two different studios' content in one card.
+  //
+  // Derived from the answer rather than asked of the model: it costs no generation change,
+  // it works for content already generated, and a summary drawn from the real answer
+  // cannot contradict it — which was the whole failure here.
+  const micro = (answer: string): string => {
+    const s = String(answer || '').trim();
+    if (!s) return '';
+    const firstSentence = (s.split(/(?<=[.!?])\s+/)[0] || s).trim();
+    if (firstSentence.length <= 80) return firstSentence.replace(/[.]$/, '');
+    return `${firstSentence.slice(0, 77).replace(/[\s,;:]+\S*$/, '')}…`;
+  };
+
   faq.slice(0, 6).forEach((entry: any, i: number) => {
     put(`faq.worry${i + 1}.q`, entry?.question);
     put(`faq.worry${i + 1}.full`, entry?.answer);
+    put(`faq.worry${i + 1}.micro`, micro(entry?.answer));
   });
 
   // DELIBERATELY NOT MAPPED — `testimonials`. The generator is instructed to
