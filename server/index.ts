@@ -509,6 +509,17 @@ app.use((req, res, next) => {
         // invoices and the ShootCleaner /studio endpoint.
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EUR'`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS vat_number TEXT`);
+        // WHO the studio is. A page-quality audit found the site could not name a single
+        // human: no field existed for a photographer's name anywhere in the product, so
+        // the About page said "the photographer" and the JSON-LD had no Person at all.
+        // Experience and expertise are the two things a crawl cannot reliably infer and a
+        // model must never invent, so they are asked for and stored.
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_name TEXT`);
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_role TEXT`);
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_portrait_url TEXT`);
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS founding_year INTEGER`);
+        // [{ label, issuer?, year? }] — qualifications, memberships, insurance, awards.
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS credentials JSONB`);
         await db.execute(sql`ALTER TABLE landing_pages ADD COLUMN IF NOT EXISTS hero_image_url TEXT`);
         await db.execute(sql`ALTER TABLE landing_pages ADD COLUMN IF NOT EXISTS hero_video_url TEXT`);
         // Video placement: 'hero' (background, default) | 'below' | 'both'.

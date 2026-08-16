@@ -7391,6 +7391,23 @@ Bitte versuchen Sie es später noch einmal.`;
         studioConfig.lang = await getSiteLanguage();
         studioConfig.siteLanguage = studioConfig.lang;
       } catch { /* client falls back to 'en' */ }
+
+      // WHO the studio is. Read straight off the row rather than through config-reader's
+      // ENV_MAP, which has no key for any of these — that bridge is why phone, email and
+      // currency never reached the SEO surface either. Omitted entirely when unset, so the
+      // About page renders no person rather than an empty one.
+      try {
+        const { rows } = await pool.query(
+          `SELECT owner_name, owner_role, owner_portrait_url, founding_year, credentials
+             FROM studio_configs LIMIT 1`,
+        );
+        const r: any = rows[0] || {};
+        if (r.owner_name) studioConfig.ownerName = r.owner_name;
+        if (r.owner_role) studioConfig.ownerRole = r.owner_role;
+        if (r.owner_portrait_url) studioConfig.ownerPortraitUrl = r.owner_portrait_url;
+        if (r.founding_year) studioConfig.foundingYear = r.founding_year;
+        if (Array.isArray(r.credentials) && r.credentials.length) studioConfig.credentials = r.credentials;
+      } catch { /* columns absent on an older instance */ }
       // The currency the studio sells in. Public price rendering hardcoded "€", so a
       // studio that chose GBP in the wizard still advertised euros; voucher_products has
       // no currency column, so this row is the only source of truth for it.

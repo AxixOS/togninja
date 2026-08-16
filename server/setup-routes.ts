@@ -250,6 +250,41 @@ router.get('/site-images', async (_req: Request, res: Response) => {
 // ==================== HELPERS ====================
 
 const hasVal = (v: any) => !!(v !== null && v !== undefined && String(v).trim() !== '');
+
+/** Trimmed string or undefined — never null, so a partial form does not wipe a stored answer. */
+const cleanStr = (v: any, max: number): string | undefined => {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return s ? s.slice(0, max) : undefined;
+};
+
+/** A plausible founding year, or undefined. Rejects nonsense rather than publishing it. */
+const cleanYear = (v: any): number | undefined => {
+  const n = parseInt(String(v ?? '').trim(), 10);
+  if (!Number.isFinite(n)) return undefined;
+  const thisYear = new Date().getFullYear();
+  // Photography exists from ~1826; a future founding year is a typo, not a claim to publish.
+  return n >= 1826 && n <= thisYear ? n : undefined;
+};
+
+/**
+ * Credentials: [{ label, issuer?, year? }].
+ *
+ * These end up on the studio's About page and in Person schema as claims about
+ * qualifications and memberships, so they are shaped and bounded here rather than trusted:
+ * an entry with no label is dropped, and the list is capped so the page cannot be flooded.
+ */
+const cleanCredentials = (v: any): any[] | undefined => {
+  if (!Array.isArray(v)) return undefined;
+  const out = v
+    .map((c: any) => ({
+      label: cleanStr(c?.label, 140),
+      issuer: cleanStr(c?.issuer, 140),
+      year: cleanYear(c?.year),
+    }))
+    .filter((c) => !!c.label)
+    .slice(0, 12);
+  return out;
+};
 const escapeHtml = (s: string) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const slugify = (s: string) =>
@@ -1165,6 +1200,13 @@ router.post('/basics', async (req: Request, res: Response) => {
       // defaults all key off this; before it was captured here they keyed off SITE_LANG,
       // a deploy-time variable the buyer never sees.
       siteLanguage: normalizeSiteLanguage(siteLanguage) || undefined,
+      // WHO the studio is. `|| undefined` throughout for the same reason as `city` above:
+      // reopening this step must not wipe an answer the form did not resubmit.
+      ownerName: cleanStr(req.body?.ownerName, 120),
+      ownerRole: cleanStr(req.body?.ownerRole, 120),
+      ownerPortraitUrl: cleanStr(req.body?.ownerPortraitUrl, 500),
+      foundingYear: cleanYear(req.body?.foundingYear),
+      credentials: cleanCredentials(req.body?.credentials),
       updatedAt: new Date(),
     };
 

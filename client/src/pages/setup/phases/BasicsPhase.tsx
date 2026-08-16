@@ -123,6 +123,17 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
     facebookUrl: initialData?.facebookUrl || '',
     instagramUrl: initialData?.instagramUrl || '',
     twitterUrl: initialData?.twitterUrl || '',
+    // Who the studio is. Credentials are edited as one-per-line text and converted to
+    // [{label, issuer, year}] on submit — a repeatable-row editor is more UI than this
+    // first version needs, and a photographer types a list faster than they click one.
+    ownerName: initialData?.ownerName || '',
+    ownerRole: initialData?.ownerRole || '',
+    foundingYear: initialData?.foundingYear ? String(initialData.foundingYear) : '',
+    credentials: Array.isArray(initialData?.credentials)
+      ? initialData.credentials
+          .map((c: any) => [c?.label, c?.issuer, c?.year].filter(Boolean).join(' — '))
+          .join('\n')
+      : '',
   });
 
   const [showLocation, setShowLocation] = useState(!!(initialData?.latitude || initialData?.address));
@@ -264,7 +275,26 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
     const base = formData.businessType === 'other' && businessTypeOther.trim()
       ? { ...formData, businessType: businessTypeOther.trim() }
       : formData;
-    saveMutation.mutate({ ...base, logo: logoUrl || null });
+    // Credentials are typed one per line, optionally "Label — Issuer — Year". Parsed here
+    // into the shape the API stores, so the studio never sees a repeatable-row form.
+    const credentialList = String(base.credentials || '')
+      .split('\n')
+      .map((raw) => {
+        const parts = raw.split(/\s+[—–-]{1,2}\s+/).map((p) => p.trim()).filter(Boolean);
+        if (!parts.length) return null;
+        const yearIdx = parts.findIndex((p) => /^(19|20)\d{2}$/.test(p));
+        const year = yearIdx >= 0 ? Number(parts[yearIdx]) : undefined;
+        const rest = parts.filter((_, i) => i !== yearIdx);
+        return { label: rest[0], issuer: rest[1], year };
+      })
+      .filter((c): c is { label: string; issuer?: string; year?: number } => !!c?.label);
+
+    saveMutation.mutate({
+      ...base,
+      logo: logoUrl || null,
+      credentials: credentialList,
+      foundingYear: base.foundingYear ? Number(base.foundingYear) : undefined,
+    });
   };
   
   return (
@@ -491,7 +521,77 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
             A short phrase that describes your business
           </p>
         </div>
-        
+
+        {/* Who you are.
+            The product could not name a single human anywhere: the About page said "the
+            photographer", and the site emitted no Person schema, because nothing ever
+            asked. This is the experience-and-expertise half of what Google and an AI
+            assistant look for, and it is exactly the part a crawl cannot infer and a model
+            must never invent. Optional — but the About page stays anonymous without it. */}
+        <div className="rounded-lg border border-slate-200 p-4 space-y-4">
+          <div>
+            <p className="font-medium text-slate-900">About you</p>
+            <p className="text-xs text-gray-500">
+              Used on your About page and in the data Google and AI assistants read. Leave
+              anything blank and it simply won't appear.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="ownerName">Your name</Label>
+              <Input
+                id="ownerName"
+                placeholder="e.g., Dan Morris"
+                value={formData.ownerName}
+                onChange={(e) => handleChange('ownerName', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ownerRole">Your role</Label>
+              <Input
+                id="ownerRole"
+                placeholder="e.g., Lead photographer & founder"
+                value={formData.ownerRole}
+                onChange={(e) => handleChange('ownerRole', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="foundingYear">Photographing since</Label>
+            <Input
+              id="foundingYear"
+              type="number"
+              inputMode="numeric"
+              placeholder={`e.g., ${new Date().getFullYear() - 8}`}
+              value={formData.foundingYear}
+              onChange={(e) => handleChange('foundingYear', e.target.value)}
+              className="sm:w-40"
+            />
+            <p className="text-xs text-gray-500">
+              Shown as "{formData.foundingYear
+                ? `Photographing since ${formData.foundingYear} — ${Math.max(0, new Date().getFullYear() - Number(formData.foundingYear))} years of experience`
+                : 'Photographing since 2016 — 10 years of experience'}"
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="credentials">Qualifications & memberships</Label>
+            <Textarea
+              id="credentials"
+              placeholder={'One per line, e.g.\nBA (Hons) Photography — University of Brighton — 2011\nMember, Society of Wedding & Portrait Photographers\nFully insured — public liability'}
+              value={formData.credentials}
+              onChange={(e) => handleChange('credentials', e.target.value)}
+              rows={4}
+            />
+            <p className="text-xs text-gray-500">
+              One per line. Qualifications, memberships, insurance or awards — the things
+              that show you know what you're doing.
+            </p>
+          </div>
+        </div>
+
         {/* Brand Color */}
         <div className="space-y-2">
           <Label htmlFor="primaryColor">Primary Brand Color</Label>

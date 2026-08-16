@@ -7,6 +7,7 @@ import { PillarLinksBlock } from '../../components/SEO/PillarLinksBlock';
 import { SEOHead } from '../../components/SEO/SEOHead';
 import { SITE } from '../../config/site';
 import { useLanguage } from '../../context/LanguageContext';
+import { useQuery } from '@tanstack/react-query';
 
 const UeberUnsPage: React.FC = () => {
   const { language, t } = useLanguage();
@@ -45,7 +46,25 @@ const UeberUnsPage: React.FC = () => {
     journey: story('manual.ueberuns.bio.journey'),
     closing: story('manual.ueberuns.bio.closing'),
   };
-  const hasFounderStory = !!(founderPhoto || Object.values(founderStory).some(Boolean));
+  // WHO the studio is. The page could not name a human: it said "the photographer",
+  // there was no field anywhere in the product for a name, and the JSON-LD carried no
+  // Person. Experience and expertise are the two E-E-A-T signals a crawl cannot infer and
+  // a model must never invent, so they are asked for at onboarding and read here.
+  const { data: studio } = useQuery<any>({
+    queryKey: ['/api/studio-config'],
+    queryFn: async () => (await fetch('/api/studio-config')).json(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const ownerName = String(studio?.ownerName || '').trim();
+  const ownerRole = String(studio?.ownerRole || '').trim();
+  const ownerPortrait = String(studio?.ownerPortraitUrl || '').trim();
+  const foundingYear = Number(studio?.foundingYear) || 0;
+  const credentials: { label: string; issuer?: string; year?: number }[] =
+    Array.isArray(studio?.credentials) ? studio.credentials : [];
+
+  // The uploaded portrait wins over the older manual founderPhoto key; either counts.
+  const portrait = ownerPortrait || founderPhoto;
+  const hasFounderStory = !!(portrait || ownerName || Object.values(founderStory).some(Boolean));
   // The studio's OWN accounts, from its configured identity. These were four
   // hardcoded literals: the origin studio's Instagram and Facebook, a named
   // individual's personal LinkedIn, and — worst — a "Review us on Google" button
@@ -136,16 +155,44 @@ const UeberUnsPage: React.FC = () => {
       {/* AboutPage schema pointing at the LocalBusiness the homepage already declares.
           This page previously emitted a SECOND LocalBusiness node hardcoded to Vienna,
           naming a specific real person as the founder of the business — published as
-          every instance's own founder, alongside two unrelated sameAs links. There is
-          no per-studio source for founder details, so the safe thing is to assert
-          nothing about them here. */}
+          every instance's own founder, alongside two unrelated sameAs links.
+
+          A Person is emitted again — but only from the studio's OWN answer, captured at
+          onboarding, and omitted entirely when it has not given one. That is the whole
+          difference: the old node asserted a specific real human as every buyer's founder;
+          this one asserts nothing unless the buyer said who they are.
+
+          Person is what ties a named human to the business for E-E-A-T, and it is what an
+          assistant reads when asked who runs a studio. Without it the site has no author. */}
       <script type="application/ld+json">
         {JSON.stringify({
           "@context": "https://schema.org",
           "@type": "AboutPage",
           "name": de ? `Über uns – ${SITE.name}` : `About us – ${SITE.name}`,
           "url": `${SITE.url}/ueber-uns/`,
-          "mainEntity": { "@id": `${SITE.url}/#business` }
+          "mainEntity": { "@id": `${SITE.url}/#business` },
+          ...(ownerName
+            ? {
+                about: {
+                  "@type": "Person",
+                  "@id": `${SITE.url}/#owner`,
+                  name: ownerName,
+                  ...(ownerRole ? { jobTitle: ownerRole } : {}),
+                  ...(portrait ? { image: portrait } : {}),
+                  worksFor: { "@id": `${SITE.url}/#business` },
+                  ...(credentials.length
+                    ? {
+                        // Text form, not the EducationalOccupationalCredential type: these
+                        // are self-declared and unverified, and the richer type invites a
+                        // precision the data does not have.
+                        hasCredential: credentials.map((c) =>
+                          [c.label, c.issuer, c.year].filter(Boolean).join(' — '),
+                        ),
+                      }
+                    : {}),
+                },
+              }
+            : {}),
         })}
       </script>
       
@@ -209,21 +256,67 @@ const UeberUnsPage: React.FC = () => {
         {hasFounderStory && (
         <section className="py-16 bg-white">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-            <h2 className="text-3xl md:text-4xl font-bold">{de ? <>Der Fotograf hinter {SITE.name}</> : <>The photographer behind {SITE.name}</>}</h2>
-            {founderPhoto && (
-              <img
-                src={founderPhoto}
-                alt={de ? `Fotograf bei ${SITE.name}` : `Photographer at ${SITE.name}`}
-                loading="lazy"
-                className="w-40 h-40 rounded-2xl object-cover shadow-lg"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
-            )}
+            {/* Named where a name exists. "The photographer behind X" is what a page
+                writes when it does not know who runs the business — which was true of
+                every instance, because nothing asked. */}
+            <h2 className="text-3xl md:text-4xl font-bold">
+              {ownerName
+                ? (de ? <>{ownerName} — der Fotograf hinter {SITE.name}</> : <>{ownerName} — the photographer behind {SITE.name}</>)
+                : (de ? <>Der Fotograf hinter {SITE.name}</> : <>The photographer behind {SITE.name}</>)}
+            </h2>
+            <div className="flex flex-wrap items-center gap-5">
+              {portrait && (
+                <img
+                  src={portrait}
+                  alt={ownerName ? `${ownerName}, ${ownerRole || (de ? 'Fotograf' : 'photographer')}` : (de ? `Fotograf bei ${SITE.name}` : `Photographer at ${SITE.name}`)}
+                  loading="lazy"
+                  className="w-40 h-40 rounded-2xl object-cover shadow-lg"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              )}
+              {(ownerName || foundingYear > 0) && (
+                <div className="text-slate-700">
+                  {ownerName && <p className="text-xl font-semibold text-slate-900">{ownerName}</p>}
+                  {ownerRole && <p className="text-slate-600">{ownerRole}</p>}
+                  {/* A plain, extractable sentence rather than a badge — this is the kind
+                      of fact an assistant quotes verbatim when asked how established a
+                      business is. */}
+                  {foundingYear > 0 && (
+                    <p className="mt-1">
+                      {de
+                        ? `Fotografiert seit ${foundingYear} — ${new Date().getFullYear() - foundingYear} Jahre Erfahrung.`
+                        : `Photographing since ${foundingYear} — ${new Date().getFullYear() - foundingYear} years of experience.`}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
             {founderStory.intro && <p className="text-lg text-slate-700">{founderStory.intro}</p>}
             <p className="text-lg text-slate-700">{de ? 'Ein gutes Portrait beginnt nicht mit dem Auslösen der Kamera. Es beginnt mit Vertrauen.' : 'A good portrait doesn’t begin with the click of the shutter. It begins with trust.'}</p>
             {founderStory.craft && <p className="text-lg text-slate-700">{founderStory.craft}</p>}
             {founderStory.journey && <p className="text-lg text-slate-700">{founderStory.journey}</p>}
             {founderStory.closing && <p className="text-xl font-semibold text-slate-950">{founderStory.closing}</p>}
+
+            {/* Qualifications, memberships, insurance, awards. Plain list, plainly stated:
+                this is the expertise half of E-E-A-T, and it is the sort of claim a model
+                will repeat only if it is written as a fact rather than implied by tone. */}
+            {credentials.length > 0 && (
+              <div className="pt-2">
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                  {de ? 'Qualifikationen & Mitgliedschaften' : 'Qualifications & memberships'}
+                </h3>
+                <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                  {credentials.map((c, i) => (
+                    <li key={`${c.label}-${i}`}>
+                      {c.label}
+                      {c.issuer ? ` — ${c.issuer}` : ''}
+                      {c.year ? ` (${c.year})` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {socialLinks.length > 0 && (
               <div className="flex flex-wrap gap-3 pt-2">
                 {socialLinks.map((url) => (

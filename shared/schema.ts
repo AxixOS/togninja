@@ -117,6 +117,17 @@ export const studioConfigs = pgTable("studio_configs", {
   defaultTaxRate: decimal("default_tax_rate", { precision: 5, scale: 2 }).default("0"), // studio's country tax/VAT %
   taxLabel: text("tax_label").default("VAT"), // label shown on invoices: VAT / USt. / Sales Tax / GST
 
+  // WHO the studio is — the experience/expertise half of E-E-A-T, and the only part of it
+  // a crawl cannot infer and a model must never invent. Adding the DB columns via
+  // ALTER TABLE is not enough on its own: drizzle's .set() resolves each key against THIS
+  // definition, so an unlisted key throws "Cannot read properties of undefined (reading
+  // 'name')" and the whole basics save 500s.
+  ownerName: text("owner_name"),
+  ownerRole: text("owner_role"),
+  ownerPortraitUrl: text("owner_portrait_url"),
+  foundingYear: integer("founding_year"),
+  credentials: jsonb("credentials"), // [{ label, issuer?, year? }]
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
