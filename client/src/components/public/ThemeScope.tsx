@@ -24,9 +24,20 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
   const c = theme.colors;
   const f = theme.fonts;
 
-  const css = `
+  /* Chrome mounted above Layout — the cookie banner, toasts, anything portalled to
+     document.body — sits outside .tn-theme, so it never inherited the studio's font and
+     fell through to index.css's `html{font-family:'Poppins'}`. Measured on the live demo:
+     three font families on one page, 11 elements on Poppins. Emitted only for the real
+     site theme, never for an admin live preview, which would otherwise repaint the
+     surrounding CRM. Unlayered, so it beats Tailwind's @layer base regardless of
+     specificity. */
+  const globalFont = preset ? '' : `
+:root,body{font-family:${f.body};}
+`;
+
+  const css = `${globalFont}
 .tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-bg:${c.bg};--tn-surface:${c.surface};--tn-heading:${c.heading};--tn-muted:${c.muted};background:${c.bg};color:${c.text};font-family:${f.body};}
-.tn-theme h1,.tn-theme h2,.tn-theme h3,.tn-theme h4{font-family:${f.heading};color:${c.heading};}
+.tn-theme h1,.tn-theme h2,.tn-theme h3,.tn-theme h4,.tn-theme h5,.tn-theme h6{font-family:${f.heading};color:${c.heading};}
 /* Neutral surfaces + text → theme tokens, so a dark/tinted theme reskins whole sections,
    not just the accents. For a white-bg theme these resolve back to white/near-default, so
    the existing light presets are unchanged (backward compatible). Scoped to public pages. */
