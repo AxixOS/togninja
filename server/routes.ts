@@ -8725,11 +8725,19 @@ ${getBizName()} Team`;
       }
     }
 
-    // Handle voucher sales
+    // Handle voucher sales.
+    //
+    // This branch keyed on session.metadata.voucherSaleId, which NOTHING writes — a
+    // repo-wide search finds it only here and as a column name in shared/schema.ts. The
+    // checkout writes voucher_id and mode (stripeVoucherService.ts:404-432). So for every
+    // studio onboarded through the wizard — which registers this endpoint and only this
+    // endpoint — a paid voucher produced no record at all.
+    //
+    // Kept for any historic session that does carry the key, but the real work now runs
+    // off the metadata the checkout actually sets.
     const voucherSaleId = session.metadata?.voucherSaleId;
     if (voucherSaleId && session.payment_status === 'paid') {
       try {
-        // Update voucher sale status
         await db.execute(
           sql`UPDATE voucher_sales SET payment_status = 'paid' WHERE id = ${voucherSaleId}`
         );
@@ -8737,6 +8745,12 @@ ${getBizName()} Team`;
       } catch (err) {
         console.error('❌ Error updating voucher sale:', err);
       }
+    }
+
+    const looksLikeVoucher = !!(session.metadata?.voucher_id || session.metadata?.mode === 'voucher' || session.metadata?.sku);
+    if (looksLikeVoucher && session.payment_status === 'paid') {
+      console.log('[WEBHOOK] voucher checkout on the registered endpoint —', session.id);
+      await fulfillVoucherFromEvent(event);
     }
   }
 
@@ -14741,8 +14755,25 @@ ${getBizName()} CRM System
 
     // Acknowledge immediately, then process the VERIFIED event asynchronously.
     res.status(200).json({ received: true });
+    setImmediate(() => { void fulfillVoucherFromEvent(event); });
+  });
 
-    setImmediate(async () => {
+  /**
+   * Everything that has to happen after a voucher is paid for: the voucher_sales row, the
+   * PDF frozen to storage, and suppressing the abandoned-cart chase.
+   *
+   * Extracted from the /api/vouchers/stripe-webhook handler because it was UNREACHABLE for
+   * every studio onboarded through the wizard. stripeWebhookSetup.ts:19 registers exactly
+   * one endpoint, /api/stripe/webhook, and that handler's voucher branch keys on
+   * session.metadata.voucherSaleId — a key nothing in this repo ever writes. The checkout
+   * writes voucher_id and mode (stripeVoucherService.ts:404-432). So the card was charged,
+   * this code never ran, and the studio got no sale row, no PDF and no email, while the
+   * customer was then chased by an abandoned-cart reminder for a purchase they had made.
+   *
+   * Now called from both endpoints. Idempotent on stripe_session_id, so both firing cannot
+   * double-insert.
+   */
+  async function fulfillVoucherFromEvent(event: any) {
       try {
         if (event?.type === 'checkout.session.completed') {
           const session = event.data?.object;
@@ -14753,6 +14784,23 @@ ${getBizName()} CRM System
           const isPaid = session?.payment_status === 'paid';
 
           if (isPaid) {
+            // Idempotency. Two endpoints can now deliver the same event — the one
+            // onboarding registers and the one a studio may have configured by hand — and
+            // Stripe retries on a non-2xx. Inserting twice would give one customer two
+            // voucher codes and the studio two sales for one payment. stripe_session_id is
+            // set just after the insert below, so an existing row means this session has
+            // already been fulfilled.
+            try {
+              const already = await runSql(
+                `SELECT id FROM voucher_sales WHERE stripe_session_id = $1 LIMIT 1`,
+                [session.id],
+              );
+              if (already && already.length) {
+                console.log('[WEBHOOK] session already fulfilled, skipping:', session.id);
+                return;
+              }
+            } catch { /* column absent on an older instance — fall through rather than block a sale */ }
+
             // Abandoned-cart: this session converted, so never send it a reminder.
             try {
               const { markCheckoutConverted } = await import('./services/abandonedCheckout.js');
@@ -14922,8 +14970,7 @@ ${getBizName()} CRM System
       } catch (error: any) {
         console.error('[WEBHOOK] Error processing webhook async:', error);
       }
-    });
-  });
+  }
 
   // DEMO ENDPOINT: Create a voucher purchase directly (for testing without Stripe)
   app.post("/api/test/create-demo-voucher-purchase", async (req: Request, res: Response) => {
