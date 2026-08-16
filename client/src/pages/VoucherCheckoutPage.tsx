@@ -381,7 +381,11 @@ const VoucherCheckoutPage: React.FC = () => {
                   target.src = "/logo.png"; // Fallback to PNG version
                 }}
               />
-              <span className="text-xl font-bold text-gray-900">NEW AGE FOTOGRAFIE</span>
+              {/* Was the literal "NEW AGE FOTOGRAFIE", at the top of the page where a
+                  customer enters their card details — the single worst place in the product
+                  to name a different business. SITE.name is already imported and used
+                  throughout this file. */}
+              <span className="text-xl font-bold text-gray-900">{SITE.name}</span>
             </div>
             <Button
               variant="ghost"
@@ -454,12 +458,19 @@ const VoucherCheckoutPage: React.FC = () => {
                     />
                     <h3 className="font-semibold text-purple-900">{de ? 'Anbieter' : 'Provider'}: {SITE.name}</h3>
                   </div>
-                  <p className="text-sm text-purple-800 mb-2">
-                    <strong>{de ? 'Verfügbar:' : 'Available:'}</strong> {de ? 'Noch 25 Gutscheine' : '25 vouchers left'}
-                  </p>
-                  <p className="text-xs text-purple-700">
-                    {de ? 'Professional Fotografie Studio • Wien, Austria' : 'Professional Photography Studio • Vienna, Austria'}
-                  </p>
+                  {/* Removed: "Noch 25 Gutscheine" / "25 vouchers left". The 25 was a
+                      literal. Nothing counts voucher stock, so it was an invented scarcity
+                      claim made to a buyer at the moment they decide to pay — and made in
+                      the studio's name, not ours. There is no honest version of it without
+                      a real inventory, so it is gone rather than parameterised.
+
+                      Also removed the "Wien, Austria" line beneath it. The studio's own
+                      service area, or nothing. */}
+                  {SITE.address.city && (
+                    <p className="text-xs text-purple-700">
+                      {de ? `Fotostudio • ${SITE.address.city}` : `Photography studio • ${SITE.address.city}`}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-4">

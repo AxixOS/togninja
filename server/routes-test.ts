@@ -79,10 +79,12 @@ export function registerTestRoutes(app: Express) {
 
       const totalAmount = mockVoucher.price * quantity;
 
-      // Create test payment intent
+      // Create test payment intent. Same currency source as the live paths — a test route
+      // that charges in a different currency to production tests the wrong thing.
+      const { getStudioCurrency } = await import('./lib/studio-currency');
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(totalAmount * 100), // Convert to cents
-        currency: 'eur',
+        currency: await getStudioCurrency(),
         automatic_payment_methods: {
           enabled: true,
         },

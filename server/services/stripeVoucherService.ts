@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { VoucherGenerationService, GeneratedVoucher } from './voucherGenerationService';
 import { EnhancedEmailService } from './enhancedEmailService';
 import { verifyOfferToken } from '../utils/offer-token';
+import { getStudioCurrency } from '../lib/studio-currency';
 
 // Check if Stripe key is properly configured
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -298,6 +299,11 @@ export class StripeVoucherService {
       let remainingClientDiscount = clientDiscountCents;
       const appliedCodeUpper = String(data.appliedVoucherCode || data.appliedVoucher?.code || '').toUpperCase();
 
+      // Resolved ONCE, here, because the map below is synchronous — and because every line
+      // item on a session must share a currency anyway. Was hardcoded 'eur', so a GBP
+      // studio's customer saw £ on the page and was charged euros.
+      const currency = await getStudioCurrency();
+
       const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = data.items.map(item => {
         const name = item.name || item.title || 'Fotoshooting Gutschein';
         const qty = Math.max(1, Number(item.quantity) || 1);
@@ -333,7 +339,7 @@ export class StripeVoucherService {
 
         return {
           price_data: {
-            currency: 'eur',
+            currency,
             product_data: {
               name,
               description: item.description,
@@ -593,7 +599,7 @@ export class StripeVoucherService {
    */
   private static async sendVoucherEmail(voucher: GeneratedVoucher, sessionId?: string): Promise<void> {
     try {
-      const voucherDocument = VoucherGenerationService.generateVoucherDocument(voucher);
+      const voucherDocument = await VoucherGenerationService.generateVoucherDocument(voucher);
 
       // Try to fetch the generated PDF from the internal PDF endpoint (if sessionId provided)
       const attachments: Array<{ filename: string; content: Buffer; contentType?: string }> = [];
@@ -612,8 +618,19 @@ export class StripeVoucherService {
         }
       }
 
-      // Fallback: if no PDF attached, still send HTML content
-      const subject = `Ihr Geschenkgutschein von ${process.env.BUSINESS_NAME || 'New Age Fotografie'}`;
+      // Subject was German regardless of the studio's language, and fell back to naming
+      // the origin studio — so an English studio's customer received "Ihr Geschenkgutschein
+      // von New Age Fotografie" in their inbox after paying. Follows the site language, and
+      // omits the sender rather than inventing one.
+      const studioName = (process.env.BUSINESS_NAME || '').trim();
+      let isDe = false;
+      try {
+        const { getSiteLanguage } = await import('../lib/site-language');
+        isDe = String((await getSiteLanguage()) || '').toLowerCase().startsWith('de');
+      } catch { /* default to English */ }
+      const subject = isDe
+        ? `Ihr Geschenkgutschein${studioName ? ` von ${studioName}` : ''}`
+        : `Your gift voucher${studioName ? ` from ${studioName}` : ''}`;
 
       await EnhancedEmailService.sendEmail({
         to: voucher.recipientEmail,

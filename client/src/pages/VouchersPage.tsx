@@ -55,15 +55,16 @@ const VouchersPage: React.FC = () => {
 
   // Translation is now handled server-side via the language parameter in the API request
 
-  // Transform API products to match expected format
+  // Transform API products to match expected format.
+  //
+  // "No products yet" and "products not loaded yet" are different states and this
+  // conflated them: an empty array returned null, and null is read as loading further
+  // down, so a studio that simply had no vouchers to sell showed "Loading vouchers…"
+  // forever and its honest empty state was unreachable. undefined means the query has not
+  // resolved; [] means it resolved to nothing.
   const voucherProducts = useMemo(() => {
-    // ALWAYS wait for API data - NEVER show defaultVouchers fallback
-    if (!apiProducts || !Array.isArray(apiProducts) || apiProducts.length === 0) {
-      console.log('⏳ Waiting for API data...');
-      return null; // null = loading state, not empty array
-    }
-    
-    console.log('📦 API Products received:', apiProducts.length, apiProducts);
+    if (apiProducts === undefined || apiProducts === null) return null; // genuinely still loading
+    if (!Array.isArray(apiProducts)) return [];
     return apiProducts
       .filter((p: any) => p.isActive !== false && p.is_active !== false)
       .map((p: any) => {
@@ -126,7 +127,10 @@ const VouchersPage: React.FC = () => {
   // page SEO (title/description/canonical) and a real H1 — previously it had
   // only a bare 28-char title, no canonical and an <h2>, which the SEO audit
   // flagged as thin/missing-H1/missing-canonical on /vouchers.
-  if (isLoading || !voucherProducts) {
+  // `voucherProducts === null` is "still loading"; an empty array falls through to the
+  // real empty state below. Testing `!voucherProducts` caught [] as well, which is what
+  // made the empty state unreachable.
+  if (isLoading || voucherProducts === null) {
     return (
       <Layout>
         <SEOHead

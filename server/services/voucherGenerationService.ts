@@ -158,16 +158,57 @@ export class VoucherGenerationService {
   /**
    * Generate voucher PDF or email content
    */
-  static generateVoucherDocument(voucher: GeneratedVoucher): {
+  /**
+   * The document a paying customer keeps.
+   *
+   * Every studio-specific value on it was a literal: the title, the logo line, the euro
+   * sign, the German labels, a two-year expiry, and a redemption footer naming New Age
+   * Fotografie and www.newage-fotografie.de — a third spelling of that domain, and one
+   * that appears nowhere else in the codebase. A customer buying from a Brighton studio
+   * received a gift certificate redeemable at a business in Vienna.
+   *
+   * Now async so it can read the studio it is being issued by. The single caller
+   * (stripeVoucherService.sendVoucherEmail) is already async.
+   */
+  static async generateVoucherDocument(voucher: GeneratedVoucher): Promise<{
     htmlContent: string;
     pdfBuffer?: Buffer;
-  } {
+  }> {
+    const [{ getStudioCurrency }, { getSiteLanguage }] = await Promise.all([
+      import('../lib/studio-currency'),
+      import('../lib/site-language'),
+    ]);
+    const currency = (await getStudioCurrency()).toUpperCase();
+    let lang = 'en';
+    try { lang = (await getSiteLanguage()) || 'en'; } catch { /* default */ }
+    const de = String(lang).toLowerCase().startsWith('de');
+    const locale = de ? 'de-DE' : 'en-GB';
+
+    const studioName = (process.env.BUSINESS_NAME || '').trim();
+    const studioSite = (process.env.PUBLIC_SITE_URL || process.env.APP_URL || '').replace(/\/+$/, '');
+
+    const money = (cents: number) => {
+      try {
+        return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(cents / 100);
+      } catch {
+        return `${(cents / 100).toFixed(2)} ${currency}`;
+      }
+    };
+
+    const T = de
+      ? { doc: 'Geschenkgutschein', code: 'Gutscheincode', forWhom: 'Für', validFor: 'Gültig für',
+          issued: 'Ausgestellt am', id: 'Gutschein-ID', delivery: 'Lieferung am',
+          redeem: 'Einlösbar bei', online: 'Online oder in unserem Studio' }
+      : { doc: 'Gift Voucher', code: 'Voucher code', forWhom: 'For', validFor: 'Valid for',
+          issued: 'Issued on', id: 'Voucher ID', delivery: 'Delivery on',
+          redeem: 'Redeemable at', online: 'Online or in our studio' };
+
     const htmlContent = `
       <!DOCTYPE html>
-      <html>
+      <html lang="${de ? 'de' : 'en'}">
       <head>
         <meta charset="utf-8">
-        <title>Geschenkgutschein - New Age Fotografie</title>
+        <title>${T.doc}${studioName ? ` - ${studioName}` : ''}</title>
         <style>
           body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
           .voucher { border: 2px solid #4F46E5; border-radius: 12px; padding: 30px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
@@ -180,29 +221,32 @@ export class VoucherGenerationService {
       </head>
       <body>
         <div class="voucher">
-          <div class="logo">🎁 New Age Fotografie</div>
-          <h1>Geschenkgutschein</h1>
-          <div class="amount">€${(voucher.amount / 100).toFixed(2)}</div>
-          
+          ${studioName ? `<div class="logo">🎁 ${studioName}</div>` : ''}
+          <h1>${T.doc}</h1>
+          <div class="amount">${money(voucher.amount)}</div>
+
           <div class="security-code">
-            <strong>Gutscheincode:</strong><br>
+            <strong>${T.code}:</strong><br>
             ${voucher.securityCode}
           </div>
-          
-          ${voucher.recipientName ? `<p><strong>Für:</strong> ${voucher.recipientName}</p>` : ''}
+
+          ${voucher.recipientName ? `<p><strong>${T.forWhom}:</strong> ${voucher.recipientName}</p>` : ''}
           ${voucher.message ? `<p><em>"${voucher.message}"</em></p>` : ''}
-          
+
           <div class="details">
-            <p><strong>Gültig für:</strong> ${voucher.type}</p>
-            <p><strong>Ausgestellt am:</strong> ${voucher.purchaseDate.toLocaleDateString('de-DE')}</p>
-            <p><strong>Gutschein-ID:</strong> ${voucher.securityCode}</p>
-            ${voucher.deliveryDate ? `<p><strong>Lieferung am:</strong> ${voucher.deliveryDate.toLocaleDateString('de-DE')}</p>` : ''}
+            <p><strong>${T.validFor}:</strong> ${voucher.type}</p>
+            <p><strong>${T.issued}:</strong> ${voucher.purchaseDate.toLocaleDateString(locale)}</p>
+            <p><strong>${T.id}:</strong> ${voucher.securityCode}</p>
+            ${voucher.deliveryDate ? `<p><strong>${T.delivery}:</strong> ${voucher.deliveryDate.toLocaleDateString(locale)}</p>` : ''}
           </div>
-          
+
           <div class="footer">
-            <p>Einlösbar bei New Age Fotografie<br>
-            Online unter www.newage-fotografie.de oder in unserem Studio<br>
-            Gültig bis 2 Jahre nach Ausstellungsdatum</p>
+            ${studioName ? `<p>${T.redeem} ${studioName}<br>${studioSite ? `${studioSite}<br>` : ''}${T.online}</p>` : ''}
+            <!-- The "valid for 2 years" line is deliberately gone. Voucher validity is a
+                 contractual term and varies by jurisdiction — in several EU states a
+                 shorter expiry on a gift voucher is unenforceable. Printing a term the
+                 studio never agreed to, on a document their customer holds, is a promise
+                 made on their behalf. It belongs in a studio-configurable field, not here. -->
           </div>
         </div>
       </body>

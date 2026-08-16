@@ -805,15 +805,27 @@ async function renderVoucherPdf(doc: any, data: any): Promise<void> {
   const footerTop = pageHeight - 155;
   doc.moveTo(pageMargin, footerTop).lineTo(pageWidth - pageMargin, footerTop).lineWidth(0.5).strokeColor('#e2e2e2').stroke();
 
-  // QR points to the waitlist landing page (override per tenant via VOUCHER_QR_URL).
-  // External render, best-effort.
+  // QR points to THIS studio's waitlist. The literal fallback here was
+  // newagefotografie.com/warteliste, so every printed voucher a buyer's customer received
+  // — the physical artefact, the one that outlives the transaction — carried a QR code
+  // scanning through to another business. Resolved from the studio's own site origin; no
+  // QR at all rather than someone else's.
   const qrSize = 70;
-  const qrTarget = process.env.VOUCHER_QR_URL || 'https://www.newagefotografie.com/warteliste';
-  const qrBuf = await fetchImg(`https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(qrTarget)}`);
+  const siteOrigin = (process.env.VOUCHER_QR_URL
+    || process.env.PUBLIC_SITE_URL
+    || process.env.APP_URL
+    || process.env.SITE_URL
+    || '').replace(/\/+$/, '');
+  const qrTarget = process.env.VOUCHER_QR_URL ? siteOrigin : (siteOrigin ? `${siteOrigin}/warteliste` : '');
+  const qrBuf = qrTarget
+    ? await fetchImg(`https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(qrTarget)}`)
+    : null;
   if (qrBuf) { try { doc.image(qrBuf, pageMargin, footerTop + 12, { fit: [qrSize, qrSize] }); } catch {} }
 
-  // Logo (bottom-right)
-  const logoBuf = await fetchImg(data.logoUrl || process.env.VOUCHER_LOGO_URL || 'https://i.postimg.cc/j55DNmbh/frontend-logo.jpg');
+  // Logo (bottom-right). The literal fallback was the origin studio's logo, hot-linked
+  // from a free image host — so a studio that had not uploaded one shipped a competitor's
+  // mark on its own gift vouchers. No logo is the correct empty state.
+  const logoBuf = await fetchImg(data.logoUrl || process.env.VOUCHER_LOGO_URL || process.env.LOGO_URL || '');
   if (logoBuf) { try { doc.image(logoBuf, pageWidth - pageMargin - 118, footerTop + 12, { fit: [118, 42] }); } catch {} }
 
   // Fine print between the QR and the logo.
@@ -14677,10 +14689,12 @@ ${getBizName()} CRM System
         return res.status(404).json({ error: "Voucher not found" });
       }
 
-      // Create payment intent
+      // Create payment intent. Currency comes from the studio, not a literal — see
+      // server/lib/studio-currency.ts for why this is one accessor and not three.
+      const { getStudioCurrency } = await import('./lib/studio-currency');
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(amount), // Amount in cents
-        currency: 'eur',
+        currency: await getStudioCurrency(),
         metadata: {
           voucherId,
           quantity: quantity.toString(),
@@ -14939,7 +14953,10 @@ ${getBizName()} CRM System
         original_amount: amount.toString(),
         discount_amount: '0',
         final_amount: amount.toString(),
-        currency: 'EUR',
+        // The sale RECORD must agree with what was charged. Left as 'EUR' it would put a
+        // euro figure in the studio's own sales ledger and reporting for a sale taken in
+        // another currency — wrong in the CRM even once the charge itself is correct.
+        currency: (await (await import('./lib/studio-currency')).getStudioCurrency()).toUpperCase(),
         payment_intent_id: `demo_intent_${Date.now()}`,
         payment_status: 'paid',
         payment_method: 'demo',
@@ -15031,7 +15048,7 @@ ${getBizName()} CRM System
         original_amount: (mockSession.amount_total / 100).toString(),
         discount_amount: '0',
         final_amount: (mockSession.amount_total / 100).toString(),
-        currency: 'EUR',
+        currency: (await (await import('./lib/studio-currency')).getStudioCurrency()).toUpperCase(),
         payment_intent_id: mockSession.payment_intent,
         payment_status: 'paid',
         payment_method: 'test_card',
@@ -16931,7 +16948,11 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       const tplLogoUrl = pdfTemplate?.logoUrl || pdfTemplate?.logo_url || process.env.VOUCHER_LOGO_URL || 'https://i.postimg.cc/j55DNmbh/frontend-logo.jpg';
       const tplFooterText = pdfTemplate?.footerText || pdfTemplate?.footer_text || '';
       const tplFooterEmail = pdfTemplate?.footerEmail || pdfTemplate?.footer_email || '';
-      const tplFooterPhone = pdfTemplate?.footerPhone || pdfTemplate?.footer_phone || 'WhatsApp: 0043 677 633 99210';
+      // Defaulted to the origin studio's WhatsApp number, printed on every studio's
+      // vouchers — so a customer with a question rang a photographer in Vienna. Empty,
+      // like tplFooterText and tplFooterEmail on the lines above; the contact line is
+      // already conditional on having something to show.
+      const tplFooterPhone = pdfTemplate?.footerPhone || pdfTemplate?.footer_phone || process.env.BUSINESS_PHONE || '';
       const tplTermsText = pdfTemplate?.termsText || pdfTemplate?.terms_text || 'Einlösbar für die oben genannte Leistung in unserem Studio. Nicht bar auszahlbar. Termin nach Verfügbarkeit. Bitte zur Einlösung Gutschein-ID angeben.';
 
       // Title: prefer DB product name, then metadata product_name, then fallback map
@@ -17061,7 +17082,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       const pvLogoUrl = previewTemplate?.logoUrl || previewTemplate?.logo_url || process.env.VOUCHER_LOGO_URL || 'https://i.postimg.cc/j55DNmbh/frontend-logo.jpg';
       const pvFooterText = previewTemplate?.footerText || previewTemplate?.footer_text || '';
       const pvFooterEmail = previewTemplate?.footerEmail || previewTemplate?.footer_email || '';
-      const pvFooterPhone = previewTemplate?.footerPhone || previewTemplate?.footer_phone || 'WhatsApp: 0043 677 633 99210';
+      const pvFooterPhone = previewTemplate?.footerPhone || previewTemplate?.footer_phone || process.env.BUSINESS_PHONE || '';
       const pvTermsText = previewTemplate?.termsText || previewTemplate?.terms_text || 'Einlösbar für die oben genannte Leistung in unserem Studio. Nicht bar auszahlbar. Termin nach Verfügbarkeit. Bitte zur Einlösung Gutschein-ID angeben.';
 
       // Try custom_image or design_image from query, template image, or product default

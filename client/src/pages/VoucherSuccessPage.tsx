@@ -16,10 +16,21 @@ const VoucherSuccessPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
+              {/* The badge read "NAF" and the name "NEW AGE FOTOGRAFIE" — on the page a
+                  customer lands on immediately after paying. Initials derived from the
+                  studio's own name. */}
               <div className="h-8 w-8 bg-gradient-to-r from-purple-600 to-purple-700 rounded flex items-center justify-center">
-                <span className="text-white font-bold text-xs">NAF</span>
+                <span className="text-white font-bold text-xs">
+                  {(SITE.name || '')
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 3)
+                    .map((w) => w[0])
+                    .join('')
+                    .toUpperCase() || '★'}
+                </span>
               </div>
-              <span className="ml-3 text-xl font-bold text-gray-900">NEW AGE FOTOGRAFIE</span>
+              <span className="ml-3 text-xl font-bold text-gray-900">{SITE.name}</span>
             </div>
             <Button
               variant="ghost"
@@ -79,8 +90,12 @@ const VoucherSuccessPage: React.FC = () => {
                 {t('voucher.moreVouchers')}
               </Button>
               
-              <Button 
-                onClick={() => window.open('https://newagefotografie.sproutstudio.com/invitation/live-link-shootings-new-age-fotografie', '_blank')}
+              {/* Was window.open('https://newagefotografie.sproutstudio.com/...') — the
+                  origin studio's own booking system. A customer who had just paid this
+                  studio for a voucher was sent to a different business in another country
+                  to book the shoot. Goes to this studio's own waitlist/booking page. */}
+              <Button
+                onClick={() => navigate('/warteliste')}
                 className="w-full bg-purple-600 hover:bg-purple-700"
               >
                 <Calendar className="w-4 h-4 mr-2" />
