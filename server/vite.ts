@@ -471,11 +471,24 @@ async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
         // advertised to crawlers. That is the intended behaviour, not an oversight:
         // pillars are created as drafts and go live only when the studio publishes.
         if (page) {
+          // The studio's own priced products, read live so an existing pillar page gains a
+          // price the moment one is set — no regeneration. Best-effort throughout: a
+          // pricing lookup must never cost the page its meta.
+          let products: any[] = [];
+          let currency = 'EUR';
+          try {
+            if (typeof neonDb.getVoucherProducts === 'function') products = await neonDb.getVoucherProducts();
+          } catch { /* no catalogue yet */ }
+          try {
+            const { getStudioCurrency } = await import('./lib/studio-currency');
+            currency = (await getStudioCurrency()).toUpperCase();
+          } catch { /* default */ }
+
           meta = {
             title: page.seo_title || page.title || pillar.label,
             description: String(page.meta_description || page.content_json?.hero?.subheadline || "").slice(0, 160),
             canonical: `${SITE_ORIGIN}${norm(pillar.href)}/`,
-            bodyHtml: lpBodyHtml(page),
+            bodyHtml: lpBodyHtml(page, pillarExtrasHtml({ pillar, products, currency, origin: SITE_ORIGIN })),
           };
           routeMetaCache.set(reqPath, { meta, at: Date.now() });
           return meta;
@@ -691,7 +704,92 @@ function blogJsonLd(post: any, studioName: string): string {
   return scripts.length ? `\n${scripts.join("\n")}` : "";
 }
 
-function lpBodyHtml(page: any): string {
+/**
+ * Blocks built from LIVE data rather than from the page's stored content_json.
+ *
+ * Deliberate: content_json is frozen at generation time, so anything read from it is blank
+ * on every pillar page already created and stays blank until that studio regenerates. The
+ * Authority Map, voucher_products and studio_configs are all queryable at render time, so
+ * a block fed from them improves every existing page on deploy — no regeneration, no
+ * migration.
+ *
+ * Both blocks emit nothing when their data is absent, matching the rule the rest of this
+ * function keeps: a section with no content produces no markup, never a heading over a gap.
+ */
+function pillarExtrasHtml(
+  opts: { pillar?: any; products?: any[]; currency?: string; origin?: string } = {},
+): string {
+  const parts: string[] = [];
+  const { pillar, products = [], currency = 'EUR', origin = '' } = opts;
+  if (!pillar) return '';
+
+  // 1. PRICE. The commonest question asked of any photographer, and the site could not
+  //    answer it: no public page rendered a figure. A studio's own priced, active products
+  //    for this service — never an invented number, and never an unpriced starter row.
+  const forThisPillar = (products || []).filter((p: any) => {
+    const price = Number(p.price) || 0;
+    if (price <= 0) return false;
+    if (p.is_active === false || p.isActive === false) return false;
+    const hay = `${p.category || ''} ${p.name || ''} ${p.slug || ''}`.toLowerCase();
+    const label = String(pillar.label || '').toLowerCase();
+    // The starter products are created with category = pillar.label, so that is the exact
+    // match; the looser checks catch products a studio has since renamed by hand.
+    return hay.includes(label) || label.includes(String(p.category || '').toLowerCase());
+  });
+  if (forThisPillar.length) {
+    const cheapest = forThisPillar.reduce(
+      (min: any, p: any) => (Number(p.price) < Number(min.price) ? p : min),
+      forThisPillar[0],
+    );
+    const money = (n: any) => {
+      try {
+        return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(Number(n) || 0);
+      } catch {
+        return `${Number(n).toFixed(2)} ${currency}`;
+      }
+    };
+    parts.push(`<h2 class="text-2xl font-bold mt-8 mb-3">Pricing</h2>`);
+    // A plain sentence before the table: this is the form an assistant quotes when asked
+    // what something costs, and a table alone often is not extracted.
+    parts.push(
+      `<p class="text-gray-700 mb-3">${htmlEsc(String(pillar.label))} starts at ${htmlEsc(money(cheapest.price))}.</p>`,
+    );
+    parts.push('<ul class="list-disc pl-6 mb-3 text-gray-700">');
+    for (const p of forThisPillar.slice(0, 6)) {
+      const desc = String(p.description || '').replace(/<[^>]+>/g, '').trim().slice(0, 120);
+      parts.push(
+        `<li><strong>${htmlEsc(String(p.name))}</strong> — ${htmlEsc(money(p.price))}${desc ? ` · ${htmlEsc(desc)}` : ''}</li>`,
+      );
+    }
+    parts.push('</ul>');
+  }
+
+  // 2. INTERNAL LINKS. The Authority Map has carried siblings and clusters per pillar all
+  //    along and nothing server-rendered them, so a crawler fetching a pillar page found no
+  //    route to the studio's other services or its supporting articles — the topical graph
+  //    existed in the database and not in the HTML.
+  const links = (arr: any[]) =>
+    (Array.isArray(arr) ? arr : [])
+      .filter((l: any) => l?.href && l?.label)
+      .slice(0, 6)
+      .map((l: any) => `<li><a class="underline" href="${htmlEsc(String(l.href))}">${htmlEsc(String(l.label))}</a></li>`)
+      .join('');
+
+  const siblingLinks = links(pillar.siblings);
+  if (siblingLinks) {
+    parts.push(`<h2 class="text-2xl font-bold mt-8 mb-3">Our other services</h2>`);
+    parts.push(`<ul class="list-disc pl-6 mb-3 text-gray-700">${siblingLinks}</ul>`);
+  }
+  const clusterLinks = links(pillar.clusters);
+  if (clusterLinks) {
+    parts.push(`<h2 class="text-2xl font-bold mt-8 mb-3">Guides &amp; tips</h2>`);
+    parts.push(`<ul class="list-disc pl-6 mb-3 text-gray-700">${clusterLinks}</ul>`);
+  }
+
+  return parts.join('\n');
+}
+
+function lpBodyHtml(page: any, extras = ''): string {
   const c = (page.content_json || {}) as Record<string, any>;
   // content_json exists in two vocabularies (AI generation vs editor save) —
   // read both, same as the public renderer.
@@ -776,6 +874,10 @@ function lpBodyHtml(page: any): string {
     if (first(fc.title, fc.headline)) parts.push(`<h2 class="text-2xl font-bold mt-8 mb-3">${htmlEsc(first(fc.title, fc.headline))}</h2>`);
     if (first(fc.body, fc.description)) parts.push(`<p class="text-gray-700 mb-3">${htmlEsc(first(fc.body, fc.description))}</p>`);
   }
+  // Live-data blocks (price, sibling services, supporting guides) sit before the closing
+  // link row so a crawler meets the commercial facts and the topical graph in the body,
+  // not after the sign-off.
+  if (extras) parts.push(extras);
   parts.push(`<p class="mt-8 text-gray-700"><a href="/kontakt" class="underline">Kontakt &amp; Termin anfragen</a> · <a href="/vouchers" class="underline">Gutscheine</a> · <a href="/preise/" class="underline">Preise</a></p>`);
   return `<div class="max-w-3xl mx-auto px-4 py-12">\n${parts.join("\n")}\n</div>`;
 }
