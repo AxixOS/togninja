@@ -125,7 +125,13 @@ Rules:
   the source material. (This rule used to say "same language as the user's input"
   with a special case for German, which produced German copy for an English-market
   studio because the crawled source happened to lean that way.)
-- Generate believable but compelling testimonials if none are provided
+- NEVER invent testimonials, reviews, ratings, client names, awards, press mentions or
+  statistics. This instruction previously read "Generate believable but compelling
+  testimonials if none are provided", and the output was rendered into crawlable HTML
+  under a five-star badge reading "Echte Google-Bewertungen" — fabricated quotes,
+  attributed to invented people, presented to search engines and to the studio's own
+  visitors as verified Google reviews. If the source material contains no testimonial,
+  return an empty array; the page hides the section.
 - Keep headlines concise and impactful
 - Return SIX FAQ entries, all about THIS studio's own services. The homepage has six
   FAQ slots; any you leave short keeps a generic default that may describe services

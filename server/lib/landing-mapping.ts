@@ -43,7 +43,26 @@ export function mapGeneratedToLandingPage(
     hero_subheadline: hero.subheadline || null,
     cta_text: hero.ctaText || context?.ctaText || 'Book Now',
     cta_action: context?.ctaAction || 'book_now',
-    content_json: content,
+    // Strip generated proof before it is stored. A prompt asking the model not to invent
+    // reviews is guidance; this is the guarantee.
+    //
+    // content_json passed the whole object through, so pillar and landing pages published
+    // model-written testimonials — server-rendered into crawlable HTML (server/vite.ts:748)
+    // and shown under a five-star badge reading "Echte Google-Bewertungen". Quotes
+    // attributed to invented people, presented to search engines and to the studio's own
+    // visitors as verified Google reviews, on the studio's money pages.
+    //
+    // The homepage path has refused these since generated-to-manual-pages.ts:123 — this is
+    // the same rule, applied at the other boundary, so the two cannot disagree. Real proof
+    // comes from the studio's Google Places feed or its own testimonials, never from here.
+    content_json: stripGeneratedProof(content),
     generation_context_json: context,
   };
+}
+
+/** Remove anything the model may have fabricated as social proof. */
+function stripGeneratedProof(content: any): any {
+  if (!content || typeof content !== 'object') return content;
+  const { testimonials, reviews, aggregateRating, milestones, stats, ...rest } = content as any;
+  return rest;
 }

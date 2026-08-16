@@ -746,9 +746,18 @@ function lpBodyHtml(page: any): string {
     if (items.length) parts.push(`<ul class="list-disc pl-6 mb-3 text-gray-700">${items.map((i: string) => `<li>${htmlEsc(i)}</li>`).join("")}</ul>`);
   }
   if (show("testimonials")) {
-    const ts = listOf(c.testimonials, "testimonials").filter((t: any) => t && t.quote);
+    // Server-rendered testimonials are the version a crawler and an LLM actually read, and
+    // they were model-invented: landing-generator.ts told it to "generate believable but
+    // compelling testimonials if none are provided". Fabricated quotes in crawlable HTML,
+    // under a heading hardcoded in German on every studio's page.
+    //
+    // landing-mapping.ts now strips them before storage, so `c.testimonials` should be
+    // empty for anything generated after that change. This second guard is for rows
+    // written BEFORE it — a code fix does not rewrite stored JSON, and those pages are
+    // live. Real reviews reach the page through the Google Places feed instead.
+    const ts: any[] = [];
     if (ts.length) {
-      parts.push(`<h2 class="text-2xl font-bold mt-8 mb-3">Das sagen unsere Kunden</h2>`);
+      parts.push(`<h2 class="text-2xl font-bold mt-8 mb-3">What our clients say</h2>`);
       for (const t of ts) parts.push(`<blockquote class="text-gray-700 italic mb-2">„${htmlEsc(String(t.quote))}" — ${htmlEsc(String(t.author || ""))}</blockquote>`);
     }
   }
