@@ -436,6 +436,76 @@ export const manualPageManifest: ManualPageDefinition[] = [
     ]
   },
   {
+    // The FAQ was the ONLY public page with no entry here, and the one where that mattered
+    // most: its answers are not marketing copy, they are commercial terms. It stated a 30%
+    // deposit, a 50% late-cancellation fee and 3-year voucher validity as the studio's own
+    // policy, in German, with no screen anywhere to change them. A client could reasonably
+    // hold a studio to terms it never set and could not find.
+    //
+    // Twelve pairs: enough for a real FAQ, few enough that a studio will finish it. The
+    // payment and cancellation answers are listed first because those are the ones with
+    // consequences.
+    id: 'faq',
+    label: 'FAQ Page',
+    route: '/faq/',
+    description: 'Your answers to common questions — including your booking, payment and cancellation terms.',
+    tags: ['Trust', 'SEO', 'Terms'],
+    sections: [
+      {
+        id: 'faq-header',
+        label: 'Page Header',
+        fields: [
+          makeField('faq-title', 'Page Title', 'faq.pageTitle'),
+          makeField('faq-subtitle', 'Intro', 'faq.pageSubtitle', 'longForm'),
+        ],
+      },
+      {
+        id: 'faq-terms',
+        label: 'Booking, Payment & Cancellation',
+        description:
+          'These are contractual. Write your own terms — a customer may hold you to whatever appears here.',
+        fields: [
+          makeField('faq-q1', 'Q1 — How to book', 'faq.q1.question'),
+          makeField('faq-a1', 'A1', 'faq.q1.answer', 'longForm'),
+          makeField('faq-q2', 'Q2 — Deposit', 'faq.q2.question'),
+          makeField('faq-a2', 'A2 — your deposit terms', 'faq.q2.answer', 'longForm'),
+          makeField('faq-q3', 'Q3 — Cancellation / rescheduling', 'faq.q3.question'),
+          makeField('faq-a3', 'A3 — your cancellation terms', 'faq.q3.answer', 'longForm'),
+          makeField('faq-q4', 'Q4 — Payment methods', 'faq.q4.question'),
+          makeField('faq-a4', 'A4', 'faq.q4.answer', 'longForm'),
+        ],
+      },
+      {
+        id: 'faq-session',
+        label: 'The Session',
+        fields: [
+          makeField('faq-q5', 'Q5', 'faq.q5.question'),
+          makeField('faq-a5', 'A5', 'faq.q5.answer', 'longForm'),
+          makeField('faq-q6', 'Q6', 'faq.q6.question'),
+          makeField('faq-a6', 'A6', 'faq.q6.answer', 'longForm'),
+          makeField('faq-q7', 'Q7', 'faq.q7.question'),
+          makeField('faq-a7', 'A7', 'faq.q7.answer', 'longForm'),
+          makeField('faq-q8', 'Q8', 'faq.q8.question'),
+          makeField('faq-a8', 'A8', 'faq.q8.answer', 'longForm'),
+        ],
+      },
+      {
+        id: 'faq-delivery',
+        label: 'Images & Delivery',
+        fields: [
+          makeField('faq-q9', 'Q9', 'faq.q9.question'),
+          makeField('faq-a9', 'A9', 'faq.q9.answer', 'longForm'),
+          makeField('faq-q10', 'Q10', 'faq.q10.question'),
+          makeField('faq-a10', 'A10', 'faq.q10.answer', 'longForm'),
+          makeField('faq-q11', 'Q11', 'faq.q11.question'),
+          makeField('faq-a11', 'A11', 'faq.q11.answer', 'longForm'),
+          makeField('faq-q12', 'Q12 — Voucher validity', 'faq.q12.question'),
+          makeField('faq-a12', 'A12 — your voucher terms', 'faq.q12.answer', 'longForm'),
+        ],
+      },
+    ],
+  },
+  {
     id: 'waitlist',
     label: 'Waitlist / Booking',
     route: '/warteliste',

@@ -6,6 +6,8 @@ import Layout from '../../components/layout/Layout';
 import { SEOHead } from '../../components/SEO/SEOHead';
 import { SITE } from '../../config/site';
 import { useLanguage } from '../../context/LanguageContext';
+import { useManualPageContent } from '../../hooks/useManualPageContent';
+import { Helmet } from 'react-helmet-async';
 
 interface FAQItem {
   question: string;
@@ -18,134 +20,31 @@ const FAQPage: React.FC = () => {
   const { language } = useLanguage();
   const de = language === 'de';
 
-  const faqData: FAQItem[] = [
-    // Booking & Preparation
-    {
-      category: de ? 'Buchung & Vorbereitung' : 'Booking & Preparation',
-      question: de ? 'Wie buche ich ein Fotoshooting?' : 'How do I book a photo shoot?',
-      answer: de ? `Sie können ganz einfach über unser Kontaktformular, per E-Mail (${SITE.email}) oder telefonisch${SITE.phone ? ` (${SITE.phone})` : ''} einen Termin vereinbaren. Wir besprechen dann alle Details mit Ihnen.` : `Booking is easy: simply reach out via our contact form, by email (${SITE.email}) or by phone${SITE.phone ? ` (${SITE.phone})` : ''}. We'll then go through all the details with you.`
-    },
-    {
-      category: de ? 'Buchung & Vorbereitung' : 'Booking & Preparation',
-      question: de ? 'Wie weit im Voraus sollte ich buchen?' : 'How far in advance should I book?',
-      answer: de ? 'Wir empfehlen eine Buchung 2-4 Wochen im Voraus, besonders für Wochenendtermine. Für Newborn-Shootings am besten bereits während der Schwangerschaft.' : 'We recommend booking 2-4 weeks ahead, especially for weekend appointments. For newborn shoots, it\'s best to book while you\'re still expecting.'
-    },
-    {
-      category: de ? 'Buchung & Vorbereitung' : 'Booking & Preparation',
-      question: de ? 'Was soll ich zum Shooting anziehen?' : 'What should I wear to the shoot?',
-      answer: de ? 'Wir empfehlen bequeme Kleidung, in der Sie sich wohlfühlen. Vermeiden Sie zu auffällige Muster oder Logos. Gerne beraten wir Sie vorab individuell per WhatsApp oder E-Mail mit konkreten Stylingtipps.' : 'Wear comfortable clothes you feel great in, and avoid loud patterns or logos. We\'re happy to share personalised styling tips beforehand via WhatsApp or email.'
-    },
-    {
-      category: de ? 'Buchung & Vorbereitung' : 'Booking & Preparation',
-      question: de ? 'Kann ich Requisiten oder besondere Wünsche mitbringen?' : 'Can I bring props or special requests?',
-      answer: de ? 'Absolut! Lieblingsspielzeug, besondere Outfits oder persönliche Gegenstände machen die Fotos noch individueller. Teilen Sie uns Ihre Wünsche einfach vorab mit.' : 'Absolutely! Favourite toys, special outfits or personal keepsakes make your photos even more unique. Just let us know your ideas in advance.'
-    },
+  // Every answer is the studio's own, edited in Website Studio → Customise → FAQ Page.
+  //
+  // This was 24 inline Q&As. They read as marketing copy but several were commercial
+  // TERMS — a 30% deposit, a 50% fee for cancelling inside 48 hours, 3-year voucher
+  // validity — stated as this studio's policy, in German, with no screen anywhere to
+  // change them. A customer could hold a studio to terms it never agreed and could not
+  // find. Nothing here has a default: an unanswered question simply does not render.
+  const t = useManualPageContent('faq');
 
-    // During the Shooting
-    {
-      category: de ? 'Während des Shootings' : 'During the Shoot',
-      question: de ? 'Wie lange dauert ein Shooting?' : 'How long does a shoot take?',
-      answer: de ? 'Je nach Paket zwischen 20 und 90 Minuten. Bei Babys und Kindern planen wir immer etwas Puffer ein für Pausen, Stillen oder Wickeln.' : 'Between 20 and 90 minutes, depending on the package. With babies and children we always build in extra time for breaks, feeding or nappy changes.'
-    },
-    {
-      category: de ? 'Während des Shootings' : 'During the Shoot',
-      question: de ? 'Was ist, wenn mein Baby während des Shootings weint?' : 'What if my baby cries during the shoot?',
-      answer: de ? 'Das ist völlig normal! Wir arbeiten geduldig und passen uns dem Rhythmus Ihres Babys an. Füttern, wickeln und kuscheln ist jederzeit möglich. Wir haben viel Erfahrung mit kleinen Kindern.' : 'Completely normal! We work patiently and follow your baby\'s rhythm. Feeding, changing and cuddle breaks are welcome at any time — we have plenty of experience with little ones.'
-    },
-    {
-      category: de ? 'Während des Shootings' : 'During the Shoot',
-      question: de ? 'Wo finden die Shootings statt?' : 'Where do the shoots take place?',
-      answer: de ? 'Je nach Paket in unserem Studio oder an einem Outdoor-Location Ihrer Wahl (Parks, Stadtlocations etc.). Gerne beraten wir Sie zu den schönsten Foto-Spots in Ihrer Nähe.' : 'Depending on the package, either at our studio or at an outdoor location of your choice (parks, city spots and more). We\'re happy to recommend the most photogenic locations nearby.'
-    },
-    {
-      category: de ? 'Während des Shootings' : 'During the Shoot',
-      question: de ? 'Können mehrere Personen mit aufs Shooting kommen?' : 'Can more than one person join the shoot?',
-      answer: de ? 'Natürlich! Familienmitglieder sind herzlich willkommen. Bei Business-Shootings empfehlen wir weniger Begleitung für mehr Konzentration.' : 'Of course! Family members are very welcome. For business shoots we recommend keeping company to a minimum so you can stay focused.'
-    },
-
-    // After the Shooting
-    {
-      category: de ? 'Nach dem Shooting' : 'After the Shoot',
-      question: de ? 'Wann bekomme ich meine Bilder?' : 'When will I receive my photos?',
-      answer: de ? 'Die fertig bearbeiteten Bilder erhalten Sie innerhalb von 10-14 Werktagen nach dem Shooting in Ihrer persönlichen Online-Galerie.' : 'Your fully edited photos will be ready in your personal online gallery within 10-14 business days of the shoot.'
-    },
-    {
-      category: de ? 'Nach dem Shooting' : 'After the Shoot',
-      question: de ? 'In welchem Format erhalte ich die Bilder?' : 'In what format will I receive the photos?',
-      answer: de ? 'Sie erhalten alle Bilder in hoher Auflösung als JPG-Dateien, optimiert zum Ausdrucken und für digitale Nutzung (Social Media etc.).' : 'You\'ll receive all photos as high-resolution JPG files, optimised for both printing and digital use (social media and more).'
-    },
-    {
-      category: de ? 'Nach dem Shooting' : 'After the Shoot',
-      question: de ? 'Kann ich die Bilder selbst bearbeiten?' : 'Can I edit the photos myself?',
-      answer: de ? 'Die Bilder sind bereits professionell bearbeitet. Weitere Anpassungen empfehlen wir nicht, da diese die Qualität beeinträchtigen können. Bei speziellen Wünschen sprechen Sie uns gerne an.' : 'Your photos come professionally edited. We don\'t recommend further adjustments, as they can compromise quality — but if you have special requests, just let us know.'
-    },
-    {
-      category: de ? 'Nach dem Shooting' : 'After the Shoot',
-      question: de ? 'Darf ich die Bilder auf Social Media teilen?' : 'Can I share the photos on social media?',
-      answer: de ? 'Ja! Die Nutzungsrechte für private Zwecke sind im Preis enthalten. Wir freuen uns über eine Markierung – ist aber keine Pflicht.' : 'Yes! Usage rights for personal purposes are included in the price. We\'d love a tag — but it\'s entirely optional.'
-    },
-    {
-      category: de ? 'Nach dem Shooting' : 'After the Shoot',
-      question: de ? 'Kann ich zusätzliche Bilder bekommen?' : 'Can I order additional photos?',
-      answer: de ? 'Ja, Sie können weitere bearbeitete Bilder nachbestellen. Kontaktieren Sie uns einfach.' : 'Yes, additional edited photos are available on request. Just get in touch.'
-    },
-
-    // Payment & Cancellation
-    {
-      category: de ? 'Zahlung & Stornierung' : 'Payment & Cancellation',
-      question: de ? 'Wie kann ich bezahlen?' : 'How can I pay?',
-      answer: de ? 'Wir akzeptieren Überweisung, Barzahlung vor Ort oder PayPal. Die Zahlung erfolgt in der Regel nach dem Shooting.' : 'We accept bank transfer, cash on site or PayPal. Payment is usually made after the shoot.'
-    },
-    {
-      category: de ? 'Zahlung & Stornierung' : 'Payment & Cancellation',
-      question: de ? 'Muss ich eine Anzahlung leisten?' : 'Do I need to pay a deposit?',
-      answer: de ? 'Bei den meisten Paketen ist keine Anzahlung nötig. Bei größeren Projekten (Premium-Pakete, Hochzeiten) bitten wir um eine Anzahlung von 30%.' : 'Most packages require no deposit. For larger projects (premium packages, weddings) we ask for a 30% deposit.'
-    },
-    {
-      category: de ? 'Zahlung & Stornierung' : 'Payment & Cancellation',
-      question: de ? 'Was passiert bei schlechtem Wetter (Outdoor-Shooting)?' : 'What happens if the weather is bad (outdoor shoot)?',
-      answer: de ? 'Bei Outdoor-Shootings können wir bei schlechtem Wetter kostenlos verschieben oder ins Studio wechseln – ganz wie Sie möchten.' : 'If the weather turns on an outdoor shoot, we can reschedule free of charge or move to the studio — whichever you prefer.'
-    },
-    {
-      category: de ? 'Zahlung & Stornierung' : 'Payment & Cancellation',
-      question: de ? 'Kann ich einen Termin stornieren oder verschieben?' : 'Can I cancel or reschedule an appointment?',
-      answer: de ? 'Bis 48 Stunden vor dem Termin können Sie kostenlos verschieben. Bei kurzfristigeren Absagen behalten wir uns eine Stornogebühr von 50% vor.' : 'You can reschedule free of charge up to 48 hours before your appointment. For later cancellations, we reserve the right to charge a 50% cancellation fee.'
-    },
-
-    // Vouchers
-    {
-      category: de ? 'Gutscheine' : 'Gift Vouchers',
-      question: de ? 'Wie funktionieren die Fotoshooting-Gutscheine?' : 'How do the photo shoot vouchers work?',
-      answer: de ? 'Gutscheine können für einen bestimmten Betrag oder ein spezifisches Paket erworben werden. Sie sind 3 Jahre gültig und können für alle unsere Leistungen eingelöst werden.' : 'Vouchers can be purchased for a set amount or a specific package. They\'re valid for 3 years and can be redeemed against any of our services.'
-    },
-    {
-      category: de ? 'Gutscheine' : 'Gift Vouchers',
-      question: de ? 'Kann ich einen Gutschein verschenken?' : 'Can I give a voucher as a gift?',
-      answer: de ? 'Ja! Gutscheine sind das perfekte Geschenk. Wir senden Ihnen den Gutschein schön gestaltet per E-Mail zu – ideal zum Ausdrucken oder digitalen Verschicken.' : 'Yes! Vouchers make the perfect gift. We\'ll send you a beautifully designed voucher by email — ideal for printing or forwarding digitally.'
-    },
-
-    // Special Cases
-    {
-      category: de ? 'Spezielle Anliegen' : 'Special Requests',
-      question: de ? 'Fotografiert ihr auch bei uns zu Hause?' : 'Do you also shoot at our home?',
-      answer: de ? 'Ja! Besonders bei Newborn-Shootings kommen wir gerne zu Ihnen nach Hause. Dies ist bei den meisten Paketen als Alternative zum Studio möglich.' : 'Yes! Especially for newborn shoots, we\'re happy to come to your home. Most packages offer this as an alternative to the studio.'
-    },
-    {
-      category: de ? 'Spezielle Anliegen' : 'Special Requests',
-      question: de ? 'Bietet ihr auch Fotoshootings für größere Gruppen an?' : 'Do you offer shoots for larger groups?',
-      answer: de ? 'Ja, wir fotografieren auch größere Familien, Freundesgruppen oder Firmenevents. Kontaktieren Sie uns für ein individuelles Angebot.' : 'Yes, we also photograph larger families, groups of friends and company events. Contact us for a tailored quote.'
-    },
-    {
-      category: de ? 'Spezielle Anliegen' : 'Special Requests',
-      question: de ? 'Macht ihr auch Hochzeitsfotografie?' : 'Do you do wedding photography?',
-      answer: de ? 'Ja! Wir bieten Hochzeitsfotografie mit verschiedenen Paketen an. Kontaktieren Sie uns für eine persönliche Beratung und ein individuelles Angebot.' : 'Yes! We offer wedding photography with a range of packages. Get in touch for a personal consultation and a tailored quote.'
-    },
-    {
-      category: de ? 'Spezielle Anliegen' : 'Special Requests',
-      question: de ? 'Fotografiert ihr auch Haustiere?' : 'Do you photograph pets?',
-      answer: de ? 'Haustiere sind bei Familien-Shootings herzlich willkommen! Reine Tierfotografie bieten wir aktuell nicht an.' : 'Pets are very welcome at family shoots! We don\'t currently offer dedicated pet photography.'
-    }
+  const SECTIONS: { category: string; from: number; to: number }[] = [
+    { category: de ? 'Buchung, Zahlung & Stornierung' : 'Booking, Payment & Cancellation', from: 1, to: 4 },
+    { category: de ? 'Das Shooting' : 'The Session', from: 5, to: 8 },
+    { category: de ? 'Bilder & Lieferung' : 'Images & Delivery', from: 9, to: 12 },
   ];
+
+  const faqData: FAQItem[] = SECTIONS.flatMap(({ category, from, to }) => {
+    const out: FAQItem[] = [];
+    for (let i = from; i <= to; i++) {
+      const question = (t(`faq.q${i}.question`) || '').trim();
+      const answer = (t(`faq.q${i}.answer`) || '').trim();
+      if (question && answer) out.push({ category, question, answer });
+    }
+    return out;
+  });
+
 
   const categories = Array.from(new Set(faqData.map(item => item.category)));
 
@@ -163,7 +62,30 @@ const FAQPage: React.FC = () => {
         keywords="FAQ Fotoshooting, Fragen Fotograf, Fotoshooting Ablauf"
         canonical="/faq/"
       />
-      
+
+      {/* FAQPage structured data, built from the SAME answers rendered below.
+          Google's FAQ guidelines require the content to be visible on the page it is
+          emitted from — which is why the equivalent block was deleted from BlogPage in
+          v1.9.4, where three invented Q&As appeared nowhere on screen. Here they are the
+          page. Emitted only when the studio has actually written answers; marking up an
+          empty FAQ is worse than marking up none. */}
+      {faqData.length > 0 && (
+        <Helmet>
+          <script type="application/ld+json">
+            {JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'FAQPage',
+              mainEntity: faqData.map((item) => ({
+                '@type': 'Question',
+                name: item.question,
+                acceptedAnswer: { '@type': 'Answer', text: item.answer },
+              })),
+            })}
+          </script>
+        </Helmet>
+      )}
+
+
       <div className="min-h-screen">
         {/* Hero Section */}
         <section className="relative bg-gradient-to-br from-indigo-600 via-purple-500 to-pink-500 text-white py-24">
@@ -207,6 +129,20 @@ const FAQPage: React.FC = () => {
             </div>
           </div>
         </section>
+
+        {/* Nothing answered yet — say so plainly and point at the contact details above,
+            rather than rendering three category headings over empty accordions. */}
+        {faqData.length === 0 && (
+          <section className="bg-white py-16">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+              <p className="text-gray-600">
+                {de
+                  ? 'Hier finden Sie in Kürze Antworten auf häufige Fragen. Bis dahin schreiben Sie uns gerne direkt — wir antworten schnell.'
+                  : "We're putting our answers to common questions together. In the meantime, just get in touch — we reply quickly."}
+              </p>
+            </div>
+          </section>
+        )}
 
         {/* FAQ Categories */}
         {categories.map((category, categoryIndex) => (
