@@ -293,7 +293,10 @@ export class StripeVoucherService {
       const primary = data.items[0];
       const primaryName = primary?.name || primary?.title || 'Fotoshooting Gutschein';
       const primarySku = primary?.sku || this.deriveSkuFromName(primaryName);
-      const basePrimaryCents = Math.max(0, Math.round(Number(primary?.price || 0)));
+      // Recomputed below from voucher_products once the price map is loaded — this is the
+      // figure the PDF and the discount metadata are derived from, so it must be the
+      // charged price, not the submitted one.
+      let basePrimaryCents = Math.max(0, Math.round(Number(primary?.price || 0)));
       let discountedPrimaryCents = basePrimaryCents;
 
       let remainingClientDiscount = clientDiscountCents;
@@ -304,10 +307,63 @@ export class StripeVoucherService {
       // studio's customer saw £ on the page and was charged euros.
       const currency = await getStudioCurrency();
 
+      // THE SERVER OWNS THE PRICE.
+      //
+      // unit_amount was taken from item.price — a number the browser sends. Only the
+      // DISCOUNT was ever re-derived server-side, and only when a signed offer token was
+      // present. So anyone could post a checkout for a 295 session at 1 cent and Stripe
+      // would charge exactly that: the studio ships the shoot and receives a penny, and
+      // nothing in the system flags it, because the amount the customer "agreed" is the
+      // amount they submitted.
+      //
+      // Prices now come from voucher_products, keyed on the sku or id the client sends.
+      // The submitted figure is kept only to log a mismatch — it is never charged. An item
+      // that matches no product keeps its submitted price, because bespoke line items
+      // (delivery, a manual quote) legitimately have none; those are logged too.
+      const priceBySku = new Map<string, number>();
+      try {
+        const neonMod: any = await import('../../database.js');
+        const neonDb = neonMod.default || neonMod;
+        if (typeof neonDb.getVoucherProducts === 'function') {
+          for (const p of (await neonDb.getVoucherProducts()) || []) {
+            const cents = Math.round((Number(p.price) || 0) * 100);
+            if (cents <= 0) continue; // unpriced starter product: not purchasable
+            for (const key of [p.id, p.slug, p.sku].filter(Boolean)) {
+              priceBySku.set(String(key).toLowerCase(), cents);
+            }
+          }
+        }
+      } catch (e: any) {
+        console.warn('[CHECKOUT] could not load product prices, falling back to submitted values:', e?.message || e);
+      }
+
+      const authoritativePrice = (item: any): number => {
+        const submitted = Math.max(0, Math.round(Number(item?.price) || 0));
+        for (const key of [item?.sku, item?.id, item?.productId, item?.slug].filter(Boolean)) {
+          const known = priceBySku.get(String(key).toLowerCase());
+          if (known !== undefined) {
+            if (known !== submitted) {
+              console.warn(
+                `[CHECKOUT] price mismatch for "${key}": browser sent ${submitted}, charging ${known} from voucher_products`,
+              );
+            }
+            return known;
+          }
+        }
+        if (priceBySku.size) {
+          console.warn(`[CHECKOUT] no product matched "${item?.sku || item?.name}" — using submitted ${submitted}`);
+        }
+        return submitted;
+      };
+
+      // The primary item's base price, from the same authoritative source.
+      basePrimaryCents = authoritativePrice(primary);
+      discountedPrimaryCents = basePrimaryCents;
+
       const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = data.items.map(item => {
         const name = item.name || item.title || 'Fotoshooting Gutschein';
         const qty = Math.max(1, Number(item.quantity) || 1);
-        const baseCents = Math.max(0, Math.round(Number(item.price) || 0));
+        const baseCents = authoritativePrice(item);
         let unitCents = baseCents;
 
         if (matchedCoupon && isCouponActive(matchedCoupon)) {

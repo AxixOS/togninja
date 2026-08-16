@@ -484,11 +484,50 @@ async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
             currency = (await getStudioCurrency()).toUpperCase();
           } catch { /* default */ }
 
+          // Service + Offer. The visible price is only half the job: this is the half
+          // Google reads for rich results and an assistant reads when it wants a number it
+          // can trust. provider points at the LocalBusiness the homepage already declares,
+          // so the two nodes describe one entity rather than two.
+          //
+          // No aggregateRating here, deliberately. Third-party ratings marked up as the
+          // studio's own is against Google's guidelines and can earn a manual action — and
+          // we removed the fabricated version of exactly that in v1.9.12.
+          const priced = (products || []).filter((p: any) => {
+            const price = Number(p.price) || 0;
+            if (price <= 0) return false;
+            if (p.is_active === false || p.isActive === false) return false;
+            const hay = `${p.category || ''} ${p.name || ''} ${p.slug || ''}`.toLowerCase();
+            const label = String(pillar.label || '').toLowerCase();
+            return hay.includes(label) || label.includes(String(p.category || '').toLowerCase());
+          });
+          const serviceLd: any = {
+            "@context": "https://schema.org",
+            "@type": "Service",
+            "@id": `${SITE_ORIGIN}${norm(pillar.href)}/#service`,
+            name: pillar.label,
+            ...(page.meta_description ? { description: String(page.meta_description).slice(0, 300) } : {}),
+            serviceType: pillar.label,
+            provider: { "@id": `${SITE_ORIGIN}/#business` },
+            url: `${SITE_ORIGIN}${norm(pillar.href)}/`,
+          };
+          if (priced.length) {
+            const lowest = priced.reduce((m: any, p: any) => (Number(p.price) < Number(m.price) ? p : m), priced[0]);
+            serviceLd.offers = {
+              "@type": "AggregateOffer",
+              priceCurrency: currency,
+              lowPrice: Number(lowest.price).toFixed(2),
+              offerCount: priced.length,
+              availability: "https://schema.org/InStock",
+              url: `${SITE_ORIGIN}${norm(pillar.href)}/`,
+            };
+          }
+
           meta = {
             title: page.seo_title || page.title || pillar.label,
             description: String(page.meta_description || page.content_json?.hero?.subheadline || "").slice(0, 160),
             canonical: `${SITE_ORIGIN}${norm(pillar.href)}/`,
-            bodyHtml: lpBodyHtml(page, pillarExtrasHtml({ pillar, products, currency, origin: SITE_ORIGIN })),
+            bodyHtml: lpBodyHtml(page, pillarExtrasHtml({ pillar, products, currency, origin: SITE_ORIGIN }))
+              + `\n<script type="application/ld+json">${JSON.stringify(serviceLd).replace(/</g, '\\u003c')}</script>`,
           };
           routeMetaCache.set(reqPath, { meta, at: Date.now() });
           return meta;
