@@ -111,9 +111,6 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import NeonProtectedRoute from './components/auth/NeonProtectedRoute';
 import VoucherThankYouPage from './pages/VoucherThankYouPage';
 import CartPage from './pages/CartPage';
-import FamilyGutscheinPage from './pages/gutschein/FamilyGutscheinPage';
-import NewbornGutscheinPage from './pages/gutschein/NewbornGutscheinPage';
-import MaternityGutscheinPage from './pages/gutschein/MaternityGutscheinPage';
 import UeberUnsPage from './pages/support/UeberUnsPage';
 import PreisePage from './pages/support/PreisePage';
 import FAQPage from './pages/support/FAQPage';
@@ -399,9 +396,15 @@ function App() {
                 {/* SEO pillar hubs (July 2026 audit) */}
                 
                 <Route path="/gutschein" element={<PageGate pageId="gutschein-de"><GutscheinPage /></PageGate>} />
-                <Route path="/gutschein/family" element={<FamilyGutscheinPage />} />
-                <Route path="/gutschein/newborn" element={<NewbornGutscheinPage />} />
-                <Route path="/gutschein/maternity" element={<MaternityGutscheinPage />} />
+                {/* /gutschein/{family,newborn,maternity} were the origin studio's own voucher
+                    landing pages — hardcoded price tiers, Vienna client photos on third-party
+                    image hosts, German copy naming a studio in 1050 Wien. Deleted in the Aug
+                    2026 de-branding; SEO_REDIRECTS 301s all three to /vouchers, which reads
+                    the studio's real voucher_products. Client-side Navigate covers in-app
+                    links that never reach the server. */}
+                <Route path="/gutschein/family" element={<Navigate to="/vouchers" replace />} />
+                <Route path="/gutschein/newborn" element={<Navigate to="/vouchers" replace />} />
+                <Route path="/gutschein/maternity" element={<Navigate to="/vouchers" replace />} />
                 <Route path="/voucher/thank-you" element={<VoucherThankYouPage />} />
                 <Route path="/blog" element={<BlogPage />} />
                 <Route path="/case-studies" element={<CaseStudiesPage />} />

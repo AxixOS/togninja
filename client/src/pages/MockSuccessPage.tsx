@@ -124,7 +124,7 @@ const MockSuccessPage: React.FC = () => {
           </button>
           
           <button
-            onClick={() => navigate('/gutschein/family')}
+            onClick={() => navigate('/vouchers')}
             className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-8 py-3 rounded-lg font-semibold transition-colors"
           >
             Weiteren Gutschein kaufen

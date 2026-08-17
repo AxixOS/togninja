@@ -23,19 +23,19 @@ const FotoshootingsPage: React.FC = () => {
       title: t('photoshoots.familyTitle'),
       description: t('photoshoots.familyDescription'),
       image: '',
-      link: '/gutschein/family'
+      link: '/vouchers'
     },
     {
       title: t('photoshoots.pregnancyTitle'),
       description: t('photoshoots.pregnancyDescription'),
       image: '',
-      link: '/gutschein/maternity'
+      link: '/vouchers'
     },
     {
       title: t('photoshoots.newbornTitle'),
       description: t('photoshoots.newbornDescription'),
       image: '',
-      link: '/gutschein/newborn'
+      link: '/vouchers'
     },
   ];
 

@@ -96,10 +96,9 @@ const publicRoutes = [
   // Gutschein Pages (dedicated static components only — /gutschein/:slug
   // catch-all pages like baby/business are data-driven and served via
   // request-time meta injection in server/vite.ts, NOT prerendered).
+  // The three child routes were deleted in the Aug 2026 de-branding and now 301
+  // to /vouchers; prerendering a redirect would capture the wrong page.
   '/gutschein',
-  '/gutschein/family',
-  '/gutschein/newborn',
-  '/gutschein/maternity',
 
   // NOTE: blog posts are deliberately NOT prerendered anymore. The build has
   // no API/DB, so puppeteer captured "post not found" error pages (July 2026

@@ -39,6 +39,18 @@ export const SEO_REDIRECTS: Record<string, string> = {
   // served the empty shell (homepage title) to crawlers. Consolidate on the
   // prerendered /galleries page.
   "/galerie": "/galleries",
+
+  // Aug 2026 de-branding: the three voucher landing pages were the origin studio's
+  // own, not templates that had lost their data. Hardcoded price tiers (95/195,
+  // 195/295, 295/395), 54 photographs of Vienna clients hotlinked from i.postimg.cc
+  // and i.imgur.com, German body copy naming a studio in 1050 Wien, and no
+  // parameterisation anywhere — there was no version of "fix the hardcodes" that
+  // left a usable page behind. /vouchers already reads voucher_products, so a new
+  // studio gets its own packages there. 301 rather than delete so any indexed URL
+  // keeps passing authority.
+  "/gutschein/family": "/vouchers",
+  "/gutschein/newborn": "/vouchers",
+  "/gutschein/maternity": "/vouchers",
 };
 
 export function seoRedirects(req: Request, res: Response, next: NextFunction) {
