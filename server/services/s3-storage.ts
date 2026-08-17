@@ -157,15 +157,39 @@ export function describeCredentialMismatch(cfg: Pick<StorageConfig, 'endpoint' |
 }
 
 /**
+ * Backblaze shows a Bucket ID and an Application Key ID on adjacent pages, both bare
+ * hex, and the setup form puts the key field next to Bucket Name — so pasting the
+ * bucket ID into Access Key ID is the single most likely way to get this wrong. It
+ * happened on the first real onboarding.
+ *
+ * The shapes are distinguishable: bucket IDs are 24 hex characters, application key
+ * IDs 25, and the master key ID (the account ID) 12. So exactly 24 hex is a bucket ID
+ * and nothing else. Backblaze answers it with "The AWS Access Key Id you provided does
+ * not exist in our records", which is true and useless.
+ */
+export function describeLikelyBucketId(accessKeyId: string): string | null {
+  const key = String(accessKeyId || '').trim();
+  if (!/^[0-9a-f]{24}$/i.test(key)) return null;
+  return `"${key}" is 24 hex characters, which is the shape of a Backblaze Bucket ID — not an Access Key ID. ` +
+    `The Access Key ID is the "keyID" on the Application Keys page (25 characters, or 12 for the master key), ` +
+    `not the Bucket-ID shown on the Buckets page.`;
+}
+
+/**
  * Turn a provider's raw S3 error into something a studio owner can act on. Uploads
  * were surfacing bare strings like "Malformed Access Key Id" straight into the UI,
  * which names neither the cause nor the fix.
+ *
+ * `override` supplies credentials that have NOT been saved yet — the setup wizard's
+ * Test button posts what is typed in the form, so the saved config is either empty or
+ * still the previous tenant's, and an explanation built from it would name the wrong
+ * bucket and endpoint back at the person typing.
  */
-export function explainStorageError(err: any): string {
-  const cfg = getS3Config();
+export function explainStorageError(err: any, override?: Partial<Pick<StorageConfig, 'endpoint' | 'accessKeyId' | 'bucket'>>): string {
+  const cfg = { ...getS3Config(), ...(override || {}) };
   const raw = String(err?.message || err || 'Upload failed');
   const code = String(err?.name || err?.Code || '');
-  const mismatch = describeCredentialMismatch(cfg);
+  const mismatch = describeLikelyBucketId(cfg.accessKeyId) || describeCredentialMismatch(cfg);
   const where = `(bucket "${cfg.bucket || 'not set'}", endpoint ${cfg.endpoint || 'default AWS host'})`;
 
   if (/malformed access key|invalidaccesskeyid|signaturedoesnotmatch/i.test(`${raw} ${code}`)) {

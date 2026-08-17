@@ -47,6 +47,16 @@ router.get('/google/connect', requireAuth, (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
+    // Without credentials generateAuthUrl still returns a URL — with client_id=undefined
+    // in it — so the studio is sent to a Google error page instead of being told this
+    // instance has no Google app configured. The Gmail branch below already guards this;
+    // this one did not.
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return res.status(400).json({
+        error: 'Google is not configured on this instance (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are not set). You can skip this and connect Google later.',
+      });
+    }
+
     console.log('[GOOGLE-OAUTH] Generating auth URL with credentials:', {
       hasClientId: !!process.env.GOOGLE_CLIENT_ID,
       hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,

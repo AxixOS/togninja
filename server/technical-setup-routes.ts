@@ -694,13 +694,20 @@ router.post('/test/prodigi', async (req: Request, res: Response) => {
 
 // POST /api/setup/test/storage — Verify S3-compatible storage
 router.post('/test/storage', async (req: Request, res: Response) => {
-  try {
-    // Trim to match the save path — otherwise a pasted trailing space makes Test fail
-    // with NoSuchBucket even though the credentials are correct.
-    const t = (v: any) => (typeof v === 'string' ? v.trim() : v);
-    const accessKeyId = t(req.body.accessKeyId), secretKey = t(req.body.secretKey);
-    const bucket = t(req.body.bucket), endpoint = t(req.body.endpoint), region = t(req.body.region);
+  // Trim to match the save path — otherwise a pasted trailing space makes Test fail
+  // with NoSuchBucket even though the credentials are correct.
+  const t = (v: any) => (typeof v === 'string' ? v.trim() : v);
+  const accessKeyId = t(req.body.accessKeyId), secretKey = t(req.body.secretKey);
+  const bucket = t(req.body.bucket), endpoint = t(req.body.endpoint), region = t(req.body.region);
 
+  // Declared OUTSIDE the try because the catch needs explainStorageError, and a binding
+  // introduced inside a try block is not in scope in its own catch. esbuild transpiles
+  // without resolving identifiers, so that would have built clean and thrown at runtime
+  // on the one path nobody exercises — the failure path.
+  const { describeRegionMismatch, normalizeEndpoint, isUsableEndpoint, describeLikelyBucketId, explainStorageError } =
+    await import('./services/s3-storage');
+
+  try {
     if (!accessKeyId || !secretKey || !bucket) {
       return res.status(400).json({ error: 'Access key, secret key, and bucket are required' });
     }
@@ -708,7 +715,15 @@ router.post('/test/storage', async (req: Request, res: Response) => {
     // Same check the save handler applies — one implementation, so the two can never
     // give different answers about the same pair of values.
     const hostRegion = String(endpoint || '').match(/s3[.-]([a-z]{2}-[a-z]+-\d+)\./i)?.[1];
-    const { describeRegionMismatch, normalizeEndpoint, isUsableEndpoint } = await import('./services/s3-storage');
+
+    // Say this before spending a round trip on it. Backblaze's own answer to a bucket ID
+    // in the key field is "The AWS Access Key Id you provided does not exist in our
+    // records" — accurate, and it sends people looking for a key problem.
+    const bucketIdProblem = describeLikelyBucketId(accessKeyId);
+    if (bucketIdProblem) {
+      return res.status(400).json({ success: false, error: 'Bucket ID in the key field', message: bucketIdProblem });
+    }
+
     const regionProblem = describeRegionMismatch(endpoint, region);
     if (regionProblem) {
       return res.status(400).json({ success: false, error: 'Region mismatch', message: regionProblem });
@@ -753,11 +768,13 @@ router.post('/test/storage', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('[test-storage]', error);
-    res.status(400).json({
-      success: false,
-      error: `Storage test failed: ${(error as Error).message}`,
-      message: `Storage test failed: ${(error as Error).message}`,
-    });
+    // Was the provider's raw wording. "The AWS Access Key Id you provided does not exist
+    // in our records" never mentions that the key is for one region and the endpoint for
+    // another, which is what it usually means. explainStorageError names the bucket, the
+    // endpoint and the fix — and takes the values being TESTED, not the saved ones, which
+    // during onboarding are empty or still the previous tenant's.
+    const message = explainStorageError(error, { accessKeyId, bucket, endpoint });
+    res.status(400).json({ success: false, error: message, message });
   }
 });
 

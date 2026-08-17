@@ -50,9 +50,16 @@ export default function StorageStep({ onComplete, onBack }: Props) {
     }
   }, [current]);
 
-  // Auto-fill endpoint hint based on provider
+  // Auto-fill endpoint hint based on provider.
+  //
+  // This used to read "https://s3.us-west-004.backblazeb2.com" — a real endpoint, for a
+  // data centre most buckets are not in. A placeholder holding a plausible, specific,
+  // WRONG value reads as a default rather than an example, and it was copied verbatim
+  // on the first real onboarding against a eu-central-003 bucket. Every upload then
+  // failed with "The AWS Access Key Id you provided does not exist in our records",
+  // which never mentions the region. Same mistake the Region field made, one field over.
   const endpointPlaceholder = provider === 'backblaze'
-    ? 'https://s3.us-west-004.backblazeb2.com'
+    ? 's3.<your-region>.backblazeb2.com — copy the Endpoint from your bucket'
     : provider === 'r2'
     ? 'https://<account_id>.r2.cloudflarestorage.com'
     : provider === 's3'

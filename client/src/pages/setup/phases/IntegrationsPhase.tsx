@@ -38,6 +38,9 @@ interface IntegrationItem {
 
 export default function IntegrationsPhase({ status, features, onComplete }: IntegrationsPhaseProps) {
   const [connecting, setConnecting] = useState<string | null>(null);
+  // A failed connect used to leave the tile spinning with nothing said. Every one of
+  // these is skippable, so the message says so rather than reading as a dead end.
+  const [connectError, setConnectError] = useState<string | null>(null);
   
   // Fetch current integration status
   const { data: integrations, isLoading, refetch } = useQuery({
@@ -80,7 +83,10 @@ export default function IntegrationsPhase({ status, features, onComplete }: Inte
       description: 'Sync Google Reviews and connect Analytics',
       icon: Globe,
       connected: integrations?.google?.connected || false,
-      connectUrl: '/api/auth/google',
+      // Was '/api/auth/google', which is not a route — the popup showed
+      // {"error":"API endpoint not found"} and the tile span "Connecting…" for ever.
+      // Every other caller in the app uses /connect; this was the only one that didn't.
+      connectUrl: '/api/auth/google/connect',
       required: false
     },
     {
@@ -103,30 +109,59 @@ export default function IntegrationsPhase({ status, features, onComplete }: Inte
     }
   ];
   
-  const handleConnect = (integration: IntegrationItem) => {
+  const handleConnect = async (integration: IntegrationItem) => {
     if (!integration.connectUrl) return;
-    
+
+    // Internal pages: just navigate.
+    if (!integration.connectUrl.startsWith('/api/auth/')) {
+      window.location.href = integration.connectUrl;
+      return;
+    }
+
     setConnecting(integration.id);
-    
-    // For OAuth flows, open in new window
-    if (integration.connectUrl.startsWith('/api/auth/')) {
-      const popup = window.open(
-        integration.connectUrl,
-        'Connect ' + integration.name,
-        'width=600,height=700'
-      );
-      
-      // Poll for completion
+    setConnectError(null);
+
+    /* The OAuth endpoints do not redirect — they return {authUrl} as JSON, because
+       every other caller in the app fetches them and navigates itself. Pointing a
+       popup straight at one shows the raw JSON (or, before the URL was corrected,
+       {"error":"API endpoint not found"}), and the old poll waited on popup.closed —
+       which is `undefined` when the popup was blocked, so the interval never cleared
+       and the tile span "Connecting…" indefinitely. That is what was observed.
+
+       Open the window BEFORE awaiting: a window.open() after an await is no longer
+       attributable to the click and gets blocked. */
+    const popup = window.open('', 'Connect ' + integration.name, 'width=600,height=700');
+
+    try {
+      const res = await fetch(integration.connectUrl, { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.authUrl) {
+        popup?.close();
+        setConnecting(null);
+        setConnectError(
+          data?.error ||
+            `Could not start the ${integration.name} connection. It may not be configured on this instance yet — you can skip this and connect later.`,
+        );
+        return;
+      }
+
+      if (popup) popup.location.href = data.authUrl;
+      else window.location.href = data.authUrl; // popup blocked — do it in this tab
+
       const checkClosed = setInterval(() => {
-        if (popup?.closed) {
+        if (!popup || popup.closed) {
           clearInterval(checkClosed);
           setConnecting(null);
           refetch();
         }
       }, 500);
-    } else {
-      // For internal pages, just navigate
-      window.location.href = integration.connectUrl;
+    } catch (err) {
+      popup?.close();
+      setConnecting(null);
+      setConnectError(
+        `Could not reach the ${integration.name} connection endpoint. You can skip this and connect later.`,
+      );
     }
   };
   
@@ -174,7 +209,13 @@ export default function IntegrationsPhase({ status, features, onComplete }: Inte
             {connectedCount}/{integrationItems.length}
           </Badge>
         </div>
-        
+
+        {connectError && (
+          <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-sm text-amber-900">
+            {connectError}
+          </div>
+        )}
+
         <div className="space-y-3">
           {integrationItems.map(integration => {
             const Icon = integration.icon;
