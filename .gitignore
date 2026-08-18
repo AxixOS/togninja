@@ -262,3 +262,6 @@ workingnewage.git/
 # Licence signing key â€” SECRET, never commit
 *.pem
 license-signing-key.pem
+
+# Tenant data exported before a reset — content, not product code.
+backups/
