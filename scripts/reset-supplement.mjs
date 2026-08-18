@@ -52,10 +52,15 @@ const TRUNCATE = [
 // studio advertises the previous owner's name, role and founding date as its own.
 const CONFIG_NULL = [
   'owner_name', 'owner_role', 'owner_portrait_url', 'founding_year', 'credentials',
-  'country', 'state', 'zip', 'email', 'owner_email', 'subdomain',
+  'country', 'state', 'zip', 'email', 'subdomain',
   'active_template', 'secondary_color', 'font_family', 'site_theme_tokens',
   'enabled_features', 'meta_title', 'opening_hours',
 ];
+
+// NOT NULL, like studio_name — clears to '' or the statement is rejected outright.
+// Found by running this: the first version tried NULL and the per-statement report
+// showed it failing while everything around it succeeded.
+const CONFIG_EMPTY = ['owner_email'];
 
 const INTEGRATION_NULL = [
   'default_currency', 'timezone', 'storage_provider',
@@ -81,11 +86,11 @@ for (const [t, why] of TRUNCATE) {
 }
 
 for (const c of CONFIG_NULL) await run(`studio_configs.${c}`, `UPDATE studio_configs SET ${c} = NULL`);
+for (const c of CONFIG_EMPTY) await run(`studio_configs.${c}`, `UPDATE studio_configs SET ${c} = ''`);
 for (const c of INTEGRATION_NULL) await run(`studio_integrations.${c}`, `UPDATE studio_integrations SET ${c} = NULL`);
 
-// One key inside app_settings is the previous tenant's, the rest of the row is not.
-await run('app_settings.questionnaire_confirmation_email',
-  `UPDATE app_settings SET questionnaire_confirmation_email = NULL`);
+// app_settings.questionnaire_confirmation_email was reported as a leftover by an audit
+// but does not exist on this schema — the column was never there. Nothing to clear.
 
 console.log('');
 console.table(results);
