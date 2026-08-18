@@ -19,23 +19,38 @@
   font-family: 'Segoe UI Variable Display', 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* ── Global CTA restyle: solid primary buttons → thin border, white background ─
-   Turns the filled blue/purple/indigo primary CTAs into a lighter outlined style
-   across every page. Semantic red (destructive) and green (success) buttons are
-   left solid on purpose so state still reads at a glance. */
-button.bg-blue-600, a.bg-blue-600,
-button.bg-purple-600, a.bg-purple-600,
-button.bg-indigo-600, a.bg-indigo-600 {
-  background-color: #ffffff !important;
-  border-width: 1px !important;
-  border-style: solid !important;
+/* ── CRM CTA restyle: solid primary buttons → thin border, white background ────
+   Turns the filled blue/purple/indigo primary CTAs into a lighter outlined style.
+   Semantic red (destructive) and green (success) buttons are left solid on purpose
+   so state still reads at a glance.
+
+   NOW SCOPED TO .crm-admin-font. It used to apply to every page, and on the public
+   site it collided with ThemeScope: this file forced `color: #7c3aed !important` on
+   a.bg-purple-600 while ThemeScope forced the SAME purple as the background. Purple
+   text on a purple fill measures 1.00:1 — the buttons rendered as solid blocks with
+   no readable label. Confirmed on the live site via CDP getMatchedStylesForNode at
+   Header.tsx:258, Header.tsx:270 and HomepageConfidenceSection.tsx:261.
+   Scoped rather than deleted: the outlined look was a deliberate choice and it works
+   in the CRM, which has no competing token layer. */
+.crm-admin-font button.bg-blue-600, .crm-admin-font a.bg-blue-600,
+.crm-admin-font button.bg-purple-600, .crm-admin-font a.bg-purple-600,
+.crm-admin-font button.bg-indigo-600, .crm-admin-font a.bg-indigo-600 {
+  background-color: #ffffff;
+  border-width: 1px;
+  border-style: solid;
 }
-button.bg-blue-600, a.bg-blue-600 { color: #2563eb !important; border-color: #2563eb !important; }
-button.bg-blue-600:hover, a.bg-blue-600:hover { background-color: #eff6ff !important; }
-button.bg-purple-600, a.bg-purple-600 { color: #7c3aed !important; border-color: #7c3aed !important; }
-button.bg-purple-600:hover, a.bg-purple-600:hover { background-color: #faf5ff !important; }
-button.bg-indigo-600, a.bg-indigo-600 { color: #4f46e5 !important; border-color: #4f46e5 !important; }
-button.bg-indigo-600:hover, a.bg-indigo-600:hover { background-color: #eef2ff !important; }
+.crm-admin-font button.bg-blue-600, .crm-admin-font a.bg-blue-600 { color: #2563eb; border-color: #2563eb; }
+.crm-admin-font button.bg-blue-600:hover, .crm-admin-font a.bg-blue-600:hover { background-color: #eff6ff; }
+.crm-admin-font button.bg-purple-600, .crm-admin-font a.bg-purple-600 { color: #7c3aed; border-color: #7c3aed; }
+.crm-admin-font button.bg-purple-600:hover, .crm-admin-font a.bg-purple-600:hover { background-color: #faf5ff; }
+.crm-admin-font button.bg-indigo-600, .crm-admin-font a.bg-indigo-600 { color: #4f46e5; border-color: #4f46e5; }
+.crm-admin-font button.bg-indigo-600:hover, .crm-admin-font a.bg-indigo-600:hover { background-color: #eef2ff; }
+
+/* tailwind.config.ts maps rounded-lg/md/sm to var(--radius), and nothing in the repo
+   ever defined it — so every rounded-lg, including every components/ui/button.tsx,
+   has been rendering with square corners in both the CRM and the public site since
+   the config was written. A declaration, not a restyle. */
+:root { --radius: 0.625rem; }
 
 /* Critical Reset for interaction and scrolling */
 html, body, #root {
@@ -124,8 +139,12 @@ body {
     min-height: 100vh !important;
   }
   
+  /* letter-spacing was set here on EVERY element — headings, body, buttons, table
+     cells, the lot. A universal negative track is why nothing on the page could set
+     its own: tight display type and comfortable body text need opposite values, and
+     a per-element declaration beats inheritance, so no type scale could ever reach
+     them. Removed; tracking now belongs to whatever sets the type. */
   * {
-    letter-spacing: -0.025em;
     direction: ltr;
   }
 }
