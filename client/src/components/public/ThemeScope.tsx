@@ -36,7 +36,7 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
 `;
 
   const css = `${globalFont}
-.tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-bg:${c.bg};--tn-surface:${c.surface};--tn-heading:${c.heading};--tn-muted:${c.muted};background:${c.bg};color:${c.text};font-family:${f.body};}
+.tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-bg:${c.bg};--tn-surface:${c.surface};--tn-heading:${c.heading};--tn-muted:${c.muted};--tn-raised:${c.raised || '#ffffff'};--tn-border:${c.border || 'rgba(17,24,39,0.10)'};--tn-on-primary:${c.onPrimary || '#ffffff'};background:${c.bg};color:${c.text};font-family:${f.body};}
 .tn-theme h1,.tn-theme h2,.tn-theme h3,.tn-theme h4,.tn-theme h5,.tn-theme h6{font-family:${f.heading};color:${c.heading};}
 
 /* ── Type scale ──────────────────────────────────────────────────────────────
@@ -67,8 +67,26 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
 /* Neutral surfaces + text → theme tokens, so a dark/tinted theme reskins whole sections,
    not just the accents. For a white-bg theme these resolve back to white/near-default, so
    the existing light presets are unchanged (backward compatible). Scoped to public pages. */
-.tn-theme .bg-white{background-color:var(--tn-bg)!important;}
+/* --tn-raised is the card face; --tn-bg is the ground behind it. While both were
+   #ffffff a card had no edge at all, and no shadow can rescue a white shape on a white
+   ground — which is why every card on the page read as a flat outlined box. Tinting the
+   ground and keeping cards white is the whole trick. */
+.tn-theme .bg-white{background-color:var(--tn-raised)!important;}
 .tn-theme .bg-gray-50,.tn-theme .bg-gray-100{background-color:var(--tn-surface)!important;}
+
+/* Elevation. The components draw cards as a 1px border and nothing else; Tailwind's own
+   shadow utilities are a single flat drop. These are two-layer — a tight contact shadow
+   for the edge, and a wide soft one for the lift — which is what separates a card that
+   sits on the page from a rectangle drawn on it. Border goes to a hairline in the
+   theme's own ink rather than gray-200, so it belongs to the palette. */
+.tn-theme .shadow-sm{box-shadow:0 1px 2px rgba(20,17,15,.04),0 6px 12px -8px rgba(20,17,15,.10)!important;}
+.tn-theme .shadow,.tn-theme .shadow-md{box-shadow:0 1px 2px rgba(20,17,15,.04),0 10px 20px -12px rgba(20,17,15,.12)!important;}
+.tn-theme .shadow-lg{box-shadow:0 2px 4px rgba(20,17,15,.05),0 22px 40px -20px rgba(20,17,15,.18)!important;}
+.tn-theme .shadow-xl,.tn-theme .shadow-2xl{box-shadow:0 4px 10px rgba(20,17,15,.06),0 44px 80px -32px rgba(20,17,15,.30)!important;}
+.tn-theme .border-gray-100,.tn-theme .border-gray-200,.tn-theme .border-gray-300{border-color:var(--tn-border)!important;}
+/* A bordered card on the raised face gets the lift too, so the flat 1px boxes in the
+   confidence section pick this up without touching the component. */
+.tn-theme .bg-white.border,.tn-theme .bg-white.rounded-lg,.tn-theme .bg-white.rounded-xl{box-shadow:0 1px 2px rgba(20,17,15,.04),0 10px 20px -12px rgba(20,17,15,.12);}
 .tn-theme .text-gray-900,.tn-theme .text-gray-800{color:var(--tn-heading)!important;}
 /* These three used to collapse into one --tn-muted. The components had three distinct
    contrast steps and the theme flattened them, so a hero's supporting line rendered in
@@ -83,8 +101,16 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
 .tn-theme .hover\\:text-purple-700:hover{color:var(--tn-primary-d)!important;}
 .tn-theme .border-purple-200,.tn-theme .border-purple-300,.tn-theme .border-purple-600{border-color:var(--tn-primary)!important;}
 .tn-theme .bg-purple-50,.tn-theme .bg-purple-100{background-color:var(--tn-surface)!important;}
+/* The gradients were pink-500 -> purple-600: two different hues, at full saturation, on
+   the loudest control on the page. Both stops now come from the same hue, one step
+   apart, so a CTA reads as one confident colour rather than a two-colour ramp. */
 .tn-theme .from-purple-500,.tn-theme .from-purple-600,.tn-theme .from-pink-500,.tn-theme .from-pink-600{--tw-gradient-from:var(--tn-primary)!important;}
 .tn-theme .to-purple-600,.tn-theme .to-pink-500,.tn-theme .to-pink-600{--tw-gradient-to:var(--tn-accent)!important;}
+.tn-theme .hover\\:from-pink-600:hover,.tn-theme .hover\\:from-purple-600:hover{--tw-gradient-from:var(--tn-primary-d)!important;}
+.tn-theme .hover\\:to-purple-700:hover,.tn-theme .hover\\:to-pink-600:hover{--tw-gradient-to:var(--tn-primary)!important;}
+/* Label on a primary fill takes the palette's own paper white, not pure #fff, so it
+   sits in the same warmth as the rest of the page. */
+.tn-theme .bg-gradient-to-r.text-white,.tn-theme .bg-purple-600.text-white{color:var(--tn-on-primary)!important;}
 .tn-theme .ring-purple-500{--tw-ring-color:var(--tn-primary)!important;}
 `;
 

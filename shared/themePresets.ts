@@ -15,6 +15,15 @@ export interface ThemeColors {
   text: string;          // body text
   heading: string;       // heading text
   muted: string;         // secondary text
+
+  /* Optional — ThemeScope derives a sensible value from the ones above when absent, so
+     the seven older presets need no edit. `raised` is the one that matters: while cards
+     and the page were both #ffffff a card had no edge, and no amount of shadow fixes a
+     white shape on a white ground. Tinting the GROUND and keeping cards white is what
+     makes elevation legible. */
+  raised?: string;       // card / panel face, sits above `bg`
+  border?: string;       // hairline, as rgba so it works on either ground
+  onPrimary?: string;    // label colour on a primary fill
 }
 
 export interface ThemeFonts {
@@ -40,6 +49,30 @@ const SANS = "'Inter', 'Inter Fallback', system-ui, -apple-system, 'Segoe UI', R
 const SERIF = 'Georgia, "Times New Roman", "Iowan Old Style", serif';
 
 export const THEME_PRESETS: ThemePreset[] = [
+  {
+    /* The default. Aurora, which held this slot, was byte-identical to unstyled
+       Tailwind — heading #111827 IS gray-900, surface #faf5ff IS purple-50, radius
+       0.75rem IS rounded-xl — which is exactly why the product read as unthemed.
+       Atelier shares no value with the Tailwind palette.
+
+       The accent is a burnt sienna rather than a violet for a reason specific to this
+       product: every hero and card on a real studio's page is a photograph of skin.
+       Violet sits at a hostile angle to skin tones and makes warm images look
+       colour-cast; a red-brown sits with them. It measures 5.6:1 as text on the bone
+       ground and 6.1:1 for white on the fill, so a primary button is legible with no
+       border at any size. */
+    id: 'atelier',
+    name: 'Atelier',
+    description: 'Bone ground, ember accent, white cards — quiet and expensive.',
+    colors: {
+      primary: '#A5442B', primaryDark: '#8A3722', accent: '#C4633F',
+      bg: '#F7F5F2', surface: '#EFEBE6', raised: '#FFFFFF',
+      text: '#3A3431', heading: '#14110F', muted: '#5F564F',
+      border: 'rgba(20,17,15,0.10)', onPrimary: '#FDFBF9',
+    },
+    fonts: { heading: SANS, body: SANS },
+    radius: '0.625rem',
+  },
   {
     id: 'aurora',
     name: 'Aurora',
@@ -106,7 +139,10 @@ export const THEME_PRESETS: ThemePreset[] = [
   },
 ];
 
-export const DEFAULT_THEME_ID = 'aurora';
+// Was 'aurora', whose every value coincided with a Tailwind default — so a studio that
+// never picked a theme got the framework's look and read it as "no design". A studio
+// that never picks one now gets a designed default instead. Aurora is still selectable.
+export const DEFAULT_THEME_ID = 'atelier';
 
 export function getThemePreset(id?: string | null): ThemePreset {
   return THEME_PRESETS.find((t) => t.id === id) || THEME_PRESETS[0];
