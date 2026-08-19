@@ -17,6 +17,12 @@
          instance uses — a hint for one studio's image library is a third-party
          connection on every other studio's site. NB comments here are served to
          visitors, so keep the reasoning in the commit, not in the markup. -->
+    <!-- Self-hosted Inter, preloaded so the face is in flight before the stylesheet that
+         asks for it has parsed. Same-origin, so no preconnect is needed and no third
+         party sees the request. Replaces a Google Fonts @import that blocked CSS parsing
+         for a font nothing rendered. -->
+    <link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+
     <link rel="preconnect" href="https://s3.eu-central-003.backblazeb2.com" crossorigin>
     <link rel="dns-prefetch" href="https://s3.eu-central-003.backblazeb2.com">
     <!-- On-the-fly image resizer (images.weserv.nl) — public marketing photos are

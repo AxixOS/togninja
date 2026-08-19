@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Layout from '../components/layout/Layout';
 import ZoomableImageV2 from '../components/ui/ZoomableImageV2';
-import Typewriter from 'typewriter-effect';
 import CountUp from 'react-countup';
 import { Check } from 'lucide-react';
 import { proxyImage } from '../lib/imageProxy';
@@ -423,36 +422,32 @@ const HomePage: React.FC = () => {
       {/* Hero Section */}
       <section className="bg-white">
         <div className="container mx-auto px-4 py-16 md:py-24 flex flex-col md:flex-row items-center justify-between">
-          <div className="max-w-2xl md:w-3/5 mb-8 md:mb-0">
-            <p className="mb-4 leading-tight text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 text-transparent bg-clip-text">
+          <div className={heroImageUrl ? 'max-w-2xl md:w-3/5 mb-8 md:mb-0' : 'max-w-3xl w-full'}>
+            {/* The hero used to stack THREE headings: this line at 24px/700 in a
+                gradient, a typewriter span at 36px/700 in the same gradient, and the
+                real h1 at the same 36px/700. Two of the three were not headings, all
+                three were bold, and the largest thing on the page was tied for size
+                with a <span>. Now: one small tracked label, one display h1, one quiet
+                deck — four distinct roles from four distinct elements. */}
+            <p className="mb-5 text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
               {t('home.heroTitle')}
             </p>
-            <div className="mb-6">
-              <span className="block text-xl sm:text-2xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-pink-500 to-purple-600 text-transparent bg-clip-text">
-                <Typewriter
-                  options={{
-                    // Rotates through several COMPLETE value props (the effect
-                    // loops the array) — far stronger than one trailing sentence.
-                    strings: [
-                      t('home.heroRotator1'),
-                      t('home.heroRotator2'),
-                      t('home.heroRotator3'),
-                      t('home.heroRotator4'),
-                    ],
-                    autoStart: true,
-                    loop: true,
-                    cursor: '',
-                    delay: 45,
-                    deleteSpeed: 30
-                  }}
-                />
-              </span>
-              <h1 className="text-xl sm:text-2xl md:text-4xl font-bold text-gray-900 tracking-tighter animate-fade-in-up">
+            <div className="mb-8">
+              <h1 className="text-gray-900">
                 {/* Was an inline hardcoded string, so no studio could change its own
-                    H1 from Website Studio — and it named Vienna. Now a normal key. */}
+                    H1 from Website Studio — and it named Vienna. Now a normal key.
+                    Size, weight and tracking come from the theme's type scale; the
+                    utilities that used to set them here made every preset identical. */}
                 {t('home.heroHeading')}
               </h1>
-              <p className="text-lg sm:text-xl text-gray-700 mt-2">
+              {/* The rotator was deleted, not restyled. It looped forever with the
+                  cursor switched off, so the line was a partial word most of the time
+                  and never settled on a complete sentence — a screenshot of the page
+                  caught "Authe". It also rendered empty on first paint, so the h1
+                  jumped on every load. A heading that is permanently mid-animation is
+                  the opposite of premium. The four rotator strings remain in the DB
+                  and in Website Studio; nothing was thrown away. */}
+              <p className="mt-5 text-lg sm:text-xl text-gray-600">
                 {t('home.heroDescription')}
               </p>
             </div>
@@ -474,10 +469,14 @@ const HomePage: React.FC = () => {
               </Link>
             </div>
           </div>
-          <div className="w-full md:w-2/5">
-            {/* No hero image → no box. The fallback here was New Age's collage, which
-                is what flashed on every load before the studio's own image resolved. */}
-            {heroImageUrl && (
+          {/* The column itself is gated now, not just its contents. It used to hold
+              w-full md:w-2/5 whether or not there was an image, so a studio without one
+              got a text block pinned to the left third of the viewport beside 40% of
+              nothing. No image → the copy column takes the full width.
+              No hero image → no box either: the fallback here was New Age's collage,
+              which is what flashed on every load before the studio's own image resolved. */}
+          {heroImageUrl && (
+            <div className="w-full md:w-2/5">
               <div className="aspect-square max-w-md mx-auto overflow-hidden rounded-lg shadow-lg">
                 <ZoomableImageV2
                   src={heroImageUrl}
@@ -488,8 +487,8 @@ const HomePage: React.FC = () => {
                   height={600}
                 />
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </section>
 

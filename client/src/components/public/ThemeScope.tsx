@@ -38,13 +38,45 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
   const css = `${globalFont}
 .tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-bg:${c.bg};--tn-surface:${c.surface};--tn-heading:${c.heading};--tn-muted:${c.muted};background:${c.bg};color:${c.text};font-family:${f.body};}
 .tn-theme h1,.tn-theme h2,.tn-theme h3,.tn-theme h4,.tn-theme h5,.tn-theme h6{font-family:${f.heading};color:${c.heading};}
+
+/* ── Type scale ──────────────────────────────────────────────────────────────
+   The components size their own headings with utilities (text-3xl md:text-4xl
+   font-bold tracking-tighter), which is why every preset rendered at identical
+   sizes and identical weight: the theme carried colours and a font stack and
+   nothing else. These element selectors are (0,1,1) — one class plus one element
+   — so they beat a bare utility class (0,1,0) without !important, including the
+   md: variants, since a media query adds no specificity.
+
+   Weight is deliberately NOT bold. Everything on the page was 700, so nothing was
+   emphasised. Hierarchy here comes from size, tracking and colour; 700 is left
+   free for the rare thing that genuinely needs it. Negative tracking scales with
+   size — tight display type reads as set rather than typed, but the same value on
+   an h4 would look cramped. */
+.tn-theme h1{font-size:clamp(2.5rem,1.6rem + 3.6vw,4.25rem);line-height:1.04;font-weight:400;letter-spacing:-0.028em;}
+.tn-theme h2{font-size:clamp(1.875rem,1.35rem + 2vw,2.875rem);line-height:1.1;font-weight:400;letter-spacing:-0.022em;}
+.tn-theme h3{font-size:clamp(1.375rem,1.2rem + 0.75vw,1.75rem);line-height:1.22;font-weight:500;letter-spacing:-0.014em;}
+.tn-theme h4{font-size:clamp(1.0625rem,1rem + 0.3vw,1.1875rem);line-height:1.4;font-weight:600;letter-spacing:-0.004em;}
+.tn-theme p{font-size:1.0625rem;line-height:1.65;letter-spacing:0;}
+/* Body copy ran to 187 characters per line on the live page — measured. Nothing in
+   the components caps it, so the cap belongs here. Applies only to prose inside a
+   section, never to grid/flex children, so card and nav layouts are untouched. */
+.tn-theme section p:not([class*="text-center"]){max-width:68ch;}
+.tn-theme section p.mx-auto,.tn-theme section .text-center p{max-width:60ch;margin-left:auto;margin-right:auto;}
+/* Optical numerals + kerning: Inter ships both and neither is on by default. */
+.tn-theme{font-feature-settings:"cv05" 1,"ss01" 1;text-rendering:optimizeLegibility;}
 /* Neutral surfaces + text → theme tokens, so a dark/tinted theme reskins whole sections,
    not just the accents. For a white-bg theme these resolve back to white/near-default, so
    the existing light presets are unchanged (backward compatible). Scoped to public pages. */
 .tn-theme .bg-white{background-color:var(--tn-bg)!important;}
 .tn-theme .bg-gray-50,.tn-theme .bg-gray-100{background-color:var(--tn-surface)!important;}
 .tn-theme .text-gray-900,.tn-theme .text-gray-800{color:var(--tn-heading)!important;}
-.tn-theme .text-gray-700,.tn-theme .text-gray-600,.tn-theme .text-gray-500{color:var(--tn-muted)!important;}
+/* These three used to collapse into one --tn-muted. The components had three distinct
+   contrast steps and the theme flattened them, so a hero's supporting line rendered in
+   the same grey as a footnote — the token layer was destroying hierarchy rather than
+   supplying it. Three steps restored: body, secondary, tertiary. */
+.tn-theme .text-gray-700{color:${c.text}!important;}
+.tn-theme .text-gray-600{color:var(--tn-muted)!important;}
+.tn-theme .text-gray-500{color:color-mix(in srgb,var(--tn-muted) 76%,var(--tn-bg))!important;}
 .tn-theme .bg-purple-500,.tn-theme .bg-purple-600,.tn-theme .bg-purple-700{background-color:var(--tn-primary)!important;}
 .tn-theme .hover\\:bg-purple-700:hover,.tn-theme .hover\\:bg-purple-800:hover{background-color:var(--tn-primary-d)!important;}
 .tn-theme .text-purple-600,.tn-theme .text-purple-700,.tn-theme .text-purple-800,.tn-theme .text-purple-900{color:var(--tn-primary)!important;}

@@ -31,7 +31,12 @@ export interface ThemePreset {
   radius: string;        // e.g. '0.75rem'
 }
 
-const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+// Self-hosted Inter (client/public/fonts/inter-var.woff2, @font-face in index.css,
+// preloaded from index.html). 'Inter Fallback' is metric-matched to local grotesques so
+// font-display:swap costs no layout shift. The old comment on ThemeFonts claimed "system
+// fonts only — no webfont loading"; that was never true, index.css was importing Poppins
+// from Google the whole time for a face nothing rendered.
+const SANS = "'Inter', 'Inter Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 const SERIF = 'Georgia, "Times New Roman", "Iowan Old Style", serif';
 
 export const THEME_PRESETS: ThemePreset[] = [
