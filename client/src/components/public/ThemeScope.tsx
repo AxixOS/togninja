@@ -36,7 +36,7 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
 `;
 
   const css = `${globalFont}
-.tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-bg:${c.bg};--tn-surface:${c.surface};--tn-heading:${c.heading};--tn-muted:${c.muted};--tn-raised:${c.raised || '#ffffff'};--tn-border:${c.border || 'rgba(17,24,39,0.10)'};--tn-on-primary:${c.onPrimary || '#ffffff'};background:${c.bg};color:${c.text};font-family:${f.body};}
+.tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-bg:${c.bg};--tn-surface:${c.surface};--tn-heading:${c.heading};--tn-muted:${c.muted};--tn-raised:${c.raised || `color-mix(in srgb, ${c.bg} 88%, white)`};--tn-border:${c.border || `color-mix(in srgb, ${c.heading} 14%, transparent)`};--tn-on-primary:${c.onPrimary || '#ffffff'};background:${c.bg};color:${c.text};font-family:${f.body};}
 .tn-theme h1,.tn-theme h2,.tn-theme h3,.tn-theme h4,.tn-theme h5,.tn-theme h6{font-family:${f.heading};color:${c.heading};}
 
 /* ── Type scale ──────────────────────────────────────────────────────────────
@@ -67,7 +67,15 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
 /* Neutral surfaces + text → theme tokens, so a dark/tinted theme reskins whole sections,
    not just the accents. For a white-bg theme these resolve back to white/near-default, so
    the existing light presets are unchanged (backward compatible). Scoped to public pages. */
-/* --tn-raised is the card face; --tn-bg is the ground behind it. While both were
+/* The --tn-raised fallback is DERIVED from each preset's own ground, never a literal
+   #ffffff. Hardcoding white broke the dark preset the moment .bg-white started
+   resolving to it: onyx's page went dark while every bg-white SECTION stayed white,
+   and its light heading colour then landed on a white hero — invisible. Lightening the
+   preset's own bg gives white for a white-ground theme and a lifted panel for a dark
+   one, from one expression. Same reasoning for --tn-border, which was a fixed slate
+   rgba that read as a scratch on a dark ground.
+
+   --tn-raised is the card face; --tn-bg is the ground behind it. While both were
    #ffffff a card had no edge at all, and no shadow can rescue a white shape on a white
    ground — which is why every card on the page read as a flat outlined box. Tinting the
    ground and keeping cards white is the whole trick. */
