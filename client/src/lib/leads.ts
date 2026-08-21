@@ -12,7 +12,7 @@ export interface Lead {
   status: 'NEW' | 'CONTACTED' | 'CONVERTED';
 }
 
-export async function getLeads(params?: { status?: 'NEW' | 'CONTACTED' | 'CONVERTED' | 'ARCHIVED' | 'ANY'; q?: string; limit?: number; offset?: number }) {
+export async function getLeads(params?: { status?: 'NEW' | 'CONTACTED' | 'CONVERTED' | 'ARCHIVED' | 'all'; q?: string; limit?: number; offset?: number }) {
   try {
     const status = params?.status || 'NEW';
     const search = params?.q ? `&q=${encodeURIComponent(params.q)}` : '';
@@ -51,7 +51,12 @@ export async function getLeads(params?: { status?: 'NEW' | 'CONTACTED' | 'CONVER
     }));
     
     // Data transformation completed
-    return { rows: transformedData, count: payload.count || transformedData.length };
+    // /api/leads/list responds { rows, total, limit, offset }. This read payload.count,
+    // which is always undefined, and fell back to the current PAGE's length — so with
+    // pageSize 25 the header always said "25 results" however many leads existed,
+    // totalPages was always 1, Next was permanently disabled and lead 26 onward was
+    // unreachable from the UI.
+    return { rows: transformedData, count: payload.total ?? payload.count ?? transformedData.length };
   } catch (error) {
     // console.error removed
     throw error;

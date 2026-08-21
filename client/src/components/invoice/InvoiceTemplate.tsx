@@ -199,18 +199,28 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoice, showPayButto
     }
   };
 
-  const formatCurrency = (amount: number, currency: string = 'EUR') => {
-    if (amount === null || amount === undefined || isNaN(amount)) return '0,00 €';
-    if (language === 'en') {
-      return '€' + new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(amount);
+  // This took a `currency` parameter and never read it — both branches concatenated a
+  // hardcoded euro sign. Fifteen call sites already pass invoice.currency correctly, so
+  // the studio's own currency was reaching this function and being thrown away: every
+  // invoice a GBP studio issued printed euros to its client.
+  //
+  // Intl with style:'currency' also places the symbol correctly per locale and gets the
+  // separators right, which string concatenation cannot. And it handles the zero-decimal
+  // currencies that a fixed two-decimal format renders a hundred times too small.
+  const formatCurrency = (amount: number, currency?: string | null) => {
+    const code = String(currency || 'EUR').toUpperCase();
+    const locale = language === 'en' ? 'en-GB' : 'de-DE';
+    const value = Number(amount);
+    if (!Number.isFinite(value)) {
+      try { return new Intl.NumberFormat(locale, { style: 'currency', currency: code }).format(0); }
+      catch { return code + ' 0.00'; }
     }
-    return new Intl.NumberFormat('de-DE', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount) + ' €';
+    try {
+      return new Intl.NumberFormat(locale, { style: 'currency', currency: code }).format(value);
+    } catch {
+      // An unrecognised code must not break a client's invoice.
+      return code + ' ' + value.toFixed(2);
+    }
   };
 
   return (

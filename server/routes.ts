@@ -334,8 +334,12 @@ const insertOpenaiAssistantSchema = { parse: (v: any) => v, safeParse: (v: any) 
 // Drizzle table placeholders for routes not yet wired in this environment
 // These are typed as any to avoid compile errors when optional modules are absent
 // crmMessages is now properly imported from schema
-const knowledgeBase: any = { id: 'knowledge_base.id' };
-const openaiAssistants: any = { id: 'openai_assistants.id' };
+// These were stub objects — literally { id: 'knowledge_base.id' } — so every query the
+// Knowledge Base screen made hit a fake table and 500'd, and the page reported "empty"
+// while nine rows sat in the real one. The real tables have existed in shared/schema.ts
+// all along (knowledge_base at :1513, openai_assistants at :1526); the comment above
+// claimed they were "not yet wired in this environment", which stopped being true.
+import { knowledgeBase, openaiAssistants } from "@shared/schema";
 const z = { ZodError: class {} } as any;
  
   // (timezone and ICS helper functions are defined later in the file)
@@ -7815,6 +7819,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dueDate: req.body.dueDate || req.body.due_date,
         subtotal: req.body.subtotal?.toString() || '0',
         taxAmount: req.body.taxAmount?.toString() || req.body.tax_amount?.toString() || '0',
+        // discount_type and discount_value were NOT mapped here, only the computed
+        // amount. So a 10% discount saved its result and forgot the rule. Reopening the
+        // invoice loaded a zero discount, and /api/invoice-edit then rewrites
+        // subtotal/tax/total from what it loaded — meaning changing the NOTES on a
+        // discounted invoice quietly put the discount back onto the client's bill. The
+        // edit endpoint has always persisted both columns; create simply never sent them.
+        discountType: req.body.discountType || req.body.discount_type || null,
+        discountValue: req.body.discountValue != null
+          ? String(req.body.discountValue)
+          : (req.body.discount_value != null ? String(req.body.discount_value) : null),
         discountAmount: req.body.discountAmount?.toString() || req.body.discount_amount?.toString() || '0',
         total: req.body.total?.toString() || '0',
         currency: req.body.currency || 'EUR',

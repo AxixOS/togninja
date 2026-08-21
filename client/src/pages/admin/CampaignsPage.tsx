@@ -14,6 +14,10 @@ import {
   Target,
   Eye,
   Download,
+  // Rendered at line ~554 and missing from this list, so the Campaigns tab threw a
+  // ReferenceError and blanked from the first campaign row onward. esbuild transpiles
+  // without resolving identifiers, so the build was clean and only the screen was broken.
+  Trash2,
   Image as ImageIcon
 } from 'lucide-react';
 import AdvancedCampaignBuilder from '../../components/admin/AdvancedCampaignBuilder';

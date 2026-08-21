@@ -93,7 +93,7 @@ const AdminLeadsPage: React.FC = () => {
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const { rows, count } = await getLeads({ status: statusFilter as any, q: searchTerm || undefined, limit: pageSize, offset: (page-1)*pageSize });
+      const { rows, count } = await getLeads({ status: statusFilter as 'NEW' | 'CONTACTED' | 'CONVERTED' | 'ARCHIVED' | 'all', q: searchTerm || undefined, limit: pageSize, offset: (page-1)*pageSize });
       setLeads(rows);
       setTotalCount(count);
     } catch (err) {
@@ -110,7 +110,11 @@ const AdminLeadsPage: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const onSearchChange = (v: string) => { setSearchTerm(v); setPage(1); };
-  const onStatusChange = (v: string) => { setStatusFilter(v === 'all' ? 'ANY' : v); setPage(1); };
+  // Mapped 'all' to 'ANY', which the API lowercases into status=any and the storage layer
+  // only special-cases the literal 'all' — so it ran WHERE status = 'any', matched nothing,
+  // and the studio saw "No leads found." with every lead still in the table. The select
+  // also went blank, because 'ANY' matches none of its own option values.
+  const onStatusChange = (v: string) => { setStatusFilter(v); setPage(1); };
   const handleBulkMarkNew = async () => {
     try {
       const res = await fetch('/api/leads/bulk/mark-new-contacted', { method: 'POST' });

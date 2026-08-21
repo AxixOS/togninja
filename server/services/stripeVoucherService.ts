@@ -423,6 +423,25 @@ export class StripeVoucherService {
       }
 
       const needsShipping = Array.isArray(data.items) && data.items.some(i => (i.sku || '').toString().toLowerCase().startsWith('delivery-') || (i.description || '').toLowerCase().includes('liefer'));
+
+      // The studio's own delivery catchment and checkout language, rather than the origin
+      // studio's. Both fail open: an unknown or unset country yields no restriction at
+      // all, which is the safe direction — a customer who can buy is better than a
+      // customer blocked by a list that predates them.
+      let checkoutCountries: string[] = [];
+      let checkoutLocale: Stripe.Checkout.SessionCreateParams.Locale = 'auto';
+      try {
+        const { pool } = await import('../db');
+        const { rows } = await pool.query(
+          'SELECT country, site_language FROM studio_configs ORDER BY created_at LIMIT 1',
+        );
+        const iso = String(rows[0]?.country || '').trim().toUpperCase();
+        if (/^[A-Z]{2}$/.test(iso)) checkoutCountries = [iso];
+        const lang = String(rows[0]?.site_language || '').trim().toLowerCase().slice(0, 2);
+        if (['de', 'en', 'fr', 'es', 'it', 'nl'].includes(lang)) {
+          checkoutLocale = lang as Stripe.Checkout.SessionCreateParams.Locale;
+        }
+      } catch { /* leave unrestricted and on auto */ }
       const sessionParams: Stripe.Checkout.SessionCreateParams = {
         payment_method_types: paymentMethodTypes as Stripe.Checkout.SessionCreateParams.PaymentMethodType[],
         line_items: lineItems,
@@ -430,11 +449,21 @@ export class StripeVoucherService {
         success_url: successUrl,
         cancel_url: cancelUrl,
         customer_email: data.customerEmail,
-        shipping_address_collection: needsShipping ? { allowed_countries: ['DE', 'AT', 'CH'] } : undefined,
+        // Was hardcoded ['DE','AT','CH'] — the origin studio's delivery catchment. A UK
+        // studio's customer reached checkout and found their own country missing from the
+        // shipping list, which does not degrade the sale, it prevents it. Read from the
+        // studio, and fall back to "anywhere Stripe allows" rather than to three
+        // countries somebody else chose.
+        shipping_address_collection: needsShipping
+          ? (checkoutCountries.length ? { allowed_countries: checkoutCountries as any } : undefined)
+          : undefined,
         billing_address_collection: 'required',
   // Never allow Stripe promo codes; prices are pre-discounted server-side
   allow_promotion_codes: false,
-        locale: 'de',
+        // Was hardcoded 'de', so every customer of every studio met a German checkout.
+        // 'auto' lets Stripe follow the buyer's own browser, which is better than either
+        // a fixed German page or a fixed English one.
+        locale: checkoutLocale,
       };
 
       // Never attach Stripe discounts when using custom coupons

@@ -113,7 +113,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const leadsResponse = await fetch('/api/leads/list?status=new&limit=1');
         if (leadsResponse.ok) {
           const payload = await leadsResponse.json();
-          setNewLeadsCount(payload.count || (payload.rows?.length ?? 0));
+          // Same undefined payload.count as lib/leads.ts. The fallback is rows.length on
+          // a request with limit=1, so the sidebar badge read "1" whether there was one
+          // new lead or five hundred — and the dashboard banner built on it said
+          // "1 unread leads waiting for your attention" for ever.
+          setNewLeadsCount(payload.total ?? payload.count ?? (payload.rows?.length ?? 0));
         }
 
         // Fetch unread emails count
