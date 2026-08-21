@@ -902,22 +902,40 @@ app.use((req, res, next) => {
         console.warn('⚠️ studio_configs seed skipped:', seedError.message);
       }
 
-      // Seed starter Knowledge Base articles if the table is empty, so the
-      // customer chat assistant has content to answer from on a fresh install.
+      // Starter Knowledge Base articles, so the customer chat assistant has something to
+      // answer from on a fresh install. Genuinely useful — but the content is written in
+      // GERMAN and covers Neugeborenen- and Schwangerschaftsshootings, so seeding it into
+      // an English-language sports photographer's chatbot is worse than seeding nothing.
+      // Only seed when the studio actually publishes in the language the articles are in.
       try {
-        const { seedKnowledgeBase } = await import('./seed-knowledge-base');
-        await seedKnowledgeBase();
+        const { getSiteLanguage } = await import('./lib/site-language');
+        const lang = await getSiteLanguage().catch(() => 'en');
+        if (String(lang).slice(0, 2).toLowerCase() === 'de') {
+          const { seedKnowledgeBase } = await import('./seed-knowledge-base');
+          await seedKnowledgeBase();
+        } else {
+          console.log('[seed] Knowledge Base skipped — starter articles are German, studio language is ' + lang);
+        }
       } catch (kbSeedError: any) {
         console.warn('⚠️ Knowledge Base seed skipped:', kbSeedError.message);
       }
 
-      // Seed the three case-study blog DRAFTS (SEO audit follow-up) if absent.
-      // They land unpublished in the admin Blog list for photos + scheduling.
-      try {
-        const { seedCaseStudies } = await import('./seed-case-studies');
-        await seedCaseStudies();
-      } catch (csSeedError: any) {
-        console.warn('⚠️ Case-study seed skipped:', csSeedError.message);
+      // The three case studies are the ORIGIN STUDIO'S OWN PORTFOLIO — German articles
+      // about specific pregnancy, family and business-portrait shoots in Vienna
+      // (fallstudie-schwangerschaftsshooting-wien and siblings). They are not starter
+      // content, and they were re-seeded on EVERY BOOT into every tenant, so a UK sports
+      // photographer's Blog list refilled with them after each restart no matter how
+      // often they were deleted. That is why de-branding kept coming undone.
+      //
+      // Opt-in now. The Vienna deployment sets SEED_ORIGIN_CASE_STUDIES=true and keeps
+      // its own work; nobody else inherits it.
+      if (process.env.SEED_ORIGIN_CASE_STUDIES === 'true') {
+        try {
+          const { seedCaseStudies } = await import('./seed-case-studies');
+          await seedCaseStudies();
+        } catch (csSeedError: any) {
+          console.warn('⚠️ Case-study seed skipped:', csSeedError.message);
+        }
       }
 
       // Ensure the editable newsletter €50-voucher automation exists so signups

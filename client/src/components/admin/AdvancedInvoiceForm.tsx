@@ -340,19 +340,20 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
         setFilteredClients(transformedClients);
         // console.log removed
       } else {
-        // No clients found in CRM, use sample clients as fallback
-        // console.log removed
-        const sampleClients = getSampleClients();
-        setClients(sampleClients);
-        setFilteredClients(sampleClients);
+        // Was: fall back to getSampleClients(). A studio with an empty CRM opened the
+        // invoice form and was offered INVENTED people to bill — and the form gives no
+        // sign they are fake, so the first invoice a new studio raises could be addressed
+        // to a fabricated client. An empty list is the honest answer; the studio adds a
+        // client first, which is the correct order anyway.
+        setClients([]);
+        setFilteredClients([]);
       }
     } catch (err) {
-      // console.error removed
-      setError('Failed to load clients from database');
-      // Fallback to sample clients
-      const sampleClients = getSampleClients();
-      setClients(sampleClients);
-      setFilteredClients(sampleClients);
+      setError('Could not load your clients. Add a client first, or try again.');
+      // Same reasoning: a failed lookup must not silently substitute fictitious people
+      // into a financial document.
+      setClients([]);
+      setFilteredClients([]);
     } finally {
       setLoading(false);
     }
@@ -382,50 +383,10 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
     setShowClientDropdown(false);
   };
 
-  const getSampleClients = (): Client[] => {
-    return [
-      {
-        id: 'sample-1',
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        address1: '123 Main Street',
-        city: 'Boston',
-        country: 'USA'
-      },
-      {
-        id: 'sample-2', 
-        name: 'Jane Smith',
-        email: 'jane.smith@company.com',
-        address1: '456 Oak Avenue',
-        city: 'Chicago',
-        country: 'USA'
-      },
-      {
-        id: 'sample-3',
-        name: 'Mike Johnson', 
-        email: 'mike.johnson@test.com',
-        address1: '789 Pine Street',
-        city: 'Miami',
-        country: 'USA'
-      },
-      {
-        id: 'sample-4',
-        name: 'Sarah Wilson',
-        email: 'sarah.wilson@demo.com', 
-        address1: '321 Elm Drive',
-        city: 'Seattle',
-        country: 'USA'
-      },
-      {
-        id: 'sample-5',
-        name: 'Robert Brown',
-        email: 'robert.brown@shop.com',
-        address1: '654 Cedar Lane', 
-        city: 'Portland',
-        country: 'USA'
-      }
-    ];
-  };
+  // getSampleClients() was here — a factory returning "John Doe, 123 Main Street" and
+  // friends, used whenever the CRM lookup returned nothing or failed. Deleted with its
+  // callers: a function that manufactures billable people has no business inside an
+  // invoice form.
 
   const loadInvoiceData = async () => {
     if (!editingInvoice?.id) return;
@@ -921,7 +882,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
               </div>              {clients.length === 0 && !loading && (
                 <p className="mt-2 text-sm text-amber-600">
                   <AlertCircle className="inline w-4 h-4 mr-1" />
-                  No clients found. Using sample clients for demo.
+                  No clients yet — add a client before raising an invoice.
                 </p>
               )}
               <div className="mt-2">
