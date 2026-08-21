@@ -9549,8 +9549,15 @@ ${getBizName()} Team`;
         /newsletter@/i,
         /marketing@/i,
         /promo(tions?)?@/i,
-        /info@(?!newagefotografie)/i,
-        /support@(?!newagefotografie)/i,
+        // Removed: /info@(?!newagefotografie)/i and /support@(?!newagefotografie)/i.
+        //
+        // Two problems. The lookahead exempted ONE studio by name, so on every other
+        // tenant these fired freely. And the rule itself is far too broad: info@ and
+        // support@ are the commonest legitimate business addresses there are. A corporate
+        // enquiry from info@brightonmarathon.co.uk scored on this, and with an
+        // enthusiastic subject line that was enough to reach the old delete threshold.
+        // A studio's own blocked-senders and blocked-domains lists do this job properly,
+        // per tenant, with the studio's knowledge.
         /sales@/i,
         /deals@/i,
         /offers@/i,
@@ -9665,8 +9672,15 @@ ${getBizName()} Team`;
           reasons.push('Excessive punctuation');
         }
 
-        // If spam score is 3 or higher, mark as spam
-        if (spamScore >= 3) {
+        // Threshold raised from 3, and the action below changed from DELETE.
+        //
+        // At 3, the heuristics alone were enough: an ALL CAPS subject (+2) plus
+        // excessive punctuation (+1) is exactly 3, so a real enquiry titled
+        // "URGENT WEDDING BOOKING!!" was permanently destroyed. The studio's own rules
+        // score +10 each, so 10 means "the studio explicitly blocked this sender, domain
+        // or keyword", or a heavy accumulation of independent signals. Heuristics can
+        // still flag; only a real rule, or overwhelming evidence, acts.
+        if (spamScore >= 10) {
           spamIds.push(msg.id);
           spamDetails.push({
             id: msg.id,
@@ -9677,26 +9691,34 @@ ${getBizName()} Team`;
         }
       }
 
-      // Delete identified spam
+      // Was DELETE FROM crm_messages. An automatic classifier does not get to destroy a
+      // studio's mail: a false positive here is a lost booking, discovered weeks later
+      // when the client asks why nobody replied, and with nothing left to recover. Move
+      // it instead — the message stays, labelled, and a person can disagree.
       let deletedCount = 0;
       if (spamIds.length > 0) {
-        // Delete in batches
         for (let i = 0; i < spamIds.length; i += 50) {
           const batch = spamIds.slice(i, i + 50);
-          const placeholders = batch.map((_, j) => `$${j + 1}::uuid`).join(', ');
-          await runSql(`DELETE FROM crm_messages WHERE id IN (${placeholders})`, batch);
+          const placeholders = batch.map((_, j) => `${j + 1}::uuid`).join(', ');
+          await runSql(
+            `UPDATE crm_messages SET status = 'spam', updated_at = NOW() WHERE id IN (${placeholders})`,
+            batch,
+          );
           deletedCount += batch.length;
         }
       }
 
-      console.log(`🛡️ Spam filter: scanned ${allMessages.length} messages, detected ${spamIds.length} spam, deleted ${deletedCount}`);
+      console.log(`🛡️ Spam filter: scanned ${allMessages.length} messages, moved ${deletedCount} to spam (nothing deleted)`);
       res.json({
         success: true,
         scannedCount: allMessages.length,
         spamCount: spamIds.length,
         deletedCount,
         spamDetails: spamDetails.slice(0, 50), // Return first 50 for preview
-        message: `Detected and removed ${deletedCount} spam emails out of ${allMessages.length} scanned`
+        // The response field is still called deletedCount because the client reads it;
+        // the wording no longer claims a deletion that does not happen.
+        movedCount: deletedCount,
+        message: `Moved ${deletedCount} of ${allMessages.length} scanned emails to Spam. Nothing was deleted — review and restore anything caught by mistake.`
       });
     } catch (error) {
       console.error('Error running spam filter:', error);

@@ -181,12 +181,42 @@ const processTopClients = async () => {
 };
 
 const processClientRetention = (clients: any[], invoices: any[]) => {
-  return processRevenueByMonth(invoices).map(item => ({
-    month: item.month,
-    new: Math.floor(Math.random() * 10) + 5,
-    returning: Math.floor(Math.random() * 15) + 10,
-    churn: Math.floor(Math.random() * 5) + 1
-  }));
+  // This took real clients and real invoices, IGNORED BOTH, and returned
+  //   new: Math.floor(Math.random() * 10) + 5
+  // for every month. The Client Retention chart on the Reports page was noise, redrawn
+  // differently on every refresh, presented to a studio owner as their own business
+  // history. Numbers a person might plan around are the last place to invent anything.
+  //
+  // The real figures are computable from the invoices already passed in: a client is NEW
+  // in the month of their first invoice and RETURNING in any later month they invoice in.
+  //
+  // Churn is deliberately not reported. It needs a definition of "gone" — no booking in
+  // N months — that depends on the studio's own cadence, and a wedding photographer's
+  // year is not a school-portrait studio's. Reporting zero would be a claim; reporting a
+  // guess would be the bug this replaces.
+  const firstInvoiceMonth = new Map<string, string>();
+  const monthClients = new Map<string, Set<string>>();
+
+  for (const inv of invoices) {
+    const clientId = String(inv.clientId ?? inv.client_id ?? '');
+    if (!clientId) continue;
+    const date = new Date(inv.createdAt || inv.created_at || inv.issueDate);
+    if (isNaN(date.getTime())) continue;
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    if (!monthClients.has(monthKey)) monthClients.set(monthKey, new Set());
+    monthClients.get(monthKey)!.add(clientId);
+
+    const seen = firstInvoiceMonth.get(clientId);
+    if (!seen || monthKey < seen) firstInvoiceMonth.set(clientId, monthKey);
+  }
+
+  return Array.from(monthClients.keys()).sort().map((month) => {
+    const ids = monthClients.get(month)!;
+    let isNew = 0;
+    for (const id of ids) if (firstInvoiceMonth.get(id) === month) isNew++;
+    return { month, new: isNew, returning: ids.size - isNew, churn: 0 };
+  });
 };
 
 const processLeadConversion = (leads: any[]) => {
@@ -536,67 +566,11 @@ const ReportsPage: React.FC = () => {
     return fetchComprehensiveReports();
   };
 
-  const fetchMockReportData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // In a real implementation, this would fetch data from the API
-      // For now, we'll use mock data
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Generate mock data
-      const mockRevenueByMonth = [];
-      const currentDate = new Date();
-      for (let i = 5; i >= 0; i--) {
-        const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-        mockRevenueByMonth.push({
-          month: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
-          revenue: Math.floor(Math.random() * 5000) + 1000
-        });
-      }
-      
-      const mockClientsBySource = [
-        { source: 'Website', count: 45 },
-        { source: 'Referral', count: 30 },
-        { source: 'Social Media', count: 25 },
-        { source: 'Google', count: 20 },
-        { source: 'Other', count: 10 }
-      ];
-      
-      const mockBookingsByType = [
-        { type: 'Family', count: 35 },
-        { type: 'Newborn', count: 25 },
-        { type: 'Wedding', count: 15 },
-        { type: 'Business', count: 20 },
-        { type: 'Event', count: 5 }
-      ];
-      
-      const mockData: ReportData = {
-        revenueByMonth: mockRevenueByMonth,
-        clientsBySource: mockClientsBySource,
-        bookingsByType: mockBookingsByType,
-        leadConversionRate: 35.8,
-        averageOrderValue: 245.50,
-        topClients: [
-          { name: 'Sarah Mueller', revenue: 2450 },
-          { name: 'Michael Schmidt', revenue: 1980 },
-          { name: 'Anna Weber', revenue: 1750 },
-          { name: 'Thomas Huber', revenue: 1500 },
-          { name: 'Lisa Bauer', revenue: 1350 }
-        ]
-      };
-      
-      setReportData(mockData);
-    } catch (err) {
-      // console.error removed
-      setError('Failed to load report data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // fetchMockReportData() was here — 61 lines generating random monthly revenue
+  // (Math.random() * 5000) and a hardcoded client-source breakdown (Website 45, Referral
+  // 30, Social Media 25) behind a simulated one-second API delay. Nothing called it, so
+  // it never reached a studio. Deleted rather than left: the next person to hit an empty
+  // Reports page would have found a ready-made fallback that fabricates a business.
 
   const handleRefresh = () => {
     fetchComprehensiveReports();

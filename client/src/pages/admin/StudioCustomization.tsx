@@ -58,6 +58,14 @@ const StudioCustomization: React.FC = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  // Did the studio's saved branding actually load?
+  //
+  // config initialises with address: '', city: '', vatNumber: ''. When the fetch below
+  // failed or returned non-ok, the catch kept those defaults and the form rendered EMPTY
+  // fields — indistinguishable from "this studio has never set an address". Clicking
+  // Save then wrote the blanks over the real values. A transient network blip on page
+  // load turned the Save button into a data-wipe.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [activeTab, setActiveTab] = useState('template');
@@ -89,6 +97,7 @@ const StudioCustomization: React.FC = () => {
       setLoading(true);
       try {
         const res = await fetch('/api/studio/branding');
+        if (!res.ok) setLoadFailed(true);
         if (res.ok) {
           const data = await res.json();
           setConfig(prev => ({
@@ -110,7 +119,9 @@ const StudioCustomization: React.FC = () => {
           }));
         }
       } catch {
-        // Keep defaults; the form still works offline.
+        // Was "keep defaults; the form still works offline" — but the form's job is to
+        // OVERWRITE the studio's details, so working offline means offering to erase them.
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -143,6 +154,16 @@ const StudioCustomization: React.FC = () => {
   };
 
   const handleSaveConfig = async () => {
+    // Refuse rather than overwrite. The fields on screen are defaults, not this studio's
+    // values, and saving them would replace a real address, city and VAT number with
+    // empty strings.
+    if (loadFailed) {
+      setStatusMsg({
+        type: 'error',
+        text: 'Your saved details could not be loaded, so this form is showing defaults rather than your own. Saving now would overwrite your address, city and VAT number. Reload the page and try again.',
+      });
+      return;
+    }
     setSaving(true);
     setStatusMsg(null);
     try {
