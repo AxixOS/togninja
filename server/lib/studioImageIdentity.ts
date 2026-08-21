@@ -57,7 +57,11 @@ export function localityOf(address: unknown, city: unknown, country: unknown): s
     .replace(/[,\s]+[A-Z]{1,2}\d[A-Z\d]?\s*\d?[A-Z]{0,2}\s*$/i, '')
     .replace(/,\s*$/, '')
     .trim();
-  const fromAddress = beforePostcode.split(',').pop()?.trim();
+  // Continental addresses put the postcode BEFORE the town — "1050 Wien", "10115
+  // Berlin", "75001 Paris" — so trailing-postcode stripping alone leaves the digits
+  // attached and IPTC:City reads "1050 Wien". Strip a leading numeric postcode too.
+  const withoutLeadingPostcode = beforePostcode.replace(/^[0-9]{4,6}[ -]+/, "");
+  const fromAddress = withoutLeadingPostcode.split(',').pop()?.trim();
   if (fromAddress && fromAddress.length > 1 && !/^\d+$/.test(fromAddress)) return fromAddress.slice(0, 80);
 
   // Fall back to the city column, but only when it is plausibly a town: not a country

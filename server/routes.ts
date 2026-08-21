@@ -3186,12 +3186,22 @@ Bitte versuchen Sie es später noch einmal.`;
       const images: any[] = Array.isArray(idea.images) ? idea.images : [];
       if (images.length + files.length > 5) return res.status(400).json({ error: 'Max 5 images per idea' });
 
+      const { buildImageFilename } = await import('./lib/imageFilename.js');
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
-        const safe = f.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const key = `blog/${post.slug}/${Date.now()}-${i}-${safe}`;
-        const url = await uploadBufferToB2(key, f.buffer, f.mimetype || 'image/jpeg');
         const exif = await extractExif(f.buffer);
+        // Was `${Date.now()}-${i}-${originalname}`, so the camera's own DSC_4837 became
+        // the URL Google indexes and the name a reader sees. The article's own subject is
+        // a better description of the picture than the shutter counter is. A
+        // human-chosen filename is still respected; only camera counters are replaced.
+        const stem = buildImageFilename({
+          subject: post.title || '',
+          date: exif?.dateTimeOriginal ? new Date(exif.dateTimeOriginal) : null,
+          originalName: f.originalname,
+          ext: (f.originalname.split('.').pop() || 'jpg').toLowerCase(),
+        });
+        const key = `blog/${post.slug}/${stem}`;
+        const url = await uploadBufferToB2(key, f.buffer, f.mimetype || 'image/jpeg');
         images.push({ url, key, exif, vision: null, altText: '', iptcWritten: false });
       }
       idea.images = images;
@@ -3261,25 +3271,49 @@ Bitte versuchen Sie es später noch einmal.`;
       const ctx = idea.context || {};
       const hint = post.seoTitle || post.title;
 
+      const { getImageIdentity } = await import('./lib/studioImageIdentity.js');
+      const identity = await getImageIdentity();
+
       for (const img of images) {
         if (!img.url) continue;
-        const vision = await analyzeVision(img.url, hint);
-        img.vision = vision;
-        img.altText = deriveAltText(vision, ctx);
+        // IDEMPOTENCY. There was no guard, so pressing Analyze twice re-billed every
+        // image that had already succeeded — and because a throw below used to escape
+        // the loop entirely, pressing it again was exactly what a user would do.
+        if (img.vision && img.iptcWritten) continue;
         try {
+          // analyzeVision was OUTSIDE this try. One failure on the third image threw out
+          // of the loop, so idea.images was never persisted and the two that had already
+          // been analysed were discarded — paid for, then thrown away.
+          const vision = img.vision || await analyzeVision(img.url, hint);
+          img.vision = vision;
+          img.altText = deriveAltText(vision, ctx);
+
           const buf = await fetchImageBuffer(img.url);
           const keywords = Array.from(new Set([...(post.tags || []), ...vision.sceneKeywords])).slice(0, 12);
           const out = await writeIptc(buf, {
             caption: img.altText || vision.description,
             keywords,
-            location: ctx.location,
+            // The studio's own identity. These were absent, and writeIptc used to fall
+            // back to the origin studio's name for all three.
+            creator: identity.creator,
+            copyright: identity.copyright,
+            credit: identity.credit,
+            location: ctx.location || identity.city,
+            country: identity.country,
             aiGenerated: true,
           });
-          if (img.key) img.url = await uploadBufferToB2(img.key, out, 'image/jpeg');
+          // Was hardcoded 'image/jpeg', which mislabelled every PNG and WebP the studio
+          // uploaded — the stored object then served with the wrong content type.
+          const ext = String(img.key || '').split('.').pop()?.toLowerCase();
+          const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+          if (img.key) img.url = await uploadBufferToB2(img.key, out, mime);
           img.iptcWritten = true;
-        } catch (iptcErr) {
-          console.warn('[idea/analyze] IPTC step failed:', (iptcErr as any)?.message);
+        } catch (imgErr) {
+          console.warn('[idea/analyze] image step failed, keeping the rest:', (imgErr as any)?.message);
         }
+        // Persist after EACH image, so a later failure cannot discard earlier work.
+        idea.images = images;
+        await storage.updateBlogPost(post.id, { ideaData: idea }).catch(() => {});
       }
       idea.images = images;
       const cover = images[0]?.url;

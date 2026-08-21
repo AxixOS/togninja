@@ -140,14 +140,96 @@ router.post('/upload-image', setupImageUpload.single('file'), async (req: any, r
     }
     const ext = path.extname(req.file.originalname) ||
       (mime === 'image/png' ? '.png' : mime === 'image/webp' ? '.webp' : mime === 'image/avif' ? '.avif' : '.jpg');
-    const key = `Site Images/${section}-${crypto.randomUUID()}${ext}`;
+
+    // ── Describe and name the photograph ──────────────────────────────────────
+    // These nine images (hero, two content blocks, one per pillar) are the studio's
+    // whole public-facing photography, so they are the images where alt text and
+    // embedded metadata are actually the product. Nine vision calls is roughly 5p.
+    //
+    // Everything here is best-effort: an upload must succeed with a plain buffer and a
+    // uuid key even when OpenAI is unset, the model errors, or ExifTool is unavailable.
+    // A studio blocked from uploading a picture because a metadata step failed would be
+    // a far worse bug than the one this fixes.
+    let body: Buffer = req.file.buffer;
+    let alt = String(req.body?.alt || '').trim().slice(0, 200) || null;
+    let key = `Site Images/${section}-${crypto.randomUUID()}${ext}`;
+
+    try {
+      const { getImageIdentity } = await import('./lib/studioImageIdentity');
+      const { analyzeVision, writeIptc, extractExif } = await import('./services/blogImageAnalysis');
+      const { buildImageFilename } = await import('./lib/imageFilename');
+      const identity = await getImageIdentity();
+
+      // The pillar's own label, so the filename and the keywords say "Marathons
+      // Photography" rather than the internal slot key "services-marathons".
+      let serviceLabel = '';
+      if (section.startsWith('services-')) {
+        const { rows: mapRows } = await db.execute(sql`SELECT authority_map FROM studio_configs LIMIT 1`) as any;
+        const pillars = ((mapRows ?? [])[0]?.authority_map?.pillars || []) as any[];
+        const match = pillars.find(
+          (pl) => 'services-' + String(pl?.href || '').replace(/^[/]+|[/]+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-') === section,
+        );
+        serviceLabel = String(match?.label || '');
+      }
+
+      // Pass the bytes as a data URI rather than a public URL. The blog path hands
+      // OpenAI an unsigned B2 link, which costs a round trip AND requires the bucket to
+      // stay world-readable; the buffer is already in hand here.
+      let vision: any = null;
+      if (process.env.OPENAI_API_KEY) {
+        const dataUri = `data:${mime};base64,${body.toString('base64')}`;
+        vision = await analyzeVision(dataUri, serviceLabel || undefined).catch((e: any) => {
+          console.warn('[site-image] vision failed, continuing without it:', e?.message || e);
+          return null;
+        });
+      }
+
+      const exif = await extractExif(body).catch(() => null as any);
+      const captured = exif?.dateTimeOriginal ? new Date(exif.dateTimeOriginal) : null;
+
+      // The wizard sends the slot's own label as alt ("Homepage hero", "First content
+      // block", or the service name repeated) — which describes the slot, not the
+      // picture, and is useless to a screen reader. A real description wins.
+      if (vision?.altText) alt = String(vision.altText).slice(0, 200);
+
+      const stem = buildImageFilename({
+        subject: vision?.altText || vision?.description || '',
+        service: serviceLabel,
+        place: identity.city,
+        date: captured,
+        originalName: req.file.originalname,
+        ext: ext.replace(/^[.]/, '') || 'jpg',
+      });
+      key = `Site Images/${stem}`;
+
+      if (vision?.description || identity.creator) {
+        body = await writeIptc(body, {
+          caption: vision?.description || '',
+          keywords: [
+            ...(vision?.sceneKeywords || []).slice(0, 10),
+            ...(serviceLabel ? [serviceLabel] : []),
+          ].map(String).filter(Boolean),
+          creator: identity.creator,
+          copyright: identity.copyright,
+          credit: identity.credit,
+          location: identity.city,
+          country: identity.country,
+          // Deliberately NO gps. identity.gps is the STUDIO's address, and these are
+          // location photographs — stamping the office onto a shot taken at a marathon
+          // would be a confident, wrong claim of where the picture was made.
+          aiGenerated: !!vision,
+        });
+      }
+    } catch (e: any) {
+      console.warn('[site-image] metadata step failed, storing the original:', e?.message || e);
+      body = req.file.buffer;
+    }
+
     const { PutObjectCommand } = await import('@aws-sdk/client-s3');
     await getS3Client().send(new PutObjectCommand({
-      Bucket: cfg.bucket, Key: key, Body: req.file.buffer, ContentType: mime,
+      Bucket: cfg.bucket, Key: key, Body: body, ContentType: mime,
     }));
     const url = buildPublicUrl(cfg.bucket, cfg.endpoint, key);
-
-    const alt = String(req.body?.alt || '').trim().slice(0, 200) || null;
     await db.execute(sql`DELETE FROM homepage_images WHERE section = ${section}`);
     await db.execute(sql`
       INSERT INTO homepage_images (section, url, alt, title, sort_order, is_active)
