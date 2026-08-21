@@ -29,6 +29,18 @@ const SEEDERS = [
   },
 ];
 
+// The pre-shoot questionnaire is seeded from server/routes.ts rather than a named
+// function, and its ON CONFLICT clause used to set is_active = true on every boot — so a
+// studio that switched it off got it switched back on at the next restart. A seeder may
+// create; it may not overrule.
+const routesSrc = fs.readFileSync("server/routes.ts", "utf8");
+// Plain string search, not a regex: every attempt to write one of these through a
+// shell lost its backslashes, and a regex missing its \s matches nothing and passes
+// silently. indexOf cannot be mangled.
+check("German questionnaire gated on language",
+  routesSrc.indexOf("_qLang !== 'de'") >= 0);
+check("questionnaire seeder cannot reactivate itself",
+  routesSrc.indexOf("DO UPDATE SET is_active = true") < 0);
 for (const s of SEEDERS) {
   const called = boot.includes(s.name);
   if (!called) { console.log(`  ok    ${s.name} is not called at boot at all`); continue; }

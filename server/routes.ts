@@ -1940,6 +1940,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notify_email text,
         created_at timestamptz DEFAULT now()
       )`);
+      // Only seed the German pre-shoot questionnaire on a studio that publishes in
+      // German. An English sports photographer was sending clients a form asking
+      // "Art des Shootings" with options Familie, Schwangerschaft and Neugeborenes.
+      const { getSiteLanguage: _gsl } = await import('./lib/site-language');
+      const _qLang = String(await _gsl().catch(() => 'en')).slice(0, 2).toLowerCase();
+      if (_qLang !== 'de') {
+        console.log('[seed] pre-shoot questionnaire skipped — it is German, studio language is ' + _qLang);
+      } else {
       const preShootFields = JSON.stringify([
         { key: 'sessionType', label: 'Art des Shootings', type: 'select', required: true, options: ['Familie', 'Schwangerschaft', 'Neugeborenes', 'Business', 'Sonstiges'] },
         { key: 'people', label: 'Wie viele Personen nehmen teil?', type: 'text', required: true },
@@ -1951,7 +1959,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await runSql(
         `INSERT INTO questionnaires (slug, title, description, fields, is_active, notify_email)
          VALUES ('pre-shoot', $1, $2, $3::jsonb, true, $4)
-         ON CONFLICT (slug) DO UPDATE SET is_active = true`,
+         -- Was an ON CONFLICT clause that forced is_active back to true, reactivating
+         -- the questionnaire on every boot, so a studio could not turn it off: the next
+         -- restart simply undid them. A seeder may create; it may not overrule.
+         ON CONFLICT (slug) DO NOTHING`,
         [
           'Vorbereitung auf Ihr Fotoshooting',
           'Damit wir Ihr Shooting optimal vorbereiten können, füllen Sie bitte diesen kurzen Fragebogen aus.',
@@ -1960,6 +1971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ],
       );
       console.log('✅ Default pre-shoot questionnaire ensured (/q/pre-shoot)');
+      }  // end: German questionnaire only for a German-language studio
     } catch (e: any) {
       console.warn('⚠️ ensure pre-shoot questionnaire failed:', e?.message || e);
     }
