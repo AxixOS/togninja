@@ -818,6 +818,27 @@ router.get('/current', async (_req: Request, res: Response) => {
     const [sc] = await db.select().from(studioConfigs).limit(1);
     const [si] = await db.select().from(studioIntegrations).limit(1);
 
+    // WHO IS ASKING.
+    //
+    // The route's own auth gate falls through to "no admins yet -> allow onboarding",
+    // which is right for a genuinely fresh install and wrong for the state this instance
+    // was in: credentials configured, admin_users empty after a reset. An anonymous
+    // caller then read the SMTP host and username, the storage access key id, bucket and
+    // endpoint, and the owner's email — the identifier half of every credential the
+    // studio owns. The secret halves were always masked, so this is a target list rather
+    // than a break-in, which is exactly what a credential-stuffing or support-desk
+    // social-engineering attempt needs.
+    //
+    // An identified caller sees the real values, because an admin needs to know what is
+    // configured. Everyone else sees the same shape with the identifiers blanked, so the
+    // wizard still renders on a genuinely fresh install where there is nothing to leak.
+    const identified = !!(_req as any).user?.id || !!(_req as any).session?.userId;
+    const ident = (val: string | null | undefined): string => {
+      const v = val || '';
+      if (identified || !v) return v;
+      return '••••••••';
+    };
+
     // Mask sensitive values: show first 4 and last 4 chars
     const mask = (val: string | null | undefined): string | null => {
       if (!val) return null;
@@ -832,16 +853,16 @@ router.get('/current', async (_req: Request, res: Response) => {
         publicSiteBaseUrl: sc?.publicSiteBaseUrl || '',
       },
       email: {
-        smtpHost: si?.smtp_host || '',
+        smtpHost: ident(si?.smtp_host),
         smtpPort: si?.smtp_port || 587,
-        smtpUser: si?.smtp_user || '',
+        smtpUser: ident(si?.smtp_user),
         smtpPassSet: !!si?.smtp_pass_encrypted,
         smtpSecure: si?.smtp_secure || false,
-        fromEmail: si?.default_from_email || '',
+        fromEmail: ident(si?.default_from_email),
         fromName: si?.email_from_name || '',
-        imapHost: si?.imap_host || '',
+        imapHost: ident(si?.imap_host),
         imapPort: si?.imap_port || 993,
-        imapUser: si?.imap_user || '',
+        imapUser: ident(si?.imap_user),
         imapPassSet: !!si?.imap_pass_encrypted,
         imapTls: si?.imap_tls ?? true,
         brevoKeySet: !!si?.brevo_api_key_encrypted,
@@ -858,17 +879,17 @@ router.get('/current', async (_req: Request, res: Response) => {
       },
       storage: {
         provider: si?.storage_provider || 'backblaze',
-        accessKeyId: si?.storage_access_key_id || '',
+        accessKeyId: ident(si?.storage_access_key_id),
         secretKeySet: !!si?.storage_secret_key_encrypted,
-        bucket: si?.storage_bucket || '',
-        endpoint: si?.storage_endpoint || '',
+        bucket: ident(si?.storage_bucket),
+        endpoint: ident(si?.storage_endpoint),
         region: si?.storage_region || '',
       },
       extras: {
         openaiKeySet: !!si?.openai_api_key_encrypted,
         openaiAssistantId: si?.openai_assistant_id || '',
         anthropicKeySet: !!si?.anthropic_api_key_encrypted,
-        googleClientId: si?.google_client_id || '',
+        googleClientId: ident(si?.google_client_id),
         googleClientSecretSet: !!si?.google_client_secret_encrypted,
         googleCalendarId: si?.google_calendar_id || '',
         // When the host provides a SHARED Google OAuth app via env, studios don't need to

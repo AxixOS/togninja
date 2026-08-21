@@ -416,7 +416,11 @@ export const PhotographyCalendar: React.FC = () => {
       setIsLoading(true);
       // In dev, optionally use the debug endpoint which is public and returns up to 50 sessions
       const useDebug = import.meta.env.VITE_USE_DEBUG_SESSIONS === 'true';
-      const endpoint = useDebug ? '/api/debug/photography-sessions' : '/api/photography/sessions';
+      // Was: useDebug ? '/api/debug/photography-sessions' : '/api/photography/sessions'.
+      // The debug route had no authentication and returned up to 1000 sessions with
+      // client names, emails, phones and prices to anyone who asked. Deleted; this now
+      // always uses the authenticated endpoint.
+      const endpoint = '/api/photography/sessions';
       const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();

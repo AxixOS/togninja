@@ -413,7 +413,8 @@ const PhotographyCalendarPage: React.FC = () => {
       // If authenticated endpoint fails, fallback to debug endpoint for reliability
       if (!response.ok) {
         console.warn('[Calendar] Auth endpoint failed, using debug endpoint');
-        response = await fetch('/api/debug/photography-sessions?limit=10000', {
+        // The unauthenticated debug route this used has been deleted.
+        response = await fetch('/api/photography/sessions?limit=10000', {
           credentials: 'include'
         });
       }

@@ -1913,7 +1913,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Digital files API - Using filesRouter (routes/files.ts) - file-routes.ts has schema mismatches
   console.log('🔧 Registering /api/files router...');
-  app.use('/api/files', filesRouter);
+  // Was open to the internet: list, update and delete any of the studio's files.
+  app.use('/api/files', authenticateUser, filesRouter);
   console.log('✅ /api/files router registered');
 
   // Questionnaire module (public + admin APIs)
@@ -1962,14 +1963,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Scheduler module - Client self-booking system
   const schedulerRouter = require('./routes/scheduler').default;
-  app.use('/api/schedulers', schedulerRouter);
+  // The whole router was open — /bookings/all returned every booking with name, email,
+  // phone and IP, and bookings could be deleted or edited anonymously. But three routes
+  // under /public/ ARE the studio's public booking widget, so a blanket guard would take
+  // the booking page down with the hole. Gate everything else.
+  app.use('/api/schedulers', (req: any, res: any, next: any) => {
+    if (req.path.startsWith('/public/')) return next();
+    return authenticateUser(req, res, next);
+  }, schedulerRouter);
   console.log('✅ /api/schedulers router registered');
 
   // Onboarding + Website Analyzer (dev parity with production full-server.js)
   app.use('/api/onboarding', onboardingRoutes);
 
   // Price Wizard - AI-powered competitive pricing research
-  app.use('/api/price-wizard', priceWizardRoutes);
+  // Was open: an anonymous caller could launch 12-competitor OpenAI + Tavily crawls
+  // billed to the studio, as many times as they liked.
+  app.use('/api/price-wizard', authenticateUser, priceWizardRoutes);
 
   // Workflow Wizard - Automated email sequences and workflow management
   app.use('/api/workflow-wizard', workflowWizardRoutes);
@@ -1985,7 +1995,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // out. Exempt: reads (the wizard polls them) and POST /complete (it flips the flag).
   app.use('/api/setup', async (req: any, res: any, next: any) => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
-    if (process.env.DEMO_MODE === 'true') return next();
+    // Scoped to GET. This bypassed authentication for every method, and DEMO_MODE is set
+    // on the live service — so an anonymous POST could overwrite smtp_host/smtp_user/
+    // smtp_pass and take over all outbound mail, or repoint the storage credentials so
+    // every future upload landed in someone else's bucket.
+    if (process.env.DEMO_MODE === 'true' && req.method === 'GET' && req.path !== '/current') return next();
     if (req.method === 'POST' && req.path === '/complete') return next();
     try {
       const rows = await runSql(`SELECT creative_setup_complete AS done FROM studio_configs LIMIT 1`);
@@ -2012,7 +2026,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // /complete (fires immediately after Step 7 creates the admin, before any
   // session is established — gating it would lock first-run onboarding out).
   app.use('/api/setup/technical', async (req: any, res: any, next: any) => {
-    if (req.method === 'GET' && (req.path === '/status' || req.path === '/current')) return next();
+    // /current was exempted here, ahead of every other check, so it answered ANY caller
+    // on ANY instance — not just demos. It returns the SMTP host and username, the
+    // storage access key id, bucket and endpoint, and the owner's email: the identifier
+    // half of every credential the studio owns, which is a precise target list even
+    // though the secret halves are masked. /status stays open because the wizard polls
+    // it before a session exists and it carries no credentials.
+    if (req.method === 'GET' && req.path === '/status') return next();
     if (req.method === 'POST' && req.path === '/complete') return next();
     // Demo instances (DEMO_MODE=true) walk the whole wizard without a login, so the
     // hosted demo/dev URL can be driven end-to-end for testing and screen-sharing.
@@ -2320,7 +2340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Communication routes (Email & SMS)
-  app.post("/api/communications/email/send", async (req: Request, res: Response) => {
+  app.post("/api/communications/email/send", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { sendEmail } = await import("./controllers/communicationController");
       await sendEmail(req, res);
@@ -2330,7 +2350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/communications/sms/send", async (req: Request, res: Response) => {
+  app.post("/api/communications/sms/send", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { sendSMS } = await import("./controllers/communicationController");
       await sendSMS(req, res);
@@ -2340,7 +2360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/communications/sms/bulk", async (req: Request, res: Response) => {
+  app.post("/api/communications/sms/bulk", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { sendBulkSMS } = await import("./controllers/communicationController");
       await sendBulkSMS(req, res);
@@ -2350,7 +2370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/communications/client/:clientId", async (req: Request, res: Response) => {
+  app.get("/api/communications/client/:clientId", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { getClientCommunications } = await import("./controllers/communicationController");
       await getClientCommunications(req, res);
@@ -2360,7 +2380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/communications/all", async (req: Request, res: Response) => {
+  app.get("/api/communications/all", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { getAllCommunications } = await import("./controllers/communicationController");
       await getAllCommunications(req, res);
@@ -2370,7 +2390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/communications/sms/config", async (req: Request, res: Response) => {
+  app.get("/api/communications/sms/config", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { getSMSConfig } = await import("./controllers/communicationController");
       await getSMSConfig(req, res);
@@ -2380,7 +2400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/communications/sms/config", async (req: Request, res: Response) => {
+  app.post("/api/communications/sms/config", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { updateSMSConfig } = await import("./controllers/communicationController");
       await updateSMSConfig(req, res);
@@ -2390,7 +2410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/communications/bulk/preview", async (req: Request, res: Response) => {
+  app.post("/api/communications/bulk/preview", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { getBulkTargetPreview } = await import("./controllers/communicationController");
       await getBulkTargetPreview(req, res);
@@ -2410,7 +2430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/communications/email/test", async (req: Request, res: Response) => {
+  app.post("/api/communications/email/test", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { testEmailConfig } = await import("./controllers/communicationController");
       await testEmailConfig(req, res);
@@ -4447,7 +4467,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new lead endpoint
-  app.post("/api/leads/create", async (req: Request, res: Response) => {
+  // Was the only leads route with no auth, while list/bulk/convert all had it. The
+  // public forms use /api/contact and /api/waitlist, so nothing needed it open —
+  // anyone could inject unlimited rows into the studio's CRM.
+  app.post("/api/leads/create", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { name, email, phone, message, source, formType } = req.body;
       
@@ -4770,64 +4793,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Single, stable debug public endpoint (no auth) to return up to 50 sessions for frontend testing
   // Keep this endpoint lightweight and predictable; remove or secure before production.
-  app.get("/api/debug/photography-sessions", async (req: Request, res: Response) => {
-    try {
-      const photographerId = req.query.photographerId as string | undefined;
-      const q = (req.query.q as string | undefined)?.toLowerCase();
-      const date = req.query.date as string | undefined; // YYYY-MM-DD
-      const month = req.query.month as string | undefined; // MM
-      const year = req.query.year as string | undefined; // YYYY
-      const limit = Math.max(1, Math.min(1000, Number(req.query.limit ?? 50)));
-      console.error(`DEBUG_ENDPOINT_HIT | pid=${photographerId || '<none>'} | q=${q || ''} | date=${date || ''} | month=${month || ''} | year=${year || ''} | limit=${limit}`);
-      let sessions = await storage.getPhotographySessions(photographerId);
-      if (!Array.isArray(sessions)) {
-        console.error('DEBUG_ENDPOINT_RESULT | sessions not array');
-        return res.status(200).json([]);
-      }
-
-      // Apply query filters in-memory to keep endpoint simple
-      if (q) {
-        const needle = q;
-        sessions = sessions.filter(s =>
-          (s.title || '').toLowerCase().includes(needle) ||
-          (s.clientName || '').toLowerCase().includes(needle) ||
-          (s.description || '').toLowerCase().includes(needle)
-        );
-      }
-
-      if (date || month || year) {
-        sessions = sessions.filter(s => {
-          const d = s.startTime ? new Date(s.startTime) : (s.endTime ? new Date(s.endTime) : null);
-          if (!d || isNaN(d.getTime())) return false;
-          if (date) {
-            // match exact day
-            const y = d.getFullYear();
-            const m = (d.getMonth() + 1).toString().padStart(2, '0');
-            const day = d.getDate().toString().padStart(2, '0');
-            if (`${y}-${m}-${day}` !== date) return false;
-          }
-          if (month) {
-            const m = (d.getMonth() + 1).toString().padStart(2, '0');
-            if (m !== month.padStart(2, '0')) return false;
-          }
-          if (year) {
-            if (d.getFullYear().toString() !== year) return false;
-          }
-          return true;
-        });
-      }
-
-      // Sort by startTime ascending
-      sessions.sort((a: any, b: any) => new Date(a.startTime as any).getTime() - new Date(b.startTime as any).getTime());
-
-      console.error(`DEBUG_ENDPOINT_RESULT | found=${sessions.length} | returning=${Math.min(limit, sessions.length)}`);
-      return res.status(200).json(sessions.slice(0, limit));
-    } catch (error) {
-      console.error('Error fetching debug photography sessions:', error);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
-  });
-
+  // REMOVED: app.get("/api/debug/photography-sessions")
+  //
+  // No authentication, returned up to 1000 photography_sessions with client name, email,
+  // phone and price, and answered 200 to anonymous requests on the live instance. Its own
+  // comment said "remove or secure before production" — and three admin pages had come to
+  // depend on it as a FALLBACK, so the debug route had quietly become load-bearing.
+  // Callers now use the authenticated /api/photography/sessions.
   app.get("/api/photography/sessions/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
       const session = await storage.getPhotographySession(req.params.id);
@@ -15421,7 +15393,9 @@ Return ONLY a valid JSON object with EXACTLY these keys:
     }
   });
 
-  app.post("/api/vouchers/products", async (req: Request, res: Response) => {
+  // DELETE had auth; POST and PUT did not. Anyone could create or reprice the studio's
+  // sellable products.
+  app.post("/api/vouchers/products", authenticateUser, async (req: Request, res: Response) => {
     try {
       console.log('[VOUCHER] Creating product with raw body:', req.body);
       // Accept both camelCase and snake_case incoming fields
@@ -15576,7 +15550,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
     }
   });
 
-  app.put("/api/vouchers/products/:id", async (req: Request, res: Response) => {
+  app.put("/api/vouchers/products/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
       console.log('[VOUCHER UPDATE] Updating product:', req.params.id, 'with data:', req.body);
       let existing: any = null;
@@ -17427,7 +17401,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
   });
 
   // Create new price list item
-  app.post("/api/crm/price-list", async (req: Request, res: Response) => {
+  app.post("/api/crm/price-list", authenticateUser, async (req: Request, res: Response) => {
     try {
       const newItem = await db.insert(priceListItems).values(req.body).returning();
       res.json(newItem[0]);
@@ -17438,7 +17412,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
   });
 
   // Update price list item
-  app.put("/api/crm/price-list/:id", async (req: Request, res: Response) => {
+  app.put("/api/crm/price-list/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
       const updatedItem = await db.update(priceListItems)
         .set(req.body)
@@ -17452,7 +17426,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
   });
 
   // Delete price list item
-  app.delete("/api/crm/price-list/:id", async (req: Request, res: Response) => {
+  app.delete("/api/crm/price-list/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
       await db.delete(priceListItems).where(eq(priceListItems.id, req.params.id));
       res.json({ success: true });
@@ -17463,7 +17437,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
   });
 
   // Import price list from CSV
-  app.post("/api/crm/price-list/import", async (req: Request, res: Response) => {
+  app.post("/api/crm/price-list/import", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { items } = req.body;
       

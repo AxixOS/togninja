@@ -17,7 +17,8 @@ const CalendarTest: React.FC = () => {
       setError('');
       
       // Test with debug endpoint first
-      const response = await fetch('/api/debug/photography-sessions');
+      // The unauthenticated debug route this used has been deleted.
+      const response = await fetch('/api/photography/sessions', { credentials: 'include' });
       
       if (response.ok) {
         const data = await response.json();
