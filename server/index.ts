@@ -27,6 +27,7 @@ import { importGoogleCalendarEvents } from './services/calendarService';
 import { retryFailedSchedulerSyncs } from './services/schedulerGoogleCalendar';
 // Agent V2: Modern ToolBus architecture
 import agentV2Routes from './routes/agent-v2';
+import { requireAgentAuth } from './lib/requireAgentAuth';
 import agentShadowRoutes from './routes/agent-shadow';
 // Manual Pages: Squarespace-style CMS for public pages
 import manualPagesRoutes from './routes/manual-pages';
@@ -230,9 +231,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auth/*', (req, _res, next) => { console.log('[AUTH-EARLY]', req.method, req.originalUrl); next(); });
 // Google Calendar OAuth routes
 app.use('/api/auth', googleAuthRoutes);
-// Agent V2 routes (ToolBus architecture)
-app.use('/api/agent/v2', agentV2Routes);
-console.log('[AGENT-V2] Routes registered at /api/agent/v2');
+// Agent V2 routes (ToolBus architecture).
+// Was mounted with no middleware at all, so an anonymous caller reached the studio's
+// assistant and agent-v2.ts defaulted them to a writer-privileged "demo_user". Verified
+// live: /api/agent/v2/stats answered 200 to a request carrying nothing.
+app.use('/api/agent/v2', requireAgentAuth, agentV2Routes);
+console.log('[AGENT-V2] Routes registered at /api/agent/v2 (authenticated)');
 
 // Manual Pages CMS routes
 app.use('/api/manual-pages', manualPagesRoutes);

@@ -61,10 +61,19 @@ router.post("/chat", async (req: Request, res: Response) => {
     // Resolve the OpenAI client for this request (picks up a key saved post-boot).
     const openai = await getOpenAI();
 
-    // Get user context from JWT
-    const userId = (req as any).user?.id || "demo_user";
-    const studioId = (req as any).user?.studioId || "demo_studio";
-    const userRole = (req as any).user?.role || "photographer";
+    // The identity comes from requireAgentAuth (server/lib/requireAgentAuth.ts), which
+    // now gates this whole router. These used to fall back to
+    //   "demo_user" / "demo_studio" / "photographer"
+    // and that last default is not harmless: getUserScopes grants the photographer role
+    // CRM_WRITE, INV_WRITE, EMAIL_SEND and CALENDAR_WRITE. An anonymous caller was
+    // therefore a privileged one. Absence of identity is now an error, not a persona.
+    const authedUser = (req as any).user;
+    if (!authedUser?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    const userId = String(authedUser.id);
+    const studioId = String(authedUser.studioId || "default");
+    const userRole = String(authedUser.role || "viewer");
     
     // Determine scopes (in production, load from database based on user role)
     const scopes = getUserScopes(userRole);

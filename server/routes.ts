@@ -2500,7 +2500,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // CRM Agent routes with Phase B write capabilities
-  app.get('/api/crm/agent/status', async (req, res) => {
+  // Was anonymous, like its sibling below. An unauthenticated caller could read the
+  // assistant's declared capability list off a studio's instance.
+  app.get('/api/crm/agent/status', authenticateUser, async (req, res) => {
     try {
       // Probe whether the agent subsystem can actually load. Several of its tool
       // modules are not present in this repo, so the dynamic import can fail at
@@ -2539,7 +2541,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/crm/agent/chat', async (req, res) => {
+  // Was anonymous. This is the LEGACY agent — its dynamic import of ../agent/run-agent
+  // fails in production, so every request lands in the catch below. It is left mounted
+  // because a client component still calls it, but it must not be reachable without a
+  // credential, and it must stop pretending to succeed.
+  app.post('/api/crm/agent/chat', authenticateUser, async (req, res) => {
     try {
       const { message, threadId } = req.body;
       
@@ -2572,18 +2578,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('CRM Agent Chat Error:', error);
       
-      // Fallback to German response if agent fails
-      const fallbackResponse = `Entschuldigung, das CRM-System ist momentan nicht verfügbar. Ich bin Ihr CRM-Operations-Assistent und kann Ihnen normalerweise bei folgenden Aufgaben helfen:
-
-📧 **E-Mail-Verwaltung**: Antworten auf Kunden-E-Mails, Buchungsbestätigungen senden
-📅 **Terminverwaltung**: Termine erstellen, ändern, stornieren
-👥 **Kundenverwaltung**: Kundendaten hinzufügen, aktualisieren, suchen
-💰 **Rechnungsverwaltung**: Rechnungen erstellen, senden, verfolgen
-📊 **Geschäftsanalyse**: Berichte erstellen, Daten analysieren
-
-Bitte versuchen Sie es später noch einmal.`;
+      // This used to answer with a hand-written GERMAN paragraph, over HTTP 200, listing
+      // five capabilities the legacy agent does not have — on an instance whose studio is
+      // in Hove and whose site is in English. Three things wrong at once: the wrong
+      // language, a false capability claim, and a success status on a failure, so no
+      // monitor and no operator could tell it was broken.
+      //
+      // A failure now reports as one. The message points at the agent that actually
+      // works rather than describing one that does not.
+      const fallbackResponse =
+        'The assistant is unavailable. Open Agent V2 from the sidebar, which is the ' +
+        'supported assistant on this instance.';
       
-      res.json({
+      // 503, not 200. A failure that answers 200 is invisible to every monitor and to
+      // the operator, which is how this one survived: the endpoint has been down in
+      // production and reporting success on every request.
+      res.status(503).json({
         response: fallbackResponse,
         threadId: null,
         capabilities: {
