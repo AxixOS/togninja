@@ -16,6 +16,7 @@ import { db } from "../db";
 import { agentSession, agentMessage, agentAudit } from "../../shared/schema";
 import { eq, desc, gte } from "drizzle-orm";
 import { ToolContext, ConfirmRequiredError, AuthzError, ValidationError } from "../../agent/v2/core/Types";
+import { selectTools } from "../../agent/v2/core/selectTools";
 import { listOpenAITools, executeTool, getStats } from "../../agent/v2/core/ToolBus";
 import { getRecommendedMode } from "../../agent/v2/core/Guardrails";
 import OpenAI from "openai";
@@ -134,9 +135,14 @@ router.post("/chat", async (req: Request, res: Response) => {
       dryRun: process.env.AGENT_V2_SHADOW === "true"
     };
     
-    // Get available tools for this user (limit to 20 to avoid token overflow)
+    // Was allTools.slice(0, 20). The token-overflow concern behind it is real — every
+    // tool schema costs input on every turn — but slice takes whatever is FIRST, and
+    // first is decided by the import order in agent/v2/tools/index.ts, which lists all
+    // read tools then all write tools. The cut landed exactly on that boundary, so all
+    // ten write tools were invisible to the model for every role including owner. The
+    // agent was read-only by accident.
     const allTools = listOpenAITools(scopes);
-    const availableTools = allTools.slice(0, 20);
+    const availableTools = selectTools(allTools, message, 24);
     
     if (!openai) {
       return res.status(500).json({ error: "OpenAI API key not configured" });
@@ -508,7 +514,7 @@ function getSystemPrompt(mode: "read_only" | "auto_safe" | "auto_full"): string 
   // Calculate start of current month
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 
-  const basePrompt = `You are an advanced AI assistant for a photography CRM system. You have 46 autonomous tools across multiple domains to help photographers manage their entire business.
+  const basePrompt = `You are an assistant for a photography studio's CRM. You are given a set of tools chosen for the question you were just asked — the list changes from turn to turn, so rely on the tools present in THIS request and never assume one you cannot see. If you need something you have not been given, say what you need rather than guessing or apologising for a capability you may in fact have.
 
 **CURRENT DATE CONTEXT (CRITICAL):**
 - Today's date: ${currentDate} (${dayOfWeek})
@@ -526,7 +532,7 @@ When users ask about "this week", "this month", "today", "yesterday", etc., you 
    - Update client details and lead status
    - Track bookings and project stages
    - Create and manage calendar appointments
-   - Send emails and invoices
+   - Draft and send emails, and email invoices — when the corresponding tool is present
    - Query appointments and messages
    - Manage galleries and voucher products
    - Track payments and pricing
@@ -540,7 +546,9 @@ When users ask about "this week", "this month", "today", "yesterday", etc., you 
      - Filter by type: consultation, photoshoot, delivery, meeting
      - Filter by client, date range, upcoming only
      - Use when: "What appointments do I have this week?", "Show me upcoming photoshoots"
-   • calendar_create: Create calendar events
+   • calendar_create_appointment: Create a session in the CRM. NOTE: this records the
+     appointment in the CRM only — it does NOT create an event in Google Calendar or any
+     external calendar. Say so when you use it, so nobody expects it to appear on a phone.
 
 📬 BOOKINGS:
    • bookings_pending_list: List pending online bookings
@@ -701,7 +709,7 @@ When users ask about "this week", "this month", "today", "yesterday", etc., you 
    - gallery_images_count, general_sql_query
    
    MEDIUM RISK (7 tools): 
-   - clients_update, email_draft, calendar_create
+   - clients_update, email_draft, calendar_create_appointment
    - invoices_create, price_wizard_research, price_wizard_activate
    - tasks_update
    
@@ -711,7 +719,7 @@ When users ask about "this week", "this month", "today", "yesterday", etc., you 
 🎯 INTERACTION GUIDELINES:
    - ALWAYS use tools to answer questions (don't say "I don't have access")
    - For automation requests, use Workflow Wizard, NOT external tools
-   - For email marketing, use email_campaigns system, NOT Mailchimp
+   - For email marketing, use the built-in campaigns feature, not Mailchimp
    - Be proactive: If you see manual work, suggest automation
    - Always confirm before high-risk actions
    - Use general_sql_query ONLY as last resort when no specific tool fits

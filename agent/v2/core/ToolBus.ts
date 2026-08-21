@@ -62,14 +62,31 @@ export function listOpenAITools(scopes: string[]): any[] {
       // User must have ALL required scopes for this tool
       return tool.authz.every(requiredScope => userScopes.has(requiredScope));
     })
-    .map(tool => ({
-      type: "function",
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: zodToJsonSchema(tool.parameters)
+    .map(tool => {
+      const parameters: any = zodToJsonSchema(tool.parameters);
+      // __confirm is declared inside each risky tool's Zod params, so it was advertised
+      // to the model as an ordinary optional boolean — and Guardrails accepts
+      // args.__confirm === true. The model could therefore approve its own high-risk
+      // action and there was no human in the loop at all.
+      //
+      // The real confirmation path is unaffected: ToolBus throws ConfirmRequiredError,
+      // the client shows AgentConfirmModal, the person clicks, and the client re-sends
+      // with __confirm: true. That is a human setting it. Removing it from the SCHEMA
+      // only stops the model volunteering it.
+      if (parameters?.properties?.__confirm) delete parameters.properties.__confirm;
+      if (Array.isArray(parameters?.required)) {
+        parameters.required = parameters.required.filter((r: string) => r !== "__confirm");
+        if (!parameters.required.length) delete parameters.required;
       }
-    }));
+      return {
+        type: "function",
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters
+        }
+      };
+    });
 }
 
 /**
