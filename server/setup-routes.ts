@@ -522,6 +522,21 @@ function buildDrafts(config: any): any[] {
 // ==================== SETUP STATUS ====================
 
 router.get('/status', async (_req: Request, res: Response) => {
+  // pagesScanned was the literal 0, so /status reported "0 pages scanned" on every
+  // instance no matter what the crawler had done. On a real onboarding that had
+  // discovered 20 pages and crawled 10, the wizard and the API both said zero — which
+  // reads as "the crawl failed" and sent two people looking for a crawler bug that did
+  // not exist. Read the figures the crawler actually recorded.
+  let crawlDiscovered = 0;
+  let crawlPages = 0;
+  try {
+    const { rows: cj } = await db.execute(
+      sql`SELECT pages_discovered, pages_crawled FROM crawl_jobs ORDER BY created_at DESC LIMIT 1`
+    ) as any;
+    crawlDiscovered = Number(cj?.[0]?.pages_discovered) || 0;
+    crawlPages = Number(cj?.[0]?.pages_crawled) || 0;
+  } catch { /* table absent on a fresh instance — leave both at 0 */ }
+
   try {
     const config = await getConfigRow();
     const integ = await getIntegrationsRow();
@@ -573,7 +588,7 @@ router.get('/status', async (_req: Request, res: Response) => {
         instagram: false,
         stripe: ci.stripeConnected,
       },
-      scanning: { complete: state.scanComplete, pagesScanned: 0 },
+      scanning: { complete: state.scanComplete, pagesScanned: crawlPages, pagesDiscovered: crawlDiscovered },
       fixFirst: {
         complete: state.fixFirstComplete,
         itemsTotal: 0,
