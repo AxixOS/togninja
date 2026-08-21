@@ -240,7 +240,11 @@ const ClientsPage: React.FC = () => {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to delete client');
+        // The server explains WHY a client cannot be deleted — "Still linked to 3
+        // invoices, 1 gallery" — and this threw that away for a flat "Failed to delete
+        // client", which tells the studio nothing and suggests a bug rather than a rule.
+        const body = await response.json().catch(() => ({} as any));
+        throw new Error(body.detail || body.error || 'Failed to delete client');
       }
       
       // Remove from local state

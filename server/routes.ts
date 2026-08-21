@@ -4632,6 +4632,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // DELETE /api/crm/clients/:id
+  //
+  // There was no delete handler at all — not here, not in any router — while THREE admin
+  // screens called it: ClientsPage, ClientDetailPage and ClientProfilePage. Unmatched
+  // /api/* returns a JSON 404, so the owner confirmed the deletion, got a bare
+  // "An error occurred", and the client was still there. Deleting a client has been
+  // impossible from the UI.
+  //
+  // A hard DELETE is not the right default either. Seven tables reference crm_clients
+  // with ON DELETE NO ACTION — invoices, messages, galleries, bookings, appointments and
+  // voucher sales — so Postgres refuses for any client with history, which is most real
+  // clients. Silently cascading would be worse: it would destroy paid invoices to tidy an
+  // address book. Say what is in the way instead, and let the studio decide.
+  app.delete("/api/crm/clients/:id", authenticateUser, async (req: Request, res: Response) => {
+    const id = req.params.id;
+    try {
+      const dependents: Array<{ table: string; label: string }> = [
+        { table: 'crm_invoices', label: 'invoice' },
+        { table: 'galleries', label: 'gallery' },
+        { table: 'scheduler_bookings', label: 'booking' },
+        { table: 'studio_appointments', label: 'appointment' },
+        { table: 'voucher_sales', label: 'voucher sale' },
+        { table: 'crm_messages', label: 'message' },
+      ];
+
+      const blocking: string[] = [];
+      for (const d of dependents) {
+        try {
+          const rows = await runSql(`SELECT COUNT(*)::int AS n FROM ${d.table} WHERE client_id = $1`, [id]);
+          const n = Number(rows?.[0]?.n || 0);
+          if (n > 0) blocking.push(`${n} ${d.label}${n === 1 ? '' : 's'}`);
+        } catch { /* table absent on an older instance — not blocking */ }
+      }
+
+      if (blocking.length) {
+        return res.status(409).json({
+          error: 'This client has records attached and cannot be deleted.',
+          detail: `Still linked to ${blocking.join(', ')}. Deleting would remove financial and booking history. Mark the client inactive instead, or remove those records first.`,
+          blocking,
+        });
+      }
+
+      await runSql(`DELETE FROM crm_clients WHERE id = $1`, [id]);
+      res.json({ success: true, id });
+    } catch (error: any) {
+      console.error('Error deleting CRM client:', error);
+      res.status(500).json({ error: error?.message || 'Failed to delete client' });
+    }
+  });
+
   app.put("/api/crm/clients/:id", authenticateUser, async (req: Request, res: Response) => {
     console.log(`/api/crm/clients/${req.params.id} PUT received - body:`, req.body);
     try {
