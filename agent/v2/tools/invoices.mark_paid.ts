@@ -7,6 +7,7 @@
  */
 
 import { z } from "zod";
+import { formatMoney } from "../lib/senderIdentity";
 import { registerTool } from "../core/ToolBus";
 import { ToolDef, ToolContext } from "../core/Types";
 import { db } from "../../../server/db";
@@ -57,7 +58,7 @@ const def: ToolDef<typeof params> = {
       return {
         success: true,
         simulated: true,
-        message: `Invoice mark paid simulated. Would mark ${invoice.invoiceNumber} (€${invoice.total}) as paid`,
+        message: `Invoice mark paid simulated. Would mark ${invoice.invoiceNumber} (${formatMoney(invoice.total, (invoice as any).currency)}) as paid`,
         warning: "This was a simulation - invoice status was not actually changed"
       };
     }
@@ -78,14 +79,16 @@ const def: ToolDef<typeof params> = {
       .update(crmInvoices)
       .set({
         status: "paid",
-        paidDate: paymentDate,
+        // The column is paid_at (drizzle: paidAt). `paidDate` does not exist, so this
+        // update threw on the only line that matters — the one recording the money.
+        paidAt: paymentDate,
         updatedAt: new Date()
       })
       .where(eq(crmInvoices.id, invoice.id));
     
     return {
       success: true,
-      message: `Invoice ${invoice.invoiceNumber} marked as paid. Amount: €${invoice.total}`,
+      message: `Invoice ${invoice.invoiceNumber} marked as paid. Amount: ${formatMoney(invoice.total, (invoice as any).currency)}`,
       invoiceNumber: invoice.invoiceNumber,
       amount: invoice.total,
       paymentMethod: args.paymentMethod,

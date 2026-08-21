@@ -52,12 +52,16 @@ const def: ToolDef<typeof params> = {
         throw new Error(`Email ${args.draftId} is not a draft (status: ${draft.status})`);
       }
       
+      // Was draft.to / draft.body / draft.cc / draft.bcc. NONE of those columns exist on
+      // crm_messages — the real ones are recipient_email and content, and there are no cc
+      // or bcc columns at all. Sending a saved draft would have addressed the email to
+      // `undefined`.
       emailData = {
-        to: draft.to!,
+        to: draft.recipientEmail!,
         subject: draft.subject!,
-        body: draft.body!,
-        cc: draft.cc,
-        bcc: draft.bcc,
+        body: draft.content!,
+        cc: null,
+        bcc: null,
         clientId: draft.clientId
       };
     } else {
@@ -106,15 +110,21 @@ const def: ToolDef<typeof params> = {
           .where(eq(crmMessages.id, args.draftId));
       } else {
         // Create new message record
+        // type / body / to / cc / bcc are not columns on crm_messages. Drizzle resolves
+        // a values() key against the model and throws "Cannot read properties of
+        // undefined (reading 'name')" on an unknown one, so this insert could only ever
+        // have failed. Real columns, plus the two NOT NULL sender fields.
+        const { getSenderIdentity } = await import("../lib/senderIdentity");
+        const sender = await getSenderIdentity();
         await db.insert(crmMessages).values({
+          senderName: sender.name || "Studio",
+          senderEmail: sender.email || emailData.to,
           clientId: emailData.clientId || null,
-          type: "email",
+          messageType: "email",
           direction: "outbound",
           subject: emailData.subject,
-          body: emailData.body,
-          to: emailData.to,
-          cc: emailData.cc || null,
-          bcc: emailData.bcc || null,
+          content: emailData.body,
+          recipientEmail: emailData.to,
           status: "sent",
           sentAt: new Date(),
           createdAt: new Date(),

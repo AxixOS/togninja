@@ -45,8 +45,23 @@ const def: ToolDef<typeof params> = {
     // Create draft in database
     const draftId = randomUUID();
     
+    // sender_name and sender_email are NOT NULL with no default on crm_messages, and
+    // this insert omitted both — so the first time this tool became reachable, every
+    // draft would have failed. It was never executed because a slice(0,20) upstream cut
+    // every write tool out of the list handed to the model.
+    const { getSenderIdentity } = await import("../lib/senderIdentity");
+    const sender = await getSenderIdentity();
+    if (!sender.name || !sender.email) {
+      throw new Error(
+        "This studio has no sender identity configured, so a draft cannot be attributed. " +
+        "Set the From name and address in Settings before drafting email."
+      );
+    }
+
     await db.insert(crmMessages).values({
       id: draftId,
+      senderName: sender.name,
+      senderEmail: sender.email,
       clientId: args.clientId || null,
       messageType: "email",
       direction: "outbound",

@@ -30,12 +30,32 @@ const router = express.Router();
 // saved later in Settings → AI & API Keys never took effect (every message failed)
 // until a restart. This reads the live env, then the DB-backed config as a fallback.
 async function getOpenAI(): Promise<OpenAI | null> {
-  let key = process.env.OPENAI_API_KEY;
+  // ORDER MATTERS, and it used to be the wrong way round.
+  //
+  // The product's billing split is: the PLATFORM key pays for the one-off onboarding
+  // crawl, so a prospective studio sees their rebuilt site for free; the STUDIO's own key
+  // pays for everything ongoing — this agent, blog generation, translation.
+  //
+  // This read process.env first. OPENAI_API_KEY is set on the deployment (it has to be,
+  // for onboarding), so env was ALWAYS present and a tenant's own key was never reached.
+  // Every studio's agent traffic billed to the platform, for ever, with no way for a
+  // customer to take over their own spend even after entering a key.
+  //
+  // Tenant first now. Env remains a fallback so a studio that has not entered a key still
+  // has a working assistant, but which key paid is logged rather than silent.
+  let key: string | undefined;
+  let source = "tenant";
+  try {
+    const { config } = await import("../config-reader");
+    key = (await config.get("openai_api_key")) as string;
+  } catch { /* ignore — treated as not configured */ }
+
   if (!key) {
-    try {
-      const { config } = await import("../config-reader");
-      key = (await config.get("openai_api_key")) as string;
-    } catch { /* ignore — treated as not configured */ }
+    key = process.env.OPENAI_API_KEY;
+    source = "platform";
+  }
+  if (key && source === "platform") {
+    console.warn("[agent-v2] no tenant OpenAI key; this session bills to the PLATFORM key");
   }
   return key ? new OpenAI({ apiKey: key }) : null;
 }

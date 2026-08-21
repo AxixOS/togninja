@@ -36,7 +36,7 @@ const def: ToolDef<typeof params> = {
   
 Use this to answer questions like:
 - "Show me all unpaid invoices"
-- "List invoices over €500"
+- "List invoices over 500"
 - "Which invoices are overdue?"
 - "Show me all invoices for client John Smith"
 - "What invoices were sent in October?"
@@ -200,7 +200,7 @@ Returns: Filtered list of invoices with detailed information`,
           status: args.status || "any",
           client_id: args.clientId || "any",
           amount_range: args.minAmount || args.maxAmount 
-            ? `€${args.minAmount || 0} - €${args.maxAmount || '∞'}` 
+            ? `${args.minAmount || 0} - ${args.maxAmount || 'any'}` 
             : "any",
           date_range: args.startDate || args.endDate 
             ? `${args.startDate || 'beginning'} to ${args.endDate || 'now'}` 

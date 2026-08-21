@@ -7,6 +7,8 @@
  */
 
 import { z } from "zod";
+import { formatMoney } from "../lib/senderIdentity";
+import { getStudioCurrency } from "../../../server/lib/studio-currency";
 import { registerTool } from "../core/ToolBus";
 import { ToolDef, ToolContext } from "../core/Types";
 import { db } from "../../../server/db";
@@ -57,11 +59,16 @@ const def: ToolDef<typeof params> = {
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     
     // In dry-run mode, just simulate
+    // crm_invoices.currency defaults to 'EUR' in the schema and this tool never set it,
+    // so a Hove studio's agent-raised invoices were stored as euros. Not a display bug —
+    // the row itself was wrong, and every downstream total inherited it.
+    const currency = await getStudioCurrency();
+
     if (ctx.dryRun) {
       return {
         success: true,
         simulated: true,
-        message: `Invoice creation simulated. Total: €${totalAmount.toFixed(2)}`,
+        message: `Invoice creation simulated. Total: ${formatMoney(totalAmount, currency)}`,
         invoiceId: "inv_simulated_" + randomUUID()
       };
     }
@@ -81,6 +88,7 @@ const def: ToolDef<typeof params> = {
       subtotal: subtotal.toFixed(2),
       taxAmount: taxAmount.toFixed(2),
       total: totalAmount.toFixed(2),
+      currency,
       dueDate,
       issueDate: new Date(),
       notes: args.notes || null,
@@ -104,7 +112,7 @@ const def: ToolDef<typeof params> = {
       success: true,
       invoiceId,
       invoiceNumber,
-      message: `Invoice ${invoiceNumber} created successfully. Total: €${totalAmount.toFixed(2)}`,
+      message: `Invoice ${invoiceNumber} created successfully. Total: ${formatMoney(totalAmount, currency)}`,
       summary: {
         itemCount: processedItems.length,
         subtotal: subtotal.toFixed(2),

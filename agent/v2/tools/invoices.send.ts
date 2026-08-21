@@ -62,24 +62,34 @@ const def: ToolDef<typeof params> = {
       .where(eq(crmInvoiceItems.invoiceId, invoice.id));
     
     // In dry-run mode, DO NOT SEND
+    const { formatMoney } = await import("../lib/senderIdentity");
     if (ctx.dryRun) {
       return {
         success: true,
         simulated: true,
-        message: `Invoice send simulated. Would send ${invoice.invoiceNumber} (€${invoice.total}) to ${client.email}`,
+        message: `Invoice send simulated. Would send ${invoice.invoiceNumber} (${formatMoney(invoice.total, (invoice as any).currency)}) to ${client.email}`,
         warning: "This was a simulation - no invoice was actually sent"
       };
     }
     
     // Build email content
-    const itemsHtml = items.map(item => `
+    // crm_invoice_items has no `amount` column, so every line total rendered as
+    // "undefined" for the amount, and the currency was a hardcoded euro sign on an invoice from a
+    // studio billing in GBP. The line total is quantity x unit price; the symbol comes
+    // from the invoice's own currency.
+    const ccy = (invoice as any).currency || undefined;
+    const itemsHtml = items.map(item => {
+      const qty = Number(item.quantity ?? 1);
+      const unit = Number(item.unitPrice ?? 0);
+      return `
       <tr>
         <td>${item.description}</td>
-        <td>${item.quantity}</td>
-        <td>€${item.unitPrice}</td>
-        <td>€${item.amount}</td>
+        <td>${qty}</td>
+        <td>${formatMoney(unit, ccy)}</td>
+        <td>${formatMoney(qty * unit, ccy)}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
     
     const emailBody = `
       <h2>Invoice ${invoice.invoiceNumber}</h2>
@@ -104,17 +114,17 @@ const def: ToolDef<typeof params> = {
         <tfoot>
           <tr>
             <td colspan="3"><strong>Subtotal</strong></td>
-            <td><strong>€${invoice.subtotal}</strong></td>
+            <td><strong>${formatMoney(invoice.subtotal, ccy)}</strong></td>
           </tr>
           ${invoice.taxAmount && parseFloat(invoice.taxAmount) > 0 ? `
           <tr>
             <td colspan="3">Tax</td>
-            <td>€${invoice.taxAmount}</td>
+            <td>${formatMoney(invoice.taxAmount, ccy)}</td>
           </tr>
           ` : ''}
           <tr>
             <td colspan="3"><strong>Total</strong></td>
-            <td><strong>€${invoice.total}</strong></td>
+            <td><strong>${formatMoney(invoice.total, ccy)}</strong></td>
           </tr>
         </tfoot>
       </table>
@@ -131,7 +141,7 @@ const def: ToolDef<typeof params> = {
       await EnhancedEmailService.sendEmail({
         to: client.email,
         subject: `Invoice ${invoice.invoiceNumber}`,
-        content: `Invoice ${invoice.invoiceNumber} - Total: €${invoice.total}`,
+        content: `Invoice ${invoice.invoiceNumber} - Total: ${formatMoney(invoice.total, (invoice as any).currency)}`,
         html: emailBody
       });
       
@@ -139,8 +149,10 @@ const def: ToolDef<typeof params> = {
       await db
         .update(crmInvoices)
         .set({
+          // crm_invoices has no sent_at column, so this whole update threw — meaning an
+          // invoice that HAD been emailed was never marked as sent, and the tool then
+          // reported success. The status transition is the record that it went out.
           status: "sent",
-          sentAt: new Date(),
           updatedAt: new Date()
         })
         .where(eq(crmInvoices.id, invoice.id));
