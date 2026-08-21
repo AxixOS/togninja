@@ -195,6 +195,55 @@ export async function analyzeVision(imageUrl: string, hint?: string): Promise<Vi
   };
 }
 
+export interface ExistingIptc {
+  caption?: string;
+  byline?: string;
+  copyright?: string;
+  keywords?: string[];
+}
+
+/**
+ * What the photographer already put in the file.
+ *
+ * Needed before writing anything into a CLIENT GALLERY image. Those arrive straight from
+ * Lightroom with the photographer's own caption, byline and keywords already embedded,
+ * and overwriting a caption someone wrote by hand with one derived from a gallery title
+ * would be vandalism. Read first, fill only the gaps.
+ *
+ * Uses exifr, which parses in-process — no ExifTool child, so it is cheap enough to run
+ * on every image of a two-thousand-frame wedding gallery. Never throws.
+ */
+export async function readExistingIptc(buffer: Buffer): Promise<ExistingIptc> {
+  // XMP language-alternative fields (dc:description, dc:rights) come back from exifr as
+  // an OBJECT — { 'x-default': '…' } or { value, lang } — not a string. Left uncoerced,
+  // a real caption reads as "[object Object]", which is truthy, so the gap-filling test
+  // "does this file already have a caption?" answers yes for the wrong reason and the
+  // right reason alike. Flatten to text before anything decides on it.
+  const text = (v: any): string | undefined => {
+    if (v == null) return undefined;
+    if (typeof v === 'string') return v.trim() || undefined;
+    if (Array.isArray(v)) return text(v[0]);
+    if (typeof v === 'object') {
+      const inner = v['x-default'] ?? v.value ?? v._ ?? Object.values(v)[0];
+      return typeof inner === 'string' ? (inner.trim() || undefined) : undefined;
+    }
+    return String(v).trim() || undefined;
+  };
+
+  try {
+    const d: any = await exifr.parse(buffer, { iptc: true, xmp: true, tiff: false, exif: false }) || {};
+    const kw = d.Keywords ?? d.subject;
+    return {
+      caption: text(d['Caption-Abstract']) || text(d.ObjectName) || text(d.description) || text(d.Description),
+      byline: text(d['By-line']) || text(d.creator) || text(d.Creator),
+      copyright: text(d.CopyrightNotice) || text(d.rights) || text(d.Rights),
+      keywords: Array.isArray(kw) ? kw.map(String) : (kw ? [String(kw)] : undefined),
+    };
+  } catch {
+    return {};
+  }
+}
+
 /** Sniff image format from magic bytes (files are often mis-named .jpg). */
 export function sniffImageExt(b: Buffer): 'jpg' | 'webp' | 'png' {
   if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpg';

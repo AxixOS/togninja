@@ -5711,12 +5711,99 @@ Bitte versuchen Sie es später noch einmal.`;
       const s3Client = getS3Client();
       const s3Config = getS3Config();
 
+      // Gallery-level metadata context, computed ONCE for the whole batch.
+      //
+      // A per-image vision call is both ruinous and pointless here. Ruinous: a studio
+      // shooting 30 events a year uploads 10,000-60,000 frames, which is $52-$312/year in
+      // tokens alone, and the calls are serial, so a 2000-image gallery is hours of wall
+      // clock rather than a request. Pointless: 800 frames of one wedding share one
+      // scene, one place and one date. One call describes the set; the rest is free.
+      const galleryMeta: any = { identity: {}, vision: null, service: '' };
+      try {
+        const { getImageIdentity } = await import('./lib/studioImageIdentity.js');
+        galleryMeta.identity = await getImageIdentity();
+
+        // Which of the studio's own services this gallery belongs to, matched by the
+        // pillar's own regex against the gallery title — the same association the
+        // homepage already uses for its service cards.
+        const { rows: amRows } = await pool.query('SELECT authority_map FROM studio_configs ORDER BY created_at LIMIT 1');
+        const pillars = (amRows?.[0]?.authority_map?.pillars || []) as any[];
+        const haystack = [gallery.title, (gallery as any).description].filter(Boolean).join(' ');
+        const hit = pillars.find((pl) => {
+          try { return pl?.match && new RegExp(String(pl.match), 'i').test(haystack); } catch { return false; }
+        });
+        galleryMeta.service = String(hit?.label || '');
+
+        if (process.env.OPENAI_API_KEY && files[0]?.buffer) {
+          const { analyzeVision } = await import('./services/blogImageAnalysis.js');
+          const first = files[0];
+          const dataUri = `data:${first.mimetype || 'image/jpeg'};base64,${first.buffer.toString('base64')}`;
+          galleryMeta.vision = await analyzeVision(dataUri, [gallery.title, galleryMeta.service].filter(Boolean).join(' — ') || undefined)
+            .catch((e: any) => { console.warn('[GALLERY UPLOAD] vision failed, continuing deterministic:', e?.message || e); return null; });
+        }
+      } catch (e: any) {
+        console.warn('[GALLERY UPLOAD] metadata context failed, continuing without it:', e?.message || e);
+      }
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const timestamp = Date.now();
         const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-        const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const key = `galleries/${galleryId}/${timestamp}-${sanitizedFilename}`;
+
+        // The key was `<timestamp>-<originalname>`, so DSC_4837.jpg stayed DSC_4837.jpg —
+        // and this string is not merely a URL: gallery_images.filename becomes the entry
+        // name inside the ZIP, so it is what the CLIENT sees on their own disk.
+        let sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        let body: Buffer = file.buffer;
+        let caption = '';
+        let keywords: string[] = [];
+
+        try {
+          const { buildImageFilename } = await import('./lib/imageFilename.js');
+          const { extractExif, readExistingIptc, writeIptc } = await import('./services/blogImageAnalysis.js');
+          const [exif, existing] = await Promise.all([
+            extractExif(file.buffer).catch(() => null as any),
+            readExistingIptc(file.buffer).catch(() => ({} as any)),
+          ]);
+
+          // The photographer's own caption always wins. These files come straight out of
+          // Lightroom, and replacing a hand-written caption with one derived from a
+          // gallery title would be vandalism. Fill the gap; never overwrite.
+          caption = existing.caption || galleryMeta.vision?.description || gallery.title || '';
+          keywords = existing.keywords?.length
+            ? existing.keywords
+            : [...(galleryMeta.vision?.sceneKeywords || []).slice(0, 8), ...(galleryMeta.service ? [galleryMeta.service] : [])].map(String).filter(Boolean);
+
+          sanitizedFilename = buildImageFilename({
+            subject: existing.caption || galleryMeta.vision?.altText || gallery.title || '',
+            service: galleryMeta.service,
+            place: galleryMeta.identity.city,
+            // The CAPTURE date out of the file, not today — a wedding uploaded in
+            // December was not photographed in December.
+            date: exif?.dateTimeOriginal ? new Date(exif.dateTimeOriginal) : null,
+            originalName: file.originalname,
+            ext: ext.replace(/^[.]/, '') || 'jpg',
+          });
+
+          // Deterministic stamp only, no model call per image. The studio's ownership is
+          // worth asserting on every frame; a scene description is not.
+          if (galleryMeta.identity.creator || caption) {
+            body = await writeIptc(file.buffer, {
+              caption: existing.caption ? '' : caption,
+              keywords: existing.keywords?.length ? [] : keywords,
+              creator: existing.byline || galleryMeta.identity.creator,
+              copyright: existing.copyright || galleryMeta.identity.copyright,
+              credit: galleryMeta.identity.credit,
+              // GPS comes from the FILE, if the camera recorded it. The studio's own
+              // coordinates are its office and say nothing about where a frame was shot.
+              gps: exif?.gps || undefined,
+            });
+          }
+        } catch (metaErr: any) {
+          console.warn(`[GALLERY UPLOAD] metadata step failed for ${file.originalname}, storing original:`, metaErr?.message || metaErr);
+          body = file.buffer;
+        }
+
+        const key = `galleries/${galleryId}/${sanitizedFilename}`;
 
         try {
           // Upload to B2/S3
@@ -5724,7 +5811,7 @@ Bitte versuchen Sie es später noch einmal.`;
           await getS3Client().send(new PutObjectCommand({
             Bucket: s3Config.bucket,
             Key: key,
-            Body: file.buffer,
+            Body: body,
             ContentType: file.mimetype,
           }));
 
@@ -5740,11 +5827,14 @@ Bitte versuchen Sie es später noch einmal.`;
             sortOrder: i
           });
           
+          // description was omitted from this column list, so it was NULL by construction
+          // on every gallery image the product has ever stored — the caption existed
+          // nowhere a query could reach it.
           const insertResult = await pool.query(`
-            INSERT INTO gallery_images (gallery_id, filename, url, title, sort_order, size_bytes, content_type, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            RETURNING id, gallery_id as "galleryId", filename, url, title, sort_order as "sortOrder", size_bytes as "sizeBytes", content_type as "contentType", created_at as "createdAt"
-          `, [galleryId, sanitizedFilename, imageUrl, file.originalname, i, file.size, file.mimetype]);
+            INSERT INTO gallery_images (gallery_id, filename, url, title, description, sort_order, size_bytes, content_type, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            RETURNING id, gallery_id as "galleryId", filename, url, title, description, sort_order as "sortOrder", size_bytes as "sizeBytes", content_type as "contentType", created_at as "createdAt"
+          `, [galleryId, sanitizedFilename, imageUrl, file.originalname, caption || null, i, body.length, file.mimetype]);
 
           const insertedImage = insertResult.rows[0];
           console.log(`[GALLERY UPLOAD] DB insert successful. Inserted image ID:`, insertedImage.id);
