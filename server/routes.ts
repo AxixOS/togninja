@@ -68,6 +68,7 @@ import sharp from 'sharp';
 import { processGalleryImage, watermarkText, invisibleKey } from './lib/galleryWatermark';
 import { fingerprint as galleryFingerprint, extractInvisible } from './lib/invisibleWatermark';
 import { issueGalleryToken, verifyGalleryToken, bearerFrom } from './lib/galleryToken';
+import { normaliseGalleryInput, passwordStateError } from './lib/galleryInput';
 import crypto from 'crypto';
 // Using require for 'imap' to satisfy commonjs typings within ESM context
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -5569,32 +5570,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/galleries", authenticateUser, async (req: Request, res: Response) => {
     try {
-      console.log('[GALLERY CREATE] User:', req.user);
-      console.log('[GALLERY CREATE] Body:', req.body);
-      // Don't set createdBy since it has a foreign key constraint to users table
-      // Admin users are in admin_users table, not users table
-      const galleryData = { ...req.body };
-      delete galleryData.createdBy; // Remove if it was sent from client
-      
+      // Normalise FIRST. The admin sends a MIXED payload — camelCase for title and
+      // coverImage, snake_case for is_public / is_password_protected / client_id — and
+      // Drizzle silently OMITS any key that is not a property of the table object,
+      // letting the column default apply instead. That stored every gallery created
+      // through the admin with is_password_protected = false and is_public = true (both
+      // column defaults), so the password the studio typed was saved but never checked,
+      // and the gallery was published on the unauthenticated list endpoint.
+      // See server/lib/galleryInput.ts for the proof and the full chain.
+      //
+      // insertGallerySchema.parse() used to sit at the end of this block and looked like
+      // it validated all of the above. It does not: routes.ts:327 declares a local
+      // `{ parse: (v: any) => v }` stub that shadows the real zod schema, making it an
+      // identity function.
+      const galleryData = normaliseGalleryInput(req.body);
+
+      if (!String(galleryData.title || '').trim()) {
+        return res.status(400).json({ error: 'title_required', message: 'Give the gallery a title.' });
+      }
+
+      const pwError = passwordStateError(galleryData);
+      if (pwError) {
+        return res.status(400).json({ error: 'password_required', message: pwError });
+      }
+
       // Generate slug from title if not provided
-      if (galleryData.title && !galleryData.slug) {
-        galleryData.slug = galleryData.title
+      if (!galleryData.slug) {
+        galleryData.slug = String(galleryData.title)
           .toLowerCase()
           .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
           .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphens
           .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
           .substring(0, 100); // Limit length
       }
-      
-      // Persist the delivery/protection toggles the wizard sends (previously
-      // silently dropped). Map the UI field names to the schema columns and
-      // coerce the expiry date so a future date actually takes effect.
-      if (galleryData.watermarkEnabled !== undefined) { galleryData.visibleWatermark = !!galleryData.watermarkEnabled; delete galleryData.watermarkEnabled; }
-      if (galleryData.invisibleWatermarkEnabled !== undefined) { galleryData.invisibleWatermark = !!galleryData.invisibleWatermarkEnabled; delete galleryData.invisibleWatermarkEnabled; }
-      if (galleryData.expiresAt !== undefined) galleryData.expiresAt = galleryData.expiresAt ? new Date(galleryData.expiresAt) : null;
 
-      const validatedData = insertGallerySchema.parse(galleryData);
-      const gallery = await storage.createGallery(validatedData);
+      // A client's shoot is private unless the studio says otherwise. The COLUMN default
+      // is true, which suits a portfolio gallery and is exactly wrong for a delivery
+      // gallery — and it was that default which applied every time the flag went missing
+      // above. A caller that omits the field now gets the safe answer.
+      if (galleryData.isPublic === undefined) galleryData.isPublic = false;
+
+      const gallery = await storage.createGallery(galleryData as any);
       res.status(201).json(gallery);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -6850,64 +6866,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/galleries", authenticateUser, async (req: Request, res: Response) => {
-    try {
-      const { title, description, clientId, isPublic = true, isPasswordProtected = false, password, slug, coverImage, coverPosition, coverScale, coverTemplate } = req.body;
-
-      // A gallery marked protected with no password used to be a storable state, and
-      // the auth route then let anyone in. Refuse it at the source too.
-      if (isPasswordProtected && !String(password || '').trim()) {
-        return res.status(400).json({
-          error: 'password_required',
-          message: 'Set a password, or switch password protection off.',
-        });
-      }
-      
-      // Generate slug from title if not provided
-      const gallerySlug = slug || title
-        .toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
-        .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphens  
-        .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
-        .substring(0, 100); // Limit length
-      
-      const query = `
-        INSERT INTO galleries (title, description, client_id, is_public, is_password_protected, password, slug, cover_image, cover_position, cover_scale, cover_template, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        RETURNING id, title, slug, description, cover_image, cover_position, cover_scale, cover_template, is_public, created_at
-      `;
-      
-  const result = await runSql(query, [
-        title,
-        description || null,
-        clientId,
-        isPublic,
-        isPasswordProtected,
-        password || null,
-        gallerySlug,
-        coverImage || null,
-        coverPosition ? JSON.stringify(coverPosition) : JSON.stringify({ x: 50, y: 50 }),
-        coverScale || 100,
-        coverTemplate ? JSON.stringify(coverTemplate) : null,
-        req.user?.id || null
-      ]);
-      
-      // Transform response for frontend
-      const gallery = result[0];
-      res.status(201).json({
-        ...gallery,
-        coverImage: gallery.cover_image,
-        coverPosition: gallery.cover_position || { x: 50, y: 50 },
-        coverScale: gallery.cover_scale || 100,
-        coverTemplate: gallery.cover_template || null,
-        isPublic: gallery.is_public,
-        createdAt: gallery.created_at
-      });
-    } catch (error) {
-      console.error('Error creating gallery:', error);
-      res.status(500).json({ error: "Failed to create gallery" });
-    }
-  });
+  // (removed) A second app.post("/api/galleries") was registered here.
+  //
+  // Express serves the FIRST matching registration, so this one never ran — which made
+  // it a very effective place to hide a bug. The password guard added to it in v1.9.45
+  // sat in this dead block and did nothing. The create route that actually runs is near
+  // the top of this file and now normalises its input via server/lib/galleryInput.ts.
+  //
+  // scripts/route-dupes.mjs fails if a duplicate registration reappears.
 
   app.put("/api/galleries/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
@@ -7056,32 +7022,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/galleries/:id", authenticateUser, async (req: Request, res: Response) => {
-    try {
-      const galleryId = req.params.id;
-      
-      // Check if gallery exists
-  const galleryCheck = await runSql(`SELECT title FROM galleries WHERE id = $1`, [galleryId]);
-      
-      if (galleryCheck.length === 0) {
-        return res.status(404).json({ error: "Gallery not found" });
-      }
-      
-      // Delete images first (cascade should handle this, but being explicit)
-  await runSql(`DELETE FROM gallery_images WHERE gallery_id = $1`, [galleryId]);
-      
-      // Delete gallery
-  await runSql(`DELETE FROM galleries WHERE id = $1`, [galleryId]);
-      
-      res.json({ 
-        success: true, 
-        message: `Gallery "${galleryCheck[0].title}" deleted successfully` 
-      });
-    } catch (error) {
-      console.error('Error deleting gallery:', error);
-      res.status(500).json({ error: "Failed to delete gallery" });
-    }
-  });
+  // (removed) A second app.delete("/api/galleries/:id") was registered here — the
+  // ORIGINAL destructive one, which ran DELETE FROM gallery_images then DELETE FROM
+  // galleries with no undo.
+  //
+  // It never executed: the soft-delete above is registered first and Express serves
+  // the first match. So the safe behaviour was correct only by accident of ordering.
+  // Anything that moved these two blocks past each other — a merge, a refactor, an
+  // extraction into a router — would have silently restored one-click destruction of a
+  // delivered shoot. Permanent deletion is /api/admin/galleries/:id/permanent, which
+  // requires the gallery to be in Trash first.
 
   // Admin gallery fetch. Registered at /api/admin/galleries/:id, NOT
   // /api/galleries/:id — the public `GET /api/galleries/:slug` handler is registered

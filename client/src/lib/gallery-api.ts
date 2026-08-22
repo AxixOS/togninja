@@ -131,6 +131,14 @@ export async function createGallery(galleryData: GalleryFormData): Promise<Galle
       .substring(0, 50);
 
     // Prepare the data for the backend API
+    // camelCase throughout, and every delivery setting included.
+    //
+    // This object used to mix conventions — snake_case for client_id / is_public /
+    // is_password_protected — and the server handed it straight to Drizzle, which
+    // silently drops any key that is not a property of the table object and lets the
+    // column default apply. Galleries were created unprotected AND public no matter
+    // what the studio ticked. The server normalises both conventions now
+    // (server/lib/galleryInput.ts); sending one consistently is the other half.
     const apiData = {
       title: galleryData.title,
       description: galleryData.description || null,
@@ -139,10 +147,15 @@ export async function createGallery(galleryData: GalleryFormData): Promise<Galle
       coverPosition: galleryData.coverPosition || { x: 50, y: 50 },
       coverScale: galleryData.coverScale || 100,
       coverTemplate: galleryData.coverTemplate || null,
-      client_id: galleryData.clientId,
-      is_public: galleryData.isPublic,
-      is_password_protected: galleryData.isPasswordProtected,
-      password: galleryData.password
+      clientId: galleryData.clientId,
+      isPublic: galleryData.isPublic,
+      isPasswordProtected: galleryData.isPasswordProtected,
+      password: galleryData.password,
+      downloadEnabled: galleryData.downloadEnabled,
+      watermarkEnabled: galleryData.watermarkEnabled,
+      invisibleWatermarkEnabled: galleryData.invisibleWatermarkEnabled,
+      expiresAt: galleryData.expiresAt,
+      status: galleryData.status,
     };
 
     // console.log removed
@@ -192,6 +205,14 @@ export async function updateGallery(id: string, galleryData: GalleryFormData): P
     }
 
     // Prepare the data for the backend API
+    // Every field the wizard can change. expiresAt, status and the two watermark
+    // toggles were absent from this whitelist, so those controls appeared to save and
+    // never did — the columns, the server-side field mapping and the enforcement all
+    // existed; only this object literal was missing them.
+    //
+    // expiresAt is passed through as-is rather than defaulted: null CLEARS the sunset
+    // date and undefined leaves it untouched, which is the contract GalleryFormData
+    // documents, and `|| null` would collapse the two into one.
     const apiData = {
       title: galleryData.title,
       description: galleryData.description || null,
@@ -199,11 +220,15 @@ export async function updateGallery(id: string, galleryData: GalleryFormData): P
       coverPosition: galleryData.coverPosition || { x: 50, y: 50 },
       coverScale: galleryData.coverScale || 100,
       coverTemplate: galleryData.coverTemplate || null,
-      client_id: galleryData.clientId,
-      is_public: galleryData.isPublic,
-      is_password_protected: galleryData.isPasswordProtected,
+      clientId: galleryData.clientId,
+      isPublic: galleryData.isPublic,
+      isPasswordProtected: galleryData.isPasswordProtected,
       password: galleryData.password,
-      download_enabled: galleryData.downloadEnabled,
+      downloadEnabled: galleryData.downloadEnabled,
+      watermarkEnabled: galleryData.watermarkEnabled,
+      invisibleWatermarkEnabled: galleryData.invisibleWatermarkEnabled,
+      expiresAt: galleryData.expiresAt,
+      status: galleryData.status,
     };
 
     const response = await fetch(`/api/galleries/${id}`, {
