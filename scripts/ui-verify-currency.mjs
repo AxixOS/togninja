@@ -19,10 +19,12 @@
 //     currency, not the tenant's.
 import fs from 'fs';
 import path from 'path';
+import { walk, importedModuleNames, isReachable, reportUnreachable } from './lib/reachable.mjs';
 
-const walk = (d) =>
-  fs.readdirSync(d, { withFileTypes: true })
-    .flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+// Files nothing imports are reported as cleanup rather than failures — see
+// scripts/lib/reachable.mjs for why a permanently-red guard is worse than none.
+const imported = importedModuleNames();
+const unreachable = [];
 
 // Files whose remaining symbols are correct, each with the reason. Adding to this list is
 // a decision someone has to justify in writing, which is the point.
@@ -50,7 +52,18 @@ const SYMBOLS = [
 let bad = 0;
 let allowed = 0;
 
-for (const f of [...walk('client/src/pages/admin'), ...walk('client/src/components/admin')].filter((x) => /\.tsx?$/.test(x))) {
+// Scope note: this used to walk only the admin trees, on the reasoning that the sweep was
+// an admin sweep. But the people most affected by a wrong currency are the ones being
+// ASKED FOR MONEY — and client/src/components/galleries holds the buyer's print-order
+// modal, which was still printing seven euro signs at a studio configured in GBP. This
+// guard stayed green throughout, because it never looked there.
+const TREES = [
+  'client/src/pages/admin',
+  'client/src/components/admin',
+  'client/src/components/galleries',
+];
+
+for (const f of TREES.flatMap(walk).filter((x) => /\.tsx?$/.test(x))) {
   const src = fs.readFileSync(f, 'utf8');
   const rel = f.split(path.sep).join('/').replace('client/src/', '');
 
@@ -63,12 +76,18 @@ for (const f of [...walk('client/src/pages/admin'), ...walk('client/src/componen
     if (count <= 0) continue;
 
     if (ALLOW[rel]) { allowed += count; continue; }
+    if (!isReachable(f, imported)) {
+      unreachable.push(`${rel}  ${count} hardcoded ${name} sign(s)`);
+      continue;
+    }
     bad += count;
     console.log(`  FAIL  ${rel}  ${count} hardcoded ${name} sign(s)`);
     const line = src.split('\n').findIndex((l) => l.includes(sym) && !l.includes('â€'));
     if (line >= 0) console.log(`          ${line + 1}: ${src.split('\n')[line].trim().slice(0, 84)}`);
   }
 }
+
+reportUnreachable(unreachable);
 
 console.log(`\n  ${allowed} symbol(s) in files with a documented reason`);
 if (bad) {

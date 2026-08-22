@@ -12,6 +12,7 @@
 // than TypeScript types.
 import fs from 'fs';
 import path from 'path';
+import { importedModuleNames, reportUnreachable } from './lib/reachable.mjs';
 
 const walk = (d) =>
   fs.readdirSync(d, { withFileTypes: true })
@@ -33,16 +34,10 @@ for (const f of all) {
 // any of them — a real ReferenceError — but App.tsx routes PhotographyCalendarPageSimple
 // instead, so no user can ever reach it. Reporting that as a failure forever is how a
 // guard turns into wallpaper. Unreachable files are listed separately, as cleanup.
-const importedSomewhere = new Set();
-for (const f of all) {
-  const s = fs.readFileSync(f, 'utf8');
-  for (const m of s.matchAll(/from\s+['"](\.[^'"]+)['"]|import\(\s*['"](\.[^'"]+)['"]\s*\)/g)) {
-    const spec = m[1] || m[2];
-    // Resolve against the importing file's directory, and record the basename — enough
-    // to tell "something imports this module" without reimplementing module resolution.
-    importedSomewhere.add(path.basename(spec).replace(/\.(tsx?|jsx?)$/, ''));
-  }
-}
+//
+// Shared with ui-verify-currency, which needed exactly the same distinction. One copy,
+// because two guards disagreeing about what "reachable" means is its own bug.
+const importedSomewhere = importedModuleNames();
 
 let bad = 0;
 const unreachable = [];
@@ -79,10 +74,7 @@ for (const f of admin) {
   console.log('  FAIL  ' + rel + '  ->  ' + missing.join(', '));
 }
 
-if (unreachable.length) {
-  console.log('\n  Broken, but nothing imports them — delete rather than fix:');
-  for (const u of unreachable) console.log('    ' + u);
-}
+reportUnreachable(unreachable);
 
 console.log(
   bad

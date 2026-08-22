@@ -741,6 +741,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({
         <PrintOrderModal
           image={selectedImageForOrder}
           galleryId={galleryId}
+          authToken={authToken}
           onClose={handleCloseOrderModal}
           onOrderComplete={(orderId) => {
             console.log('Print order created:', orderId);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowLeft, ArrowRight, Truck, CreditCard, Check, Loader2, ShoppingCart, Package } from 'lucide-react';
 import { GalleryImage } from '../../types/gallery';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface PrintProduct {
   id: number;
@@ -30,11 +31,27 @@ interface ShippingAddress {
 interface PrintOrderModalProps {
   image: GalleryImage;
   galleryId: string;
+  /**
+   * The visitor's signed gallery token.
+   *
+   * /api/print sits behind requirePrintAccess, which wants a bearer token AND a gallery
+   * id to check it against. Without this every call here 401s — invisible today only
+   * because the store is switched off by default.
+   */
+  authToken?: string;
   onClose: () => void;
   onOrderComplete?: (orderId: string) => void;
 }
 
 type Step = 'product' | 'shipping' | 'payment' | 'confirmation';
+
+// Every /api/print call needs the same two things: the visitor's bearer token, and a
+// galleryId for it to be checked against. Built in one place so a new call cannot
+// quietly omit one of them.
+const printHeaders = (token?: string): Record<string, string> => ({
+  'Content-Type': 'application/json',
+  ...(token ? { Authorization: 'Bearer ' + token } : {}),
+});
 
 const COUNTRIES = [
   { code: 'AT', name: 'Austria' },
@@ -58,9 +75,13 @@ const CATEGORY_NAMES: Record<string, string> = {
 const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
   image,
   galleryId,
+  authToken,
   onClose,
   onOrderComplete,
 }) => {
+  // Top level, unconditionally: this is a hook, and a call inside a condition or after
+  // an early return throws at runtime while the build stays green.
+  const { currency, format } = useStudioCurrency();
   const [step, setStep] = useState<Step>('product');
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<PrintProduct[]>([]);
@@ -91,7 +112,9 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/print/products');
+      const response = await fetch(`/api/print/products?galleryId=${encodeURIComponent(galleryId)}`, {
+        headers: printHeaders(authToken),
+      });
       if (response.ok) {
         const data = await response.json();
         setProducts(data.products || []);
@@ -116,12 +139,16 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
       
       const response = await fetch('/api/print/quote', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: printHeaders(authToken),
         body: JSON.stringify({
+          galleryId,
           sku: selectedProduct.sku,
           copies: quantity,
           destinationCountryCode: address.countryCode,
-          currencyCode: 'EUR',
+          // Was hardcoded EUR while the studio was configured in GBP — the same
+          // wrong-currency bug the admin sweep cleared, surviving here because this
+          // component was never reachable.
+          currencyCode: currency,
         }),
       });
 
@@ -152,7 +179,7 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
 
       const response = await fetch('/api/print/order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: printHeaders(authToken),
         body: JSON.stringify({
           galleryId,
           galleryImageId: image.id,
@@ -353,7 +380,7 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
                                 </p>
                               </div>
                               <span className="font-bold text-green-600 text-lg">
-                                €{product.basePrice.toFixed(2)}
+                                {format(product.basePrice)}
                               </span>
                             </div>
                           </button>
@@ -387,7 +414,7 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
                     <div className="flex justify-between items-center mt-4 pt-4 border-t">
                       <span className="text-gray-600">Subtotal:</span>
                       <span className="text-2xl font-bold text-gray-900">
-                        €{totalPrice}
+                        {format(totalPrice)}
                       </span>
                     </div>
                   </div>
@@ -589,10 +616,10 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
                   <div className="flex-1">
                     <p className="font-medium">{selectedProduct?.name}</p>
                     <p className="text-sm text-gray-600">
-                      Qty: {quantity} × €{selectedProduct?.basePrice.toFixed(2)}
+                      Qty: {quantity} × {format(selectedProduct?.basePrice)}
                     </p>
                   </div>
-                  <span className="font-bold">€{totalPrice}</span>
+                  <span className="font-bold">{format(totalPrice)}</span>
                 </div>
 
                 <hr />
@@ -622,19 +649,19 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Subtotal:</span>
-                      <span>€{totalPrice}</span>
+                      <span>{format(totalPrice)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Shipping ({shippingMethod}):</span>
                       <span>
                         {quote.quotes?.[0]?.costSummary?.shipping?.amount
-                          ? `€${quote.quotes[0].costSummary.shipping.amount}`
+                          ? format(quote.quotes[0].costSummary.shipping.amount)
                           : 'Calculated at checkout'}
                       </span>
                     </div>
                     <div className="flex justify-between font-bold text-lg pt-2 border-t">
                       <span>Total:</span>
-                      <span>€{totalPrice}</span>
+                      <span>{format(totalPrice)}</span>
                     </div>
                   </div>
                 )}
