@@ -9,6 +9,13 @@ import { ArrowLeft, Download, Share2, Heart, Loader2, AlertCircle, Play, Lock, M
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { SITE } from '../config/site';
+import { ThemeScope } from '../components/public/ThemeScope';
+import {
+  getOverlayClasses,
+  getTitleSizeClasses,
+  getFontStyleClasses,
+  DEFAULT_COVER_TEMPLATE,
+} from '../lib/coverTemplateStyles';
 
 const GalleryPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -506,7 +513,17 @@ const GalleryPage: React.FC = () => {
     const coverScale = Number((gallery as any).coverScale) || 100;
     const coverRotation = Number(coverPos.rotation) || 0;
 
+    // The cover template the studio actually chose.
+    //
+    // Twenty-four templates, a focal point, an overlay, a font and a title size — all
+    // saved to galleries.cover_template and none of it ever read here. The client saw a
+    // plain image with the title in the same hardcoded uppercase-letterspaced type as
+    // every other gallery, whichever template was picked. The designer wrote to a column
+    // nothing rendered from.
+    const tpl = { ...DEFAULT_COVER_TEMPLATE, ...((gallery as any).coverTemplate || {}) };
+
     return (
+      <ThemeScope>
       <div className="fixed inset-0 w-full h-full">
         {/* Full-screen background image (transform matches the Cover Designer) */}
         {gallery.coverImage ? (
@@ -522,19 +539,31 @@ const GalleryPage: React.FC = () => {
             draggable={false}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-900 to-fuchsia-800" />
+          /* A gallery with no cover image fell back to the origin brand's purple. Use
+             the studio's own theme tokens, which ThemeScope puts in scope below. */
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(135deg, var(--tn-primary, #1f2937), var(--tn-primary-d, #111827))' }}
+          />
+        )}
+
+        {/* The overlay the studio chose in the designer — dark, cinematic, vignette,
+            a gradient, or none. Previously fixed at whatever the left panel provided. */}
+        {getOverlayClasses(tpl.overlay) && (
+          <div className={`absolute inset-0 ${getOverlayClasses(tpl.overlay)}`} />
         )}
 
         {/* Left side overlay with login form */}
         <div className="absolute left-0 top-0 bottom-0 w-full md:w-[45%] lg:w-[40%] bg-black/50 backdrop-blur-sm flex flex-col justify-between p-8 md:p-12">
           {/* Gallery Title */}
           <div className="flex-1 flex flex-col justify-center">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-light text-white tracking-[0.3em] uppercase mb-2">
-              {gallery.title.split(' ').slice(0, -1).join(' ')}
+            {/* Size and typeface come from the template. These were fixed at text-6xl,
+                font-light and tracking-[0.3em] uppercase — which is the 'minimal' style —
+                so choosing Bold, Script or Vintage in the designer changed nothing the
+                client ever saw. */}
+            <h1 className={`${getTitleSizeClasses(tpl.titleSize, false)} ${getFontStyleClasses(tpl.fontStyle)} text-white mb-2`}>
+              {gallery.title}
             </h1>
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-light text-white tracking-[0.3em] uppercase">
-              {gallery.title.split(' ').slice(-1)[0]}
-            </h2>
             
             {/* Divider line */}
             <div className="w-16 h-0.5 bg-white/50 my-8" />
@@ -630,6 +659,7 @@ const GalleryPage: React.FC = () => {
           </div>
         )}
       </div>
+      </ThemeScope>
     );
   }
 
@@ -673,7 +703,11 @@ const GalleryPage: React.FC = () => {
   }
 
   // Authenticated view - show gallery content (Sprout Studio inspired layout)
+  // The client gallery sits OUTSIDE Layout, which is where ThemeScope is applied for
+  // the rest of the public site — so nine theme presets and the Inter type scale
+  // stopped at the gallery door and every studio delivered the same grey page.
   return (
+    <ThemeScope>
     <div className="min-h-screen bg-gray-50">
       {/* Top Header Bar */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
@@ -971,6 +1005,7 @@ const GalleryPage: React.FC = () => {
         />
       )}
     </div>
+    </ThemeScope>
   );
 };
 

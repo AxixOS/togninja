@@ -1,4 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  getTextPositionClasses,
+  getOverlayClasses,
+  getTitleSizeClasses,
+  getFontStyleClasses,
+  getButtonClasses,
+  getImageContainerStyle,
+} from '../../lib/coverTemplateStyles';
 import { Monitor, Smartphone, ZoomIn, ZoomOut, Move, Check, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Grid, Type } from 'lucide-react';
 import GalleryCover from './GalleryCover';
 
@@ -503,96 +511,12 @@ const GalleryCoverDesigner: React.FC<GalleryCoverDesignerProps> = ({
     });
   };
 
-  const getTextPositionClasses = (position: CoverTemplate['textPosition']) => {
-    const positions: Record<string, string> = {
-      'top-left': 'items-start justify-start text-left pt-8 pl-8',
-      'top-center': 'items-start justify-center text-center pt-8',
-      'top-right': 'items-start justify-end text-right pt-8 pr-8',
-      'center': 'items-center justify-center text-center',
-      'bottom-left': 'items-end justify-start text-left pb-8 pl-8',
-      'bottom-center': 'items-end justify-center text-center pb-8',
-      'bottom-right': 'items-end justify-end text-right pb-8 pr-8',
-      'left-center': 'items-center justify-start text-left pl-8',
-      'right-center': 'items-center justify-end text-right pr-8'
-    };
-    return positions[position] || positions['center'];
-  };
-
-  const getOverlayClasses = (overlay: CoverTemplate['overlay']) => {
-    const overlays: Record<string, string> = {
-      'none': '',
-      'dark': 'bg-black/40',
-      'light': 'bg-white/30',
-      'gradient-bottom': 'bg-gradient-to-t from-black/70 via-black/20 to-transparent',
-      'gradient-top': 'bg-gradient-to-b from-black/70 via-black/20 to-transparent',
-      'gradient-left': 'bg-gradient-to-r from-black/70 via-black/20 to-transparent',
-      'gradient-right': 'bg-gradient-to-l from-black/70 via-black/20 to-transparent',
-      'vignette': 'bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]',
-      'cinematic': 'bg-gradient-to-t from-black/80 via-transparent to-black/30'
-    };
-    return overlays[overlay] || '';
-  };
-
-  const getTitleSizeClasses = (size: CoverTemplate['titleSize'], isMobile: boolean) => {
-    const sizes: Record<string, string> = {
-      'small': isMobile ? 'text-lg' : 'text-2xl',
-      'medium': isMobile ? 'text-xl' : 'text-3xl',
-      'large': isMobile ? 'text-2xl' : 'text-4xl',
-      'xlarge': isMobile ? 'text-3xl' : 'text-5xl',
-      'xxlarge': isMobile ? 'text-4xl' : 'text-6xl'
-    };
-    return sizes[size] || sizes['large'];
-  };
-
-  const getFontStyleClasses = (style: CoverTemplate['fontStyle']) => {
-    const styles: Record<string, string> = {
-      'modern': 'font-sans tracking-wide',
-      'elegant': 'font-serif tracking-widest uppercase',
-      'bold': 'font-bold tracking-tight',
-      'minimal': 'font-light tracking-[0.3em] uppercase',
-      'script': 'font-serif italic tracking-wide',
-      'vintage': 'font-serif tracking-[0.2em] uppercase',
-      'geometric': 'font-sans font-black tracking-[0.15em] uppercase'
-    };
-    return styles[style] || styles['modern'];
-  };
-
-  const getButtonClasses = (style: CoverTemplate['buttonStyle']) => {
-    const styles: Record<string, string> = {
-      'solid': 'bg-white text-gray-900 px-6 py-2 font-medium',
-      'outline': 'border-2 border-white text-white px-6 py-2 font-medium',
-      'pill': 'bg-white text-gray-900 px-8 py-2 rounded-full font-medium',
-      'minimal': 'text-white underline underline-offset-4 font-light',
-      'arrow': 'text-white font-medium flex items-center gap-2 after:content-["→"]'
-    };
-    return styles[style] || styles['solid'];
-  };
-
-  const getImageContainerStyle = (imageStyle: CoverTemplate['imageStyle']) => {
-    switch (imageStyle) {
-      case 'left-half':
-        return { width: '50%', left: 0 };
-      case 'right-half':
-        return { width: '50%', right: 0 };
-      case 'top-half':
-        return { height: '60%', top: 0 };
-      case 'bottom-half':
-        return { height: '60%', bottom: 0 };
-      case 'inset':
-        return { inset: '20px' };
-      case 'portrait-left':
-        return { width: '45%', left: '5%', top: '10%', bottom: '10%' };
-      case 'portrait-right':
-        return { width: '45%', right: '5%', top: '10%', bottom: '10%' };
-      case 'circle-center':
-        return { width: '50%', height: '70%', left: '25%', top: '5%', borderRadius: '50%' };
-      case 'diagonal':
-        return { width: '70%', clipPath: 'polygon(0 0, 100% 0, 70% 100%, 0 100%)' };
-      default:
-        return {};
-    }
-  };
-
+  // The six style mappers that used to live here now sit in
+  // client/src/lib/coverTemplateStyles.ts, because the CLIENT gallery needs them too.
+  // While they were local to this component, only the designer could draw a cover: the
+  // studio chose a template, saved it, and the client opened the gallery to a plain
+  // image with default type. Shared, so the delivered cover and the approved preview
+  // cannot drift apart.
   const renderCoverPreview = (isMobile: boolean) => {
     const containerStyle = isMobile
       ? { width: "180px", height: "320px" }
