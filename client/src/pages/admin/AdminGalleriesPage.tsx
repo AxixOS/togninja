@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Clock, MoreVertical, Mail, Flag, Image, ChevronLeft, ChevronRight, RotateCcw, HelpCircle, BookOpen, X, Globe, Lock, HardDrive } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Clock, MoreVertical, Mail, Flag, Image, ChevronLeft, ChevronRight, RotateCcw, HelpCircle, BookOpen, X, Globe, Lock, HardDrive, Share2 } from 'lucide-react';
 import { getGalleries, deleteGallery, restoreGallery, deleteGalleryPermanently } from '../../lib/gallery-api';
 import AdvancedGalleryForm from '../../components/admin/AdvancedGalleryForm';
+import GalleryShareDialog from '../../components/admin/GalleryShareDialog';
+import { galleryPublicUrl } from '../../lib/galleryUrl';
 import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
 
@@ -76,6 +78,9 @@ const AdminGalleriesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedGalleries, setSelectedGalleries] = useState<string[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  // Sharing used to be reachable only from the last step of the create/edit wizard, so
+  // re-sending a link meant clicking through the whole wizard and re-saving the gallery.
+  const [sharing, setSharing] = useState<any | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   // Column sorting. Default newest-first, matching what the list did before.
   const [sortBy, setSortBy] = useState<keyof Gallery>('createdAt');
@@ -791,7 +796,20 @@ const AdminGalleriesPage: React.FC = () => {
                         </button>
                         <button
                           onClick={() => {
-                            navigate(`/gallery/${gallery.id}`);
+                            setSharing(gallery);
+                            setOpenMenuId(null);
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          <Share2 size={16} className="mr-2" />
+                          Share
+                        </button>
+                        <button
+                          onClick={() => {
+                            // /gallery/<uuid> resolved only because the public route
+                            // falls back to an id lookup. Use the real address.
+                            const url = galleryPublicUrl(gallery.slug);
+                            if (url) window.open(url, "_blank");
                             setOpenMenuId(null);
                           }}
                           className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -884,6 +902,10 @@ const AdminGalleriesPage: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {sharing && (
+          <GalleryShareDialog gallery={sharing} onClose={() => setSharing(null)} />
         )}
       </div>
     </AdminLayout>

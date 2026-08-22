@@ -11,6 +11,7 @@ import {
 import { getGalleryById, deleteGallery, getGalleryImages } from '../../lib/gallery-api';
 import { COVER_TEMPLATES, CoverTemplate } from '../../components/galleries/GalleryCoverDesigner';
 import { SITE } from '../../config/site';
+import { galleryPublicUrl, galleryDisplayUrl } from '../../lib/galleryUrl';
 
 interface GalleryImage {
   id: string;
@@ -27,6 +28,10 @@ interface GalleryImage {
 interface Gallery {
   id: string;
   title: string;
+  // The address a client is given. It is assigned by the server on create; the admin
+  // used to link to /gallery/<uuid> instead, which resolves only because the public
+  // route falls back to an id lookup — so clients got a database key in their link.
+  slug?: string;
   description?: string;
   coverImage?: string;
   isPublic?: boolean;
@@ -261,10 +266,20 @@ const GalleryDetailPage: React.FC = () => {
     }
   };
 
-  const copyGalleryLink = () => {
-    const link = `${window.location.origin}/gallery/${id}`;
-    navigator.clipboard.writeText(link);
-    alert('Gallery link copied to clipboard!');
+  const copyGalleryLink = async () => {
+    const link = galleryPublicUrl(gallery?.slug, { absolute: true });
+    if (!link) {
+      alert('This gallery has no public address yet.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+      alert('Gallery link copied to clipboard!');
+    } catch {
+      // Clipboard access is refused outside a secure context, and silently swallowing
+      // that leaves the studio believing they copied a link they did not.
+      window.prompt('Copy the gallery link:', link);
+    }
   };
 
   if (loading) {
@@ -791,7 +806,7 @@ const GalleryDetailPage: React.FC = () => {
                         <div className="w-2.5 h-2.5 rounded-full bg-yellow-400"></div>
                         <div className="w-2.5 h-2.5 rounded-full bg-green-400"></div>
                         <div className="ml-3 bg-gray-600 rounded px-2 py-0.5 text-[8px] text-gray-300 flex-1 text-center truncate">
-                          {SITE.url.replace(/^https?:\/\//, '')}/galleries/{gallery.id}
+                          {galleryDisplayUrl(gallery?.slug)}
                         </div>
                       </div>
                       {/* Screen content */}

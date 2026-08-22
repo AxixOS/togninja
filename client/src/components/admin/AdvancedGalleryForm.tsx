@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Gallery, GalleryFormData, CoverTemplateSettings } from '../../types/gallery';
 import { createGallery, updateGallery, uploadGalleryImages, sendGalleryEmail, sendGalleryWhatsApp, sendGallerySms } from '../../lib/gallery-api';
+import { galleryPublicUrl } from '../../lib/galleryUrl';
 import CoverImagePositioner from '../galleries/CoverImagePositioner';
 import GalleryCoverDesigner, { CoverSettings, COVER_TEMPLATES } from '../galleries/GalleryCoverDesigner';
 import SearchableClientDropdown from './SearchableClientDropdown';
@@ -421,10 +422,16 @@ const AdvancedGalleryForm: React.FC<GalleryFormProps> = ({ gallery, isEditing = 
   };
 
   // Share functionality
-  const getGalleryUrl = () => {
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/gallery/${savedGallerySlug || formData.title.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, '-')}`;
-  };
+  // Never recompute the slug. The browser and the server disagreed about accents and
+  // punctuation — the server strips accents via NFD and collapses [^a-z0-9]+ to hyphens,
+  // the browser's /[^\w\s]/gi kept them — so "Müller & Söhne" produced
+  // `müller--söhne` in the copied link while the database held `muller-sohne`. The link
+  // 404d, and only for the titles most likely to carry an accent.
+  //
+  // The slug is whatever the server saved. If it has not saved one yet, there is no
+  // address to share, and the Copy Link button is disabled rather than handing over a
+  // link that looks real and is dead.
+  const getGalleryUrl = () => galleryPublicUrl(savedGallerySlug, { absolute: true }) || '';
 
   const handleCopyLink = async () => {
     try {
@@ -570,8 +577,14 @@ const AdvancedGalleryForm: React.FC<GalleryFormProps> = ({ gallery, isEditing = 
                 </div>
                 <button
                   onClick={handleCopyLink}
+                  // No slug means the server has not saved this gallery yet, so there is
+                  // no address to copy. Disabled beats handing over a dead link.
+                  disabled={!savedGallerySlug}
+                  title={savedGallerySlug ? undefined : 'Save the gallery first'}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    linkCopied
+                    !savedGallerySlug
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : linkCopied
                       ? 'bg-green-100 text-green-700'
                       : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                   }`}
