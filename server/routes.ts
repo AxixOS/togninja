@@ -68,6 +68,7 @@ import sharp from 'sharp';
 import { processGalleryImage, watermarkText, invisibleKey } from './lib/galleryWatermark';
 import { fingerprint as galleryFingerprint, extractInvisible } from './lib/invisibleWatermark';
 import { issueGalleryToken, verifyGalleryToken, bearerFrom } from './lib/galleryToken';
+import crypto from 'crypto';
 // Using require for 'imap' to satisfy commonjs typings within ESM context
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Imap = require('imap');
@@ -5688,14 +5689,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(410).json({ error: 'gallery_expired', message: 'This gallery is no longer available.' });
       }
 
-      // Check password if gallery is password protected
-      if (gallery.isPasswordProtected && gallery.password) {
+      // Check password if gallery is password protected.
+      //
+      // The condition used to be `isPasswordProtected && gallery.password`, which FAILED
+      // OPEN: a studio that switched protection on and saved without typing a password
+      // stored is_password_protected = true with password = NULL, and this check then
+      // skipped itself entirely. The admin showed the gallery as protected and anyone
+      // could walk in with only an email address. Now the flag alone is enough to lock
+      // it, and a missing password is a misconfiguration, not an open door.
+      if (gallery.isPasswordProtected) {
+        if (!gallery.password) {
+          console.error(`[gallery-auth] "${gallery.title}" (${slug}) is marked password-protected but has no password set.`);
+          return res.status(403).json({
+            error: 'gallery_misconfigured',
+            message: 'This gallery is not available yet. Please contact your photographer.',
+          });
+        }
         if (!password) {
           return res.status(401).json({ error: "Password is required" });
         }
-
-        // Simple password comparison (in production, use hashed passwords)
-        if (password !== gallery.password) {
+        // Compared in constant time so the response cannot be used to guess the
+        // password one character at a time.
+        const given = Buffer.from(String(password));
+        const want = Buffer.from(String(gallery.password));
+        if (given.length !== want.length || !crypto.timingSafeEqual(given, want)) {
           return res.status(401).json({ error: "Invalid password" });
         }
       }
@@ -6836,6 +6853,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/galleries", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { title, description, clientId, isPublic = true, isPasswordProtected = false, password, slug, coverImage, coverPosition, coverScale, coverTemplate } = req.body;
+
+      // A gallery marked protected with no password used to be a storable state, and
+      // the auth route then let anyone in. Refuse it at the source too.
+      if (isPasswordProtected && !String(password || '').trim()) {
+        return res.status(400).json({
+          error: 'password_required',
+          message: 'Set a password, or switch password protection off.',
+        });
+      }
       
       // Generate slug from title if not provided
       const gallerySlug = slug || title
@@ -6886,6 +6912,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/galleries/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
       const galleryId = req.params.id;
+
+      // Refuse to leave the gallery marked protected with no password.
+      //
+      // This is a PARTIAL update, so the question is what the row will look like
+      // AFTERWARDS, not what this request happens to carry: switching protection on
+      // without sending a password is fine when one is already stored, and sending an
+      // empty password is not fine when protection stays on.
+      const wantsProtected = req.body.isPasswordProtected ?? req.body.is_password_protected;
+      const givenPassword = req.body.password;
+      if (wantsProtected !== undefined || givenPassword !== undefined) {
+        const cur = await runSql(
+          `SELECT is_password_protected, password FROM galleries WHERE id = $1`, [galleryId]);
+        if (cur.length) {
+          const willBeProtected = wantsProtected !== undefined
+            ? Boolean(wantsProtected)
+            : Boolean(cur[0].is_password_protected);
+          const willHavePassword = givenPassword !== undefined
+            ? String(givenPassword || "").trim()
+            : String(cur[0].password || "").trim();
+          if (willBeProtected && !willHavePassword) {
+            return res.status(400).json({
+              error: "password_required",
+              message: "Set a password, or switch password protection off.",
+            });
+          }
+        }
+      }
+
       const updates: string[] = [];
       const values: any[] = [];
       let paramIndex = 1;

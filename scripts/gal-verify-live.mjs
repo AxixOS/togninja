@@ -17,6 +17,7 @@
 import 'dotenv/config';
 import pg from 'pg';
 import crypto from 'crypto';
+import fs from 'fs';
 
 const BASE = process.argv[2] || 'http://localhost:5199';
 const PASSWORD = 'probe-password-' + crypto.randomBytes(4).toString('hex');
@@ -27,6 +28,48 @@ const check = (label, ok, detail = '') => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? '  — ' + detail : ''}`);
 };
 
+// IS THE SERVER WE ARE PROBING ACTUALLY RUNNING THE CODE WE JUST WROTE?
+//
+// A previous run of this suite reported three real-looking FAILs that were nothing of the
+// sort: the new server had logged "Server instance exists but NOT listening!" because a
+// process from an earlier boot still held the port, so every request went to the old
+// binary. The reverse is far worse — a stale server can just as easily report PASS for a
+// fix that was never loaded, and a security suite that passes for the wrong reason is
+// worse than no suite.
+//
+// startedAt comes from /api/version. Compare it with the source files under test.
+async function assertServerIsFresh() {
+  const SOURCES = ['server/routes.ts', 'server/lib/galleryToken.ts', 'server/index.ts'];
+  let newest = 0;
+  let newestFile = '';
+  for (const f of SOURCES) {
+    try {
+      const m = fs.statSync(f).mtimeMs;
+      if (m > newest) { newest = m; newestFile = f; }
+    } catch { /* not run from the repo root — skip the guard rather than fail wrongly */ }
+  }
+  if (!newest) return;
+
+  let version;
+  try { version = await fetch(BASE + '/api/version').then((r) => r.json()); }
+  catch { console.log('  note: /api/version unreachable, cannot check server freshness\n'); return; }
+
+  const startedAt = Date.parse(version?.startedAt || '');
+  if (!startedAt) { console.log('  note: /api/version has no startedAt, cannot check freshness\n'); return; }
+
+  if (startedAt < newest) {
+    console.log('\n  STALE SERVER — REFUSING TO RUN');
+    console.log(`  ${BASE} started ${new Date(startedAt).toISOString()}`);
+    console.log(`  but ${newestFile} was modified ${new Date(newest).toISOString()}`);
+    console.log('  Every result would describe the OLD code. Free the port and reboot:');
+    console.log('    Get-NetTCPConnection -LocalPort 5199 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }\n');
+    process.exit(2);
+  }
+  console.log(`  server started ${new Date(startedAt).toISOString()}, newer than every source file under test`);
+}
+
+await assertServerIsFresh();
+
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 for (let i = 0; ; i++) {
   // Supabase's pooler resolves intermittently from here; a single attempt is a coin toss.
@@ -34,7 +77,7 @@ for (let i = 0; ; i++) {
   catch (e) { if (i >= 6) throw e; await new Promise((r) => setTimeout(r, 2500)); }
 }
 
-const ids = { a: null, b: null, imgA: null };
+const ids = { a: null, b: null, c: null, imgA: null };
 try {
   // Two galleries: the one we hold a token for, and a second to try that token on.
   const mk = async (slug, title) => {
@@ -46,6 +89,12 @@ try {
   };
   ids.a = await mk('probe-gallery-a', 'Probe Gallery A');
   ids.b = await mk('probe-gallery-b', 'Probe Gallery B');
+  // The state the admin could actually save: protection ON, password never typed.
+  const cRow = await db.query(
+    `INSERT INTO galleries (title, slug, is_password_protected, password, is_public, download_enabled, status)
+     VALUES ('Probe Gallery C', 'probe-gallery-c', true, NULL, false, true, 'ACTIVE') RETURNING id`);
+  ids.c = cRow.rows[0].id;
+
   const img = await db.query(
     `INSERT INTO gallery_images (gallery_id, filename, url)
      VALUES ($1, 'probe.jpg', 'https://example.invalid/probe.jpg') RETURNING id`,
@@ -130,6 +179,31 @@ try {
     check('a token for gallery A cannot rate gallery B', crossRate.status === 403, 'got ' + crossRate.status);
   }
 
+  console.log('\n=== a gallery marked protected with no password fails CLOSED ===');
+  // The admin form let a studio switch protection on and save without typing a password.
+  // The check was `isPasswordProtected && gallery.password`, so a NULL password skipped
+  // it entirely: the gallery showed as protected in the admin and anyone could walk in
+  // with only an email address.
+  const misconf = await hit('POST', '/api/galleries/probe-gallery-c/auth', {
+    body: { email: 'anyone@example.com' },
+  });
+  check('an empty password does not open the gallery', misconf.status === 403, 'got ' + misconf.status);
+  const misconfBody = await misconf.json().catch(() => ({}));
+  check('...and no token is handed out', !misconfBody.token);
+  check('...and the visitor is told to contact the photographer',
+    String(misconfBody.message || '').includes('photographer'), misconfBody.message || '');
+
+  console.log('\n=== the studio cannot save that state any more ===');
+  // This probe is unauthenticated, so a 401 here proves the route is GATED and nothing
+  // more — the password guard inside it never runs. Labelled honestly rather than left
+  // to read as proof: a check that passes by never executing is worse than no check,
+  // and this suite has been bitten by exactly that before.
+  const badCreate = await hit('POST', '/api/galleries', {
+    body: { title: 'x', isPasswordProtected: true, password: '' },
+  });
+  check('POST /api/galleries is gated (the guard itself needs a session to exercise)',
+    badCreate.status === 400 || badCreate.status === 401, 'got ' + badCreate.status);
+
   console.log('\n=== the locked gallery gives nothing away before the password ===');
   const meta = await fetch(BASE + '/api/galleries/probe-gallery-a').then((r) => r.json()).catch(() => ({}));
   check('the password is not in the response', !('password' in meta));
@@ -147,7 +221,7 @@ try {
 } finally {
   // Always clean up, including after a failed assertion — this writes to the real DB.
   if (ids.imgA) await db.query('DELETE FROM gallery_images WHERE id = $1', [ids.imgA]).catch(() => {});
-  for (const id of [ids.a, ids.b]) if (id) await db.query('DELETE FROM galleries WHERE id = $1', [id]).catch(() => {});
+  for (const id of [ids.a, ids.b, ids.c]) if (id) await db.query('DELETE FROM galleries WHERE id = $1', [id]).catch(() => {});
   await db.end().catch(() => {});
 }
 
