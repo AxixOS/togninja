@@ -140,8 +140,11 @@ const GalleryPage: React.FC = () => {
       // console.error removed
       setError(de ? 'Galeriebilder konnten nicht geladen werden. Bitte versuchen Sie es erneut.' : 'Failed to load gallery images. Please try again.');
       
-      // If token is invalid, clear it and require re-authentication
-      if (err instanceof Error && err.message.includes('Invalid token')) {
+      // If the token is rejected, clear it and ask for the password again. These are
+      // the codes server/lib/galleryToken.ts produces, plus the old wording.
+      const rejected = ['auth_required', 'invalid_token', 'session_expired', 'Invalid token'];
+      const message = err instanceof Error ? err.message : String(err);
+      if (rejected.some((code) => message.includes(code))) {
         localStorage.removeItem(`gallery_token_${gallerySlug}`);
         setIsAuthenticated(false);
         setAuthToken('');
@@ -354,7 +357,18 @@ const GalleryPage: React.FC = () => {
         'Authorization': `Bearer ${authToken}`
       }
     })
-    .then(response => response.blob())
+    .then(response => {
+      if (!response.ok) {
+        // Without this, a 401 was written to disk as a .zip full of error JSON.
+        if (response.status === 401 || response.status === 403) {
+          localStorage.removeItem(`gallery_token_${slug}`);
+          setIsAuthenticated(false);
+          setAuthToken('');
+        }
+        throw new Error(String(response.status));
+      }
+      return response.blob();
+    })
     .then(blob => {
       const url = window.URL.createObjectURL(blob);
       link.href = url;

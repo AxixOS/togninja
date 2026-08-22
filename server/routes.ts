@@ -67,6 +67,7 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } fro
 import sharp from 'sharp';
 import { processGalleryImage, watermarkText, invisibleKey } from './lib/galleryWatermark';
 import { fingerprint as galleryFingerprint, extractInvisible } from './lib/invisibleWatermark';
+import { issueGalleryToken, verifyGalleryToken, bearerFrom } from './lib/galleryToken';
 // Using require for 'imap' to satisfy commonjs typings within ESM context
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Imap = require('imap');
@@ -385,6 +386,39 @@ import accountingExportRouter from './accounting-export/routes';
 import { storage as storageInstance } from './storage';
 import { sessionConfig, requireAuth, requireAdmin } from './auth';
 import { findCoupon, isCouponActive, allowsSku, forceRefreshCoupons } from './services/coupons';
+
+/**
+ * May this caller see the contents of this gallery?
+ *
+ * Returns null when yes, or the response to send when no.
+ *
+ * Two ways in. Signed-in staff, because the studio owns every gallery and the admin
+ * UI loads client galleries through these same public routes. Or a visitor holding a
+ * token this server signed FOR THIS GALLERY — which is what stops someone with a
+ * legitimate token for their own shoot from reading another client's by editing the
+ * slug in the URL.
+ *
+ * Tokens issued before this existed are unsigned and are rejected. That signs out
+ * anyone with a gallery open right now; they re-enter the password from their invite
+ * email and carry on.
+ */
+function requireGalleryAccess(req: Request, gallery: { id: string | number }): { status: number; body: any } | null {
+  if ((req as any).user || (req as any).session?.userId) return null;
+
+  const result = verifyGalleryToken(bearerFrom(req), String(gallery.id));
+  if (result.ok) return null;
+
+  if (result.reason === 'missing') {
+    return { status: 401, body: { error: 'auth_required', message: 'Please open this gallery using the link and password from your email.' } };
+  }
+  if (result.reason === 'expired') {
+    return { status: 401, body: { error: 'session_expired', message: 'Your access to this gallery has expired. Please enter the password again.' } };
+  }
+  // Malformed, wrongly signed, or issued for a different gallery. Do not tell the
+  // caller which — a probe learns nothing from the answer.
+  return { status: 403, body: { error: 'invalid_token', message: 'This gallery link is no longer valid. Please enter the password again.' } };
+}
+
 
 // Helper to resolve contact email from DB settings or env
 // Synchronous fallback (for non-async template helpers)
@@ -5433,8 +5467,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           g.sort_order as "sortOrder",
           g.created_at as "createdAt",
           g.updated_at as "updatedAt",
+          -- No clientEmail: this endpoint is public and unauthenticated, so it must
+          -- not publish the studio's clients' email addresses to anyone who asks.
           c.first_name || ' ' || c.last_name as "clientName",
-          c.email as "clientEmail",
           (SELECT COUNT(*) FROM gallery_images gi WHERE gi.gallery_id = g.id) as "imageCount"
         FROM galleries g
         LEFT JOIN crm_clients c ON g.client_id = c.id
@@ -5469,8 +5504,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Gallery not found" });
       }
 
-      // Fetch featured image if it exists
-      if ((gallery as any).featuredImageId) {
+      // Fetch featured image if it exists.
+      // Not for a locked gallery to an unauthorised caller: this endpoint is public
+      // (it has to be — it renders the password prompt), and it was handing back the
+      // raw bucket URL of one full-resolution image before any password was typed.
+      const maySeeFeatured = !(gallery as any).isPasswordProtected
+        || Boolean((req as any).user || (req as any).session?.userId)
+        || verifyGalleryToken(bearerFrom(req), String((gallery as any).id)).ok;
+      if (maySeeFeatured && (gallery as any).featuredImageId) {
         const featuredImageResult = await pool.query(
           `SELECT id, filename, url, title, description
            FROM gallery_images 
@@ -5659,8 +5700,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // For now, return a simple token (in production, use JWT)
-      const token = Buffer.from(`${gallery.id}:${email}:${Date.now()}`).toString('base64');
+      // Signed, and bound to this gallery. The old token was unsigned base64 of
+      // `id:email:timestamp`, which anyone could type out by hand — and no endpoint
+      // verified it anyway. See server/lib/galleryToken.ts.
+      const token = issueGalleryToken(String(gallery.id), String(email));
       
       res.json({ token });
     } catch (error) {
@@ -5937,6 +5980,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Watermarking image proxy: streams a gallery image with the visible watermark
   // baked in (when the gallery has it enabled), so the clean original is never
   // exposed by URL. Best-effort: falls back to the clean resized image on error.
+  //
+  // DELIBERATELY NOT behind requireGalleryAccess, unlike the other gallery routes.
+  // A browser cannot put an Authorization header on an <img src>, and this route is
+  // exactly what <img src> points at — for the client viewer AND for the thumbnails in
+  // the admin gallery list, where staff auth is a bearer token the <img> also cannot
+  // send. Requiring a token here would blank every thumbnail in the product.
+  //
+  // What protects it instead: the image id is a random UUID, and the only route that
+  // hands those ids out is /:slug/images, which now verifies a signed token. So the
+  // URL is a capability — unguessable, and only issued to someone who knew the
+  // password. Worth revisiting with a short-lived signed query parameter minted by
+  // /:slug/images, which would let the id stop being the secret.
   app.get("/api/galleries/image/:imageId", async (req: Request, res: Response) => {
     try {
       const imageId = req.params.imageId;
@@ -5987,6 +6042,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if ((gallery as any).downloadEnabled === false) {
         return res.status(403).json({ error: 'downloads_disabled', message: 'Downloads are disabled for this gallery.' });
       }
+      // This route used to check NOTHING but the two lines above, then stream every
+      // full-resolution image as a ZIP. The gallery slug was the entire security.
+      const dlAuth = requireGalleryAccess(req, gallery);
+      if (dlAuth) return res.status(dlAuth.status).json(dlAuth.body);
       const images = await storage.getGalleryImages(gallery.id);
       if (!images || images.length === 0) return res.status(404).json({ error: 'No images to download' });
 
@@ -6050,17 +6109,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/galleries/:slug/images", async (req: Request, res: Response) => {
     try {
       const { slug } = req.params;
-      const token = req.headers.authorization?.replace('Bearer ', '');
 
-      if (!token) {
-        return res.status(401).json({ error: "Authentication token required" });
-      }
-
-      // Get the gallery first
+      // Get the gallery first — the token is checked AGAINST it, because a token is
+      // only good for the gallery it was issued for.
       const gallery = await storage.getGalleryBySlug(slug);
       if (!gallery) {
         return res.status(404).json({ error: "Gallery not found" });
       }
+
+      // Previously: `if (!token) return 401` and nothing else. Any string at all —
+      // "x" — opened any gallery.
+      const imgAuth = requireGalleryAccess(req, gallery);
+      if (imgAuth) return res.status(imgAuth.status).json(imgAuth.body);
 
       // Query Neon database for gallery images
       const galleryImages = await storage.getGalleryImages(gallery.id);
@@ -6186,6 +6246,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId, imageId } = req.params;
       const { rating } = req.body;
 
+      // Ratings are the client's own selects/rejects. Unauthenticated, anyone who
+      // knew a gallery id could overwrite every one of them.
+      const rateAuth = requireGalleryAccess(req, { id: galleryId } as any);
+      if (rateAuth) return res.status(rateAuth.status).json(rateAuth.body);
+
       console.log('Rating update request:', { galleryId, imageId, rating });
 
       // Check if this is a sample/local file image (not in database)
@@ -6219,7 +6284,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, rating });
     } catch (error) {
       console.error("Error updating image rating:", error);
-      res.status(500).json({ error: "Failed to update rating", details: error.message });
+      res.status(500).json({ error: "Failed to update rating" });
     }
   });
 

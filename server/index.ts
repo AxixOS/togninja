@@ -434,6 +434,27 @@ app.use((req, res, next) => {
       try {
         await db.execute(sql`ALTER TABLE gallery_images ADD COLUMN IF NOT EXISTS size_bytes INTEGER DEFAULT 0`);
         await db.execute(sql`ALTER TABLE gallery_images ADD COLUMN IF NOT EXISTS content_type TEXT`);
+        // gallery_images.rating is TEXT, not INTEGER.
+        //
+        // The proofing feature — the client marking each photograph love / maybe /
+        // reject — writes those three words. The column was created INTEGER, so every
+        // click returned 500 (invalid input syntax for type integer: "love") and the
+        // gallery showed "Failed to update rating". Nothing in the codebase ever read
+        // this column as a number; the type was wrong from the start.
+        //
+        // Checked in JS rather than a PL/pgSQL DO block so this never rewrites the
+        // table on a boot that does not need it — and because USING NULL would wipe
+        // real ratings if it ran a second time.
+        const ratingCol: any = await db.execute(sql`
+          SELECT data_type FROM information_schema.columns
+           WHERE table_name = 'gallery_images' AND column_name = 'rating'`);
+        const ratingType = (ratingCol?.rows ?? ratingCol)?.[0]?.data_type;
+        if (ratingType && ratingType !== 'text') {
+          // USING NULL, not a cast: an integer here could only have come from a write
+          // that never succeeded, so there is no meaning to preserve.
+          await db.execute(sql`ALTER TABLE gallery_images ALTER COLUMN rating TYPE TEXT USING NULL`);
+          console.log('✅ gallery_images.rating converted from ' + ratingType + ' to text');
+        }
         console.log('✅ Gallery images size tracking migration completed');
       } catch (migrationError) {
         console.warn('⚠️ Gallery migration already applied or failed:', migrationError.message);
