@@ -10,6 +10,7 @@ import { pool } from '../db';
 import { config } from '../config-reader';
 
 import { printStoreEnabled } from '../lib/requirePrintAccess';
+import { parseProdigiSheet, applyMarkup } from '../lib/prodigiSheet';
 
 const router = Router();
 
@@ -201,6 +202,113 @@ router.post('/catalog', async (req: Request, res: Response) => {
     );
     res.json({ ok: true, id: result.rows[0].id });
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /catalog/import — bulk-create products from a Prodigi pricing sheet.
+//
+// Prodigi has no endpoint that lists the catalogue. Their v4 reference offers exactly
+// two product endpoints: GET /products/{sku}, which needs a SKU you already know, and a
+// photobook spine calculator. The catalogue is a download under "Pricing sheets" in the
+// dashboard. So the studio exports it and pastes or uploads it here.
+//
+// Without this the store is empty out of the box and the only way to fill it is the
+// one-SKU-at-a-time form, which nobody is going to use ninety times.
+router.post('/catalog/import', async (req: Request, res: Response) => {
+  try {
+    const text = String(req.body?.sheet || '');
+    const markupPercent = Number(req.body?.markupPercent ?? 100);
+    const currency = String(req.body?.currency || 'GBP');
+    const category = String(req.body?.category || 'prints');
+    const dryRun = req.body?.dryRun === true;
+
+    if (!text.trim()) return res.status(400).json({ error: 'Paste or upload a pricing sheet first.' });
+
+    const parsed = parseProdigiSheet(text);
+    if (!parsed.rows.length) {
+      return res.status(400).json({
+        error: 'no_skus_found',
+        message: 'No SKUs found in that sheet. Expected a column headed SKU, or one SKU per line.',
+        columns: parsed.columns,
+      });
+    }
+
+    // A pricing sheet can run to hundreds of rows and each one is a live API call to
+    // Prodigi. Cap it, and say so in the response rather than silently truncating —
+    // a studio who imported 500 and got 200 needs to know which happened.
+    const LIMIT = 250;
+    const rows = parsed.rows.slice(0, LIMIT);
+    const truncated = parsed.rows.length - rows.length;
+
+    const { apiKey } = await getProdigiConfig();
+    const studioRow = await pool.query('SELECT id FROM studio_configs LIMIT 1');
+    const studioId = studioRow.rows[0]?.id || null;
+
+    const created: any[] = [];
+    const failed: { sku: string; reason: string }[] = [];
+
+    // Sequential on purpose. Prodigi rate-limits, and a burst of 250 concurrent lookups
+    // is how an import turns into a temporary ban on the studio's own account.
+    for (const row of rows) {
+      let details: any = { name: row.label || row.sku, description: '', widthInches: null, heightInches: null, attributes: {} };
+      if (apiKey) {
+        try {
+          details = { ...details, ...(await fetchProdigiProduct(row.sku)) };
+        } catch (e: any) {
+          failed.push({ sku: row.sku, reason: e?.message || 'Prodigi did not recognise this SKU' });
+          continue;
+        }
+      }
+
+      const sellPrice = applyMarkup(row.cost, markupPercent);
+      if (dryRun) {
+        created.push({ sku: row.sku, name: details.name, cost: row.cost, sellPrice });
+        continue;
+      }
+
+      try {
+        // ON CONFLICT DO UPDATE so re-importing an updated sheet refreshes prices
+        // instead of erroring or duplicating the whole catalogue.
+        const result = await pool.query(
+          `INSERT INTO print_products
+             (studio_id, sku, name, description, category, base_price, currency,
+              width_inches, height_inches, attributes, is_active)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true)
+           ON CONFLICT (sku) DO UPDATE SET
+             name = EXCLUDED.name,
+             description = EXCLUDED.description,
+             base_price = COALESCE(EXCLUDED.base_price, print_products.base_price),
+             currency = EXCLUDED.currency,
+             width_inches = EXCLUDED.width_inches,
+             height_inches = EXCLUDED.height_inches,
+             attributes = EXCLUDED.attributes
+           RETURNING id, sku`,
+          [studioId, row.sku, details.name, details.description, category, sellPrice, currency,
+           details.widthInches, details.heightInches, JSON.stringify(details.attributes || {})],
+        );
+        created.push({ id: result.rows[0].id, sku: row.sku, name: details.name, cost: row.cost, sellPrice });
+      } catch (e: any) {
+        failed.push({ sku: row.sku, reason: e?.message || 'could not be saved' });
+      }
+    }
+
+    res.json({
+      ok: true,
+      dryRun,
+      columns: parsed.columns,
+      imported: created.length,
+      failed,
+      skippedRows: parsed.skipped,
+      truncated,
+      products: created,
+      validated: Boolean(apiKey),
+      message: apiKey
+        ? undefined
+        : 'No Prodigi API key is configured, so SKUs were imported without being checked against Prodigi.',
+    });
+  } catch (error: any) {
+    console.error('[Prodigi] Import failed:', error);
     res.status(500).json({ error: error.message });
   }
 });

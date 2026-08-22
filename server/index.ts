@@ -845,6 +845,18 @@ app.use((req, res, next) => {
         sort_order integer, is_active boolean DEFAULT true,
         created_at timestamptz DEFAULT now()
       )`);
+      // A SKU identifies one Prodigi product, so it must be unique — the pricing-sheet
+      // importer upserts ON CONFLICT (sku) so re-importing an updated sheet refreshes
+      // prices instead of duplicating the whole catalogue. Without the index that
+      // statement does not merely fail to dedupe, it throws outright.
+      //
+      // Guarded: if a table already holds duplicate SKUs the index cannot be created,
+      // and that must not stop the server booting.
+      try {
+        await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS print_products_sku_key ON print_products (sku)`);
+      } catch (e: any) {
+        console.warn('⚠️ print_products.sku is not unique (duplicates present?) — catalogue import will insert rather than upsert:', e?.message);
+      }
       await ensureTable('gallery_orders', sql`CREATE TABLE IF NOT EXISTS gallery_orders (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         studio_id uuid, gallery_id uuid, client_id uuid,
