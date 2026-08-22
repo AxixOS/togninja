@@ -48,6 +48,34 @@ type ThumbnailStyle = 'masonry' | 'grid' | 'rows';
 type Theme = 'light' | 'dark';
 type NavigationType = 'icons' | 'text' | 'both';
 
+/**
+ * A settings tab whose controls do not persist yet.
+ *
+ * This page carried around forty controls across five tabs — theme, spacing, thumbnail
+ * size, slideshow, video, price list, tax, payment methods, download resolutions — and
+ * the only write in the whole file was a publish toggle. Everything else changed local
+ * state and stopped there: no save button, no request, and for most of them no column
+ * to save into.
+ *
+ * They are left visible because they document the intended shape of the feature, but
+ * they are inert and say so. A control that looks live and silently discards what you
+ * typed is worse than one that admits it is not ready — particularly on a settings
+ * screen a studio checks before sending a client a link.
+ */
+const PreviewTab: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="border-t border-gray-200">
+    <div className="flex items-start gap-2 px-4 py-3 bg-amber-50 text-amber-800">
+      <AlertCircle size={16} className="mt-0.5 shrink-0" />
+      <p className="text-xs">
+        <span className="font-medium">Preview only.</span> These controls are not connected yet —
+        nothing here is saved. Expiry, watermarks, downloads and password protection are on the
+        Availability and Downloads tabs, and in the gallery editor.
+      </p>
+    </div>
+    <div className="pointer-events-none opacity-50 select-none">{children}</div>
+  </div>
+);
+
 const GalleryDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -164,7 +192,28 @@ const GalleryDetailPage: React.FC = () => {
       setLoading(true);
       const galleryData = await getGalleryById(galleryId);
       setGallery(galleryData);
-      
+
+      // Show the studio what this gallery ACTUALLY has set.
+      //
+      // These six controls were initialised to hardcoded defaults and never read the
+      // gallery — so a shoot with watermarking switched off displayed the watermark
+      // toggle ON, a gallery with downloads disabled displayed them enabled, and a
+      // sunset date the studio had set showed as "no expiry". That is worse than a
+      // control that does not save: it is a control that reports the opposite of the
+      // truth, on the screen a studio would check before sending a client a link.
+      //
+      // These are the only six with a column behind them (shared/schema.ts:697-707).
+      // The rest of this panel is marked as a preview, because inventing a value for a
+      // column that does not exist is how the first six ended up lying.
+      const g: any = galleryData;
+      setVisibleWatermarkEnabled(g.visibleWatermark === true);
+      setInvisibleWatermarkEnabled(g.invisibleWatermark === true);
+      setAllowZipDownload(g.downloadEnabled !== false);
+      setRestrictAccess(g.isPasswordProtected === true);
+      setIncludeOnCatalog(g.isPublic === true);
+      setExpirationEnabled(Boolean(g.expiresAt));
+      setExpirationDate(g.expiresAt ? new Date(g.expiresAt).toISOString().slice(0, 10) : '');
+
       // Fetch images
       const imagesData = await getGalleryImages(galleryId);
       setImages((imagesData || []) as any);
@@ -263,6 +312,56 @@ const GalleryDetailPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Error updating gallery:', err);
+    }
+  };
+
+  // Persist the settings that have somewhere to go.
+  //
+  // Before this, the only write in this entire 2,100-line page was handlePublish, which
+  // toggles isPublic. Around forty other controls across five tabs changed local state
+  // and nothing else — no save button, no request, no column.
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+
+  const saveSettings = async () => {
+    if (!id) return;
+    setSavingSettings(true);
+    setSettingsError(null);
+    setSettingsSaved(false);
+    try {
+      const body: Record<string, any> = {
+        visibleWatermark: visibleWatermarkEnabled,
+        invisibleWatermark: invisibleWatermarkEnabled,
+        downloadEnabled: allowZipDownload,
+        isPublic: includeOnCatalog,
+        // null clears the sunset date; a date string sets it. Sent as an absolute
+        // instant so it does not shift by the viewer's timezone.
+        expiresAt: expirationEnabled && expirationDate
+          ? new Date(`${expirationDate}T23:59:59`).toISOString()
+          : null,
+      };
+      // Password protection is only sent when it is being switched OFF here. Switching it
+      // ON needs a password, and this panel has no field for one — the server would
+      // rightly refuse (password_required), so the wizard owns that direction.
+      if (!restrictAccess) body.isPasswordProtected = false;
+
+      const response = await fetch(`/api/galleries/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.message || data?.error || 'Could not save these settings.');
+
+      setGallery((prev) => (prev ? { ...prev, ...data } : prev));
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2500);
+    } catch (err) {
+      setSettingsError((err as Error).message);
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -548,7 +647,7 @@ const GalleryDetailPage: React.FC = () => {
               <Share2 size={18} />
             </button>
             <button 
-              onClick={() => window.open(`/gallery/${id}`, '_blank')}
+              onClick={() => { const u = galleryPublicUrl(gallery?.slug); if (u) window.open(u, '_blank'); }}
               className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600"
               title="Preview"
             >
@@ -1145,6 +1244,7 @@ const GalleryDetailPage: React.FC = () => {
 
               {/* Design Settings */}
               {activeSettingsTab === 'design' && (
+                <PreviewTab>
                 <div className="p-4 space-y-6 border-t border-gray-200">
                   {/* Thumbnails Style */}
                   <div>
@@ -1497,10 +1597,12 @@ const GalleryDetailPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+                </PreviewTab>
               )}
 
               {/* Experience Settings - Full Featured */}
               {activeSettingsTab === 'experience' && (
+                <PreviewTab>
                 <div className="p-4 space-y-6 border-t border-gray-200">
                   {/* User flow header */}
                   <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">User flow</div>
@@ -1704,6 +1806,7 @@ const GalleryDetailPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+                </PreviewTab>
               )}
 
               {/* Availability Settings - Full Featured */}
@@ -1715,7 +1818,7 @@ const GalleryDetailPage: React.FC = () => {
                     <div className="flex items-center bg-white border border-gray-300 rounded-lg px-3 py-2">
                       <input
                         type="text"
-                        value={`${window.location.origin}/gallery/${id}`}
+                        value={galleryPublicUrl(gallery?.slug, { absolute: true }) || ''}
                         readOnly
                         className="flex-1 text-xs text-gray-600 border-none focus:ring-0 p-0 bg-transparent"
                       />
@@ -1837,11 +1940,26 @@ const GalleryDetailPage: React.FC = () => {
                     </div>
                     <p className="text-xs text-gray-500">Include this gallery on your brand gallery catalog page.</p>
                   </div>
+                  {/* The five controls above are the only ones on this page with a
+                      column behind them, so this is the only Save it can honestly offer. */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <button
+                      onClick={saveSettings}
+                      disabled={savingSettings}
+                      className="w-full px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-300 text-white rounded-lg text-sm font-medium"
+                    >
+                      {savingSettings ? 'Saving…' : settingsSaved ? 'Saved' : 'Save settings'}
+                    </button>
+                    {settingsError && (
+                      <p className="mt-2 text-xs text-red-600">{settingsError}</p>
+                    )}
+                  </div>
                 </div>
               )}
 
               {/* Shopping Settings - Full Featured */}
               {activeSettingsTab === 'shopping' && (
+                <PreviewTab>
                 <div className="p-4 space-y-6 border-t border-gray-200">
                   {/* Pricing header */}
                   <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pricing</div>
@@ -1948,6 +2066,7 @@ const GalleryDetailPage: React.FC = () => {
                     </p>
                   </div>
                 </div>
+                </PreviewTab>
               )}
 
               {/* Downloads Settings - Full Featured */}
@@ -2165,6 +2284,20 @@ const GalleryDetailPage: React.FC = () => {
                       </label>
                     </div>
                   )}
+                  {/* The five controls above are the only ones on this page with a
+                      column behind them, so this is the only Save it can honestly offer. */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <button
+                      onClick={saveSettings}
+                      disabled={savingSettings}
+                      className="w-full px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-300 text-white rounded-lg text-sm font-medium"
+                    >
+                      {savingSettings ? 'Saving…' : settingsSaved ? 'Saved' : 'Save settings'}
+                    </button>
+                    {settingsError && (
+                      <p className="mt-2 text-xs text-red-600">{settingsError}</p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
