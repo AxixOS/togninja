@@ -59,7 +59,16 @@ interface Client {
 
 const AdvancedGalleryForm: React.FC<GalleryFormProps> = ({ gallery, isEditing = false, onSuccess }) => {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState<Step>('details');
+  // Open on the step the caller asked for. The gallery detail page's "Upload Photos"
+  // buttons used to navigate to /admin/galleries/:id/upload, which is not a registered
+  // route in App.tsx — the most obvious button in the product went nowhere. They now
+  // deep-link here with ?step=upload.
+  const requestedStep = (() => {
+    const q = new URLSearchParams(window.location.search).get('step');
+    const valid = ['details', 'cover', 'upload', 'settings', 'preview'];
+    return q && valid.includes(q) ? (q as Step) : 'details';
+  })();
+  const [currentStep, setCurrentStep] = useState<Step>(requestedStep);
   const [formData, setFormData] = useState<FormState>({
     title: '',
     description: '',
@@ -305,7 +314,16 @@ const AdvancedGalleryForm: React.FC<GalleryFormProps> = ({ gallery, isEditing = 
         coverPosition: coverPosition,
         coverScale: coverScale,
         coverTemplate: coverTemplate || undefined,
-        isPublic: true,
+        // Was the literal `true`. There is no UI control for this, and the form never
+        // read the gallery's current value — so EVERY save republished the gallery,
+        // putting a client's shoot back onto the unauthenticated GET /api/galleries
+        // list. Harmless only while the field was being silently dropped on the way to
+        // the database; live the moment that was fixed.
+        //
+        // Preserve what the gallery already has, and default a NEW one to private: a
+        // delivery gallery is nobody else's business, and a studio who deliberately
+        // made one public keeps it that way through an edit.
+        isPublic: isEditing ? ((gallery as any)?.isPublic ?? false) : false,
         clientId: formData.clientId || undefined,
         // The sunset date and status were never sent, so editing them did nothing —
         // a studio could not extend an expiry or un-archive a gallery from this form,

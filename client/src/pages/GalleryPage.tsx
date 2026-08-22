@@ -58,31 +58,47 @@ const GalleryPage: React.FC = () => {
   }, [slug]);
 
   useEffect(() => {
-    // SEO Meta Tags
-    document.title = `Foto-Galerie Wien - Familienfotos & Porträts | ${SITE.name}`;
-    
-    // Update meta description
-    let metaDescription = document.querySelector('meta[name="description"]');
-    if (!metaDescription) {
-      metaDescription = document.createElement('meta');
-      metaDescription.setAttribute('name', 'description');
-      document.head.appendChild(metaDescription);
-    }
-    metaDescription.setAttribute('content', 'Exklusive Foto-Galerie mit passwortgeschütztem Zugang. Familienfotos, Porträts und Hochzeitsbilder vom Wiener Familienfotograf.');
+    // SEO / share-preview tags.
+    //
+    // These were hardcoded to the origin studio: "Foto-Galerie Wien — Familienfotos &
+    // Porträts", a German description ending "vom Wiener Familienfotograf", and an
+    // og:title with "Wien" appended. Every studio that bought this product served
+    // another studio's city and language on every gallery they sent a client — and the
+    // unmount cleanup put it back again.
+    //
+    // They also ignored the gallery itself: the title was a fixed string, so every
+    // gallery shared one browser tab name and one link preview.
+    const studio = SITE.name;
+    const galleryName = gallery?.title?.trim();
+    const title = galleryName ? `${galleryName} | ${studio}` : studio;
 
-    // Open Graph tags
-    let ogTitle = document.querySelector('meta[property="og:title"]');
-    if (!ogTitle) {
-      ogTitle = document.createElement('meta');
-      ogTitle.setAttribute('property', 'og:title');
-      document.head.appendChild(ogTitle);
-    }
-    ogTitle.setAttribute('content', `Foto-Galerie - ${SITE.name} Wien`);
+    document.title = title;
+
+    const meta = (selector: string, attr: string, key: string, content: string) => {
+      let el = document.querySelector(selector);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content);
+    };
+
+    const description = de
+      ? `Private Galerie${galleryName ? ` – ${galleryName}` : ""}. Zugang mit dem Link und Passwort von ${studio}.`
+      : `A private gallery${galleryName ? ` – ${galleryName}` : ""}. Access it with the link and password from ${studio}.`;
+
+    meta('meta[name="description"]', "name", "description", description);
+    meta('meta[property="og:title"]', "property", "og:title", title);
+    meta('meta[property="og:description"]', "property", "og:description", description);
+
+    // A private gallery has no business in a search index.
+    meta('meta[name="robots"]', "name", "robots", "noindex, nofollow");
 
     return () => {
-      document.title = `${SITE.name} - Familienfotograf Wien`;
+      document.title = studio;
     };
-  }, []);
+  }, [gallery, de]);
 
   useEffect(() => {
     if (isAuthenticated && slug && authToken) {
@@ -235,7 +251,29 @@ const GalleryPage: React.FC = () => {
       
       // Store token in localStorage for persistence
       localStorage.setItem(`gallery_token_${slug}`, token);
-      
+
+      // Keep the visitor.
+      //
+      // This form has always asked for an email address before opening a gallery, and
+      // nothing in the client has ever called /capture-email — so every one was
+      // collected and thrown away. The route, the gallery_email_captures table and the
+      // admin panel that displays them all already existed; only this call was missing,
+      // which is why the studio's gallery analytics showed nothing but zeroes.
+      //
+      // Deliberately not awaited and never allowed to throw: a visitor must get into
+      // their gallery whether or not we managed to record that they did.
+      if (gallery?.id) {
+        fetch(`/api/galleries/${gallery.id}/capture-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            name: [firstName, lastName].filter(Boolean).join(' ') || undefined,
+            source: 'gallery_access',
+          }),
+        }).catch(() => {});
+      }
+
       // Notify parent component
       handleAuthenticated(token);
     } catch (err) {

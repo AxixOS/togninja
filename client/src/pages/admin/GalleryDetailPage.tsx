@@ -15,10 +15,13 @@ import { SITE } from '../../config/site';
 interface GalleryImage {
   id: string;
   filename: string;
-  original_url: string;
-  display_url: string;
-  thumb_url: string;
-  size_bytes?: number;
+  // camelCase, because that is what GET /api/admin/galleries/:id/images returns
+  // (server/routes.ts:5768-5776). This interface used to declare snake_case, so every
+  // read resolved to undefined and the admin showed a blank tile for every photo.
+  originalUrl: string;
+  displayUrl: string;
+  thumbUrl: string;
+  sizeBytes?: number;
 }
 
 interface Gallery {
@@ -163,11 +166,11 @@ const GalleryDetailPage: React.FC = () => {
       setPhotoCount(imagesData?.length || 0);
       
       // Calculate storage
-      const totalBytes = imagesData?.reduce((acc: number, img: any) => acc + (img.size_bytes || 0), 0) || 0;
+      const totalBytes = imagesData?.reduce((acc: number, img: any) => acc + (img.sizeBytes || 0), 0) || 0;
       setStorageUsed(formatBytes(totalBytes));
       
       // Set cover images from first 4 images
-      const covers = imagesData?.slice(0, 4).map((img: any) => img.thumb_url || img.display_url) || [];
+      const covers = imagesData?.slice(0, 4).map((img: any) => img.thumbUrl || img.displayUrl) || [];
       setCoverImages(covers);
       
       // Set published date
@@ -414,8 +417,8 @@ const GalleryDetailPage: React.FC = () => {
               <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
                 {gallery.coverImage ? (
                   <img src={gallery.coverImage} alt={gallery.title} className="w-full h-full object-cover" />
-                ) : images[0]?.thumb_url ? (
-                  <img src={images[0].thumb_url} alt={gallery.title} className="w-full h-full object-cover" />
+                ) : images[0]?.thumbUrl ? (
+                  <img src={images[0].thumbUrl} alt={gallery.title} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <ImageIcon size={24} className="text-gray-400" />
@@ -442,7 +445,7 @@ const GalleryDetailPage: React.FC = () => {
                 Get Help
               </button>
               <button 
-                onClick={() => navigate(`/admin/galleries/${id}/upload`)}
+                onClick={() => navigate(`/admin/galleries/${id}/edit?step=upload`)}
                 className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
               >
                 Upload Photos
@@ -475,7 +478,7 @@ const GalleryDetailPage: React.FC = () => {
               <ImageIcon size={48} className="text-gray-400 mb-4" />
               <p className="text-gray-600 mb-4">No photos uploaded yet</p>
               <button 
-                onClick={() => navigate(`/admin/galleries/${id}/upload`)}
+                onClick={() => navigate(`/admin/galleries/${id}/edit?step=upload`)}
                 className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg"
               >
                 Upload Photos
@@ -496,7 +499,7 @@ const GalleryDetailPage: React.FC = () => {
                   onClick={() => toggleImageSelection(image.id)}
                 >
                   <img 
-                    src={image.thumb_url || image.display_url} 
+                    src={image.thumbUrl || image.displayUrl} 
                     alt={image.filename}
                     className="w-full h-full object-cover"
                   />
@@ -795,9 +798,9 @@ const GalleryDetailPage: React.FC = () => {
                       <div className="w-80 h-48 bg-gray-900 rounded-b overflow-hidden">
                         {coverView === 'cover' ? (
                           <div className="h-full flex items-center relative">
-                            {(gallery.coverImage || images[0]?.display_url) && (
+                            {(gallery.coverImage || images[0]?.displayUrl) && (
                               <img 
-                                src={gallery.coverImage || images[0]?.display_url} 
+                                src={gallery.coverImage || images[0]?.displayUrl} 
                                 alt="Cover" 
                                 className="absolute inset-0 w-full h-full object-cover"
                               />
@@ -833,7 +836,7 @@ const GalleryDetailPage: React.FC = () => {
                           <div className="p-2 grid grid-cols-4 gap-1 h-full">
                             {images.slice(0, 8).map((img, i) => (
                               <div key={i} className="aspect-square rounded overflow-hidden">
-                                <img src={img.thumb_url} alt="" className="w-full h-full object-cover" />
+                                <img src={img.thumbUrl} alt="" className="w-full h-full object-cover" />
                               </div>
                             ))}
                           </div>
@@ -852,9 +855,9 @@ const GalleryDetailPage: React.FC = () => {
                       <div className="w-36 h-72 bg-gray-900 rounded-[18px] overflow-hidden border-2 border-gray-800">
                         {coverView === 'cover' ? (
                           <div className="h-full relative">
-                            {(gallery.coverImage || images[0]?.display_url) && (
+                            {(gallery.coverImage || images[0]?.displayUrl) && (
                               <img 
-                                src={gallery.coverImage || images[0]?.display_url} 
+                                src={gallery.coverImage || images[0]?.displayUrl} 
                                 alt="Cover" 
                                 className="absolute inset-0 w-full h-full object-cover"
                               />
@@ -877,7 +880,7 @@ const GalleryDetailPage: React.FC = () => {
                           <div className="p-1.5 grid grid-cols-2 gap-1 h-full">
                             {images.slice(0, 6).map((img, i) => (
                               <div key={i} className="aspect-square rounded overflow-hidden">
-                                <img src={img.thumb_url} alt="" className="w-full h-full object-cover" />
+                                <img src={img.thumbUrl} alt="" className="w-full h-full object-cover" />
                               </div>
                             ))}
                           </div>

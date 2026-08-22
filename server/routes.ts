@@ -5777,8 +5777,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: img.description,
         orderIndex: img.sortOrder || img.sort_order || 0,
         createdAt: img.createdAt || img.created_at,
-        sizeBytes: 0,
-        contentType: 'image/jpeg',
+        // Was hardcoded to 0 and 'image/jpeg', so the admin's storage-used figure was
+        // always zero however many gigabytes the studio had uploaded. The columns exist.
+        sizeBytes: img.sizeBytes ?? img.size_bytes ?? 0,
+        contentType: img.contentType ?? img.content_type ?? 'image/jpeg',
         capturedAt: null
       }));
       
@@ -7286,16 +7288,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const textContent = `Gallery link: ${link}${gallery.is_password_protected && gallery.password ? `\nPassword: ${gallery.password}` : ''}${message ? `\n\n${message}` : ''}`;
       
-      // Send email using the enhanced email service
+      // Send email using the enhanced email service.
+      //
+      // The result used to be awaited and thrown away, followed unconditionally by
+      // res.json({ ok: true }) — and the share modal renders a green "Email sent
+      // successfully!" on any 2xx. On an install with no SMTP configured, the service
+      // returns { success: true, demo: true, error: 'SMTP is not configured — email was
+      // NOT actually sent' }, so the studio was told their client had been sent the
+      // gallery link when nothing had left the building.
       const { EnhancedEmailService } = await import('./services/enhancedEmailService');
-      await EnhancedEmailService.sendEmail({
+      const sendResult: any = await EnhancedEmailService.sendEmail({
         to,
         subject: `Gallery: ${gallery.title}`,
         content: textContent,
         html: html
       });
-      
-      res.json({ ok: true, link });
+
+      if (sendResult?.demo) {
+        // Not an error the studio caused — a setup step they have not done yet. The link
+        // is still returned so they can copy it across in the meantime.
+        return res.status(503).json({
+          error: 'smtp_not_configured',
+          message: 'Email was NOT sent — no mail server is configured. Set one up under Settings → Technical Setup, or copy the link and send it yourself.',
+          link,
+        });
+      }
+      if (!sendResult?.success) {
+        return res.status(502).json({
+          error: 'send_failed',
+          message: sendResult?.error || 'The email could not be sent.',
+          link,
+        });
+      }
+
+      res.json({ ok: true, sent: true, link });
     } catch (error) {
       console.error('Error sending gallery email:', error);
       res.status(500).json({ error: (error as Error)?.message || 'Failed to send email' });

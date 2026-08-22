@@ -27,12 +27,38 @@ for (const f of all) {
   }
 }
 
+// Which files does anything actually import?
+//
+// PhotographyCalendarPage.tsx genuinely renders Button, Card and Dialog without importing
+// any of them — a real ReferenceError — but App.tsx routes PhotographyCalendarPageSimple
+// instead, so no user can ever reach it. Reporting that as a failure forever is how a
+// guard turns into wallpaper. Unreachable files are listed separately, as cleanup.
+const importedSomewhere = new Set();
+for (const f of all) {
+  const s = fs.readFileSync(f, 'utf8');
+  for (const m of s.matchAll(/from\s+['"](\.[^'"]+)['"]|import\(\s*['"](\.[^'"]+)['"]\s*\)/g)) {
+    const spec = m[1] || m[2];
+    // Resolve against the importing file's directory, and record the basename — enough
+    // to tell "something imports this module" without reimplementing module resolution.
+    importedSomewhere.add(path.basename(spec).replace(/\.(tsx?|jsx?)$/, ''));
+  }
+}
+
 let bad = 0;
+const unreachable = [];
 const admin = all.filter((f) => /\.tsx$/.test(f) && /[\\/](pages|components)[\\/]admin/.test(f));
 
 for (const f of admin) {
   const s = fs.readFileSync(f, 'utf8');
-  const used = [...new Set([...s.matchAll(/<([A-Z][A-Za-z0-9_]*)[\s/>]/g)].map((m) => m[1]))];
+  // The lookbehind is what separates JSX from a generic type argument. Without it,
+  // useState<Client | null> matches `Client` (capitalised, followed by a space) and
+  // Array<File> matches `File` — and because File IS a real lucide icon name, the
+  // icon-name filter below waved it straight through. That produced nine confident
+  // failures, every one of them a type annotation. A guard nobody believes is worse than
+  // no guard, because the one real hit gets skimmed past along with the noise.
+  //
+  // Real JSX is never preceded by an identifier character; a generic argument always is.
+  const used = [...new Set([...s.matchAll(/(?<![A-Za-z0-9_$.])<([A-Z][A-Za-z0-9_]*)[\s/>]/g)].map((m) => m[1]))];
 
   const known = new Set();
   for (const m of s.matchAll(/import\s+(?:type\s+)?([\s\S]*?)\s+from\s+['"]/g)) {
@@ -41,15 +67,26 @@ for (const f of admin) {
   for (const m of s.matchAll(/(?:const|let|function|class)\s+([A-Z][A-Za-z0-9_]*)/g)) known.add(m[1]);
 
   const missing = used.filter((u) => !known.has(u) && iconNames.has(u));
-  if (missing.length) {
-    bad++;
-    console.log('  ' + f.split(path.sep).join('/').replace('client/src/', '') + '  ->  ' + missing.join(', '));
+  if (!missing.length) continue;
+
+  const rel = f.split(path.sep).join('/').replace('client/src/', '');
+  const moduleName = path.basename(f).replace(/\.tsx?$/, '');
+  if (!importedSomewhere.has(moduleName)) {
+    unreachable.push(rel + '  ->  ' + missing.join(', '));
+    continue;
   }
+  bad++;
+  console.log('  FAIL  ' + rel + '  ->  ' + missing.join(', '));
+}
+
+if (unreachable.length) {
+  console.log('\n  Broken, but nothing imports them — delete rather than fix:');
+  for (const u of unreachable) console.log('    ' + u);
 }
 
 console.log(
   bad
-    ? '\n  ' + bad + ' screen(s) render an icon they never import — ReferenceError, blank screen\n'
-    : '\n  every icon rendered is imported\n',
+    ? '\n  ' + bad + ' REACHABLE screen(s) render an icon they never import — ReferenceError, blank screen\n'
+    : '\n  every icon rendered on a reachable screen is imported\n',
 );
 process.exit(bad ? 1 : 0);
