@@ -69,6 +69,7 @@ import { processGalleryImage, watermarkText, invisibleKey } from './lib/galleryW
 import { fingerprint as galleryFingerprint, extractInvisible } from './lib/invisibleWatermark';
 import { issueGalleryToken, verifyGalleryToken, bearerFrom } from './lib/galleryToken';
 import { normaliseGalleryInput, passwordStateError } from './lib/galleryInput';
+import { requirePrintAccess, printStoreEnabled } from './lib/requirePrintAccess';
 import crypto from 'crypto';
 // Using require for 'imap' to satisfy commonjs typings within ESM context
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -19847,7 +19848,11 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
   app.use('/api/storage-stats', storageStatsRoutes);
   
   // Print ordering routes (Prodigi integration)
-  app.use('/api/print', prodigiRoutes);
+  // Was mounted wide open. The router's own comment deferred auth to a "Phase 2" that
+  // never happened, leaving anonymous catalogue writes, an unauthenticated dump of every
+  // buyer's postal address, and a print-and-ship endpoint that trusted an imageUrl from
+  // the request body. See server/lib/requirePrintAccess.ts.
+  app.use('/api/print', requirePrintAccess, prodigiRoutes);
 
   // Storage health check (diagnostics for Backblaze/AWS S3 configuration)
   app.get('/api/storage/health', async (_req: Request, res: Response) => {

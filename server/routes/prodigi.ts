@@ -9,6 +9,8 @@ import { Router, Request, Response } from 'express';
 import { pool } from '../db';
 import { config } from '../config-reader';
 
+import { printStoreEnabled } from '../lib/requirePrintAccess';
+
 const router = Router();
 
 // Prodigi config is resolved PER REQUEST from the per-tenant config-reader (DB-first,
@@ -306,7 +308,7 @@ router.post('/order', async (req: Request, res: Response) => {
       const {
         galleryId,
         galleryImageId,
-        imageUrl,
+        // imageUrl deliberately NOT read from the body — resolved from the DB below.
         sku,
         copies = 1,
         shippingMethod = 'Standard',
@@ -314,8 +316,23 @@ router.post('/order', async (req: Request, res: Response) => {
         attributes = {},
       } = req.body;
 
-      // Validate required fields
-      if (!imageUrl || !sku || !customer) {
+      // NOTHING IN THIS CHAIN TAKES PAYMENT. Between here and dispatching a physical
+      // print to Prodigi there is no Stripe session, no invoice and no charge — while
+      // the confirmation screen tells the buyer an invoice is on its way. Requiring
+      // authentication stopped anonymous strangers ordering; it did not make this safe
+      // to sell through, because an authenticated client can still order unlimited free
+      // prints at the studio's expense. The store stays off until the Stripe leg is
+      // wired — the machinery already exists in server/routes.ts.
+      if (!printStoreEnabled()) {
+        return res.status(503).json({
+          error: 'store_disabled',
+          message: 'Print ordering is not available yet.',
+        });
+      }
+
+      // Validate required fields. imageUrl is NOT trusted from the body — it is resolved
+      // from galleryImageId below, so a caller cannot have an arbitrary URL printed.
+      if (!sku || !customer || !galleryImageId) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
@@ -323,6 +340,21 @@ router.post('/order', async (req: Request, res: Response) => {
       if (!name || !email || !address?.line1 || !address?.city || !address?.postalCode || !address?.countryCode) {
         return res.status(400).json({ error: 'Incomplete customer or address information' });
       }
+
+      // Resolve the file to print from the DATABASE, never from the request.
+      //
+      // imageUrl used to be taken straight off req.body and handed to Prodigi as the
+      // asset to print. Combined with the missing auth on this router, that let anyone
+      // post any URL on the internet and have it printed and posted at the studio's
+      // expense. Looking it up by id also guarantees the print belongs to the gallery
+      // the caller proved access to.
+      const imageRow = await pool.query(
+        `SELECT url FROM gallery_images WHERE id = $1 AND ($2::uuid IS NULL OR gallery_id = $2)`,
+        [galleryImageId, galleryId || null]);
+      if (!imageRow.rows.length || !imageRow.rows[0].url) {
+        return res.status(404).json({ error: 'image_not_found', message: 'That image is not in this gallery.' });
+      }
+      const printUrl: string = imageRow.rows[0].url;
 
       // Generate merchant reference (tenant-neutral prefix from the studio's business name)
       const merchantPrefix = await getMerchantPrefix();
@@ -356,7 +388,7 @@ router.post('/order', async (req: Request, res: Response) => {
         copies,
         'fillPrintArea',
         JSON.stringify(attributes),
-        imageUrl,
+        printUrl,
         shippingMethod,
       ]);
 
@@ -402,7 +434,7 @@ router.post('/order', async (req: Request, res: Response) => {
           attributes,
           assets: [{
             printArea: 'default',
-            url: imageUrl,
+            url: printUrl,
           }],
         }],
         metadata: {

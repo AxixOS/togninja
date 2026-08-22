@@ -11,6 +11,9 @@ interface ImageGridProps {
   isAdmin?: boolean;
   isPublic?: boolean;
   authToken?: string;
+  /** The in-gallery print store. Off unless the studio has switched it on AND
+   *  payment is wired — ordering dispatches a physical print to Prodigi. */
+  storeEnabled?: boolean;
   downloadEnabled?: boolean;
   onImageDeleted?: () => void;
   onSetCover?: () => void;
@@ -30,6 +33,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({
   isAdmin = false,
   isPublic = false,
   authToken = '',
+  storeEnabled = false,
   downloadEnabled = true,
   onImageDeleted,
   onSetCover,
@@ -458,7 +462,10 @@ const ImageGrid: React.FC<ImageGridProps> = ({
                     </button>
                   )}
                   
-                  {isPublic && (
+                  {/* Was gated on isPublic, which GalleryPage hardcodes to true — so the
+                      Order Print button rendered on every image of every client gallery,
+                      and ordering dispatched to the print lab with no payment taken. */}
+                  {storeEnabled && (
                     <button
                       onClick={(e) => handleOrderPrint(image, e)}
                       className="p-2 rounded-full bg-green-500 text-white hover:bg-green-600"

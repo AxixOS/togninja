@@ -20,6 +20,13 @@ const MUST_BE_CLOSED = [
   ['POST', '/api/crm/price-list', 'rewrite the price list'],
   ['POST', '/api/setup/technical/email', 'take over outbound mail'],
   ['POST', '/api/price-wizard/research', 'spend the studio money on crawls'],
+
+  // /api/print was mounted with no auth at all — the router's own comment deferred it to
+  // a 'Phase 2' that never happened. The order route took an imageUrl straight from the
+  // body and dispatched it to Prodigi for physical fulfilment, billed to the studio.
+  ['GET', '/api/print/orders', "every print buyer's name, email, phone and postal address"],
+  ['POST', '/api/print/catalog', 'create print products in the studio catalogue'],
+  ['POST', '/api/print/order', 'print and ship an arbitrary image at the studio expense'],
 ];
 
 const MUST_STAY_OPEN = [
