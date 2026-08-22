@@ -70,6 +70,7 @@ import { fingerprint as galleryFingerprint, extractInvisible } from './lib/invis
 import { issueGalleryToken, verifyGalleryToken, bearerFrom } from './lib/galleryToken';
 import { normaliseGalleryInput, passwordStateError } from './lib/galleryInput';
 import { requirePrintAccess, printStoreEnabled } from './lib/requirePrintAccess';
+import { getStripe, getStripeWebhookSecret } from './lib/stripeClient';
 import crypto from 'crypto';
 // Using require for 'imap' to satisfy commonjs typings within ESM context
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -8783,7 +8784,13 @@ ${getBizName()} Team`;
   // Create Stripe Checkout Session for invoice payment
   app.post("/api/invoices/:id/create-payment-session", async (req: Request, res: Response) => {
     try {
-      if (!stripe || !stripeConfigured) {
+      // Resolved at request time. The module-level client is constructed before
+      // hydrateEnvFromDb runs — server/index.ts:15 imports routes statically — so a
+      // studio whose Stripe key lives in the database rather than the environment had
+      // it null for the entire process, and this path answered 503 every time.
+      // See server/lib/stripeClient.ts.
+      const stripe = await getStripe();
+      if (!stripe) {
         return res.status(503).json({ 
           success: false, 
           error: "Payment service not configured" 
@@ -8884,7 +8891,13 @@ ${getBizName()} Team`;
       const invoiceId = req.params.id;
       const sessionId = req.query.session_id as string;
 
-      if (!stripe || !stripeConfigured) {
+      // Resolved at request time. The module-level client is constructed before
+      // hydrateEnvFromDb runs — server/index.ts:15 imports routes statically — so a
+      // studio whose Stripe key lives in the database rather than the environment had
+      // it null for the entire process, and this path answered 503 every time.
+      // See server/lib/stripeClient.ts.
+      const stripe = await getStripe();
+      if (!stripe) {
         return res.status(503).json({ 
           success: false, 
           error: "Payment service not configured" 
@@ -8965,13 +8978,19 @@ ${getBizName()} Team`;
     const startTime = Date.now();
     console.log(`🔵 Webhook request received at ${new Date().toISOString()}`);
     
-    if (!stripe || !stripeConfigured) {
+    // Resolved per request — see server/lib/stripeClient.ts. This handler returning 503
+    // is invisible to the studio: Stripe records a failed delivery and the order simply
+    // never completes.
+    const stripe = await getStripe();
+    if (!stripe) {
       console.error('❌ Stripe not configured for webhook');
       return res.status(503).json({ error: "Payment service not configured" });
     }
 
     const sig = req.headers['stripe-signature'];
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    // Also resolved lazily: the secret is just as likely to live in the database as the
+    // key is, and a missing one fails every signature check.
+    const webhookSecret = await getStripeWebhookSecret();
 
     if (!sig) {
       console.error('❌ Missing Stripe signature header');
@@ -9109,7 +9128,8 @@ ${getBizName()} Team`;
 
   // Stripe webhook for invoice payments
   app.post("/api/invoices/webhook", express.raw({ type: 'application/json' }), async (req: Request, res: Response) => {
-    if (!stripe || !stripeConfigured) {
+    const stripe = await getStripe();
+    if (!stripe) {
       return res.status(503).json({ error: "Payment service not configured" });
     }
 
