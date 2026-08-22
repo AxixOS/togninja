@@ -206,11 +206,23 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
       if (response.ok) {
         const data = await response.json();
         setOrderId(data.orderId);
-        setStep('confirmation');
         onOrderComplete?.(data.orderId);
+
+        // The order is recorded but NOT printed. Nothing reaches the lab until Stripe
+        // confirms payment, so the last step of ordering is now paying for it.
+        //
+        // The old code jumped straight to a confirmation screen that told the buyer an
+        // invoice and a receipt were on the way. Neither was ever sent, and the print
+        // was already at the printer, unpaid.
+        if (data.checkoutUrl) {
+          window.location.href = data.checkoutUrl;
+          return;
+        }
+
+        setStep('confirmation');
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to create order');
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.message || errorData.error || 'Failed to create order');
       }
     } catch (err) {
       console.error('Error creating order:', err);
@@ -667,10 +679,13 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
                 )}
               </div>
 
-              {/* Payment Info (simplified for now) */}
+              {/* This promised an invoice by email that was never sent — and the print was
+                  already at the lab, unpaid. Payment is now taken before anything is
+                  printed, so the note describes the step that is about to happen. */}
               <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-blue-800 text-sm">
-                  <strong>Payment:</strong> Your order will be processed and you'll receive an invoice via email. Payment details will be included in the invoice.
+                  <strong>Payment:</strong> You will be taken to our secure checkout to pay.
+                  Your print goes to the lab once payment is confirmed.
                 </p>
               </div>
             </div>
@@ -686,10 +701,12 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
                 Order Placed Successfully!
               </h3>
               <p className="text-gray-600 mb-6">
-                Your order #{orderId} has been received and is being processed.
+                Your order #{orderId} has been received.
               </p>
+              {/* Was "A confirmation email will be sent to ...". Nothing sends one. Stripe
+                  emails its own receipt for the payment, which is true and is enough. */}
               <p className="text-sm text-gray-500 mb-8">
-                A confirmation email will be sent to {address.email}
+                Your payment receipt goes to {address.email}.
               </p>
               <button
                 onClick={onClose}

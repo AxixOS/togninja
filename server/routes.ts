@@ -71,6 +71,7 @@ import { issueGalleryToken, verifyGalleryToken, bearerFrom } from './lib/gallery
 import { normaliseGalleryInput, passwordStateError } from './lib/galleryInput';
 import { requirePrintAccess, printStoreEnabled } from './lib/requirePrintAccess';
 import { getStripe, getStripeWebhookSecret } from './lib/stripeClient';
+import { claimPrintOrderForDispatch, markPrintOrderDispatchFailed } from './lib/printCheckout';
 import crypto from 'crypto';
 // Using require for 'imap' to satisfy commonjs typings within ESM context
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -9047,7 +9048,46 @@ ${getBizName()} Team`;
   // Helper function to process completed checkout sessions
   async function handleCheckoutCompleted(event: Stripe.Event) {
     const session = event.data.object as Stripe.Checkout.Session;
-    
+
+    // A PAID PRINT ORDER — the only place a print is ever sent to the lab.
+    //
+    // Before this, POST /api/print/order dispatched to Prodigi directly with no payment
+    // anywhere in the chain. Now the order is recorded as awaiting_payment and nothing
+    // is printed until this fires.
+    //
+    // Stripe retries webhooks as a matter of course, so the claim is a conditional
+    // UPDATE that matches only an unclaimed, still-unpaid row and RETURNS it. A retry
+    // matches nothing and stops, which is why a duplicate delivery cannot produce a
+    // second parcel. Either way this returns normally: a non-2xx would make Stripe
+    // retry harder.
+    if (session.metadata?.kind === 'print_order') {
+      if (session.payment_status !== 'paid') {
+        console.log(`[print-order] session ${session.id} completed but is not paid — ignoring`);
+        return;
+      }
+      const claim = await claimPrintOrderForDispatch(session.id);
+      if (!claim.claimed) {
+        console.log(`[print-order] session ${session.id}: ${claim.reason} — nothing to do`);
+        return;
+      }
+      try {
+        const { dispatchPrintOrder } = await import('./routes/prodigi');
+        const result = await dispatchPrintOrder(claim.order);
+        if (result.ok) {
+          console.log(`[print-order] ${claim.order.id} dispatched to Prodigi as ${result.prodigiOrderId}`);
+        } else {
+          // The client HAS paid. Recorded as such and flagged, never rolled back to a
+          // state that would invite a second charge.
+          await markPrintOrderDispatchFailed(claim.order.id, result.error || 'unknown');
+          console.error(`[print-order] ${claim.order.id} PAID but not dispatched: ${result.error}`);
+        }
+      } catch (err: any) {
+        await markPrintOrderDispatchFailed(claim.order.id, err?.message || 'threw');
+        console.error(`[print-order] ${claim.order.id} PAID but dispatch threw:`, err?.message);
+      }
+      return;
+    }
+
     // Handle CRM invoice payments
     const invoiceId = session.metadata?.invoiceId || session.metadata?.invoice_id;
     if (invoiceId && session.payment_status === 'paid') {

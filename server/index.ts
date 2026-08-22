@@ -435,6 +435,20 @@ app.use((req, res, next) => {
         await db.execute(sql`ALTER TABLE gallery_images ADD COLUMN IF NOT EXISTS size_bytes INTEGER DEFAULT 0`);
         await db.execute(sql`ALTER TABLE gallery_images ADD COLUMN IF NOT EXISTS content_type TEXT`);
         await db.execute(sql`ALTER TABLE gallery_images ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT FALSE`);
+
+        // A print order is now PAID before it is dispatched, so the row has to remember
+        // which Stripe session paid for it. stripe_session_id is also the idempotency
+        // anchor: unique, so one session can never produce two print orders however many
+        // times Stripe retries the webhook.
+        await db.execute(sql`ALTER TABLE print_orders ADD COLUMN IF NOT EXISTS stripe_session_id TEXT`);
+        await db.execute(sql`ALTER TABLE print_orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`);
+        await db.execute(sql`ALTER TABLE print_orders ADD COLUMN IF NOT EXISTS currency TEXT`);
+        await db.execute(sql`ALTER TABLE print_orders ADD COLUMN IF NOT EXISTS amount_charged NUMERIC`);
+        try {
+          await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS print_orders_stripe_session_key ON print_orders (stripe_session_id) WHERE stripe_session_id IS NOT NULL`);
+        } catch (e: any) {
+          console.warn('⚠️ print_orders.stripe_session_id is not unique:', e?.message);
+        }
         // gallery_images.rating is TEXT, not INTEGER.
         //
         // The proofing feature — the client marking each photograph love / maybe /

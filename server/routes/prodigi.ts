@@ -11,6 +11,7 @@ import { config } from '../config-reader';
 
 import { printStoreEnabled } from '../lib/requirePrintAccess';
 import { parseProdigiSheet, applyMarkup } from '../lib/prodigiSheet';
+import { createPrintCheckoutSession } from '../lib/printCheckout';
 
 const router = Router();
 
@@ -464,6 +465,11 @@ router.post('/order', async (req: Request, res: Response) => {
       }
       const printUrl: string = imageRow.rows[0].url;
 
+      // Where Stripe returns the buyer to.
+      const slugRow = await pool.query(`SELECT slug FROM galleries WHERE id = $1`, [galleryId || null])
+        .catch(() => ({ rows: [] as any[] }));
+      const gallerySlug: string | null = slugRow.rows?.[0]?.slug || null;
+
       // Generate merchant reference (tenant-neutral prefix from the studio's business name)
       const merchantPrefix = await getMerchantPrefix();
       const merchantReference = `${merchantPrefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -482,7 +488,7 @@ router.post('/order', async (req: Request, res: Response) => {
         galleryId || null,
         galleryImageId || null,
         merchantReference,
-        'pending',
+        'awaiting_payment',
         name,
         email,
         phone || null,
@@ -502,94 +508,108 @@ router.post('/order', async (req: Request, res: Response) => {
 
       const localOrderId = orderRecord.rows[0].id;
 
-      const { apiKey } = await getProdigiConfig();
-      if (!apiKey) {
-        // Return mock order if no API key (for testing)
-        await pool.query(`
-          UPDATE print_orders SET status = 'test_mode' WHERE id = $1
-        `, [localOrderId]);
+      // STOP HERE. This route used to call Prodigi from this point, which is how an
+      // unpaid order reached a printing press. It now only records the order and returns
+      // a Stripe checkout URL; dispatch happens in the webhook, after the money has
+      // actually arrived. See server/lib/printCheckout.ts.
+      const checkout = await createPrintCheckoutSession({
+        orderId: localOrderId,
+        sku,
+        copies,
+        gallerySlug,
+        customerEmail: email,
+      });
 
-        return res.json({
-          success: true,
-          testMode: true,
-          orderId: localOrderId,
-          message: 'Order created in test mode (no Prodigi API key)',
-        });
+      if (!checkout.ok) {
+        // No session means no way to pay, so the order must not sit around looking live.
+        await pool.query(`UPDATE print_orders SET status = 'checkout_failed' WHERE id = $1`, [localOrderId])
+          .catch(() => {});
+        return res.status(503).json({ error: checkout.error, message: checkout.message });
       }
-
-      // Create order with Prodigi
-      const prodigiOrder = {
-        merchantReference,
-        shippingMethod,
-        recipient: {
-          name,
-          email,
-          phoneNumber: phone,
-          address: {
-            line1: address.line1,
-            line2: address.line2,
-            townOrCity: address.city,
-            stateOrCounty: address.state,
-            postalOrZipCode: address.postalCode,
-            countryCode: address.countryCode,
-          },
-        },
-        items: [{
-          merchantReference: `item-${localOrderId}`,
-          sku,
-          copies,
-          sizing: 'fillPrintArea',
-          attributes,
-          assets: [{
-            printArea: 'default',
-            url: printUrl,
-          }],
-        }],
-        metadata: {
-          galleryId,
-          galleryImageId,
-          localOrderId,
-          source: `${merchantPrefix.toLowerCase()}-print`,
-        },
-      };
-
-      console.log('[Prodigi] Creating order:', JSON.stringify(prodigiOrder, null, 2));
-
-      const response = await prodigiRequest('/orders', 'POST', prodigiOrder);
-      
-      // Update our order record with Prodigi response
-      await pool.query(`
-        UPDATE print_orders SET
-          prodigi_order_id = $1,
-          status = $2,
-          prodigi_response = $3,
-          item_cost = $4,
-          shipping_cost = $5,
-          total_cost = $6,
-          updated_at = NOW()
-        WHERE id = $7
-      `, [
-        response.order?.id,
-        response.outcome?.toLowerCase() || 'created',
-        JSON.stringify(response),
-        response.order?.charges?.[0]?.totalCost?.amount || null,
-        null, // shipping cost will be updated when available
-        null, // total cost will be calculated
-        localOrderId,
-      ]);
 
       res.json({
         success: true,
         orderId: localOrderId,
-        prodigiOrderId: response.order?.id,
-        outcome: response.outcome,
-        status: response.order?.status,
+        // The client redirects here. Nothing is printed until Stripe says this was paid.
+        checkoutUrl: checkout.checkoutUrl,
+        requiresPayment: true,
       });
     } catch (error: any) {
       console.error('[Prodigi] Order creation error:', error);
       res.status(500).json({ error: error.message || 'Failed to create order' });
     }
   });
+
+/**
+ * Send a PAID order to the print lab.
+ *
+ * Split out of POST /order so the Stripe webhook can call it — which is the only caller
+ * that should exist, because dispatch must follow payment and never precede it.
+ * Everything it needs comes from the stored row rather than from a request, so nothing a
+ * browser sent can influence what gets printed or where it is posted.
+ *
+ * The caller must have CLAIMED the row first (claimPrintOrderForDispatch); that is what
+ * makes a Stripe retry a no-op rather than a second parcel.
+ */
+export async function dispatchPrintOrder(order: any): Promise<{ ok: boolean; prodigiOrderId?: string; error?: string }> {
+  const { apiKey } = await getProdigiConfig();
+  if (!apiKey) {
+    // Paid, but the studio has not connected Prodigi. Recorded honestly rather than
+    // reported as dispatched.
+    await pool.query(`UPDATE print_orders SET status = 'paid_no_lab', updated_at = NOW() WHERE id = $1`, [order.id]);
+    return { ok: false, error: 'Prodigi is not connected, so the order was not sent to the lab.' };
+  }
+
+  const prodigiOrder = {
+    merchantReference: order.merchant_reference,
+    shippingMethod: order.shipping_method || 'Standard',
+    recipient: {
+      name: order.customer_name,
+      email: order.customer_email,
+      phoneNumber: order.customer_phone || undefined,
+      address: {
+        line1: order.shipping_line1,
+        line2: order.shipping_line2 || undefined,
+        postalOrZipCode: order.shipping_postal_code,
+        countryCode: order.shipping_country_code,
+        townOrCity: order.shipping_city,
+        stateOrCounty: order.shipping_state || undefined,
+      },
+    },
+    items: [{
+      sku: order.sku,
+      copies: order.copies,
+      sizing: order.sizing || 'fillPrintArea',
+      attributes: order.attributes || {},
+      assets: [{ printArea: 'default', url: order.image_url }],
+    }],
+    metadata: {
+      galleryId: order.gallery_id,
+      galleryImageId: order.gallery_image_id,
+      localOrderId: order.id,
+      stripeSessionId: order.stripe_session_id,
+    },
+  };
+
+  try {
+    const response = await prodigiRequest('/orders', 'POST', prodigiOrder);
+    await pool.query(`
+      UPDATE print_orders SET
+        prodigi_order_id = $1, status = $2, prodigi_response = $3,
+        item_cost = $4, updated_at = NOW()
+      WHERE id = $5
+    `, [
+      response.order?.id,
+      response.outcome?.toLowerCase() || 'dispatched',
+      JSON.stringify(response),
+      response.order?.charges?.[0]?.totalCost?.amount || null,
+      order.id,
+    ]);
+    return { ok: true, prodigiOrderId: response.order?.id };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || 'Prodigi rejected the order' };
+  }
+}
 
 /**
  * GET /order/:id
