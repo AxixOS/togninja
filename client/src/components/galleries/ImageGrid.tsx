@@ -134,7 +134,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({
     
     try {
       setLoading(true);
-      await toggleImageFavorite(image.id, authToken);
+      await toggleImageFavorite(galleryId, image.id, !image.isFavorite, authToken);
       
       // Update local state
       image.isFavorite = !image.isFavorite;

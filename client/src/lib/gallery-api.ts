@@ -281,83 +281,122 @@ export async function deleteGallery(id: string): Promise<void> {
 }
 
 // Upload images to a gallery (admin only)
-export async function uploadGalleryImages(galleryId: string, files: File[]): Promise<GalleryImage[]> {
-  try {
-    console.log(`[uploadGalleryImages] Starting upload for gallery ${galleryId}`);
-    console.log(`[uploadGalleryImages] Files received:`, files);
-    console.log(`[uploadGalleryImages] Files count:`, files?.length || 0);
-    
-    if (!files || files.length === 0) {
-      console.error('[uploadGalleryImages] No files to upload!');
-      throw new Error('No files selected for upload');
-    }
-    
-    const formData = new FormData();
-    
-    // Append each file to the form data
-    files.forEach((file, index) => {
-      console.log(`[uploadGalleryImages] Appending file ${index + 1}:`, file.name, file.type, file.size);
-      formData.append('images', file, file.name);
-    });
+/** Progress while a batched upload runs. */
+export interface UploadProgress {
+  uploaded: number;
+  total: number;
+  batch: number;
+  batches: number;
+}
 
-    console.log(`[uploadGalleryImages] FormData prepared with ${files.length} images for gallery ${galleryId}`);
+// One request per batch, not one request for the whole shoot.
+//
+// This used to put every selected file into a single FormData and POST it once. The
+// server accepts `upload.array("images", 50)` into multer MEMORY storage at 20MB a file,
+// so a wedding photographer selecting their 400 delivered frames got a hard rejection
+// after the 50th — and the 50 that were allowed would have sat in RAM together, up to a
+// gigabyte, which is an OOM kill on a small dyno rather than an upload.
+//
+// Batching fixes three things at once: it stays under the per-request file cap, it bounds
+// peak server memory, and it means a dropped connection costs one batch instead of the
+// entire evening.
+const MAX_FILES_PER_BATCH = 8;
+// Also bound by BYTES, because eight 20MB frames is a very different request from eight
+// 2MB ones, and it is the megabytes that exhaust the server, not the file count.
+const MAX_BYTES_PER_BATCH = 24 * 1024 * 1024;
 
-    console.log(`[uploadGalleryImages] Sending request to /api/galleries/${galleryId}/upload`);
-    const response = await fetch(`/api/galleries/${galleryId}/upload`, {
-      method: 'POST',
-      body: formData,
-      credentials: 'include', // Include session cookies for authentication
-    });
-
-    console.log(`[uploadGalleryImages] Response status: ${response.status}`);
-    
-    if (!response.ok) {
-      let errorMessage = `Upload failed with status ${response.status}`;
-      try {
-        const error = await response.json();
-        console.error('[uploadGalleryImages] Upload failed:', error);
-        errorMessage = error.error || errorMessage;
-        if (error.details) {
-          errorMessage += ` - ${error.details}`;
-        }
-      } catch (parseErr) {
-        console.error('[uploadGalleryImages] Could not parse error response');
-      }
-      
-      if (response.status === 401) {
-        throw new Error('Authentication required - please log in as admin first');
-      } else if (response.status === 413) {
-        throw new Error('File too large - maximum size is 50MB per image');
-      }
-      throw new Error(errorMessage);
+function batchFiles(files: File[]): File[][] {
+  const batches: File[][] = [];
+  let current: File[] = [];
+  let bytes = 0;
+  for (const file of files) {
+    // A single file over the byte budget still gets its own batch — never dropped.
+    if (current.length && (current.length >= MAX_FILES_PER_BATCH || bytes + file.size > MAX_BYTES_PER_BATCH)) {
+      batches.push(current);
+      current = [];
+      bytes = 0;
     }
-
-    const result = await response.json();
-    console.log(`[uploadGalleryImages] Response body:`, result);
-    console.log(`[uploadGalleryImages] Result is array:`, Array.isArray(result));
-    console.log(`[uploadGalleryImages] Result length:`, result?.length);
-    
-    if (!Array.isArray(result)) {
-      console.error('[uploadGalleryImages] ERROR: Response is not an array!', result);
-      throw new Error('Invalid response from server - expected array of uploaded images');
-    }
-    
-    if (result.length === 0) {
-      console.error('[uploadGalleryImages] ERROR: Server returned 0 uploaded images!');
-      console.error('[uploadGalleryImages] This means all uploads failed on the server.');
-      throw new Error(`Upload failed - server returned 0 images (tried to upload ${files.length} images). Check server logs for errors.`);
-    }
-    
-    if (result.length < files.length) {
-      console.warn(`[uploadGalleryImages] WARNING: Only ${result.length} out of ${files.length} images were uploaded successfully`);
-    }
-    
-    console.log(`[uploadGalleryImages] Successfully uploaded ${result.length} images:`, result);
-    return result;
-  } catch (error) {
-    console.error('[uploadGalleryImages] Upload error:', error);
-    throw error;
+    current.push(file);
+    bytes += file.size;
   }
+  if (current.length) batches.push(current);
+  return batches;
+}
+
+async function uploadOneBatch(galleryId: string, batch: File[]): Promise<GalleryImage[]> {
+  const formData = new FormData();
+  for (const file of batch) formData.append('images', file, file.name);
+
+  const response = await fetch(`/api/galleries/${galleryId}/upload`, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let message = `Upload failed with status ${response.status}`;
+    try {
+      const error = await response.json();
+      message = error.error || message;
+      if (error.details) message += ` - ${error.details}`;
+    } catch { /* the body was not JSON; the status is all we have */ }
+    if (response.status === 401) throw new Error('Please sign in again — your session expired.');
+    if (response.status === 413) throw new Error('One of these images is too large. The limit is 20MB per photo.');
+    throw new Error(message);
+  }
+
+  const result = await response.json();
+  if (!Array.isArray(result)) throw new Error('The server did not return the uploaded images.');
+  return result;
+}
+
+/**
+ * Upload images to a gallery, in batches, reporting progress as it goes.
+ *
+ * Throws only if NOTHING uploaded. A partial failure resolves with what did land and the
+ * caller is told how many — losing 400 photographs because the 391st failed would be a
+ * worse outcome than an honest partial result.
+ */
+export async function uploadGalleryImages(
+  galleryId: string,
+  files: File[],
+  onProgress?: (p: UploadProgress) => void,
+): Promise<GalleryImage[]> {
+  if (!files || files.length === 0) throw new Error('No files selected for upload');
+
+  const batches = batchFiles(files);
+  const uploaded: GalleryImage[] = [];
+  const failures: string[] = [];
+
+  for (let i = 0; i < batches.length; i++) {
+    try {
+      const result = await uploadOneBatch(galleryId, batches[i]);
+      uploaded.push(...result);
+    } catch (err) {
+      // One retry: the commonest cause of a mid-upload failure is a transient network
+      // blip, and re-selecting four hundred files to redo one batch is not a fix.
+      try {
+        const result = await uploadOneBatch(galleryId, batches[i]);
+        uploaded.push(...result);
+      } catch (retryErr) {
+        failures.push((retryErr as Error).message);
+      }
+    }
+    // typeof, not just optional-chaining: a dead caller in this repo passed a STRING
+    // as the third argument back when it was ignored, and reviving that path would have
+    // turned a silently-discarded folder name into a TypeError mid-upload.
+    if (typeof onProgress === 'function') {
+      onProgress({ uploaded: uploaded.length, total: files.length, batch: i + 1, batches: batches.length });
+    }
+  }
+
+  if (!uploaded.length) {
+    throw new Error(failures[0] || `Upload failed — none of the ${files.length} images were saved.`);
+  }
+  if (uploaded.length < files.length) {
+    console.warn(`[uploadGalleryImages] ${uploaded.length}/${files.length} uploaded; ${failures.length} batch(es) failed`);
+  }
+  return uploaded;
 }
 
 // Get images for a gallery (admin only)
@@ -558,13 +597,23 @@ export async function getPublicGalleryImages(slug: string, token: string): Promi
 }
 
 // Toggle favorite status for an image (requires JWT)
-export async function toggleImageFavorite(imageId: string, token: string): Promise<void> {
+// POSTed to /api/galleries/images/:id/favorite, which has never existed — a 404 on every
+// call. The real route is PATCH /api/galleries/:galleryId/images/:imageId/favorite, and
+// it needs the gallery id because that is what the access token is checked against.
+export async function toggleImageFavorite(
+  galleryId: string,
+  imageId: string,
+  isFavorite: boolean,
+  token: string,
+): Promise<void> {
   try {
-    const response = await fetch(`/api/galleries/images/${imageId}/favorite`, {
-      method: 'POST',
+    const response = await fetch(`/api/galleries/${galleryId}/images/${imageId}/favorite`, {
+      method: 'PATCH',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
+      body: JSON.stringify({ isFavorite }),
     });
 
     if (!response.ok) {

@@ -181,7 +181,9 @@ const GalleryPage: React.FC = () => {
       const fileArray = Array.from(files);
       console.log(`[GalleryPage] Uploading ${fileArray.length} images to gallery ${gallery.id}`);
       
-      const uploadedImages = await uploadGalleryImages(gallery.id, fileArray);
+      const uploadedImages = await uploadGalleryImages(gallery.id, fileArray, ({ uploaded, total }) => {
+        setUploadProgress(de ? `${uploaded} von ${total} hochgeladen…` : `Uploaded ${uploaded} of ${total}…`);
+      });
       console.log(`[GalleryPage] Upload complete:`, uploadedImages);
       
       if (uploadedImages && uploadedImages.length > 0) {
@@ -299,17 +301,35 @@ const GalleryPage: React.FC = () => {
   };
 
   const toggleFavorite = (imageId: string) => {
+    const nowFavourite = !favorites.has(imageId);
+
+    // Optimistic: the heart fills immediately. localStorage is kept as a cache so the
+    // gallery still reflects the client's picks if the network drops mid-session.
     setFavorites(prev => {
-      const newFavorites = new Set(prev);
-      if (newFavorites.has(imageId)) {
-        newFavorites.delete(imageId);
-      } else {
-        newFavorites.add(imageId);
-      }
-      // Persist to localStorage
-      localStorage.setItem(`gallery_favorites_${slug}`, JSON.stringify(Array.from(newFavorites)));
-      return newFavorites;
+      const next = new Set(prev);
+      if (nowFavourite) next.add(imageId); else next.delete(imageId);
+      localStorage.setItem(`gallery_favorites_${slug}`, JSON.stringify(Array.from(next)));
+      return next;
     });
+
+    // ...and to the server, which is the part that was missing. Without it a client's
+    // picks lived in one browser: gone on their phone, and never visible to the
+    // photographer who sent the gallery to find out which frames they wanted.
+    if (!gallery?.id || !authToken) return;
+    fetch(`/api/galleries/${gallery.id}/images/${imageId}/favorite`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ isFavorite: nowFavourite }),
+    }).then((r) => {
+      if (r.ok) return;
+      // Roll the heart back rather than leaving it showing a pick that was not saved.
+      setFavorites(prev => {
+        const next = new Set(prev);
+        if (nowFavourite) next.delete(imageId); else next.add(imageId);
+        localStorage.setItem(`gallery_favorites_${slug}`, JSON.stringify(Array.from(next)));
+        return next;
+      });
+    }).catch(() => { /* offline: the localStorage cache above still holds the pick */ });
   };
 
   // Selection handlers for slideshow
@@ -337,20 +357,32 @@ const GalleryPage: React.FC = () => {
     setSelectedForSlideshow(new Set());
   };
 
-  // Load favorites from localStorage
+  // Load favourites: the server first, localStorage only as a fallback.
+  //
+  // This used to read localStorage and nothing else, so opening the gallery on a second
+  // device showed an empty shortlist. The images payload now carries isFavorite, which
+  // is the same answer on every device.
   useEffect(() => {
-    if (slug) {
-      const savedFavorites = localStorage.getItem(`gallery_favorites_${slug}`);
-      if (savedFavorites) {
-        try {
-          const favArray = JSON.parse(savedFavorites);
-          setFavorites(new Set(favArray));
-        } catch (e) {
-          console.error('Error loading favorites:', e);
-        }
+    if (!slug) return;
+
+    if (images.length) {
+      const fromServer = images.filter((img: any) => img.isFavorite).map((img: any) => img.id);
+      if (fromServer.length) {
+        setFavorites(new Set(fromServer));
+        localStorage.setItem(`gallery_favorites_${slug}`, JSON.stringify(fromServer));
+        return;
       }
     }
-  }, [slug]);
+
+    const cached = localStorage.getItem(`gallery_favorites_${slug}`);
+    if (!cached) return;
+    try {
+      setFavorites(new Set(JSON.parse(cached)));
+    } catch {
+      // A corrupted cache is not worth a console error on a client's screen.
+      localStorage.removeItem(`gallery_favorites_${slug}`);
+    }
+  }, [slug, images]);
 
   const handleDownloadAll = async () => {
     if (!gallery || !slug || !authToken) return;

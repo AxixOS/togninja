@@ -363,7 +363,11 @@ const AdvancedGalleryForm: React.FC<GalleryFormProps> = ({ gallery, isEditing = 
         setSuccessMessage(`Uploading ${selectedImages.length} images...`);
         try {
           console.log('[GalleryForm] Starting upload...');
-          const uploadedResult = await uploadGalleryImages(galleryId, selectedImages);
+          // Real progress, batch by batch. A 400-image wedding is now dozens of
+          // requests rather than one that gets rejected at the 50th file.
+          const uploadedResult = await uploadGalleryImages(galleryId, selectedImages, ({ uploaded, total }) => {
+            setSuccessMessage(`Uploading… ${uploaded} of ${total}`);
+          });
           console.log('[GalleryForm] Upload result:', uploadedResult);
           console.log('[GalleryForm] Upload successful. Refreshing gallery images...');
           

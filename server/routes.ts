@@ -6187,7 +6187,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             description: img.description,
             orderIndex: img.sortOrder || img.sort_order || 0,
             createdAt: img.createdAt || img.created_at,
-            sizeBytes: 0,
+            // Both of these were hardcoded. isFavorite was not sent at all, so the
+            // heart never reflected anything the server knew; sizeBytes was a literal 0.
+            isFavorite: (img as any).isFavorite ?? (img as any).is_favorite ?? false,
+            rating: (img as any).rating ?? null,
+            sizeBytes: (img as any).sizeBytes ?? (img as any).size_bytes ?? 0,
             contentType: 'image/jpeg',
             capturedAt: null
           };
@@ -6321,6 +6325,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating image rating:", error);
       res.status(500).json({ error: "Failed to update rating" });
+    }
+  });
+
+  // Mark an image as one of the client's picks.
+  //
+  // Favourites used to live entirely in the visitor's localStorage, keyed by gallery
+  // slug. Open the gallery on a phone after choosing on a laptop and the picks were
+  // gone; and the photographer — whose entire reason for sending a proofing gallery is
+  // to find out which frames were chosen — could never see them, because they had never
+  // left the browser. ImageGrid has always read image.isFavorite; nothing ever set it.
+  app.patch("/api/galleries/:galleryId/images/:imageId/favorite", async (req: Request, res: Response) => {
+    try {
+      const { galleryId, imageId } = req.params;
+      const { isFavorite } = req.body;
+
+      // Same gate as ratings: a visitor may only mark up the gallery they hold a token
+      // for, and staff may do it from the admin.
+      const auth = requireGalleryAccess(req, { id: galleryId } as any);
+      if (auth) return res.status(auth.status).json(auth.body);
+
+      if (typeof isFavorite !== 'boolean') {
+        return res.status(400).json({ error: 'isFavorite must be true or false' });
+      }
+
+      const result = await pool.query(
+        `UPDATE gallery_images SET is_favorite = $1 WHERE id = $2 AND gallery_id = $3
+          RETURNING id, is_favorite`,
+        [isFavorite, imageId, galleryId]);
+
+      if (!result.rows.length) return res.status(404).json({ error: "Image not found" });
+      res.json({ success: true, isFavorite: result.rows[0].is_favorite });
+    } catch (error) {
+      console.error("Error updating image favourite:", error);
+      res.status(500).json({ error: "Failed to update favourite" });
     }
   });
 

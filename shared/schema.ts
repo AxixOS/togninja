@@ -720,6 +720,13 @@ export const galleryImages = pgTable("gallery_images", {
   title: text("title"),
   description: text("description"),
   sortOrder: integer("sort_order").default(0),
+  // The client's shortlist. ImageGrid reads image.isFavorite in five places and the
+  // API never returned it, because there was no column — favourites lived only in the
+  // visitor's localStorage, so they vanished on another device and the photographer,
+  // whose whole reason for sending a proofing gallery is to learn which frames were
+  // picked, never saw them at all.
+  isFavorite: boolean("is_favorite").default(false),
+  rating: text("rating"), // love | maybe | reject
   sizeBytes: integer("size_bytes").default(0),
   contentType: text("content_type"),
   metadata: jsonb("metadata"),

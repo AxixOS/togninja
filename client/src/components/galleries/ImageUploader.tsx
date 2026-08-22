@@ -128,8 +128,12 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ galleryId, onUploadComple
         });
       }, 500);
       
-      // Upload files with folder name
-      await uploadGalleryImages(galleryId, files, folderName.trim());
+      // The third argument is a progress callback. It used to be given folderName,
+      // which the API never had a parameter for and silently ignored — this component
+      // has no reachable route today, so nobody noticed.
+      await uploadGalleryImages(galleryId, files, ({ uploaded, total }) => {
+        setUploadProgress(Math.round((uploaded / total) * 100));
+      });
       
       // Clear progress interval
       clearInterval(progressInterval);

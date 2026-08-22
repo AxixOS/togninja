@@ -434,6 +434,7 @@ app.use((req, res, next) => {
       try {
         await db.execute(sql`ALTER TABLE gallery_images ADD COLUMN IF NOT EXISTS size_bytes INTEGER DEFAULT 0`);
         await db.execute(sql`ALTER TABLE gallery_images ADD COLUMN IF NOT EXISTS content_type TEXT`);
+        await db.execute(sql`ALTER TABLE gallery_images ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT FALSE`);
         // gallery_images.rating is TEXT, not INTEGER.
         //
         // The proofing feature — the client marking each photograph love / maybe /
