@@ -74,7 +74,7 @@ const effectiveDate = (p: any): number => {
 type SortKey = 'date' | 'status';
 
 const AdminBlogPostsPage: React.FC = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -350,7 +350,7 @@ const AdminBlogPostsPage: React.FC = () => {
           </span>
         );
       case 'SCHEDULED':
-        const scheduledDate = post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString('de-AT', {
+        const scheduledDate = post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString(language === 'de' ? 'de-AT' : 'en-GB', {
           day: 'numeric',
           month: 'short',
           year: 'numeric'
@@ -361,7 +361,7 @@ const AdminBlogPostsPage: React.FC = () => {
           </span>
         );
       case 'IDEA': {
-        const ideaDate = post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString('de-AT', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+        const ideaDate = post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString(language === 'de' ? 'de-AT' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
             <Wand2 size={12} className="mr-1" /> Idee{ideaDate ? `: ${ideaDate}` : ''}

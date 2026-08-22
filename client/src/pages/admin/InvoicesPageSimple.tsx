@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { 
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
+import {
   Plus, 
   Eye, 
   Edit, 
@@ -29,6 +30,7 @@ interface Invoice {
 }
 
 const InvoicesPageSimple: React.FC = () => {
+  const { format: formatPrice, currency } = useStudioCurrency();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +181,7 @@ const InvoicesPageSimple: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Invoiced</p>
-                <p className="text-2xl font-semibold text-gray-900">€{(stats.totalAmount || 0).toFixed(2)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatPrice(stats.totalAmount || 0)}</p>
               </div>
             </div>
           </div>
@@ -191,7 +193,7 @@ const InvoicesPageSimple: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Paid Amount</p>
-                <p className="text-2xl font-semibold text-gray-900">€{(stats.paidAmount || 0).toFixed(2)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatPrice(stats.paidAmount || 0)}</p>
               </div>
             </div>
           </div>
@@ -203,7 +205,7 @@ const InvoicesPageSimple: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Overdue Amount</p>
-                <p className="text-2xl font-semibold text-gray-900">€{(stats.overdueAmount || 0).toFixed(2)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatPrice(stats.overdueAmount || 0)}</p>
               </div>
             </div>
           </div>
@@ -272,9 +274,9 @@ const InvoicesPageSimple: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">€{(invoice.total_amount || 0).toFixed(2)}</p>
+                          <p className="text-sm font-medium text-gray-900">{formatPrice(invoice.total_amount || 0)}</p>
                           {(invoice.tax_amount || 0) > 0 && (
-                            <p className="text-sm text-gray-500">+ €{(invoice.tax_amount || 0).toFixed(2)} tax</p>
+                            <p className="text-sm text-gray-500">+ {formatPrice(invoice.tax_amount || 0)} tax</p>
                           )}
                         </div>
                       </td>
@@ -465,7 +467,7 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Subtotal (€) *
+                Subtotal ({currency}) *
               </label>
               <input
                 type="number"
@@ -482,7 +484,7 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tax Amount (€)
+                Tax Amount ({currency})
               </label>
               <input
                 type="number"
@@ -499,7 +501,7 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Total Amount (€)
+              Total Amount ({currency})
             </label>
             <input
               type="number"

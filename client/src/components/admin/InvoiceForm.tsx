@@ -19,6 +19,7 @@ import {
   Phone
 } from 'lucide-react';
 import { SITE } from '../../config/site';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface InvoiceFormProps {
   invoice?: Invoice;
@@ -33,6 +34,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   onCancel,
   clients
 }) => {
+  const { format: formatPrice, currency } = useStudioCurrency();
   const [formData, setFormData] = useState<Partial<Invoice>>({
     invoice_number: '',
     client_id: '',
@@ -43,7 +45,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     subtotal: 0,
     tax_amount: 0,
     total_amount: 0,
-    currency: 'EUR',
+    currency,
     notes: '',
     terms: 'Payment is due within 30 days.',
     ...invoice
@@ -486,7 +488,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm font-medium">€{(item.amount || 0).toFixed(2)}</span>
+                      <span className="text-sm font-medium">{formatPrice(item.amount || 0)}</span>
                     </td>
                     <td className="px-4 py-3">
                       <button
@@ -515,15 +517,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             <div className="w-64 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Subtotal:</span>
-                <span>€{(formData.subtotal || 0).toFixed(2)}</span>
+                <span>{formatPrice(formData.subtotal || 0)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>Tax:</span>
-                <span>€{(formData.tax_amount || 0).toFixed(2)}</span>
+                <span>{formatPrice(formData.tax_amount || 0)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold border-t pt-2">
                 <span>Total:</span>
-                <span>€{(formData.total_amount || 0).toFixed(2)}</span>
+                <span>{formatPrice(formData.total_amount || 0)}</span>
               </div>
             </div>
           </div>
@@ -663,7 +665,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                         </div>
                       </div>
                       <div className="text-lg font-semibold text-purple-600">
-                        €{(item.price || 0).toFixed(2)}
+                        {formatPrice(item.price || 0)}
                       </div>
                     </div>
                   </div>
@@ -710,7 +712,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                     <span className="font-medium">Item:</span> {pendingPriceItem.name}
                   </p>
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Price:</span> €{(pendingPriceItem.price || 0).toFixed(2)}
+                    <span className="font-medium">Price:</span> {formatPrice(pendingPriceItem.price || 0)}
                   </p>
                 </div>
                 

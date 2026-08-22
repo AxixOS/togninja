@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Search, TrendingUp, DollarSign, Eye, CheckCircle, XCircle, RefreshCw, ExternalLink, Filter, X, Loader2, MapPin, Plus } from 'lucide-react';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 // Available services for price research
 const AVAILABLE_SERVICES = [
@@ -61,6 +62,8 @@ interface Suggestion {
 }
 
 const AdminPriceWizardPage: React.FC = () => {
+  // Prices in the STUDIO'S currency, not a hardcoded euro sign.
+  const { currency, format: formatPrice } = useStudioCurrency();
   const [sessions, setSessions] = useState<PriceSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -281,7 +284,7 @@ const AdminPriceWizardPage: React.FC = () => {
           competitorId: manualPriceCompetitor.id,
           serviceType: manualPriceService,
           priceAmount: amount,
-          currency: 'EUR',
+          currency,
           notes: manualPriceNotes || null
         })
       });
@@ -428,7 +431,7 @@ const AdminPriceWizardPage: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        alert(`Price activated and added to your Price List!\n\nService: ${data.service_name}\nPrice: €${data.activated_price}\n\nYou can now use this price when creating invoices.`);
+        alert(`Price activated and added to your Price List!\n\nService: ${data.service_name}\nPrice: ${formatPrice(data.activated_price)}\n\nYou can now use this price when creating invoices.`);
         if (selectedSession) fetchSessionDetails(selectedSession);
         setShowActivationModal(false);
         setActivationSuggestion(null);
@@ -689,7 +692,7 @@ const AdminPriceWizardPage: React.FC = () => {
                 {/* Price Amount */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price (EUR)
+                    Price ({currency})
                   </label>
                   <input
                     type="number"
@@ -960,15 +963,15 @@ const AdminPriceWizardPage: React.FC = () => {
                                 return (
                                   <tr key={svc}>
                                     <td className="py-2 pr-4 font-medium text-gray-900 capitalize">{svc.replace(/_/g, ' ')}</td>
-                                    <td className="py-2 px-2 text-right font-semibold text-indigo-700">{mine ? `€${mine.price.toFixed(0)}` : '—'}</td>
-                                    <td className="py-2 px-2 text-right text-gray-600">€{st.min.toFixed(0)}</td>
-                                    <td className="py-2 px-2 text-right text-gray-900 font-medium">€{st.median.toFixed(0)}</td>
-                                    <td className="py-2 px-2 text-right text-gray-600">€{st.max.toFixed(0)}</td>
+                                    <td className="py-2 px-2 text-right font-semibold text-indigo-700">{mine ? formatPrice(mine.price) : '—'}</td>
+                                    <td className="py-2 px-2 text-right text-gray-600">{formatPrice(st.min)}</td>
+                                    <td className="py-2 px-2 text-right text-gray-900 font-medium">{formatPrice(st.median)}</td>
+                                    <td className="py-2 px-2 text-right text-gray-600">{formatPrice(st.max)}</td>
                                     <td className="py-2 pl-4">
                                       {pos === null ? (
                                         <span className="text-gray-400 text-xs">set your price</span>
                                       ) : (
-                                        <div className="relative h-2 rounded w-32 bg-gradient-to-r from-green-300 via-yellow-300 to-red-300" title={`Your €${mine!.price.toFixed(0)} vs €${st.min.toFixed(0)}–€${st.max.toFixed(0)}`}>
+                                        <div className="relative h-2 rounded w-32 bg-gradient-to-r from-green-300 via-yellow-300 to-red-300" title={`Your ${formatPrice(mine!.price)} vs ${formatPrice(st.min)}–${formatPrice(st.max)}`}>
                                           <div className="absolute -top-1 w-1.5 h-4 bg-indigo-700 rounded" style={{ left: `calc(${pos}% - 3px)` }} />
                                         </div>
                                       )}
@@ -1030,7 +1033,7 @@ const AdminPriceWizardPage: React.FC = () => {
                               </div>
                               <div className="text-right">
                                 <div className="text-3xl font-bold text-purple-600">
-                                  €{Number(suggestion.suggested_price).toFixed(2)}
+                                  {formatPrice(Number(suggestion.suggested_price))}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1">
                                   Suggested price
@@ -1044,9 +1047,9 @@ const AdminPriceWizardPage: React.FC = () => {
                                 Where this price sits compared to competitors in your area:
                               </div>
                               <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                <span>Cheapest: €{suggestion.market_min}</span>
-                                <span className="font-medium text-gray-700">Average: €{suggestion.market_median}</span>
-                                <span>Most Expensive: €{suggestion.market_max}</span>
+                                <span>Cheapest: {formatPrice(suggestion.market_min)}</span>
+                                <span className="font-medium text-gray-700">Average: {formatPrice(suggestion.market_median)}</span>
+                                <span>Most Expensive: {formatPrice(suggestion.market_max)}</span>
                               </div>
                               <div className="relative h-3 bg-gray-200 rounded-full">
                                 <div 
@@ -1056,7 +1059,7 @@ const AdminPriceWizardPage: React.FC = () => {
                                 <div 
                                   className="absolute w-4 h-4 bg-purple-600 rounded-full border-2 border-white shadow-md transform -translate-y-0.5"
                                   style={{ left: `${Math.min(Math.max(percentilePosition, 0), 100)}%`, marginLeft: '-8px' }}
-                                  title={`Suggested price: €${suggestion.suggested_price}`}
+                                  title={`Suggested price: ${formatPrice(suggestion.suggested_price)}`}
                                 />
                               </div>
                               <div className="flex justify-between text-xs mt-1">
@@ -1152,11 +1155,11 @@ const AdminPriceWizardPage: React.FC = () => {
                                     </div>
                                     <div>
                                       <span className="font-medium text-gray-700">Your price ({mine.name}): </span>
-                                      <span className="text-gray-800 font-semibold">€{mine.price.toFixed(0)}</span>
+                                      <span className="text-gray-800 font-semibold">{formatPrice(mine.price)}</span>
                                       <span className="text-gray-600"> — {diff > 0
-                                        ? `€${diff.toFixed(0)} below this suggestion (room to raise)`
+                                        ? `${formatPrice(diff)} below this suggestion (room to raise)`
                                         : diff < 0
-                                          ? `€${Math.abs(diff).toFixed(0)} above this suggestion`
+                                          ? `${formatPrice(Math.abs(diff))} above this suggestion`
                                           : 'in line with this suggestion'}</span>
                                     </div>
                                   </div>
@@ -1167,7 +1170,7 @@ const AdminPriceWizardPage: React.FC = () => {
                                       </div>
                                       <div className="text-gray-600">
                                         <span className="font-medium text-gray-700">Adjust to match: </span>
-                                        To command €{Number(suggestion.suggested_price).toFixed(0)}, match the inclusions competitors offer at this price{reasoningParts.whatsIncluded ? ` (${reasoningParts.whatsIncluded})` : ''} — or keep €{mine.price.toFixed(0)} positioned as a lighter "mini" package.
+                                        To command {formatPrice(Number(suggestion.suggested_price))}, match the inclusions competitors offer at this price{reasoningParts.whatsIncluded ? ` (${reasoningParts.whatsIncluded})` : ''} — or keep {formatPrice(mine.price)} positioned as a lighter "mini" package.
                                       </div>
                                     </div>
                                   )}
@@ -1230,7 +1233,7 @@ const AdminPriceWizardPage: React.FC = () => {
                                         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                                           {src.prices.map((sp, spIdx) => (
                                             <span key={spIdx} className="font-medium text-gray-700">
-                                              €{sp.amount.toFixed(0)}
+                                              {formatPrice(sp.amount)}
                                             </span>
                                           ))}
                                           {src.prices[0]?.confidence > 0 && (
@@ -1562,7 +1565,7 @@ const AdminPriceWizardPage: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-gray-500">Recommended</p>
-                    <p className="text-xl font-bold text-green-600">€{Number(activationSuggestion.suggested_price).toFixed(2)}</p>
+                    <p className="text-xl font-bold text-green-600">{formatPrice(Number(activationSuggestion.suggested_price))}</p>
                   </div>
                 </div>
               </div>
@@ -1570,7 +1573,7 @@ const AdminPriceWizardPage: React.FC = () => {
               {/* Price Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Final Price (EUR)
+                  Final Price ({currency})
                 </label>
                 <input
                   type="number"

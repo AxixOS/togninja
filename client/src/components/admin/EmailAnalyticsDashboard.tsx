@@ -41,8 +41,10 @@ import {
   getAIInsights, 
   getAIRecommendations 
 } from '../../lib/email-marketing';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 const EmailAnalyticsDashboard: React.FC = () => {
+  const { format: formatPrice } = useStudioCurrency();
   const [analytics, setAnalytics] = useState<EmailAnalytics | null>(null);
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [recommendations, setRecommendations] = useState<AIRecommendation[]>([]);
@@ -434,9 +436,9 @@ const EmailAnalyticsDashboard: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {[
-                { name: 'Summer Photography Special', sent: 2847, openRate: 32.4, clickRate: 5.8, revenue: '€1,240', date: '2024-06-15' },
-                { name: 'Wedding Season Announcement', sent: 1923, openRate: 28.7, clickRate: 4.2, revenue: '€890', date: '2024-06-10' },
-                { name: 'Family Portrait Promotion', sent: 3156, openRate: 26.1, clickRate: 3.9, revenue: '€1,567', date: '2024-06-05' }
+                { name: 'Summer Photography Special', sent: 2847, openRate: 32.4, clickRate: 5.8, revenue: 1240, date: '2024-06-15' },
+                { name: 'Wedding Season Announcement', sent: 1923, openRate: 28.7, clickRate: 4.2, revenue: 890, date: '2024-06-10' },
+                { name: 'Family Portrait Promotion', sent: 3156, openRate: 26.1, clickRate: 3.9, revenue: 1567, date: '2024-06-05' }
               ].map((campaign, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -452,7 +454,7 @@ const EmailAnalyticsDashboard: React.FC = () => {
                     {campaign.clickRate}%
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
-                    {campaign.revenue}
+                    {formatPrice(campaign.revenue)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div className="flex items-center">

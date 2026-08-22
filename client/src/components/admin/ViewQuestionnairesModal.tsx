@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Eye, Calendar, FileText, Download } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
 
 interface QuestionnaireResponse {
@@ -25,6 +26,7 @@ const ViewQuestionnairesModal: React.FC<ViewQuestionnairesModalProps> = ({
   clientId,
   clientName
 }) => {
+  const { language } = useLanguage();
   const [questionnaires, setQuestionnaires] = useState<QuestionnaireResponse[]>([]);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<QuestionnaireResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,7 +57,7 @@ const ViewQuestionnairesModal: React.FC<ViewQuestionnairesModalProps> = ({
   };
 
   const formatDate = (timestamp: string) => {
-    return new Date(timestamp).toLocaleDateString('de-DE', {
+    return new Date(timestamp).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-GB', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

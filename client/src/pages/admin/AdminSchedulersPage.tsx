@@ -23,6 +23,7 @@ import {
   Mail,
   ArrowUpDown
 } from 'lucide-react';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 import { format, parseISO } from 'date-fns';
 
 interface Scheduler {
@@ -80,6 +81,7 @@ const defaultWeeklyAvailability = {
 };
 
 export default function AdminSchedulersPage() {
+  const { currency, format: formatPrice } = useStudioCurrency();
   // State
   const [schedulers, setSchedulers] = useState<Scheduler[]>([]);
   const [bookings, setBookings] = useState<SchedulerBooking[]>([]);
@@ -511,7 +513,7 @@ export default function AdminSchedulersPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price (€)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Price ({currency})</label>
                 <input
                   type="number"
                   value={formData.price}
@@ -1154,7 +1156,7 @@ export default function AdminSchedulersPage() {
                           {scheduler.price && parseFloat(scheduler.price) > 0 && (
                             <span className="flex items-center gap-1">
                               <DollarSign className="w-4 h-4" />
-                              €{parseFloat(scheduler.price).toFixed(0)}
+                              {formatPrice(parseFloat(scheduler.price))}
                             </span>
                           )}
                         </div>

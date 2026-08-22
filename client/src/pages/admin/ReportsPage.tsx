@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { supabase } from '../../lib/supabase';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 import { 
   BarChart as BarChartIcon, 
   LineChart, 
@@ -356,6 +357,8 @@ const ReportsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>('12months');
   const [selectedCategory, setSelectedCategory] = useState<string>('overview');
+
+  const { format: formatPrice } = useStudioCurrency();
 
   useEffect(() => {
     // console.log removed
@@ -716,7 +719,7 @@ const ReportsPage: React.FC = () => {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Average Order Value</p>
-                    <p className="text-2xl font-semibold text-gray-900">€{reportData.averageOrderValue?.toFixed?.(2) || '0.00'}</p>
+                    <p className="text-2xl font-semibold text-gray-900">{formatPrice(reportData.averageOrderValue)}</p>
                   </div>
                 </div>
               </div>
@@ -729,7 +732,7 @@ const ReportsPage: React.FC = () => {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Total Revenue</p>
                     <p className="text-2xl font-semibold text-gray-900">
-                      €{reportData.revenueByMonth.reduce((sum, month) => sum + month.revenue, 0).toLocaleString()}
+                      {formatPrice(reportData.revenueByMonth.reduce((sum, month) => sum + month.revenue, 0))}
                     </p>
                   </div>
                 </div>
@@ -750,7 +753,7 @@ const ReportsPage: React.FC = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis />
-                      <Tooltip formatter={(value) => [`€${value}`, 'Revenue']} />
+                      <Tooltip formatter={(value) => [formatPrice(Number(value)), 'Revenue']} />
                       <Legend />
                       <Bar dataKey="revenue" name="Revenue" fill="#8884d8" />
                     </BarChart>
@@ -829,7 +832,7 @@ const ReportsPage: React.FC = () => {
                             {client.name}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                            €{client.revenue.toLocaleString()}
+                            {formatPrice(client.revenue)}
                           </td>
                         </tr>
                       ))}

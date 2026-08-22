@@ -1,5 +1,7 @@
 import React from 'react';
 import { SITE } from '../../config/site';
+import { formatCurrency as formatMoney } from '../../utils/currency';
+import { getEffectiveLocale } from '../../lib/dateFormat';
 
 // CACHE BUST v3 - FORCE REBUILD - 20251210-1628
 const TEMPLATE_VERSION = 'v3.0.0-20251210-1628';
@@ -55,17 +57,14 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
   console.log('📄 CREATED AT:', invoice.created_at);
   console.log('📄 ITEMS COUNT:', invoice.items?.length);
   
+  // The invoice carries its own currency (a historical invoice keeps the currency it was
+  // raised in), so that stays the source of truth here; only the LOCALE was wrong — it was
+  // pinned to 'de-DE', which gave an English studio German number conventions. The shared
+  // helper resolves the studio's locale and already falls back to "amount CODE" rather than
+  // a euro sign when Intl rejects an unknown currency code.
   const formatCurrency = (amount: number) => {
     const safeAmount = (amount === null || amount === undefined || isNaN(amount)) ? 0 : amount;
-    try {
-      return new Intl.NumberFormat('de-DE', {
-        style: 'currency',
-        currency: invoice.currency || 'EUR'
-      }).format(safeAmount);
-    } catch (error) {
-      console.error('Currency formatting error:', error);
-      return `€${safeAmount.toFixed(2)}`;
-    }
+    return formatMoney(safeAmount, invoice.currency || 'EUR');
   };
 
   const formatDate = (dateString: string) => {
@@ -79,7 +78,7 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
         console.warn('Invalid date:', dateString);
         return 'Invalid Date';
       }
-      return date.toLocaleDateString('de-DE');
+      return date.toLocaleDateString(getEffectiveLocale());
     } catch (error) {
       console.error('Date formatting error:', error, dateString);
       return 'Invalid Date';

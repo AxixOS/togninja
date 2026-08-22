@@ -5,6 +5,7 @@ import { Input } from '../../components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Plus, ShoppingCart, Gift, DollarSign } from 'lucide-react';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface VoucherProduct {
   id: string;
@@ -29,6 +30,8 @@ interface VoucherSale {
 }
 
 const VoucherManagementPage: React.FC = () => {
+  // The studio's own currency — this screen used to hardcode euros.
+  const { currency, format: formatPrice } = useStudioCurrency();
   const [products, setProducts] = useState<VoucherProduct[]>([]);
   const [sales, setSales] = useState<VoucherSale[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +160,7 @@ const VoucherManagementPage: React.FC = () => {
                       required
                     />
                     <Input
-                      placeholder="Price (EUR)"
+                      placeholder={`Price (${currency})`}
                       type="number"
                       step="0.01"
                       value={newProduct.price}
@@ -192,7 +195,7 @@ const VoucherManagementPage: React.FC = () => {
                       <div>
                         <h3 className="font-semibold">{product.name}</h3>
                         <p className="text-sm text-gray-600">{product.description}</p>
-                        <p className="text-lg font-bold">€{product.price}</p>
+                        <p className="text-lg font-bold">{formatPrice(product.price)}</p>
                       </div>
                       <div className="text-right text-sm text-gray-600">
                         <p>Valid for {product.validity_months} months</p>
@@ -226,7 +229,7 @@ const VoucherManagementPage: React.FC = () => {
                     <option value="">Select voucher product</option>
                     {products.filter(p => p.is_active).map((product) => (
                       <option key={product.id} value={product.id}>
-                        {product.name} - €{product.price}
+                        {product.name} - {formatPrice(product.price)}
                       </option>
                     ))}
                   </select>
@@ -265,7 +268,7 @@ const VoucherManagementPage: React.FC = () => {
                         <p className="text-sm font-mono">{sale.voucher_code}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-bold">€{sale.amount_paid}</p>
+                        <p className="text-lg font-bold">{formatPrice(sale.amount_paid)}</p>
                         <p className={`text-sm ${sale.payment_status === 'paid' ? 'text-green-600' : 'text-orange-600'}`}>
                           {sale.payment_status}
                         </p>
@@ -296,7 +299,7 @@ const VoucherManagementPage: React.FC = () => {
                   </div>
                   <div className="text-center">
                     <p className="text-2xl font-bold">
-                      €{sales.reduce((sum, sale) => sum + sale.amount_paid, 0).toFixed(2)}
+                      {formatPrice(sales.reduce((sum, sale) => sum + sale.amount_paid, 0))}
                     </p>
                     <p className="text-sm text-gray-600">Revenue</p>
                   </div>

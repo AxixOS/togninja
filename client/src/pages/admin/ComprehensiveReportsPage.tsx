@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 // Supabase removed - using Neon database APIs
 import { 
   Download, 
@@ -76,6 +77,8 @@ const ComprehensiveReportsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>('12months');
   const [selectedCategory, setSelectedCategory] = useState<string>('overview');
+
+  const { format: formatPrice } = useStudioCurrency();
 
   useEffect(() => {
     fetchComprehensiveReports();
@@ -526,7 +529,7 @@ const ComprehensiveReportsPage: React.FC = () => {
           </div>
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-600">Avg Order Value</p>
-            <p className="text-2xl font-semibold text-gray-900">€{reportData?.averageOrderValue.toFixed(0)}</p>
+            <p className="text-2xl font-semibold text-gray-900">{formatPrice(reportData?.averageOrderValue)}</p>
           </div>
         </div>
       </div>
@@ -538,7 +541,7 @@ const ComprehensiveReportsPage: React.FC = () => {
           </div>
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-600">Customer LTV</p>
-            <p className="text-2xl font-semibold text-gray-900">€{reportData?.customerLifetimeValue.toFixed(0)}</p>
+            <p className="text-2xl font-semibold text-gray-900">{formatPrice(reportData?.customerLifetimeValue)}</p>
           </div>
         </div>
       </div>
@@ -550,7 +553,7 @@ const ComprehensiveReportsPage: React.FC = () => {
           </div>
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-            <p className="text-2xl font-semibold text-gray-900">€{(reportData?.totalRevenue || 0).toLocaleString('de-DE', { maximumFractionDigits: 0 })}</p>
+            <p className="text-2xl font-semibold text-gray-900">{formatPrice(reportData?.totalRevenue || 0)}</p>
           </div>
         </div>
       </div>
@@ -579,7 +582,7 @@ const ComprehensiveReportsPage: React.FC = () => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip formatter={(value) => [`€${value}`, 'Revenue']} />
+              <Tooltip formatter={(value) => [formatPrice(Number(value)), 'Revenue']} />
               <Area type="monotone" dataKey="revenue" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} />
             </AreaChart>
           </ResponsiveContainer>
@@ -606,7 +609,7 @@ const ComprehensiveReportsPage: React.FC = () => {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: any) => [`€${Number(value).toLocaleString('de-DE')}`, 'Revenue']} />
+                      <Tooltip formatter={(value: any) => [formatPrice(Number(value)), 'Revenue']} />
                     </RechartsPieChart>
                   </ResponsiveContainer>
                 </div>
@@ -632,7 +635,7 @@ const ComprehensiveReportsPage: React.FC = () => {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="month" />
             <YAxis />
-            <Tooltip formatter={(value) => [`€${value}`]} />
+            <Tooltip formatter={(value) => [formatPrice(Number(value))]} />
             <Legend />
             <Line type="monotone" dataKey="revenue" stroke="#10b981" name="Revenue" />
             <Line type="monotone" dataKey="expenses" stroke="#ef4444" name="Expenses" />
@@ -691,7 +694,7 @@ const ComprehensiveReportsPage: React.FC = () => {
               {(reportData?.topClients || []).map((client, index) => (
                 <tr key={index}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{client.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">€{client.revenue.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatPrice(client.revenue)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{client.bookings}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {client.lastBooking ? new Date(client.lastBooking).toLocaleDateString() : 'N/A'}
@@ -771,7 +774,7 @@ const ComprehensiveReportsPage: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {campaign.clicked} ({campaign.opened > 0 ? ((campaign.clicked / campaign.opened) * 100).toFixed(1) : 0}%)
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">€{campaign.revenue.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatPrice(campaign.revenue)}</td>
                 </tr>
               ))}
             </tbody>
@@ -807,7 +810,7 @@ const ComprehensiveReportsPage: React.FC = () => {
                   <p className="text-sm text-gray-600">{voucher.sold} sold</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-green-600">€{voucher.revenue.toFixed(2)}</p>
+                  <p className="text-sm font-medium text-green-600">{formatPrice(voucher.revenue)}</p>
                   <p className="text-xs text-gray-500">{voucher.redemptionRate.toFixed(1)}% redeemed</p>
                 </div>
               </div>

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { ArrowLeft, Mail, Phone, MapPin, Building, Edit, Trash2, Calendar, Euro, MessageSquare, Plus, FileText, Inbox, ClipboardList, Eye, Download, Link, Share, Clock, Image as ImageIcon } from 'lucide-react';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
+import { useLanguage } from '../../context/LanguageContext';
 import { googleCalendarService } from '../../services/googleCalendarService';
 import SendQuestionnaireModal from '../../components/admin/SendQuestionnaireModal';
 import ViewEmailsModal from '../../components/admin/ViewEmailsModal';
@@ -32,6 +34,9 @@ interface Client {
 }
 
 const ClientDetailPage: React.FC = () => {
+  const { format: formatPrice } = useStudioCurrency();
+  const { language } = useLanguage();
+  const dateLocale = language === 'de' ? 'de-AT' : 'en-GB';
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [client, setClient] = useState<Client | null>(null);
@@ -515,7 +520,7 @@ const ClientDetailPage: React.FC = () => {
                 {client.lifetimeValue && (
                   <div>
                     <p className="text-sm text-gray-500">Lifetime Value</p>
-                    <p className="text-gray-900">€{parseFloat(client.lifetimeValue).toFixed(2)}</p>
+                    <p className="text-gray-900">{formatPrice(parseFloat(client.lifetimeValue))}</p>
                   </div>
                 )}
                 <div>
@@ -648,7 +653,7 @@ const ClientDetailPage: React.FC = () => {
                         #{invoice.invoiceNumber || invoice.id}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        €{(invoice.total || invoice.totalAmount || 0).toFixed(2)}
+                        {formatPrice(invoice.total || invoice.totalAmount || 0)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -756,10 +761,10 @@ const ClientDetailPage: React.FC = () => {
                             <Clock size={14} className="mr-1 text-gray-400" />
                             {startTime ? (
                               <span>
-                                {startTime.toLocaleDateString('de-AT', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                                {startTime.toLocaleDateString(dateLocale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                                 {' '}
-                                {startTime.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}
-                                {endTime && ` - ${endTime.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}`}
+                                {startTime.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
+                                {endTime && ` - ${endTime.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}`}
                               </span>
                             ) : 'No date'}
                           </div>

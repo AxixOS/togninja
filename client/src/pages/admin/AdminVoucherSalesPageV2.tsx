@@ -21,7 +21,7 @@ import {
   Package,
   Tag,
   TrendingUp,
-  Euro,
+  Banknote,
   ShoppingCart,
   Gift,
   Percent,
@@ -31,6 +31,7 @@ import {
   Settings
 } from "lucide-react";
 import FulfillmentView from './components/FulfillmentView';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 // Types
 type VoucherProduct = {
@@ -113,6 +114,8 @@ export default function AdminVoucherSalesPageV2() {
   const [isCouponDialogOpen, setIsCouponDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();
+  // The studio's own currency — these screens used to hardcode euros.
+  const { currency, format: formatPrice } = useStudioCurrency();
 
   // Simple toast replacement
   const toast = ({ title, description, variant }: { title: string; description: string; variant?: string }) => {
@@ -300,10 +303,10 @@ export default function AdminVoucherSalesPageV2() {
               <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium text-blue-100">Total Revenue</CardTitle>
-                  <Euro className="h-4 w-4 text-blue-200" />
+                  <Banknote className="h-4 w-4 text-blue-200" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">€{stats.totalRevenue.toFixed(2)}</div>
+                  <div className="text-2xl font-bold">{formatPrice(stats.totalRevenue)}</div>
                   <p className="text-xs text-blue-100 mt-1">
                     From {stats.totalSales} voucher sales
                   </p>
@@ -342,7 +345,7 @@ export default function AdminVoucherSalesPageV2() {
                   <TrendingUp className="h-4 w-4 text-gray-400" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-gray-900">€{stats.avgOrderValue.toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-gray-900">{formatPrice(stats.avgOrderValue)}</div>
                   <p className="text-xs text-gray-500 mt-1">
                     Per voucher sale
                   </p>
@@ -355,7 +358,7 @@ export default function AdminVoucherSalesPageV2() {
                   <Percent className="h-4 w-4 text-gray-400" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-gray-900">€{stats.totalDiscountGiven.toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-gray-900">{formatPrice(stats.totalDiscountGiven)}</div>
                   <p className="text-xs text-gray-500 mt-1">
                     Given to customers
                   </p>
@@ -481,7 +484,7 @@ export default function AdminVoucherSalesPageV2() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-bold text-green-600">€{product.price}</div>
+                          <div className="text-2xl font-bold text-green-600">{formatPrice(product.price)}</div>
                         </div>
                       </div>
                     </CardHeader>
@@ -607,14 +610,14 @@ export default function AdminVoucherSalesPageV2() {
                           <span>
                             {coupon.discountType === 'percentage' 
                               ? `${coupon.discountValue}% off`
-                              : `€${coupon.discountValue} off`
+                              : `${formatPrice(coupon.discountValue)} off`
                             }
                           </span>
                         </div>
                         {coupon.minOrderAmount && (
                           <div className="flex items-center space-x-1">
-                            <Euro className="h-4 w-4 text-gray-400" />
-                            <span>Min: €{coupon.minOrderAmount}</span>
+                            <Banknote className="h-4 w-4 text-gray-400" />
+                            <span>Min: {formatPrice(coupon.minOrderAmount)}</span>
                           </div>
                         )}
                         {coupon.endDate && (
@@ -747,13 +750,13 @@ export default function AdminVoucherSalesPageV2() {
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              €{Number(sale.originalAmount).toFixed(2)}
+                              {formatPrice(Number(sale.originalAmount))}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                              -€{Number(sale.discountAmount).toFixed(2)}
+                              -{formatPrice(Number(sale.discountAmount))}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              €{Number(sale.finalAmount).toFixed(2)}
+                              {formatPrice(Number(sale.finalAmount))}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <Badge variant={sale.status === 'active' ? 'default' : 'secondary'}>
@@ -821,7 +824,7 @@ export default function AdminVoucherSalesPageV2() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Price (€)</Label>
+                <Label htmlFor="price">Price ({currency})</Label>
                 <Input 
                   id="price" 
                   type="number" 
@@ -957,7 +960,7 @@ export default function AdminVoucherSalesPageV2() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="percentage">Percentage (%)</SelectItem>
-                    <SelectItem value="fixed_amount">Fixed Amount (€)</SelectItem>
+                    <SelectItem value="fixed_amount">Fixed Amount ({currency})</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -971,7 +974,7 @@ export default function AdminVoucherSalesPageV2() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="min-order">Min Order (€)</Label>
+                <Label htmlFor="min-order">Min Order ({currency})</Label>
                 <Input 
                   id="min-order" 
                   type="number" 

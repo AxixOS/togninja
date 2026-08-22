@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Eye, Calendar, Mail } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface Email {
   id: string;
@@ -24,6 +25,7 @@ const ViewEmailsModal: React.FC<ViewEmailsModalProps> = ({
   clientId,
   clientName
 }) => {
+  const { language } = useLanguage();
   const [emails, setEmails] = useState<Email[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,7 +56,7 @@ const ViewEmailsModal: React.FC<ViewEmailsModalProps> = ({
   };
 
   const formatDate = (timestamp: string) => {
-    return new Date(timestamp).toLocaleDateString('de-DE', {
+    return new Date(timestamp).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-GB', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

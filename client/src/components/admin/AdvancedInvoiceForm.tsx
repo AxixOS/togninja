@@ -26,6 +26,7 @@ import { apiRequest } from '../../lib/queryClient';
 import { priceListService, PriceListItem, pdfService } from '../../lib/invoicing';
 import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface Client {
   id: string;
@@ -88,6 +89,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
   prefillClientId
 }) => {
   const { t } = useLanguage();
+  const { format: formatPrice, currency: studioCurrency } = useStudioCurrency();
   const [currentStep, setCurrentStep] = useState(1);
   const [clients, setClients] = useState<Client[]>([]);
   const [filteredClients, setFilteredClients] = useState<Client[]>([]);
@@ -144,7 +146,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
     issue_date: new Date().toISOString().split('T')[0],
     due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
     payment_terms: getSavedPaymentTerms(),
-    currency: 'EUR',
+    currency: studioCurrency,
     notes: getSavedNotes(),
     footer_text: getSavedFooterText(),
     discount_type: 'fixed',
@@ -216,7 +218,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
           issue_date: new Date().toISOString().split('T')[0],
           due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           payment_terms: getSavedPaymentTerms(),
-          currency: 'EUR',
+          currency: studioCurrency,
           notes: getSavedNotes(),
           footer_text: getSavedFooterText(),
           discount_type: 'fixed',
@@ -970,6 +972,9 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
                   onChange={(e) => setFormData(prev => ({ ...prev, currency: e.target.value }))}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 >
+                  {!['EUR', 'USD', 'GBP'].includes(studioCurrency) && (
+                    <option value={studioCurrency}>{studioCurrency}</option>
+                  )}
                   <option value="EUR">EUR (€)</option>
                   <option value="USD">USD ($)</option>
                   <option value="GBP">GBP (£)</option>
@@ -1165,7 +1170,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
                     onChange={(e) => setFormData(prev => ({ ...prev, discount_type: e.target.value as 'fixed' | 'percentage' }))}
                     className="w-32 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   >
-                    <option value="fixed">Fixed €</option>
+                    <option value="fixed">Fixed {formData.currency}</option>
                     <option value="percentage">Percent %</option>
                   </select>
                   <div className="relative flex-1">
@@ -1180,7 +1185,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
                       placeholder={formData.discount_type === 'percentage' ? '0' : '0.00'}
                     />
                     <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                      {formData.discount_type === 'percentage' ? '%' : '€'}
+                      {formData.discount_type === 'percentage' ? '%' : formData.currency}
                     </span>
                   </div>
                 </div>
@@ -1663,7 +1668,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
                       <h4 className="font-medium text-gray-900">{item.name}</h4>
                       <p className="text-sm text-gray-600 mb-2 line-clamp-2">{displayDesc}</p>
                       <div className="flex items-center justify-between mb-3">
-                        <p className="font-semibold text-purple-600">€{(item.price || 0).toFixed(2)}</p>
+                        <p className="font-semibold text-purple-600">{formatPrice(item.price || 0)}</p>
                         <span className="text-xs bg-gray-100 px-2 py-1 rounded">{item.category}</span>
                       </div>
                       <button
@@ -1722,7 +1727,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Item: {pendingPriceItem.name}
                   </label>
-                  <p className="text-sm text-gray-500 mb-2">Price: €{(pendingPriceItem.price || 0).toFixed(2)}</p>
+                  <p className="text-sm text-gray-500 mb-2">Price: {formatPrice(pendingPriceItem.price || 0)}</p>
                 </div>
                 
                 <div>

@@ -3,7 +3,9 @@ import AdminLayout from '../../components/admin/AdminLayout';
 import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import { Crown, TrendingUp, Users, MapPin, Calendar, Euro } from 'lucide-react';
+import { Crown, TrendingUp, Users, MapPin, Calendar, Banknote } from 'lucide-react';
+import { formatAppDate } from '../../lib/dateFormat';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface TopClient {
   id: string;
@@ -36,6 +38,8 @@ const HighValueClientsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [orderBy, setOrderBy] = useState<'lifetime_value' | 'total_revenue' | 'session_count' | 'recent_activity'>('lifetime_value');
   const [segmentBy, setSegmentBy] = useState<'revenue' | 'frequency' | 'recency' | 'geography'>('revenue');
+
+  const { format: formatPrice } = useStudioCurrency();
 
   useEffect(() => {
     fetchTopClients();
@@ -75,16 +79,11 @@ const HighValueClientsPage: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('de-AT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(isFinite(amount as any) ? amount || 0 : 0);
-  };
+  const formatCurrency = (amount: number) => formatPrice(isFinite(amount as any) ? amount || 0 : 0);
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleDateString('de-AT');
+    return formatAppDate(dateString);
   };
 
   const getClientTier = (revenue: number) => {
@@ -270,7 +269,7 @@ const HighValueClientsPage: React.FC = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Euro className="h-5 w-5" />
+                    <Banknote className="h-5 w-5" />
                     Revenue Concentration
                   </CardTitle>
                 </CardHeader>

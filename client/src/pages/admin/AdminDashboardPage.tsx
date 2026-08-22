@@ -31,6 +31,7 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface DashboardData {
   // Key Metrics
@@ -64,6 +65,7 @@ const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'];
 
 const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const { format: formatPrice } = useStudioCurrency();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('30days');
@@ -304,7 +306,7 @@ const AdminDashboardPage: React.FC = () => {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <MetricCard
         title="Total Revenue"
-        value={`€${(dashboardData?.totalRevenue ?? 0).toLocaleString()}`}
+        value={formatPrice(dashboardData?.totalRevenue ?? 0)}
         change={dashboardData?.monthlyGrowth}
         icon={DollarSign}
         color="bg-purple-500"
@@ -364,7 +366,7 @@ const AdminDashboardPage: React.FC = () => {
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => [`€${value}`, 'Revenue']} />
+              <Tooltip formatter={(value) => [formatPrice(value as number), 'Revenue']} />
             </PieChart>
           </ResponsiveContainer>
         ) : (
@@ -425,7 +427,7 @@ const AdminDashboardPage: React.FC = () => {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-red-700">€{(parseFloat(invoice.total) || 0).toFixed(2)}</p>
+                    <p className="font-semibold text-red-700">{formatPrice(parseFloat(invoice.total) || 0)}</p>
                     <p className="text-xs text-gray-500">
                       Due {(() => {
                         try {
@@ -440,7 +442,7 @@ const AdminDashboardPage: React.FC = () => {
               <div className="pt-2 border-t border-red-100 flex justify-between items-center">
                 <p className="text-sm font-medium text-red-900">Total Outstanding</p>
                 <p className="text-lg font-bold text-red-700">
-                  €{(dashboardData?.unpaidInvoices || []).reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0).toFixed(2)}
+                  {formatPrice((dashboardData?.unpaidInvoices || []).reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0))}
                 </p>
               </div>
             </div>
@@ -554,7 +556,7 @@ const AdminDashboardPage: React.FC = () => {
                   {(invoice.client?.name || invoice.clientName || invoice.client_name) && (
                     <p className="text-xs text-gray-500">{invoice.client?.name || invoice.clientName || invoice.client_name}</p>
                   )}
-                  <p className="text-sm text-gray-600">€{(parseFloat(invoice.total) || 0).toFixed(2)}</p>
+                  <p className="text-sm text-gray-600">{formatPrice(parseFloat(invoice.total) || 0)}</p>
                   <span className={`inline-block px-2 py-1 text-xs rounded-full ${
                     invoice.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
                     invoice.status === 'PAID' ? 'bg-green-100 text-green-800' :
@@ -604,7 +606,7 @@ const AdminDashboardPage: React.FC = () => {
                     {(quote.client?.name || quote.clientName || quote.client_name) && (
                       <p className="text-xs text-gray-500">{quote.client?.name || quote.clientName || quote.client_name}</p>
                     )}
-                    <p className="text-sm text-gray-600">€{(parseFloat(quote.total) || 0).toFixed(2)}</p>
+                    <p className="text-sm text-gray-600">{formatPrice(parseFloat(quote.total) || 0)}</p>
                     <span className={`inline-block px-2 py-1 text-xs rounded-full ${
                       quote.status === 'accepted' || quote.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' :
                       quote.status === 'sent' || quote.status === 'SENT' || quote.status === 'pending' || quote.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :

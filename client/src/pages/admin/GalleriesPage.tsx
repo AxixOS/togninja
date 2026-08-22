@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from '../../components/ui/badge';
 import { Switch } from '../../components/ui/switch';
 import { Plus, Image, Users, Lock, Globe, Edit, Trash2, Eye, ExternalLink } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface Gallery {
   id: string;
@@ -41,6 +42,7 @@ interface GalleryAnalytics {
 }
 
 const GalleriesPage: React.FC = () => {
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -162,7 +164,7 @@ const GalleriesPage: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('de-AT', {
+    return new Date(dateString).toLocaleDateString(language === 'de' ? 'de-AT' : 'en-GB', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'

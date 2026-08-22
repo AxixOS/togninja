@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Plus, Search, Filter, Eye, Edit, Trash2, Download, Send, DollarSign, Calendar, FileText } from 'lucide-react';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 // Using Neon database with Express API endpoints
 
 interface Invoice {
@@ -19,6 +20,7 @@ interface Invoice {
 }
 
 const AdminInvoicesPage: React.FC = () => {
+  const { format: formatPrice } = useStudioCurrency();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -144,7 +146,7 @@ const AdminInvoicesPage: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Invoiced</p>
-                <p className="text-2xl font-semibold text-gray-900">€{stats.totalAmount.toFixed(2)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatPrice(stats.totalAmount)}</p>
               </div>
             </div>
           </div>
@@ -156,7 +158,7 @@ const AdminInvoicesPage: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Paid Amount</p>
-                <p className="text-2xl font-semibold text-gray-900">€{stats.paidAmount.toFixed(2)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatPrice(stats.paidAmount)}</p>
               </div>
             </div>
           </div>
@@ -168,7 +170,7 @@ const AdminInvoicesPage: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Overdue Amount</p>
-                <p className="text-2xl font-semibold text-gray-900">€{stats.overdueAmount.toFixed(2)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatPrice(stats.overdueAmount)}</p>
               </div>
             </div>
           </div>
@@ -251,9 +253,9 @@ const AdminInvoicesPage: React.FC = () => {
                       {invoice.client_name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">€{invoice.total_amount.toFixed(2)}</div>
+                      <div className="text-sm font-medium text-gray-900">{formatPrice(invoice.total_amount)}</div>
                       <div className="text-sm text-gray-500">
-                        €{invoice.amount.toFixed(2)} + €{invoice.tax_amount.toFixed(2)} tax
+                        {formatPrice(invoice.amount)} + {formatPrice(invoice.tax_amount)} tax
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

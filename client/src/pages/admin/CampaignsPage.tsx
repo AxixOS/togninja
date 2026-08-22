@@ -29,7 +29,7 @@ import { getCampaigns } from '../../lib/email-marketing';
 
 type TabType = 'overview' | 'campaigns' | 'sequences' | 'analytics' | 'templates' | 'subscribers' | 'gallery-leads';
 
-// €50 voucher delivery reconciliation: shows newsletter signups with no recorded
+// Newsletter voucher delivery reconciliation: shows newsletter signups with no recorded
 // voucher send and lets an admin resend to one or all of them.
 type Undelivered = { email: string; firstName?: string; createdAt?: string; legacy?: boolean };
 const NewsletterReconcile: React.FC = () => {
@@ -66,7 +66,7 @@ const NewsletterReconcile: React.FC = () => {
     <div className="bg-white border border-gray-200 rounded-lg p-6">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">€50 voucher delivery</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Newsletter voucher delivery</h3>
           <p className="text-sm text-gray-600">Newsletter signups with no record of receiving their voucher email.</p>
         </div>
         <button onClick={load} className="text-sm text-purple-600 hover:text-purple-700">Refresh</button>
@@ -83,7 +83,7 @@ const NewsletterReconcile: React.FC = () => {
             <span className="text-sm text-amber-800"><strong>{data.undeliveredCount}</strong> of {data.total} have no recorded voucher send.</span>
             <button
               disabled={busy}
-              onClick={() => resend({ all: true }, `Send the €50 voucher to ${data.undeliveredCount} subscriber(s) with no recorded send?`)}
+              onClick={() => resend({ all: true }, `Send the newsletter voucher to ${data.undeliveredCount} subscriber(s) with no recorded send?`)}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50"
             >
               {busy ? 'Sending…' : 'Send voucher to all'}
@@ -121,7 +121,7 @@ const AdvancedEmailMarketingHub: React.FC = () => {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [galleryLeads, setGalleryLeads] = useState<any[]>([]);
   const [selectedGallery, setSelectedGallery] = useState<string | null>(null);
-  // Real overview metrics (replaces the old hardcoded 24 / 8.7K / 32.4% / €12.3K).
+  // Real overview metrics (replaces the old hardcoded 24 / 8.7K / 32.4% / 12.3K).
   const [overview, setOverview] = useState<{
     totalCampaigns: number; activeCampaigns: number; sentCampaigns: number;
     activeSubscribers: number; totalSubscribers: number; totalSent: number;
@@ -646,7 +646,7 @@ const AdvancedEmailMarketingHub: React.FC = () => {
         <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Export your subscribers</h3>
         <p className="text-gray-600 max-w-xl mx-auto">
-          <strong>Export newsletter list</strong> downloads everyone who signed up via the €50
+          <strong>Export newsletter list</strong> downloads everyone who signed up via the
           voucher form (tagged <code>newsletter</code>). <strong>Export all</strong> downloads every
           subscriber with their tags, source and signup date — open it in Excel to filter or import
           into another tool.

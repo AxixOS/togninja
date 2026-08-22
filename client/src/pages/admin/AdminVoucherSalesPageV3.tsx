@@ -22,6 +22,7 @@ import {
   insertDiscountCouponSchema
 } from "@shared/schema";
 import { SITE } from "../../config/site";
+import { useStudioCurrency } from "../../hooks/useStudioCurrency";
 import { 
   Plus, 
   Edit, 
@@ -30,7 +31,7 @@ import {
   Package,
   Tag,
   TrendingUp,
-  Euro,
+  Banknote,
   ShoppingCart,
   Gift,
   Percent,
@@ -114,6 +115,8 @@ export default function AdminVoucherSalesPageV3() {
   const [aiDraft, setAiDraft] = useState<Record<string, string> | null>(null);
 
   const queryClient = useQueryClient();
+  // The studio's own currency — the admin screens used to hardcode euros.
+  const { currency, format: formatPrice } = useStudioCurrency();
 
   // Auto-attach admin token to all /api requests (token stored in env/localStorage)
   useEffect(() => {
@@ -1487,7 +1490,7 @@ export default function AdminVoucherSalesPageV3() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Target price (€, optional)</Label>
+                <Label className="text-sm font-medium">Target price ({currency}, optional)</Label>
                 <Input
                   type="number"
                   min="0"
@@ -1531,8 +1534,8 @@ export default function AdminVoucherSalesPageV3() {
                   <p className="text-sm text-gray-700 mt-0.5">{aiDraft.description}</p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs">
-                  {aiDraft.price && <span className="px-2 py-1 rounded bg-white border font-semibold">€{aiDraft.price}</span>}
-                  {aiDraft.originalPrice && <span className="px-2 py-1 rounded bg-white border line-through text-gray-500">€{aiDraft.originalPrice}</span>}
+                  {aiDraft.price && <span className="px-2 py-1 rounded bg-white border font-semibold">{formatPrice(aiDraft.price)}</span>}
+                  {aiDraft.originalPrice && <span className="px-2 py-1 rounded bg-white border line-through text-gray-500">{formatPrice(aiDraft.originalPrice)}</span>}
                   {aiDraft.badge && <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 font-medium">{aiDraft.badge}</span>}
                   {aiDraft.sessionDuration && <span className="px-2 py-1 rounded bg-white border">{aiDraft.sessionDuration} min</span>}
                   {aiDraft.validityPeriod && <span className="px-2 py-1 rounded bg-white border">valid {aiDraft.validityPeriod} days</span>}
@@ -1609,6 +1612,8 @@ export default function AdminVoucherSalesPageV3() {
 
 // Preview Dialog - read-only preview of product (unsaved or saved)
 const PreviewDialog: React.FC<{ open: boolean; onOpenChange: (b: boolean) => void; product: any; }> = ({ open, onOpenChange, product }) => {
+  // Hook first: it must run on every render, including the no-product one below.
+  const { format: formatPrice } = useStudioCurrency();
   if (!product) return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1628,7 +1633,7 @@ const PreviewDialog: React.FC<{ open: boolean; onOpenChange: (b: boolean) => voi
               <div className="w-full h-64 bg-gray-100 flex items-center justify-center mb-4 text-gray-400">No Image</div>
             )}
             <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
-            <div className="text-green-600 font-bold mb-4">€{product.price}</div>
+            <div className="text-green-600 font-bold mb-4">{formatPrice(product.price)}</div>
             <p className="text-gray-700 whitespace-pre-wrap mb-4">{product.description}</p>
             <div className="flex justify-end space-x-3">
               {product.slug && typeof product.slug === 'string' ? (
@@ -1656,6 +1661,7 @@ const DashboardView: React.FC<{
   onShowSettings?: () => void;
   onCreateClient?: (sale: VoucherSale) => void;
 }> = ({ stats, onCreateProduct, onCreateCoupon, onAiGenerate, recentSales, onShowAnalytics, onShowSettings, onCreateClient }) => {
+  const { format: formatPrice } = useStudioCurrency();
   return (
     <div className="space-y-8">
       {/* Key Metrics */}
@@ -1663,10 +1669,10 @@ const DashboardView: React.FC<{
         <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-blue-100">Total Revenue</CardTitle>
-            <Euro className="h-4 w-4 text-blue-200" />
+            <Banknote className="h-4 w-4 text-blue-200" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">€{stats.totalRevenue.toFixed(2)}</div>
+            <div className="text-2xl font-bold">{formatPrice(stats.totalRevenue)}</div>
             <p className="text-xs text-blue-100">From {stats.totalSales} sales</p>
           </CardContent>
         </Card>
@@ -1699,7 +1705,7 @@ const DashboardView: React.FC<{
             <TrendingUp className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">€{stats.avgOrderValue.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-gray-900">{formatPrice(stats.avgOrderValue)}</div>
             <p className="text-xs text-gray-600">Per voucher sale</p>
           </CardContent>
         </Card>
@@ -1829,7 +1835,7 @@ const DashboardView: React.FC<{
                     </div>
                     <div className="flex items-center space-x-4">
                       <div className="text-right">
-                        <p className="font-medium">€{Number(sale.finalAmount).toFixed(2)}</p>
+                        <p className="font-medium">{formatPrice(Number(sale.finalAmount))}</p>
                         <p className="text-sm text-gray-500">{new Date(sale.createdAt).toLocaleDateString()}</p>
                       </div>
                       {(sale as any).clientId ? (
@@ -1875,6 +1881,7 @@ const ProductsView: React.FC<{
   tempImageMap?: Record<string, string>;
   onPreviewProduct?: (product: any) => void;
 }> = ({ products, isLoading, onCreateProduct, onEditProduct, onDeleteProduct, tempImageMap, onPreviewProduct }) => {
+  const { format: formatPrice } = useStudioCurrency();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -2023,9 +2030,9 @@ const ProductsView: React.FC<{
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="font-semibold text-gray-900">€{product.price}</span>
+                      <span className="font-semibold text-gray-900">{formatPrice(product.price)}</span>
                       {product.originalPrice && parseFloat(String(product.originalPrice)) > parseFloat(String(product.price)) && (
-                        <span className="text-xs text-gray-400 line-through ml-2">€{product.originalPrice}</span>
+                        <span className="text-xs text-gray-400 line-through ml-2">{formatPrice(product.originalPrice)}</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
@@ -2117,6 +2124,7 @@ const CouponsView: React.FC<{
   onCreateCoupon: () => void;
   onEditCoupon: (coupon: DiscountCoupon) => void;
 }> = ({ coupons, isLoading, onCreateCoupon, onEditCoupon }) => {
+  const { format: formatPrice } = useStudioCurrency();
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert(`Copied: ${text}`);
@@ -2189,14 +2197,14 @@ const CouponsView: React.FC<{
                     <span>
                       {coupon.discountType === 'percentage' 
                         ? `${coupon.discountValue}% off`
-                        : `€${coupon.discountValue} off`
+                        : `${formatPrice(coupon.discountValue)} off`
                       }
                     </span>
                   </div>
                   {coupon.minOrderAmount && (
                     <div className="flex items-center space-x-1">
-                      <Euro className="h-4 w-4 text-gray-400" />
-                      <span>Min: €{coupon.minOrderAmount}</span>
+                      <Banknote className="h-4 w-4 text-gray-400" />
+                      <span>Min: {formatPrice(coupon.minOrderAmount)}</span>
                     </div>
                   )}
                   {coupon.endDate && (
@@ -2247,6 +2255,7 @@ const SalesView: React.FC<{
   isLoading: boolean;
   onCreateClient?: (sale: VoucherSale) => void;
 }> = ({ sales, isLoading, onCreateClient }) => {
+  const { format: formatPrice } = useStudioCurrency();
   const [showExportMenu, setShowExportMenu] = useState(false);
   // Sale selected for the "view purchase" detail modal (null = closed).
   const [viewSale, setViewSale] = useState<any | null>(null);
@@ -2343,7 +2352,7 @@ const SalesView: React.FC<{
         
         <div class="summary">
           <div class="summary-item"><strong>Total Sales:</strong> ${sales.length}</div>
-          <div class="summary-item"><strong>Total Revenue:</strong> €${sales.reduce((sum: number, s: any) => sum + Number(s.finalAmount || 0), 0).toFixed(2)}</div>
+          <div class="summary-item"><strong>Total Revenue:</strong> ${formatPrice(sales.reduce((sum: number, s: any) => sum + Number(s.finalAmount || 0), 0))}</div>
           <div class="summary-item"><strong>Paid:</strong> ${sales.filter((s: any) => s.paymentStatus === 'paid' || s.paymentStatus === 'completed').length}</div>
         </div>
         
@@ -2367,7 +2376,7 @@ const SalesView: React.FC<{
                 <td>${sale.product_name || 'Unknown Product'}</td>
                 <td>${sale.purchaserName || ''}<br/><small>${sale.purchaserEmail || ''}</small></td>
                 <td>${sale.recipientName || 'Self-purchase'}<br/><small>${sale.recipientEmail || ''}</small></td>
-                <td>€${Number(sale.finalAmount || 0).toFixed(2)}</td>
+                <td>${formatPrice(Number(sale.finalAmount || 0))}</td>
                 <td>${sale.coupon_code || sale.couponCode || '-'}</td>
                 <td>${sale.paymentStatus || 'pending'}</td>
                 <td>${new Date(sale.createdAt).toLocaleDateString()}</td>
@@ -2561,11 +2570,11 @@ const SalesView: React.FC<{
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium text-gray-900">
-                            €{Number(sale.finalAmount).toFixed(2)}
+                            {formatPrice(Number(sale.finalAmount))}
                           </div>
                           {sale.discountAmount && Number(sale.discountAmount) > 0 && (
                             <div className="text-xs text-gray-500">
-                              (€{Number(sale.originalAmount).toFixed(2)} - €{Number(sale.discountAmount).toFixed(2)})
+                              ({formatPrice(Number(sale.originalAmount))} - {formatPrice(Number(sale.discountAmount))})
                             </div>
                           )}
                         </td>
@@ -2680,9 +2689,9 @@ const SalesView: React.FC<{
                   <div>
                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-1">Product</h4>
                     {row('Product', productName)}
-                    {row('Original', `€${Number(s.originalAmount || 0).toFixed(2)}`)}
-                    {Number(s.discountAmount || 0) > 0 && row('Discount', `-€${Number(s.discountAmount).toFixed(2)}`)}
-                    {row('Final price', `€${Number(s.finalAmount || 0).toFixed(2)}`)}
+                    {row('Original', formatPrice(Number(s.originalAmount || 0)))}
+                    {Number(s.discountAmount || 0) > 0 && row('Discount', `-${formatPrice(Number(s.discountAmount))}`)}
+                    {row('Final price', formatPrice(Number(s.finalAmount || 0)))}
                     {(s.coupon_code || s.couponCode) && row('Coupon', s.coupon_code || s.couponCode)}
                     {row('Status', s.paymentStatus || 'pending')}
                     {row('Date', new Date(s.createdAt).toLocaleString())}
@@ -3112,6 +3121,7 @@ const ProductDialog: React.FC<{
   isUploading: boolean;
   onPreview?: (productPreview: any) => void;
 }> = ({ open, onOpenChange, product, onSubmit, form, uploadedImage, onImageUpload, isUploading, onPreview }) => {
+  const { currency } = useStudioCurrency();
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showCropper, setShowCropper] = useState(false);
@@ -3215,7 +3225,7 @@ const ProductDialog: React.FC<{
                 {form.formState.errors.name && <p className="text-sm text-red-600">{form.formState.errors.name.message}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Price (€)</Label>
+                <Label htmlFor="price">Price ({currency})</Label>
                 <Input {...form.register('price')} type="number" step="0.01" placeholder="199.00" className="bg-white" onFocus={(e) => e.target.select()} />
                 {form.formState.errors.price && <p className="text-sm text-red-600">{form.formState.errors.price.message}</p>}
               </div>
@@ -3360,6 +3370,7 @@ const CouponDialog: React.FC<{
   onSubmit: (data: DiscountCouponFormData) => void;
   form: any;
 }> = ({ open, onOpenChange, coupon, onSubmit, form }) => {
+  const { currency } = useStudioCurrency();
   const queryClient = useQueryClient();
   const products = queryClient.getQueryData<VoucherProduct[]>(['/api/vouchers/products']) || [];
   // Use a non-empty sentinel value for the "All products" Select item because Radix Select
@@ -3422,7 +3433,7 @@ const CouponDialog: React.FC<{
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="percentage">Percentage (%)</SelectItem>
-                  <SelectItem value="fixed_amount">Fixed Amount (€)</SelectItem>
+                  <SelectItem value="fixed_amount">Fixed Amount ({currency})</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -3436,7 +3447,7 @@ const CouponDialog: React.FC<{
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="min-order">Min Order (€)</Label>
+              <Label htmlFor="min-order">Min Order ({currency})</Label>
               <Input 
                 id="min-order" 
                 type="text" 
@@ -3524,6 +3535,7 @@ const CouponDialog: React.FC<{
 
 // Analytics Dialog
 const AnalyticsDialog: React.FC<{ open: boolean; onOpenChange: (o: boolean) => void; analytics: any[] }> = ({ open, onOpenChange, analytics }) => {
+  const { currency, format: formatPrice } = useStudioCurrency();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
@@ -3543,8 +3555,8 @@ const AnalyticsDialog: React.FC<{ open: boolean; onOpenChange: (o: boolean) => v
                     <th className="p-2 text-left">Type</th>
                     <th className="p-2 text-right">Value</th>
                     <th className="p-2 text-right">Usage</th>
-                    <th className="p-2 text-right">Total Discount (€)</th>
-                    <th className="p-2 text-right">Revenue Influenced (€)</th>
+                    <th className="p-2 text-right">Total Discount ({currency})</th>
+                    <th className="p-2 text-right">Revenue Influenced ({currency})</th>
                     <th className="p-2 text-left">Last Used</th>
                   </tr>
                 </thead>
@@ -3554,7 +3566,7 @@ const AnalyticsDialog: React.FC<{ open: boolean; onOpenChange: (o: boolean) => v
                       <td className="p-2 font-mono text-xs">{a.code}</td>
                       <td className="p-2">{a.name}</td>
                       <td className="p-2">{a.discountType}</td>
-                      <td className="p-2 text-right">{a.discountType === 'percentage' ? `${a.discountValue}%` : `€${a.discountValue}`}</td>
+                      <td className="p-2 text-right">{a.discountType === 'percentage' ? `${a.discountValue}%` : formatPrice(a.discountValue)}</td>
                       <td className="p-2 text-right">{a.usageCount}</td>
                       <td className="p-2 text-right">{a.totalDiscountAmount.toFixed ? a.totalDiscountAmount.toFixed(2) : a.totalDiscountAmount}</td>
                       <td className="p-2 text-right">{a.totalRevenueInfluenced.toFixed ? a.totalRevenueInfluenced.toFixed(2) : a.totalRevenueInfluenced}</td>

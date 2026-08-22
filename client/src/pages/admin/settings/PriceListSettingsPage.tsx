@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Papa from 'papaparse';
 import AdminLayout from '../../../components/admin/AdminLayout';
 import { useLanguage } from '../../../context/LanguageContext';
+import { useStudioCurrency } from '../../../hooks/useStudioCurrency';
 import {
   DollarSign,
   Upload,
@@ -23,6 +24,8 @@ import { priceListService, PriceListItem } from '../../../lib/invoicing';
 
 const PriceListSettingsPage: React.FC = () => {
   const { t } = useLanguage();
+  // Prices in the STUDIO'S currency, not a hardcoded euro sign.
+  const { currency, format: formatPrice } = useStudioCurrency();
   const [priceList, setPriceList] = useState<PriceListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,7 +50,7 @@ const PriceListSettingsPage: React.FC = () => {
     description: '',
     category: '',
     price: '',
-    currency: 'EUR',
+    currency: currency,
     taxRate: '20.00',
     unit: 'piece',
     notes: '',
@@ -336,7 +339,7 @@ const PriceListSettingsPage: React.FC = () => {
       description: '',
       category: '',
       price: '',
-      currency: 'EUR',
+      currency: currency,
       taxRate: '19.00',
       unit: 'piece',
       notes: '',
@@ -414,7 +417,7 @@ const PriceListSettingsPage: React.FC = () => {
                 Import CSV
               </button>
               <button
-                onClick={() => setShowAddModal(true)}
+                onClick={() => { resetForm(); setShowAddModal(true); }}
                 className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -690,7 +693,7 @@ const PriceListSettingsPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        €{item.price?.toFixed(2)}
+                        {formatPrice(item.price)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.unit}
@@ -881,8 +884,9 @@ const PriceListSettingsPage: React.FC = () => {
                       onChange={(e) => setFormData({...formData, currency: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     >
-                      <option value="EUR">EUR</option>
-                      <option value="USD">USD</option>
+                      {Array.from(new Set([currency, 'EUR', 'GBP', 'USD'])).map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
                     </select>
                   </div>
                   

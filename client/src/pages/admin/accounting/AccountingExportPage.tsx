@@ -14,6 +14,7 @@ import {
   Settings,
   Filter
 } from 'lucide-react';
+import { useStudioCurrency } from '../../../hooks/useStudioCurrency';
 
 interface ExportProfile {
   profile: string;
@@ -38,12 +39,17 @@ interface ValidationIssue {
 }
 
 export default function AccountingExportPage() {
+  // The export defaults to the currency this studio bills in, not a hardcoded euro.
+  const { currency: studioCurrency } = useStudioCurrency();
+
   // State
   const [profiles, setProfiles] = useState<ExportProfile[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<string>('csv_xero');
   const [periodStart, setPeriodStart] = useState<string>(getMonthStart());
   const [periodEnd, setPeriodEnd] = useState<string>(getMonthEnd());
-  const [currency, setCurrency] = useState<string>('EUR');
+  // Blank until the operator picks one. useState captures its initial value on the first
+  // render, before the studio config has loaded, so the default is resolved at use instead.
+  const [currency, setCurrency] = useState<string>('');
   const [includePayments, setIncludePayments] = useState<boolean>(true);
   const [includeDrafts, setIncludeDrafts] = useState<boolean>(false);
   
@@ -52,6 +58,9 @@ export default function AccountingExportPage() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+
+  // What every read below should use: the operator's choice, else the studio's currency.
+  const exportCurrency = currency || studioCurrency;
 
   // Load available profiles
   useEffect(() => {
@@ -103,7 +112,7 @@ export default function AccountingExportPage() {
           profile: selectedProfile,
           period_start: periodStart,
           period_end: periodEnd,
-          currency,
+          currency: exportCurrency,
           include_payments: includePayments,
           include_credit_notes: true,
           include_drafts: includeDrafts,
@@ -138,7 +147,7 @@ export default function AccountingExportPage() {
           profile: selectedProfile,
           period_start: periodStart,
           period_end: periodEnd,
-          currency,
+          currency: exportCurrency,
           include_payments: includePayments,
           include_credit_notes: true,
           include_drafts: includeDrafts,
@@ -374,10 +383,13 @@ export default function AccountingExportPage() {
                     Currency
                   </label>
                   <select
-                    value={currency}
+                    value={exportCurrency}
                     onChange={(e) => setCurrency(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                   >
+                    {!['EUR', 'USD', 'GBP', 'CHF'].includes(exportCurrency) && (
+                      <option value={exportCurrency}>{exportCurrency}</option>
+                    )}
                     <option value="EUR">EUR (€)</option>
                     <option value="USD">USD ($)</option>
                     <option value="GBP">GBP (£)</option>
@@ -452,7 +464,7 @@ export default function AccountingExportPage() {
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Total Amount</span>
                     <span className="font-bold text-2xl text-purple-600">
-                      {currency} {periodSummary.total_amount.toFixed(2)}
+                      {exportCurrency} {periodSummary.total_amount.toFixed(2)}
                     </span>
                   </div>
                 </div>

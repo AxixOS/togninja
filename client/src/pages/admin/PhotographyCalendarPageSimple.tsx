@@ -3,6 +3,7 @@ import AdminLayout from '../../components/admin/AdminLayout';
 import AdvancedPhotographyCalendar from '../../components/calendar/AdvancedPhotographyCalendar';
 import GoogleCalendarIntegration from '../../components/calendar/GoogleCalendarIntegration';
 import { Calendar, Camera, Clock, DollarSign, MapPin, TrendingUp, AlertTriangle, CheckCircle, Plus, Sun, Cloud, Star, ChevronLeft, ChevronRight, Settings, Link2, Copy, Check, Share2 } from 'lucide-react';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isAfter } from 'date-fns';
 
 interface PhotographySession {
@@ -121,6 +122,7 @@ const calculateGoldenHour = (date: Date, latitude: number = 48.2082, longitude: 
 };
 
 const PhotographyCalendarPage: React.FC = () => {
+  const { format: formatPrice } = useStudioCurrency();
   const [sessions, setSessions] = useState<PhotographySession[]>([]);
   const [showGoogleCalendarModal, setShowGoogleCalendarModal] = useState(false);
   const [showLocationScoutModal, setShowLocationScoutModal] = useState(false);
@@ -824,7 +826,7 @@ const PhotographyCalendarPage: React.FC = () => {
                 <span className="text-sm font-medium text-gray-600">Total Revenue</span>
                 <DollarSign className="h-5 w-5 text-purple-500" />
               </div>
-              <div className="text-2xl font-bold text-purple-600">€{stats.totalRevenue.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-purple-600">{formatPrice(stats.totalRevenue)}</div>
               <p className="text-xs text-gray-500 mt-1">
                 {analytics?.revenue?.delta !== undefined ? (
                   <span>
@@ -1064,7 +1066,7 @@ const PhotographyCalendarPage: React.FC = () => {
                 <h4 className="font-medium text-gray-900">AI-Powered Analytics</h4>
                 <div className="text-sm text-gray-700 mt-1">
                   <p>📊 {stats.upcomingSessions} upcoming sessions</p>
-                  <p>💰 €{stats.totalRevenue.toLocaleString()} this month</p>
+                  <p>💰 {formatPrice(stats.totalRevenue)} this month</p>
                   <p className="text-xs text-gray-500 mt-1">{stats.completedSessions} sessions completed</p>
                 </div>
               </div>

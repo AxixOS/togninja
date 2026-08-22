@@ -4,7 +4,8 @@ import AdminLayout from '../../components/admin/AdminLayout';
 import AdvancedInvoiceForm from '../../components/admin/AdvancedInvoiceForm';
 import PaymentTracker from '../../components/admin/PaymentTracker';
 import { useLanguage } from '../../context/LanguageContext';
-import { 
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
+import {
   Plus, 
   Search, 
   Filter, 
@@ -43,6 +44,7 @@ interface Invoice {
 const InvoicesPage: React.FC = () => {
   const location = useLocation();
   const { t } = useLanguage();
+  const { format: formatPrice, currency } = useStudioCurrency();
   const searchParams = new URLSearchParams(location.search);
   const prefillClientId = searchParams.get('client_id') || searchParams.get('client') || undefined;
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -380,7 +382,7 @@ const InvoicesPage: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">{t('invoice.totalInvoiced')}</p>
-                <p className="text-2xl font-semibold text-gray-900">{mask(`€${(stats.totalAmount || 0).toFixed(2)}`)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{mask(formatPrice(stats.totalAmount || 0))}</p>
               </div>
             </div>
           </div>
@@ -392,7 +394,7 @@ const InvoicesPage: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">{t('invoice.paidAmount')}</p>
-                <p className="text-2xl font-semibold text-gray-900">{mask(`€${(stats.paidAmount || 0).toFixed(2)}`)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{mask(formatPrice(stats.paidAmount || 0))}</p>
               </div>
             </div>
           </div>
@@ -405,7 +407,7 @@ const InvoicesPage: React.FC = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Awaiting Payment</p>
                 <p className="text-2xl font-semibold text-gray-900">{mask(String(stats.awaitingPaymentCount || 0))}</p>
-                <p className="text-xs text-gray-500">{mask(`€${(stats.awaitingPaymentAmount || 0).toFixed(2)}`)}</p>
+                <p className="text-xs text-gray-500">{mask(formatPrice(stats.awaitingPaymentAmount || 0))}</p>
               </div>
             </div>
           </div>
@@ -417,7 +419,7 @@ const InvoicesPage: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">{t('invoice.overdueAmount')}</p>
-                <p className="text-2xl font-semibold text-gray-900">{mask(`€${(stats.overdueAmount || 0).toFixed(2)}`)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{mask(formatPrice(stats.overdueAmount || 0))}</p>
               </div>
             </div>
           </div>
@@ -515,9 +517,9 @@ const InvoicesPage: React.FC = () => {
                         {invoice.client_name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{mask(`€${(invoice.total_amount || 0).toFixed(2)}`)}</div>
+                        <div className="text-sm font-medium text-gray-900">{mask(formatPrice(invoice.total_amount || 0))}</div>
                         <div className="text-sm text-gray-500">
-                          {mask(`€${(invoice.amount || 0).toFixed(2)}`)} + {mask(`€${(invoice.tax_amount || 0).toFixed(2)}`)} tax
+                          {mask(formatPrice(invoice.amount || 0))} + {mask(formatPrice(invoice.tax_amount || 0))} tax
                         </div>
                       </td>                      <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(invoice.status, invoice.document_type)}
@@ -552,8 +554,8 @@ const InvoicesPage: React.FC = () => {
                           <button 
                             onClick={() => setPaymentTrackingInvoice({ 
                               id: invoice.id, 
-                              total: invoice.total_amount || 0, 
-                              currency: 'EUR' 
+                              total: invoice.total_amount || 0,
+                              currency
                             })}
                             className="text-purple-600 hover:text-purple-900" 
                             title="Track Payments"
@@ -684,7 +686,7 @@ const InvoicesPage: React.FC = () => {
               status: inv.status,
               due_date: inv.due_date || '',
               payment_terms: 'Net 30',
-              currency: 'EUR',
+              currency,
               notes: inv.notes || '',
               discount_type: 'fixed' as const,
               discount_value: 0,

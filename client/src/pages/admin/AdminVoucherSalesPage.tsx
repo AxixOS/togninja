@@ -25,7 +25,7 @@ import {
   TrendingUp,
   Calendar,
   Users,
-  Euro,
+  Banknote,
   Percent,
   Eye,
   Copy,
@@ -38,6 +38,7 @@ import {
   insertVoucherProductSchema,
   insertDiscountCouponSchema
 } from "@shared/schema";
+import { useStudioCurrency } from "../../hooks/useStudioCurrency";
 
 // Form schemas
 const voucherProductFormSchema = insertVoucherProductSchema.extend({
@@ -59,6 +60,8 @@ type VoucherProductFormData = z.infer<typeof voucherProductFormSchema>;
 type DiscountCouponFormData = z.infer<typeof discountCouponFormSchema>;
 
 export default function AdminVoucherSalesPage() {
+  // The studio's own currency — this screen used to hardcode euros.
+  const { currency, format: formatPrice } = useStudioCurrency();
   // Simple toast replacement
   const toast = ({ title, description, variant }: { title: string; description: string; variant?: string }) => {
     // console.log removed
@@ -336,10 +339,10 @@ export default function AdminVoucherSalesPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <Euro className="h-4 w-4 text-muted-foreground" />
+            <Banknote className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">€{totalRevenue.toFixed(2)}</div>
+            <div className="text-2xl font-bold">{formatPrice(totalRevenue)}</div>
             <p className="text-xs text-muted-foreground">From voucher sales</p>
           </CardContent>
         </Card>
@@ -448,7 +451,7 @@ export default function AdminVoucherSalesPage() {
                         name="price"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Price (€)</FormLabel>
+                            <FormLabel>Price ({currency})</FormLabel>
                             <FormControl>
                               <Input type="number" step="0.01" placeholder="199.00" {...field} />
                             </FormControl>
@@ -550,7 +553,7 @@ export default function AdminVoucherSalesPage() {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Price:</span>
-                        <span className="font-semibold">€{product.price}</span>
+                        <span className="font-semibold">{formatPrice(product.price)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Validity:</span>
@@ -709,7 +712,7 @@ export default function AdminVoucherSalesPage() {
                         name="minOrderAmount"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Min Order Amount (€)</FormLabel>
+                            <FormLabel>Min Order Amount ({currency})</FormLabel>
                             <FormControl>
                               <Input type="number" step="0.01" placeholder="100.00" {...field} />
                             </FormControl>
@@ -723,7 +726,7 @@ export default function AdminVoucherSalesPage() {
                         name="maxDiscountAmount"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Max Discount (€)</FormLabel>
+                            <FormLabel>Max Discount ({currency})</FormLabel>
                             <FormControl>
                               <Input type="number" step="0.01" placeholder="50.00" {...field} />
                             </FormControl>
@@ -861,8 +864,8 @@ export default function AdminVoucherSalesPage() {
                             </>
                           ) : (
                             <>
-                              <Euro className="h-3 w-3" />
-                              {coupon.discountValue}
+                              <Banknote className="h-3 w-3" />
+                              {formatPrice(coupon.discountValue)}
                             </>
                           )}
                         </span>
@@ -939,10 +942,10 @@ export default function AdminVoucherSalesPage() {
                         </div>
                       </div>
                       <div className="text-right space-y-1">
-                        <div className="font-medium">€{sale.finalAmount}</div>
+                        <div className="font-medium">{formatPrice(sale.finalAmount)}</div>
                         {sale.originalAmount !== sale.finalAmount && (
                           <div className="text-sm text-muted-foreground line-through">
-                            €{sale.originalAmount}
+                            {formatPrice(sale.originalAmount)}
                           </div>
                         )}
                         <div className="text-xs text-muted-foreground">

@@ -28,6 +28,7 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface DashboardData {
   // Key Metrics
@@ -60,6 +61,7 @@ const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'];
 
 const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const { format: formatPrice } = useStudioCurrency();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('30days');
@@ -236,7 +238,7 @@ const AdminDashboardPage: React.FC = () => {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
       <MetricCard
         title="Total Revenue"
-        value={`€${dashboardData?.totalRevenue.toLocaleString()}`}
+        value={formatPrice(dashboardData?.totalRevenue)}
         change={dashboardData?.monthlyGrowth}
         icon={DollarSign}
         color="bg-purple-500"
@@ -301,7 +303,7 @@ const AdminDashboardPage: React.FC = () => {
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value) => [`€${value}`, 'Revenue']} />
+            <Tooltip formatter={(value) => [formatPrice(value as number), 'Revenue']} />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -399,7 +401,7 @@ const AdminDashboardPage: React.FC = () => {
               <div key={index} className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-gray-900">Invoice #{invoice.id?.substring(0, 8)}</p>
-                  <p className="text-sm text-gray-600">€{invoice.total_amount?.toFixed(2)}</p>
+                  <p className="text-sm text-gray-600">{formatPrice(invoice.total_amount)}</p>
                   <span className={`inline-block px-2 py-1 text-xs rounded-full ${
                     invoice.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
                     invoice.status === 'PAID' ? 'bg-green-100 text-green-800' :

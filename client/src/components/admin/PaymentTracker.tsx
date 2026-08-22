@@ -24,6 +24,27 @@ interface CustomPaymentMethod {
 }
 
 // Localized payment method labels
+/**
+ * The symbol Intl uses for a currency. The payment amount input carried a hand written
+ * map instead, which printed EUR's symbol for CHF and fell back to a dollar sign for
+ * every currency it did not list. The invoice's own currency drives it, as it already
+ * drives formatCurrency below.
+ */
+const currencySymbolFor = (currency: string, locale: string): string => {
+  try {
+    const parts = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'narrowSymbol',
+    }).formatToParts(1);
+    const symbol = parts.find((p) => p.type === 'currency');
+    return symbol ? symbol.value : currency;
+  } catch {
+    // An unknown code makes Intl throw; the code itself is still better than a wrong sign.
+    return currency;
+  }
+};
+
 const PAYMENT_METHOD_LABELS = {
   de: {
     bank_transfer: 'E-Transfer / Banküberweisung',
@@ -827,7 +848,7 @@ const PaymentTracker: React.FC<PaymentTrackerProps> = ({
                         placeholder="0.00"
                         className="w-full px-3 py-2.5 pr-8 border border-gray-200 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-gray-700 text-right"
                       />
-                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">{currency === 'EUR' || currency === 'CHF' ? '€' : currency === 'GBP' ? '£' : '$'}</span>
+                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">{currencySymbolFor(currency, language === 'de' ? 'de-DE' : 'en-US')}</span>
                     </div>
                   </div>
 

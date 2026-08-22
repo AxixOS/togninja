@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from '../../components/ui/badge';
 import { Label } from '../../components/ui/label';
 import { Plus, Calendar, Clock, MapPin, User, Euro, Camera, CheckCircle, XCircle, AlertCircle, Search } from 'lucide-react';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface Session {
   id: string;
@@ -32,6 +34,8 @@ interface Client {
 }
 
 const CalendarPage: React.FC = () => {
+  const { currency, format: formatPrice } = useStudioCurrency();
+  const { language } = useLanguage();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [googleEvents, setGoogleEvents] = useState<any[]>([]);
@@ -202,7 +206,7 @@ const CalendarPage: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('de-DE', {
+    return new Date(dateString).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-GB', {
       weekday: 'short',
       year: 'numeric',
       month: 'short',
@@ -342,7 +346,7 @@ const CalendarPage: React.FC = () => {
                   </div>
                   
                   <div>
-                    <Label htmlFor="price">Price (€)</Label>
+                    <Label htmlFor="price">Price ({currency})</Label>
                     <Input
                       type="number"
                       value={newSession.price}
@@ -464,7 +468,7 @@ const CalendarPage: React.FC = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Total Value</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    €{sessions.reduce((sum, s) => sum + (s.price || 0), 0).toFixed(2)}
+                    {formatPrice(sessions.reduce((sum, s) => sum + (s.price || 0), 0))}
                   </p>
                 </div>
               </div>
@@ -575,7 +579,7 @@ const CalendarPage: React.FC = () => {
                         
                         <div className="flex items-center text-gray-600">
                           <Euro className="h-4 w-4 mr-2" />
-                          <span>€{session.price?.toFixed(2) || '0.00'}</span>
+                          <span>{formatPrice(session.price || 0)}</span>
                         </div>
                         
                         <div className="flex items-center text-gray-600">

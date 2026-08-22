@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../../components/admin/AdminLayout';
 import { Printer, Save, AlertCircle, CheckCircle, FlaskConical, Plus, Trash2, Search } from 'lucide-react';
+import { useStudioCurrency } from '../../../hooks/useStudioCurrency';
 
 interface CatalogProduct {
   id: string;
@@ -29,6 +30,8 @@ interface ProdigiState {
 }
 
 const ProdigiSettingsPage: React.FC = () => {
+  // A new catalogue product defaults to the currency this studio sells in.
+  const { currency } = useStudioCurrency();
   const [s, setS] = useState<ProdigiState>({ apiKey: '', apiKeySet: false, environment: 'sandbox' });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -40,7 +43,7 @@ const ProdigiSettingsPage: React.FC = () => {
   const [newSku, setNewSku] = useState('');
   const [newName, setNewName] = useState('');
   const [newPrice, setNewPrice] = useState('');
-  const [newCurrency, setNewCurrency] = useState('EUR');
+  const [newCurrency, setNewCurrency] = useState('');
   const [validating, setValidating] = useState(false);
   const [validated, setValidated] = useState<{ name: string; widthInches: number | null; heightInches: number | null } | null>(null);
   const [adding, setAdding] = useState(false);
@@ -93,7 +96,7 @@ const ProdigiSettingsPage: React.FC = () => {
     try {
       const res = await fetch('/api/print/catalog', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sku, name: newName.trim() || undefined, basePrice: newPrice ? parseFloat(newPrice) : undefined, currency: newCurrency }),
+        body: JSON.stringify({ sku, name: newName.trim() || undefined, basePrice: newPrice ? parseFloat(newPrice) : undefined, currency: newCurrency || currency }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || 'Could not add product.');
@@ -239,8 +242,10 @@ const ProdigiSettingsPage: React.FC = () => {
             </div>
             <div className="md:col-span-1">
               <label className="block text-xs font-medium text-gray-600 mb-1">Cur.</label>
-              <select value={newCurrency} onChange={e => setNewCurrency(e.target.value)} className={field}>
-                <option>EUR</option><option>GBP</option><option>USD</option>
+              <select value={newCurrency || currency} onChange={e => setNewCurrency(e.target.value)} className={field}>
+                {Array.from(new Set([currency, 'EUR', 'GBP', 'USD'])).map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
               </select>
             </div>
             <div className="md:col-span-1">

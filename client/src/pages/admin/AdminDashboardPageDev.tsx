@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface DashboardMetrics {
   avgOrderValue: number;
@@ -37,6 +38,7 @@ interface PopularImage {
 }
 
 const AdminDashboardPageDev: React.FC = () => {
+  const { format: formatPrice } = useStudioCurrency();
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     avgOrderValue: 0,
     activeUsers: 0,
@@ -183,7 +185,7 @@ const AdminDashboardPageDev: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Avg Order Value</p>
-                <p className="text-2xl font-semibold text-gray-900">€{metrics.avgOrderValue}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatPrice(metrics.avgOrderValue)}</p>
               </div>
             </div>
           </div>
@@ -207,7 +209,7 @@ const AdminDashboardPageDev: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Booked Revenue</p>
-                <p className="text-2xl font-semibold text-gray-900">€{metrics.bookedRevenue.toLocaleString()}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatPrice(metrics.bookedRevenue)}</p>
               </div>
             </div>
           </div>

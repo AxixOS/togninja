@@ -21,6 +21,7 @@ import {
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface KnowledgeBaseEntry {
   id: string;
@@ -46,6 +47,7 @@ interface OpenAIAssistant {
 }
 
 const KnowledgeBasePage: React.FC = () => {
+  const { format: formatPrice } = useStudioCurrency();
   const [activeTab, setActiveTab] = useState<'knowledge' | 'assistants' | 'settings'>('knowledge');
   const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeBaseEntry[]>([]);
   const [assistants, setAssistants] = useState<OpenAIAssistant[]>([]);
@@ -122,7 +124,7 @@ const KnowledgeBasePage: React.FC = () => {
         {
           id: '2',
           title: 'What are your photography packages?',
-          content: 'We offer several packages: Family Session (€299), Newborn Session (€399), Maternity Session (€349), and Business Headshots (€199). All packages include professional editing and digital gallery access.',
+          content: `We offer several packages: Family Session (${formatPrice(299)}), Newborn Session (${formatPrice(399)}), Maternity Session (${formatPrice(349)}), and Business Headshots (${formatPrice(199)}). All packages include professional editing and digital gallery access.`,
           category: 'Pricing & Packages',
           tags: ['pricing', 'packages', 'family', 'newborn'],
           isActive: true,
