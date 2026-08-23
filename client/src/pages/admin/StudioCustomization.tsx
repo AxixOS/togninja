@@ -341,6 +341,29 @@ const StudioCustomization: React.FC = () => {
             {/* Template Selection */}
             {activeTab === 'template' && (
               <div className="mt-6">
+                {/* Say what this actually does.
+
+                    The selection IS saved — it writes studio_configs.activeTemplate
+                    through PUT /api/studio/branding. But nothing reads that column: the
+                    public site is styled entirely by siteTheme, which ThemeScope reads
+                    from /api/studio-config. So a studio could pick Wedding Romance, see a
+                    green "Active" badge confirming it, and watch their site stay exactly
+                    as it was — with no way to tell which of the two screens was in
+                    charge. Saved-and-never-read is worse than a dead button, because the
+                    badge keeps agreeing with you. */}
+                <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+                  <p className="text-sm text-amber-900">
+                    <strong>These templates are not live yet.</strong> Your choice is saved,
+                    but the public site is styled by the theme you pick in{' '}
+                    <button
+                      onClick={() => navigate('/admin/website-studio')}
+                      className="underline font-medium hover:text-amber-950"
+                    >
+                      Website Studio → Themes
+                    </button>
+                    , which is where a change takes effect today.
+                  </p>
+                </div>
                 <TemplateSelector
                   currentTemplate={config.activeTemplate}
                   onTemplateSelect={handleTemplateSelect}

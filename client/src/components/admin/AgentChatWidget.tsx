@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Bot, Send, X, Loader2, RefreshCw, Wifi, WifiOff, Minimize2, Maximize2 } from 'lucide-react';
+import { clampToViewport, isDrag, widgetSize } from '../../lib/widgetPosition';
 
 type ConnectionStatus = 'connected' | 'checking' | 'disconnected' | 'reconnecting';
 
@@ -27,30 +28,74 @@ const AgentChatWidget: React.FC = () => {
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
-  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+  const dragRef = useRef<{ dx: number; dy: number; startX: number; startY: number } | null>(null);
   const didDragRef = useRef(false);
 
-  // Default (bottom-right) until the user moves it; after that, explicit coordinates.
+  // Which shape is on screen right now. The saved position has to be clamped against
+  // THIS, not against whatever it was when the studio last dragged it.
+  const currentState: 'button' | 'minimized' | 'open' =
+    !isOpen ? 'button' : isMinimized ? 'minimized' : 'open';
+
+  // onDragMove is a useCallback with no deps — it is registered on window once — so it
+  // cannot close over currentState. A ref keeps the size it clamps against honest
+  // without re-registering the listener on every open and close.
+  const currentStateRef = useRef(currentState);
+  currentStateRef.current = currentState;
+
+  // Default (bottom-right) until the studio moves it; after that, explicit coordinates.
   const dragStyle: React.CSSProperties = pos
     ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' }
     : { right: '1.5rem', bottom: '1.5rem' };
 
+  // Opening the chat makes the widget ten times wider. A position that was fine for the
+  // 72px button puts most of a 720px window off the right-hand edge — which is exactly
+  // what happened, and it could not be dragged back because only the button had a
+  // handle. Re-clamp on every size change, and when the window is resized under it.
+  useEffect(() => {
+    if (!pos) return;
+    const fit = () => {
+      setPos((current) => {
+        if (!current) return current;
+        const next = clampToViewport(current, widgetSize(currentState), {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        });
+        return next.x === current.x && next.y === current.y ? current : next;
+      });
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentState, pos === null]);
+
   const startDrag = (e: React.PointerEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    dragRef.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+    dragRef.current = {
+      dx: e.clientX - rect.left,
+      dy: e.clientY - rect.top,
+      startX: e.clientX,
+      startY: e.clientY,
+    };
     didDragRef.current = false;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const onDragMove = useCallback((e: PointerEvent) => {
-    if (!dragRef.current) return;
-    // A few pixels of slop so a normal click still opens the chat.
+    const d = dragRef.current;
+    if (!d) return;
+
+    // The slop the old comment promised but never implemented: it set didDrag on the
+    // FIRST move event, so a click with a pixel of hand-shake was treated as a drag and
+    // the chat refused to open.
+    if (!isDrag({ x: d.startX, y: d.startY }, { x: e.clientX, y: e.clientY })) return;
     didDragRef.current = true;
-    const width = 72;
-    const height = 72;
-    const x = Math.min(Math.max(e.clientX - dragRef.current.dx, 4), window.innerWidth - width);
-    const y = Math.min(Math.max(e.clientY - dragRef.current.dy, 4), window.innerHeight - height);
-    setPos({ x, y });
+
+    setPos(clampToViewport(
+      { x: e.clientX - d.dx, y: e.clientY - d.dy },
+      widgetSize(currentStateRef.current),
+      { width: window.innerWidth, height: window.innerHeight },
+    ));
   }, []);
 
   const endDrag = useCallback(() => {
@@ -255,8 +300,15 @@ const AgentChatWidget: React.FC = () => {
         isMinimized ? 'w-96 h-14' : 'w-[720px] h-[720px]'
       }`}
     >
-      {/* Header */}
-      <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-3 flex items-center justify-between">
+      {/* Header — also the drag handle.
+
+          Only the closed button used to carry onPointerDown, so once the chat was open
+          it could not be moved. Combined with a position clamped for the 72px button,
+          a window opened near the right edge hung off the screen with no way back. */}
+      <div
+        onPointerDown={startDrag}
+        className="bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-3 flex items-center justify-between cursor-grab active:cursor-grabbing touch-none select-none"
+      >
         <div className="flex items-center gap-2">
           <Bot className="w-5 h-5 text-white" />
           <span className="font-semibold text-white text-sm">Agent V2 Assistant</span>
