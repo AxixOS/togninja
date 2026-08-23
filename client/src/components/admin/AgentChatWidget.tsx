@@ -81,6 +81,21 @@ const AgentChatWidget: React.FC = () => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
+  /**
+   * Dragging by the chat window's header.
+   *
+   * The header also holds the minimize and close buttons, and setPointerCapture on the
+   * header retargets the whole gesture to it — so the click never reached the X and the
+   * window could not be closed. Making the header a drag handle without this check is
+   * what broke it.
+   *
+   * A press that starts on any control is that control's press, not a drag.
+   */
+  const startHeaderDrag = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button, a, input, textarea, select')) return;
+    startDrag(e);
+  };
+
   const onDragMove = useCallback((e: PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
@@ -306,7 +321,7 @@ const AgentChatWidget: React.FC = () => {
           it could not be moved. Combined with a position clamped for the 72px button,
           a window opened near the right edge hung off the screen with no way back. */}
       <div
-        onPointerDown={startDrag}
+        onPointerDown={startHeaderDrag}
         className="bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-3 flex items-center justify-between cursor-grab active:cursor-grabbing touch-none select-none"
       >
         <div className="flex items-center gap-2">

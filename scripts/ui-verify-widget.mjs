@@ -83,13 +83,26 @@ console.log('\n=== the component is wired to all of it ===');
 const src = fs.readFileSync('client/src/components/admin/AgentChatWidget.tsx', 'utf8');
 check('it uses the shared clamp', src.includes("from '../../lib/widgetPosition'"));
 check('no hardcoded 72px clamp survives', !/const width = 72;/.test(src));
-const handles = (src.match(/onPointerDown=\{startDrag\}/g) || []).length;
+const handles = (src.match(/onPointerDown=\{start(?:Header)?Drag\}/g) || []).length;
 check('BOTH the button and the open header are drag handles', handles === 2, handles + ' handle(s)');
 check('the size is re-clamped when it changes', /widgetSize\(currentState\)/.test(src));
 check('and when the viewport resizes', /addEventListener\('resize'/.test(src));
 check('the drag handler reads the CURRENT size, not a stale closure',
   /widgetSize\(currentStateRef\.current\)/.test(src));
 check('the slop threshold is actually applied', /if \(!isDrag\(/.test(src));
+
+// THE REGRESSION THIS SUITE DID NOT CATCH THE FIRST TIME, and which shipped.
+//
+// Making the header a drag handle put setPointerCapture on the element that also holds
+// the minimize and close buttons. The gesture was retargeted to the header, so the click
+// never reached the X: the window could be dragged and could not be closed. The suite
+// happily reported "BOTH the button and the open header are drag handles" — it checked
+// that the handle existed, not that the controls underneath still worked.
+check('the header drag ignores presses that start on a control',
+  /closest\('button, a, input, textarea, select'\)/.test(src));
+check('the header uses that guarded handler, not the raw one',
+  /onPointerDown=\{startHeaderDrag\}/.test(src));
+check('the close button is still wired', /onClick=\{\(\) => setIsOpen\(false\)\}/.test(src));
 
 const lib = fs.readFileSync('client/src/lib/widgetPosition.ts', 'utf8');
 check('the open size in the lib matches the class on the element',
