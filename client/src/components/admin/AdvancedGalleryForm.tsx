@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Gallery, GalleryFormData, CoverTemplateSettings } from '../../types/gallery';
 import { createGallery, updateGallery, uploadGalleryImages, sendGalleryEmail, sendGalleryWhatsApp, sendGallerySms } from '../../lib/gallery-api';
 import { galleryPublicUrl } from '../../lib/galleryUrl';
+import { SITE } from '../../config/site';
+import GalleryShareDialog from './GalleryShareDialog';
 import CoverImagePositioner from '../galleries/CoverImagePositioner';
 import GalleryCoverDesigner, { CoverSettings, COVER_TEMPLATES } from '../galleries/GalleryCoverDesigner';
 import SearchableClientDropdown from './SearchableClientDropdown';
@@ -160,12 +162,16 @@ const AdvancedGalleryForm: React.FC<GalleryFormProps> = ({ gallery, isEditing = 
       const response = await fetch('/api/crm/clients', {
         credentials: 'include'
       });
-      if (response.ok) {
-        const data = await response.json();
-        setClients(data);
+      // `if (response.ok)` with no else is how a dropdown ends up silently empty and
+      // the studio concludes their client list never imported. It did; the fetch failed.
+      if (!response.ok) {
+        throw new Error(`Could not load your clients (HTTP ${response.status})`);
       }
+      const data = await response.json();
+      setClients(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching clients:', error);
+      setError((error as Error).message || 'Could not load your client list.');
     }
   };
 
@@ -522,170 +528,22 @@ const AdvancedGalleryForm: React.FC<GalleryFormProps> = ({ gallery, isEditing = 
     }
   };
 
+  // The wizard used to render its OWN share modal here — Copy Link, email, WhatsApp,
+  // SMS, and no QR code. GalleryShareDialog (used by the gallery list) is the one that
+  // got the QR code, the disabled-until-saved Copy Link and the honest email errors, so
+  // the studio saw a different, older sharing screen depending on which route they
+  // arrived by. One dialog, used in both places.
   const renderShareModal = () => {
-    if (!showShareModal) return null;
-
+    if (!showShareModal || !savedGalleryId) return null;
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Share2 className="w-6 h-6" />
-                <h2 className="text-xl font-bold">Share Gallery</h2>
-              </div>
-              <button
-                onClick={() => {
-                  setShowShareModal(false);
-                  if (onSuccess) {
-                    onSuccess();
-                  } else {
-                    navigate('/admin/galleries');
-                  }
-                }}
-                className="p-1 hover:bg-white/20 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-purple-100 text-sm mt-1">
-              {formData.title}
-            </p>
-          </div>
-
-          {/* Content */}
-          <div className="p-6 space-y-4">
-            {/* Success message */}
-            {shareSuccess && (
-              <div className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded-lg">
-                <CheckCircle className="w-5 h-5" />
-                <span>{shareSuccess}</span>
-              </div>
-            )}
-
-            {/* Error message */}
-            {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg">
-                <AlertCircle className="w-5 h-5" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {/* Copy Link */}
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-gray-700 font-medium">
-                  <Link className="w-5 h-5" />
-                  Gallery Link
-                </div>
-                <button
-                  onClick={handleCopyLink}
-                  // No slug means the server has not saved this gallery yet, so there is
-                  // no address to copy. Disabled beats handing over a dead link.
-                  disabled={!savedGallerySlug}
-                  title={savedGallerySlug ? undefined : 'Save the gallery first'}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    !savedGallerySlug
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : linkCopied
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                  }`}
-                >
-                  {linkCopied ? (
-                    <>
-                      <CheckCircle className="w-4 h-4" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      Copy Link
-                    </>
-                  )}
-                </button>
-              </div>
-              <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded break-all">
-                {getGalleryUrl()}
-              </div>
-            </div>
-
-            {/* Share via Email */}
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center gap-2 text-gray-700 font-medium mb-3">
-                <Mail className="w-5 h-5" />
-                Send via Email
-              </div>
-              <div className="space-y-2">
-                <input
-                  type="email"
-                  placeholder="recipient@email.com"
-                  value={shareEmail}
-                  onChange={(e) => setShareEmail(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                />
-                <textarea
-                  placeholder="Add a personal message (optional)"
-                  value={shareMessage}
-                  onChange={(e) => setShareMessage(e.target.value)}
-                  rows={4}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                />
-                <button
-                  onClick={handleSendEmail}
-                  disabled={shareSending || !shareEmail.trim()}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {shareSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                  Send Email
-                </button>
-              </div>
-            </div>
-
-            {/* WhatsApp & SMS */}
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={handleSendWhatsApp}
-                disabled={shareSending}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-              >
-                <MessageCircle className="w-5 h-5" />
-                WhatsApp
-              </button>
-              <button
-                onClick={() => {
-                  // Open SMS with pre-filled message
-                  const message = encodeURIComponent(`Check out my gallery: ${getGalleryUrl()}`);
-                  window.open(`sms:?body=${message}`, '_blank');
-                }}
-                disabled={shareSending}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-              >
-                <Phone className="w-5 h-5" />
-                SMS
-              </button>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="px-6 py-4 bg-gray-50 border-t">
-            <button
-              onClick={() => {
-                setShowShareModal(false);
-                if (onSuccess) {
-                  onSuccess();
-                } else {
-                  navigate('/admin/galleries');
-                }
-              }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      </div>
+      <GalleryShareDialog
+        gallery={{ id: savedGalleryId, title: formData.title, slug: savedGallerySlug || undefined }}
+        onClose={() => {
+          setShowShareModal(false);
+          onSuccess?.();
+          navigate('/admin/galleries');
+        }}
+      />
     );
   };
 
@@ -845,7 +703,7 @@ const AdvancedGalleryForm: React.FC<GalleryFormProps> = ({ gallery, isEditing = 
                 imagePosition: coverPosition,
                 imageScale: coverScale,
                 title: formData.title,
-                subtitle: coverTemplate?.subtitle || 'NEW AGE FOTOGRAFIE'
+                subtitle: coverTemplate?.subtitle || SITE.name || ''
               }}
               onSave={(settings: CoverSettings) => {
                 setCoverPosition(settings.imagePosition);

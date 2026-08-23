@@ -79,12 +79,15 @@ const initializeApp = () => {
             border-radius: 20px;
             backdrop-filter: blur(10px);
           ">
-            <h1 style="margin: 0 0 20px 0; font-size: 2rem;">NEW AGE FOTOGRAFIE</h1>
-            <p style="margin: 0 0 20px 0;">Lade Anwendung...</p>
-            <p style="margin: 0; opacity: 0.8;">
-              Bei Problemen kontaktieren Sie uns:
-              <a href="mailto:${SITE.email}" style="color: #fff;">${SITE.email}</a>
-            </p>
+            <!-- Was the origin studio's name and German copy, hardcoded. This is the
+                 screen shown when the app fails to start, so it was the one place a
+                 photographer's visitor would see somebody else's brand at the exact
+                 moment something had gone wrong. -->
+            <h1 style="margin: 0 0 20px 0; font-size: 2rem;">${SITE.name}</h1>
+            <p style="margin: 0 0 20px 0;">Loading…</p>
+            ${SITE.email ? `<p style="margin: 0; opacity: 0.8;">
+              Having trouble? <a href="mailto:${SITE.email}" style="color: #fff;">${SITE.email}</a>
+            </p>` : ''}
           </div>
         </div>
       `;

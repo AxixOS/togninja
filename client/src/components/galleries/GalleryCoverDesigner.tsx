@@ -9,6 +9,7 @@ import {
 } from '../../lib/coverTemplateStyles';
 import { Monitor, Smartphone, ZoomIn, ZoomOut, Move, Check, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Grid, Type } from 'lucide-react';
 import GalleryCover from './GalleryCover';
+import { SITE } from '../../config/site';
 
 // Cover template definitions
 export interface CoverTemplate {
@@ -437,7 +438,12 @@ const GalleryCoverDesigner: React.FC<GalleryCoverDesignerProps> = ({
   const [imageRotation, setImageRotation] = useState<number>((initialSettings?.imagePosition as any)?.rotation || 0);
   const dragRef = useRef<{ px: number; py: number } | null>(null);
   const [title, setTitle] = useState(initialSettings?.title || galleryTitle);
-  const [subtitle, setSubtitle] = useState(initialSettings?.subtitle || 'NEW AGE FOTOGRAFIE');
+  // Was hardcoded to 'NEW AGE FOTOGRAFIE' — the origin studio's name, pre-filled into
+  // the cover of every gallery any photographer created, and carried onto the page their
+  // client opens. SITE.name is the tenant's own.
+  const [subtitle, setSubtitle] = useState(
+    initialSettings?.subtitle ?? (SITE.name || ''),
+  );
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [isDragging, setIsDragging] = useState(false);
   const [templatePage, setTemplatePage] = useState(0);

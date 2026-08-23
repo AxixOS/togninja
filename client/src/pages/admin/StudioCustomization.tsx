@@ -68,7 +68,8 @@ const StudioCustomization: React.FC = () => {
   const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [activeTab, setActiveTab] = useState('template');
+  // Branding is the first tab now that the inert Templates tab has gone.
+  const [activeTab, setActiveTab] = useState('branding');
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [justSaved, setJustSaved] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -292,17 +293,6 @@ const StudioCustomization: React.FC = () => {
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
                 <button
-                  onClick={() => setActiveTab('template')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'template'
-                      ? 'border-purple-500 text-purple-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <Palette className="h-4 w-4 inline mr-2" />
-                  Templates
-                </button>
-                <button
                   onClick={() => setActiveTab('branding')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${
                     activeTab === 'branding'
@@ -339,38 +329,17 @@ const StudioCustomization: React.FC = () => {
             </div>
 
             {/* Template Selection */}
-            {activeTab === 'template' && (
-              <div className="mt-6">
-                {/* Say what this actually does.
+            {/* The Templates tab is gone.
 
-                    The selection IS saved — it writes studio_configs.activeTemplate
-                    through PUT /api/studio/branding. But nothing reads that column: the
-                    public site is styled entirely by siteTheme, which ThemeScope reads
-                    from /api/studio-config. So a studio could pick Wedding Romance, see a
-                    green "Active" badge confirming it, and watch their site stay exactly
-                    as it was — with no way to tell which of the two screens was in
-                    charge. Saved-and-never-read is worse than a dead button, because the
-                    badge keeps agreeing with you. */}
-                <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-                  <p className="text-sm text-amber-900">
-                    <strong>These templates are not live yet.</strong> Your choice is saved,
-                    but the public site is styled by the theme you pick in{' '}
-                    <button
-                      onClick={() => navigate('/admin/website-studio')}
-                      className="underline font-medium hover:text-amber-950"
-                    >
-                      Website Studio → Themes
-                    </button>
-                    , which is where a change takes effect today.
-                  </p>
-                </div>
-                <TemplateSelector
-                  currentTemplate={config.activeTemplate}
-                  onTemplateSelect={handleTemplateSelect}
-                  onPreview={handlePreview}
-                />
-              </div>
-            )}
+                It offered 25 templates and saved the choice to
+                studio_configs.activeTemplate, which nothing reads — the public site is
+                styled entirely by siteTheme, set in Website Studio → Themes. A warning
+                banner was not enough: the tab was still the first thing on this page and
+                still showed a green "Active" badge agreeing with whatever was picked.
+
+                The rest of this page is real and stays: logo, studio name, contact
+                details, brand colours and tax settings all persist through
+                PUT /api/studio/branding. Only the template picker was inert. */}
 
             {/* Branding Settings */}
             {activeTab === 'branding' && (

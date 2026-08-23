@@ -939,7 +939,10 @@ const translations = {
   'nav.testChat': 'Test Chat',
   'nav.settings': 'Settings',
   'nav.customization': 'Customization',
-  'nav.studioTemplates': 'Studio Templates',
+  // Was 'Studio Templates'. The templates tab is gone — it saved a choice nothing ever
+  // rendered — and what remains on that page is the studio's own profile: logo, name,
+  // contact details, brand colours, tax.
+  'nav.studioTemplates': 'Studio Profile',
   'nav.websiteWizard': 'Website Wizard',
   'nav.websiteAnalyzer': 'Website Analyzer',
   'nav.viewWebsite': 'View Website',
@@ -2070,7 +2073,7 @@ const translations = {
   'nav.testChat': 'Test Chat',
   'nav.settings': 'Einstellungen',
   'nav.customization': 'Anpassung',
-  'nav.studioTemplates': 'Studio Vorlagen',
+  'nav.studioTemplates': 'Studio-Profil',
   'nav.websiteWizard': 'Website-Assistent',
   'nav.websiteAnalyzer': 'Website-Analyse',
   'nav.viewWebsite': 'Website anzeigen',
