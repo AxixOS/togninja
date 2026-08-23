@@ -42,32 +42,33 @@ const AgentChatWidget: React.FC = () => {
   const currentStateRef = useRef(currentState);
   currentStateRef.current = currentState;
 
-  // Default (bottom-right) until the studio moves it; after that, explicit coordinates.
-  const dragStyle: React.CSSProperties = pos
-    ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' }
-    : { right: '1.5rem', bottom: '1.5rem' };
+  // Fitting is a RENDER concern, not a stored one.
+  //
+  // The first version of this clamped and then WROTE THE RESULT BACK. Opening the chat
+  // near the bottom-right pulled the 720px window to (1192, 352) on a 1080p screen —
+  // correct for the window — and that clamped value was then saved. Closing it left the
+  // little button stranded in the upper middle of the page, on top of the page title,
+  // nowhere near where the studio had put it.
+  //
+  // So the studio's chosen point is kept verbatim and the clamp is applied only when
+  // drawing. The button returns to its corner the moment the window closes.
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window === 'undefined' ? 1280 : window.innerWidth,
+    height: typeof window === 'undefined' ? 800 : window.innerHeight,
+  }));
 
-  // Opening the chat makes the widget ten times wider. A position that was fine for the
-  // 72px button puts most of a 720px window off the right-hand edge — which is exactly
-  // what happened, and it could not be dragged back because only the button had a
-  // handle. Re-clamp on every size change, and when the window is resized under it.
   useEffect(() => {
-    if (!pos) return;
-    const fit = () => {
-      setPos((current) => {
-        if (!current) return current;
-        const next = clampToViewport(current, widgetSize(currentState), {
-          width: window.innerWidth,
-          height: window.innerHeight,
-        });
-        return next.x === current.x && next.y === current.y ? current : next;
-      });
-    };
-    fit();
-    window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentState, pos === null]);
+    const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Default (bottom-right) until the studio moves it; after that, explicit coordinates.
+  const shown = pos ? clampToViewport(pos, widgetSize(currentState), viewport) : null;
+  const dragStyle: React.CSSProperties = shown
+    ? { left: shown.x, top: shown.y, right: 'auto', bottom: 'auto' }
+    : { right: '1.5rem', bottom: '1.5rem' };
 
   const startDrag = (e: React.PointerEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();

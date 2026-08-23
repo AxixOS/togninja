@@ -104,6 +104,14 @@ check('the header uses that guarded handler, not the raw one',
   /onPointerDown=\{startHeaderDrag\}/.test(src));
 check('the close button is still wired', /onClick=\{\(\) => setIsOpen\(false\)\}/.test(src));
 
+// The second-order bug, reported after the first fix shipped: clamping and then SAVING
+// the result. Opening the chat near the bottom-right pulled the 720px window to a spot
+// that is legal for a window, and that value was written back — so closing left the small
+// button stranded in the upper middle of the page, sitting on top of the page title.
+// Fitting belongs to render. Only a deliberate drag is persisted.
+check('the clamp is applied when drawing', /const shown = pos \? clampToViewport/.test(src));
+check('a size change does not rewrite the saved position', !/setPos\(\(current\) =>/.test(src));
+
 const lib = fs.readFileSync('client/src/lib/widgetPosition.ts', 'utf8');
 check('the open size in the lib matches the class on the element',
   lib.includes('width: 720, height: 720') && src.includes('w-[720px] h-[720px]'));
