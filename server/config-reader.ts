@@ -134,6 +134,11 @@ const ENCRYPTED_FIELDS = new Set([
 const DB_FIELD_MAP: Record<string, { table: 'studio_configs' | 'studio_integrations'; column: string }> = {
   // studio_configs fields
   studio_name: { table: 'studio_configs', column: 'studioName' },
+  // Used by the competitor search to decide which language to search in and which country
+  // index to ask. Unmapped, these silently fell through to env and every studio searched
+  // in German against an Austrian index.
+  site_language: { table: 'studio_configs', column: 'siteLanguage' },
+  studio_country: { table: 'studio_configs', column: 'country' },
   business_name: { table: 'studio_configs', column: 'businessName' },
   app_url: { table: 'studio_configs', column: 'appUrl' },
   frontend_url: { table: 'studio_configs', column: 'frontendUrl' },

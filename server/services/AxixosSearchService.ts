@@ -1,3 +1,4 @@
+import { config } from '../config-reader';
 /**
  * AxixOS Intelligence Search Service
  *
@@ -18,6 +19,44 @@ interface CompetitorSearchResult {
   website: string;
   content: string;
   relevanceScore: number;
+}
+
+/**
+ * Where and in what language should a competitor search run?
+ *
+ * This used to be hardcoded: country 'AT', language 'de', and a query builder that spoke
+ * only German — "Fotograf ${location} Preise Pakete". A studio in Shreveport searching for
+ * Shreveport therefore asked an Austrian index, in German, for "Fotograf Shreveport Preise
+ * Pakete", and was told there were no photographers in their city.
+ *
+ * COUNTRY IS OMITTED UNLESS IT IS KNOWN. Sending the wrong country filter is far worse than
+ * sending none — the search engine infers locale from the query text perfectly well, and a
+ * studio researching a market they are not based in (a destination wedding photographer, a
+ * studio opening a second city) must not be forced into their home index.
+ */
+const ISO_BY_COUNTRY: Record<string, string> = {
+  'austria': 'AT', 'österreich': 'AT', 'osterreich': 'AT',
+  'germany': 'DE', 'deutschland': 'DE',
+  'switzerland': 'CH', 'schweiz': 'CH',
+  'united states': 'US', 'usa': 'US', 'united states of america': 'US', 'us': 'US',
+  'united kingdom': 'GB', 'uk': 'GB', 'great britain': 'GB', 'england': 'GB',
+  'ireland': 'IE', 'canada': 'CA', 'australia': 'AU', 'new zealand': 'NZ',
+  'france': 'FR', 'spain': 'ES', 'italy': 'IT', 'netherlands': 'NL', 'belgium': 'BE',
+};
+
+export interface SearchLocale {
+  language: 'de' | 'en';
+  /** ISO-3166 alpha-2, or null when it is not known — in which case no filter is sent. */
+  country: string | null;
+}
+
+export async function searchLocale(): Promise<SearchLocale> {
+  const lang = String((await config.get('site_language')) || 'en').toLowerCase().slice(0, 2);
+  const countryName = String((await config.get('studio_country')) || '').trim().toLowerCase();
+  return {
+    language: lang === 'de' ? 'de' : 'en',
+    country: ISO_BY_COUNTRY[countryName] || null,
+  };
 }
 
 export class AxixosSearchService {
@@ -74,7 +113,12 @@ export class AxixosSearchService {
     maxResults: number = 12,
   ): Promise<CompetitorSearchResult[]> {
     console.log(`🔍 AxixOS: searching for photographers in ${location}...`);
-    const queries = this.buildSearchQueries(location, services);
+    const locale = await searchLocale();
+    const queries = this.buildSearchQueries(location, services, locale.language);
+    // The studio own site is not a competitor. Resolved per tenant rather than hardcoded:
+    // the exclusion list named the ORIGIN studio's domain, so every studio built from this
+    // image hid that one site and none of them hid their own.
+    const ownDomains = await this.ownDomains();
     const all: CompetitorSearchResult[] = [];
     const seenDomains = new Set<string>();
     const errors: string[] = [];
@@ -85,15 +129,16 @@ export class AxixosSearchService {
         const data = await this.post('/v1/search/web', {
           query,
           limit: perQuery,
-          country: 'AT',
-          language: 'de',
+          // Omitted entirely when the studio country is not known. See searchLocale().
+          ...(locale.country ? { country: locale.country } : {}),
+          language: locale.language,
         });
         const results: any[] = data?.results || [];
         for (const r of results) {
           const website = r.url || r.link || '';
           if (!website) continue;
           const domain = this.extractDomain(website);
-          if (seenDomains.has(domain) || this.isIrrelevantSite(domain)) continue;
+          if (seenDomains.has(domain) || this.isIrrelevantSite(domain, ownDomains)) continue;
           seenDomains.add(domain);
           all.push({
             name: this.deriveBusinessName(r.title || r.name || '', website),
@@ -135,7 +180,21 @@ export class AxixosSearchService {
   }
 
   // ── Helpers (self-contained; mirror TavilySearchService) ──────────────────
-  private buildSearchQueries(location: string, services: string[]): string[] {
+  private buildSearchQueries(location: string, services: string[], language: 'de' | 'en' = 'en'): string[] {
+    const serviceTermsEN: Record<string, string[]> = {
+      'family': ['family photographer', 'family photography'],
+      'family portrait': ['family photographer', 'family portrait photography'],
+      'portrait': ['portrait photographer', 'portrait photography'],
+      'portrait photography': ['portrait photographer', 'portrait photography'],
+      'wedding': ['wedding photographer', 'wedding photography'],
+      'wedding photography': ['wedding photographer', 'wedding photography'],
+      'newborn': ['newborn photographer', 'baby photographer'],
+      'newborn photography': ['newborn photographer', 'newborn photography'],
+      'corporate': ['corporate photographer', 'business headshot photographer'],
+      'corporate photography': ['corporate photographer', 'commercial photography'],
+      'event': ['event photographer', 'event photography'],
+      'event photography': ['event photographer', 'event photography'],
+    };
     const serviceTermsDE: Record<string, string[]> = {
       'family': ['Familienfotograf', 'Familienfotografie'],
       'family portrait': ['Familienfotograf', 'Familienfotografie'],
@@ -150,10 +209,14 @@ export class AxixosSearchService {
       'event': ['Eventfotograf', 'Veranstaltungsfotografie'],
       'event photography': ['Eventfotograf', 'Veranstaltungsfotografie'],
     };
-    const queries: string[] = [`Fotograf ${location} Preise Pakete`];
+    const de = language === 'de';
+    const map = de ? serviceTermsDE : serviceTermsEN;
+    const queries: string[] = [
+      de ? `Fotograf ${location} Preise Pakete` : `photographer ${location} pricing packages`,
+    ];
     for (const service of services) {
-      const terms = serviceTermsDE[service.toLowerCase()] || [service];
-      queries.push(`${terms[0]} ${location} Preise`);
+      const terms = map[service.toLowerCase()] || [service];
+      queries.push(de ? `${terms[0]} ${location} Preise` : `${terms[0]} ${location} prices`);
     }
     return queries.slice(0, 4);
   }
@@ -176,15 +239,40 @@ export class AxixosSearchService {
     } catch { return cleaned || title; }
   }
 
-  private isIrrelevantSite(domain: string): boolean {
+  /** This studio own domains — never its own competitor. */
+  private async ownDomains(): Promise<string[]> {
+    const out: string[] = [];
+    for (const key of ['public_site_base_url', 'domain', 'app_url']) {
+      try {
+        const v = await config.get(key);
+        if (!v) continue;
+        const host = String(v).replace(/^https?:\/\//i, '').split('/')[0].replace(/^www\./i, '');
+        if (host) out.push(host.toLowerCase());
+      } catch { /* a missing key is not a reason to abandon the search */ }
+    }
+    return out;
+  }
+
+  private isIrrelevantSite(domain: string, ownDomains: string[] = []): boolean {
+    // Directories, socials and marketplaces — never a photographer own pricing page.
     const irrelevant = [
       'facebook.com', 'instagram.com', 'pinterest.com', 'youtube.com', 'linkedin.com',
       'twitter.com', 'tiktok.com', 'yelp.com', 'tripadvisor.com', 'wikipedia.org',
-      'amazon.', 'ebay.', 'herold.at', 'gelbeseiten.', 'wko.at', 'firmenabc.at',
-      'kununu.com', 'karriere.at', 'willhaben.at', 'google.com', 'maps.google.',
-      'newagefotografie.com', 'newagefotografie.at',
+      'amazon.', 'ebay.', 'google.com', 'maps.google.', 'bing.com',
+      // German-speaking directories
+      'herold.at', 'gelbeseiten.', 'wko.at', 'firmenabc.at', 'kununu.com',
+      'karriere.at', 'willhaben.at',
+      // English-speaking equivalents, which were missing entirely — so a US or UK studio
+      // had its results filled with directory pages that carry no real pricing.
+      'thumbtack.com', 'theknot.com', 'weddingwire.com', 'bark.com', 'yell.com',
+      'gigsalad.com', 'thebash.com', 'angi.com', 'houzz.com', 'checkatrade.com',
+      'reddit.com', 'quora.com', 'medium.com',
     ];
-    return irrelevant.some((s) => domain.includes(s));
+    if (irrelevant.some((x) => domain.includes(x))) return true;
+    // The studio own site. This used to name the ORIGIN studio domain in the constant
+    // above, which hid one particular business from every tenant and hid no tenant from
+    // itself — the studio would find its own prices and treat them as the market.
+    return ownDomains.some((d) => d && domain.includes(d));
   }
 
   private delay(ms: number): Promise<void> {
