@@ -853,7 +853,13 @@ router.post('/quick-start', async (req, res) => {
       INSERT INTO price_wizard_sessions (user_id, location, services, status)
       VALUES ($1, $2, $3, $4)
       RETURNING id, created_at
-    `, [userId || null, location, services, hasProvider ? 'discovering' : 'completed']);
+    // 'manual', not 'completed'. A session created without a search provider has not
+    // finished a crawl — it has not started one. Both words produced the same green
+    // "completed" badge in the list, above 0 photographers / 0 prices / 0 suggestions,
+    // which reads as "we searched your area and there is nobody there" rather than
+    // "no search provider is configured". The studio reported it as a failed crawl,
+    // which is a fair reading of what the screen said.
+    `, [userId || null, location, services, hasProvider ? 'discovering' : 'manual']);
 
     const session = result.rows[0];
 
@@ -865,7 +871,7 @@ router.post('/quick-start', async (req, res) => {
         sessionId: session.id,
         location,
         services,
-        status: 'completed',
+        status: 'manual',
         manual: true,
         createdAt: session.created_at,
         message: 'Session created. Automated discovery needs a search provider (AXIXOS_INTERNAL_API_KEY). Add competitors and prices manually, then click "Generate Suggestions" — or configure the provider and run AI Research.',

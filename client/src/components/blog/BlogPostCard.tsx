@@ -10,7 +10,20 @@ interface BlogPostCardProps {
 }
 
 const BlogPostCard: React.FC<BlogPostCardProps> = ({ post, isAdmin = false }) => {
-  const coverUrl: string | undefined = (post as any).image_url;
+  // The card read `post.image_url` while the API returns `imageUrl`, so coverUrl was
+  // ALWAYS undefined and the whole image block below — which is guarded by it — never
+  // rendered. Not "the cover was missing": no post on the public blog has ever shown a
+  // thumbnail, whether it had a cover or not.
+  //
+  // Falling through to the second and third image slots is deliberate. A studio that
+  // uploaded pictures for the article but left the cover slot empty has clearly given us
+  // something to show, and a real photograph beats an empty card on a photographer's own
+  // blog. The cover still wins when it is set.
+  const p = post as any;
+  const coverUrl: string | undefined =
+    [p.imageUrl, p.image_url, p.imageUrl2, p.image_url_2, p.imageUrl3, p.image_url_3]
+      .map((v) => (typeof v === 'string' ? v.trim() : ''))
+      .find((v) => v.length > 0) || undefined;
   const formattedDate = post.published_at
     ? new Date(post.published_at).toLocaleDateString('en-US', {
         year: 'numeric',

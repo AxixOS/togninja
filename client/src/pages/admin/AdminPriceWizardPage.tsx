@@ -17,7 +17,10 @@ interface PriceSession {
   id: string;
   location: string;
   services: string[];
-  status: 'discovering' | 'scraping' | 'analyzing' | 'completed' | 'failed';
+  // 'manual' = created without a search provider, so no crawl was ever attempted.
+  // Distinct from 'completed' on purpose: they used to be the same word and the same
+  // green badge, so a session that never ran looked like one that ran and found nobody.
+  status: 'discovering' | 'scraping' | 'analyzing' | 'completed' | 'manual' | 'failed';
   competitors_found: number;
   prices_extracted: number;
   suggestions_generated: number;
@@ -476,18 +479,32 @@ const AdminPriceWizardPage: React.FC = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const config: Record<string, { bg: string; text: string }> = {
-      discovering: { bg: 'bg-blue-100', text: 'text-blue-800' },
-      scraping: { bg: 'bg-yellow-100', text: 'text-yellow-800' },
-      analyzing: { bg: 'bg-purple-100', text: 'text-purple-800' },
-      completed: { bg: 'bg-green-100', text: 'text-green-800' },
-      failed: { bg: 'bg-red-100', text: 'text-red-800' }
+    const config: Record<string, { bg: string; text: string; label: string; title?: string }> = {
+      discovering: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'discovering' },
+      scraping: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'scraping' },
+      analyzing: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'analyzing' },
+      completed: { bg: 'bg-green-100', text: 'text-green-800', label: 'completed' },
+      // A session created with no search provider. It did not finish a crawl, it never
+      // started one — and it used to carry the same green "completed" badge as a real
+      // run, sitting above 0 photographers / 0 prices / 0 suggestions. That reads as
+      // "we searched and found nobody in your area", which is a much worse thing to
+      // believe than the truth.
+      manual: {
+        bg: 'bg-amber-100', text: 'text-amber-800', label: 'manual entry',
+        title: 'No search provider is configured, so no automated crawl ran. Add competitors by hand, or set AXIXOS_INTERNAL_API_KEY (or a Tavily key) and run AI Research.',
+      },
+      failed: { bg: 'bg-red-100', text: 'text-red-800', label: 'failed' }
     };
 
-    const c = config[status] || config.completed;
+    // An unrecognised status must NOT fall through to green "completed" — that is the
+    // same lie one step removed.
+    const c = config[status] || { bg: 'bg-gray-100', text: 'text-gray-700', label: status };
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${c.bg} ${c.text}`}>
-        {status}
+      <span
+        className={`px-2 py-1 rounded-full text-xs font-medium ${c.bg} ${c.text}`}
+        title={c.title}
+      >
+        {c.label}
       </span>
     );
   };

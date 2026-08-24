@@ -221,11 +221,23 @@ const AdvancedBlogPostForm: React.FC<BlogPostFormProps> = ({ post, isEditing = f
         excerpt: post.excerpt || '',
         content_html: post.content_html || '',
         status: post.status || 'DRAFT',
-        seo_title: post.seo_title || '',
-        meta_description: post.meta_description || '',
+        // The API speaks camelCase (imageUrl, seoTitle, metaDescription); this form
+        // speaks snake_case. Every field below needs BOTH spellings, and the cover was
+        // the one that had only one.
+        //
+        // The consequence was not a blank box in the editor, it was DATA LOSS. Opening a
+        // published post to edit anything at all loaded cover_image as '', and the save
+        // at the bottom of this file posts `imageUrl: formData.cover_image || ''` — so
+        // the next save wrote an empty string over the cover. The studio uploaded a
+        // thumbnail, edited the title, and the thumbnail was gone: the admin list showed
+        // "No img" and the public blog card fell back to a placeholder. imageUrl2 and
+        // imageUrl3 survived on the same post, because those two lines already had the
+        // fallback the cover did not.
+        seo_title: post.seo_title || (post as any).seoTitle || '',
+        meta_description: post.meta_description || (post as any).metaDescription || '',
         tags: post.tags || [],
-        scheduled_for: post.scheduled_for || '',
-        cover_image: post.cover_image || '',
+        scheduled_for: post.scheduled_for || (post as any).scheduledFor || '',
+        cover_image: post.cover_image || (post as any).imageUrl || '',
         image_url_2: post.image_url_2 || (post as any).imageUrl2 || '',
         image_url_3: post.image_url_3 || (post as any).imageUrl3 || '',
         video_url: post.video_url || (post as any).videoUrl || '',
