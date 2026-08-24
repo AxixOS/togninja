@@ -127,6 +127,10 @@ export const studioConfigs = pgTable("studio_configs", {
   ownerPortraitUrl: text("owner_portrait_url"),
   foundingYear: integer("founding_year"),
   credentials: jsonb("credentials"), // [{ label, issuer?, year? }]
+  // The studio's pillar graph — see shared/authorityMap.ts. Declared here because it
+  // exists in the database and Drizzle drops undeclared keys on .set() without error,
+  // which would erase it on the first unrelated write to this row.
+  authorityMap: jsonb("authority_map"),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

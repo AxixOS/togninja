@@ -6,6 +6,7 @@
  */
 
 import OpenAI from 'openai';
+import { studioMoneyContext } from '../lib/money';
 
 interface ExtractedPrice {
   serviceName: string;
@@ -77,6 +78,10 @@ export class OpenAIPriceExtractor {
     websiteContent: string,
     websiteUrl: string
   ): Promise<CompetitorAnalysis> {
+    // The studio own currency. This prompt used to declare "currency": "EUR" as the
+    // schema for every tenant, so an American studio scraped dollar prices and had them
+    // labelled euros on the way into the database.
+    const money = await studioMoneyContext();
     console.log(`  🤖 AI extracting prices for: ${businessName}`);
 
     if (!websiteContent || websiteContent.length < 50) {
@@ -97,9 +102,13 @@ export class OpenAIPriceExtractor {
         messages: [
           {
             role: 'system',
-            content: `You are an expert at extracting photography pricing information from website content. 
-You understand German (Austrian) and English pricing terminology.
+            content: `You are an expert at extracting photography pricing information from website content.
+You read pricing terminology in English and German.
 
+// The German glossary is kept because it costs nothing and a studio may well research a
+// German-speaking market. What was removed is the ASSUMPTION: this used to open with
+// "You understand German (Austrian)" and close by telling the model to consider Austrian
+// market specifics and Vienna pricing expectations, for every studio on every instance.
 Common German terms:
 - "Preise" = prices
 - "Pakete" = packages
@@ -129,7 +138,7 @@ Return a JSON object with this structure:
       "serviceType": "family|portrait|wedding|newborn|corporate|event|other",
       "packageName": "Optional package tier name",
       "price": 299,
-      "currency": "EUR",
+      "currency": "${money.currency}",
       "priceType": "fixed|starting_from|range_min|range_max|hourly",
       "duration": "2 hours",
       "includedPhotos": 20,
@@ -188,6 +197,7 @@ Return a JSON object with this structure:
     serviceType: string,
     competitorData: CompetitorAnalysis[]
   ): Promise<MarketAnalysis> {
+    const money = await studioMoneyContext();
     console.log(`📊 AI analyzing market for ${serviceType} in ${location}...`);
 
     // Map service type keywords for fuzzy matching
@@ -253,9 +263,12 @@ Return a JSON object with this structure:
         messages: [
           {
             role: 'system',
-            content: `You are a photography business pricing strategist. 
+            content: `You are a photography business pricing strategist.
 Generate actionable pricing recommendations based on market data.
-Consider Austrian market specifics and Vienna pricing expectations.`
+// Was "Consider Austrian market specifics and Vienna pricing expectations." — advice a
+// model in Shreveport does not need and should not be given. The market is whatever the
+// studio typed into the location box; the currency is the one they actually charge in.
+The market you are advising on is ${location}. All figures are in ${money.currency}.`
           },
           {
             role: 'user',
@@ -266,12 +279,12 @@ Service: ${serviceType}
 Competitors analyzed: ${competitorData.length}
 
 Price Statistics:
-- Minimum: €${stats.min}
-- Maximum: €${stats.max}
-- Median: €${stats.median}
-- Average: €${stats.average}
-- 25th percentile: €${stats.quartile25}
-- 75th percentile: €${stats.quartile75}
+- Minimum: ${stats.min} ${money.currency}
+- Maximum: ${stats.max} ${money.currency}
+- Median: ${stats.median} ${money.currency}
+- Average: ${stats.average} ${money.currency}
+- 25th percentile: ${stats.quartile25} ${money.currency}
+- 75th percentile: ${stats.quartile75} ${money.currency}
 
 Competitor packages (price — package name — what's included, where known):
 ${competitorData.map(c => {

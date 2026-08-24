@@ -1,3 +1,4 @@
+import { searchLocale } from './AxixosSearchService';
 /**
  * Tavily Search Service
  * 
@@ -58,7 +59,8 @@ export class TavilySearchService {
     console.log(`   API key configured: ${this.apiKey ? 'yes' : 'NO'}`);
 
     // Build search queries for different services
-    const searchQueries = this.buildSearchQueries(location, services);
+    const locale = await searchLocale();
+    const searchQueries = this.buildSearchQueries(location, services, locale.language);
     const allResults: CompetitorSearchResult[] = [];
     const seenDomains = new Set<string>();
     const errors: string[] = [];
@@ -115,7 +117,9 @@ export class TavilySearchService {
     console.log(`  📄 Fetching pricing for: ${businessName}`);
 
     const domain = this.extractDomain(websiteUrl);
-    const query = `site:${domain} (Preise OR Preis OR pricing OR Pakete OR packages OR investment OR Kosten OR €)`;
+    // Bilingual, and no longer naming one currency symbol: a page priced in dollars or
+    // pounds matched none of the money terms and so looked like a site with no prices.
+    const query = `site:${domain} (pricing OR prices OR packages OR investment OR rates OR cost OR Preise OR Preis OR Pakete OR Kosten)`;
 
     try {
       const results = await this.search(query, 3);
@@ -182,10 +186,32 @@ export class TavilySearchService {
   /**
    * Build search queries for different services
    */
-  private buildSearchQueries(location: string, services: string[]): string[] {
+  private buildSearchQueries(location: string, services: string[], language: 'de' | 'en' = 'en'): string[] {
     const queries: string[] = [];
-    
-    // German search terms (Austria)
+
+    // English terms. These were absent entirely — the whole builder spoke German, so a
+    // studio in Shreveport searched for "Fotograf Shreveport Preise Pakete" and found
+    // nobody. Its sibling AxixosSearchService was fixed for this; Tavily was missed, and
+    // Tavily is the path a studio takes once they set their OWN key.
+    const serviceTermsEN: Record<string, string[]> = {
+      'family': ['family photographer', 'family photography'],
+      'family portrait': ['family photographer', 'family portrait photography'],
+      'portrait': ['portrait photographer', 'portrait photography'],
+      'portrait photography': ['portrait photographer', 'portrait photography'],
+      'wedding': ['wedding photographer', 'wedding photography'],
+      'wedding photography': ['wedding photographer', 'wedding photography'],
+      'newborn': ['newborn photographer', 'baby photographer'],
+      'newborn photography': ['newborn photographer', 'newborn photography'],
+      'maternity': ['maternity photographer', 'maternity photography'],
+      'maternity photography': ['maternity photographer', 'maternity photography'],
+      'boudoir': ['boudoir photographer', 'boudoir photography'],
+      'boudoir photography': ['boudoir photographer', 'boudoir photography'],
+      'corporate': ['corporate photographer', 'business headshot photographer'],
+      'corporate photography': ['corporate photographer', 'commercial photography'],
+      'event': ['event photographer', 'event photography'],
+      'event photography': ['event photographer', 'event photography'],
+    };
+
     // Keys support both short IDs (family) and full display names (Family Portrait)
     const serviceTermsDE: Record<string, string[]> = {
       'family': ['Familienfotograf', 'Familienfotografie'],
@@ -202,14 +228,21 @@ export class TavilySearchService {
       'event photography': ['Eventfotograf', 'Veranstaltungsfotografie'],
     };
 
+    const de = language === 'de';
+    const map = de ? serviceTermsDE : serviceTermsEN;
+
     // Main query with pricing intent
-    queries.push(`Fotograf ${location} Preise Pakete`);
+    queries.push(de
+      ? `Fotograf ${location} Preise Pakete`
+      : `photographer ${location} pricing packages`);
 
     // Service-specific queries
     for (const service of services) {
       const key = service.toLowerCase();
-      const terms = serviceTermsDE[key] || [service];
-      queries.push(`${terms[0]} ${location} Preise`);
+      const terms = map[key] || [service];
+      queries.push(de
+        ? `${terms[0]} ${location} Preise`
+        : `${terms[0]} ${location} prices`);
     }
 
     return queries.slice(0, 4); // Limit to 4 queries for cost efficiency

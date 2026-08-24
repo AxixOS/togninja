@@ -68,11 +68,29 @@ export async function loadStudioVoice(): Promise<StudioVoice> {
        FROM studio_configs LIMIT 1`,
   ).catch(() => ({ rows: [] as any[] }))).rows[0] || {};
 
-  // Only pages the studio actually publishes. The old list was fifteen Viennese URLs,
-  // so a writer for any other studio was instructed to link to pages that 404.
-  const pillars = (await (await getPool()).query(
-    `SELECT href FROM authority_map_pillars WHERE coalesce(has_page, true) = true`,
-  ).catch(() => ({ rows: [] as any[] }))).rows.map((r: any) => String(r.href || '').trim()).filter(Boolean);
+  // Only pages the studio actually publishes. The old list was fifteen Viennese URLs, so
+  // a writer for any other studio was instructed to link to pages that 404.
+  //
+  // This queried a table called authority_map_pillars, which does not exist — not in the
+  // database, not in shared/schema.ts, not created anywhere in the repo — and the .catch
+  // below swallowed the error into an empty array. So the list was ALWAYS empty and the
+  // writer was never given any internal links at all, silently, since the day the Vienna
+  // URLs were removed. The pillars live in studio_configs.authority_map.
+  const pillars: string[] = await (async () => {
+    try {
+      const r = await (await getPool()).query('SELECT authority_map FROM studio_configs LIMIT 1');
+      const raw = r.rows[0]?.authority_map;
+      const list = Array.isArray(raw?.pillars) ? raw.pillars : [];
+      return list
+        .filter((p: any) => p && p.href && p.hasPage !== false)
+        .map((p: any) => String(p.href).trim())
+        .filter(Boolean);
+    } catch {
+      // A studio with no map gets no internal links, which is the correct outcome — the
+      // writer then simply does not offer any, rather than inventing them.
+      return [];
+    }
+  })();
 
   const year = Number(cfg.founding_year);
   const yearsActive = Number.isFinite(year) && year > 1900 && year <= new Date().getFullYear()

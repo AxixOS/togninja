@@ -1,17 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Search, TrendingUp, DollarSign, Eye, CheckCircle, XCircle, RefreshCw, ExternalLink, Filter, X, Loader2, MapPin, Plus } from 'lucide-react';
 import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
-// Available services for price research
-const AVAILABLE_SERVICES = [
-  { id: 'family', label: 'Family Photography' },
-  { id: 'wedding', label: 'Wedding Photography' },
-  { id: 'newborn', label: 'Newborn Photography' },
-  { id: 'portrait', label: 'Portrait Photography' },
-  { id: 'corporate', label: 'Corporate / Business' },
-  { id: 'event', label: 'Event Photography' },
+// What a studio can research prices for.
+//
+// These six are the FALLBACK, for a studio that has not generated an Authority Map yet.
+// A studio that has one gets its own services instead: the live demo tenant sells
+// Maternity, Newborn, Family and Boudoir, and was being offered Wedding and Corporate
+// while having no way to research half of what she actually shoots.
+//
+// `searchTerm` IS A FROZEN CONTRACT. It is the string sent to the server, stored in
+// price_wizard_sessions.services, and matched by OpenAIPriceExtractor.serviceKeywords,
+// which is keyed on these exact spellings. Note they are NOT the labels: the label reads
+// "Family Photography" and the search term is "Family Portrait". Changing a searchTerm
+// silently stops the extractor matching prices for that service, and nothing fails loudly
+// — you just get a session that finds competitors and no prices.
+interface ResearchService { id: string; label: string; searchTerm: string; }
+
+const DEFAULT_SERVICES: ResearchService[] = [
+  { id: 'family', label: 'Family Photography', searchTerm: 'Family Portrait' },
+  { id: 'wedding', label: 'Wedding Photography', searchTerm: 'Wedding Photography' },
+  { id: 'newborn', label: 'Newborn Photography', searchTerm: 'Newborn Photography' },
+  { id: 'portrait', label: 'Portrait Photography', searchTerm: 'Portrait Photography' },
+  { id: 'corporate', label: 'Corporate / Business', searchTerm: 'Corporate Photography' },
+  { id: 'event', label: 'Event Photography', searchTerm: 'Event Photography' },
 ];
+
+/** A pillar label -> a service row. The label is both what she sees and what we search. */
+function serviceFromPillar(label: string): ResearchService {
+  const id = String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return { id, label, searchTerm: label };
+}
 
 interface PriceSession {
   id: string;
@@ -79,7 +100,30 @@ const AdminPriceWizardPage: React.FC = () => {
   // New Research Modal State
   const [showNewResearchModal, setShowNewResearchModal] = useState(false);
   const [newResearchLocation, setNewResearchLocation] = useState('Wien');
-  const [newResearchServices, setNewResearchServices] = useState<string[]>(['family', 'portrait']);
+  // Her own services when she has an Authority Map, the shipped six otherwise. Falling
+  // back rather than merging is deliberate: this picker asks what SHE sells, and padding
+  // it with services she does not offer is how the six got here in the first place.
+  const { map: authorityMap, hasMap } = useAuthorityMap();
+  const availableServices: ResearchService[] = useMemo(() => {
+    const pillars = Array.isArray(authorityMap?.pillars) ? authorityMap.pillars : [];
+    if (!hasMap || !pillars.length) return DEFAULT_SERVICES;
+    return pillars
+      .map((p: any) => String(p?.label || '').trim())
+      .filter(Boolean)
+      .map(serviceFromPillar);
+  }, [authorityMap, hasMap]);
+
+  // Nothing preselected until the real list is known. Preselecting fixed ids would leave
+  // a studio with a stale selection she cannot see — the picker renders selection by id
+  // membership, so an id not in the list is invisible but still submitted.
+  const [newResearchServices, setNewResearchServices] = useState<string[]>([]);
+  useEffect(() => {
+    setNewResearchServices((prev) => {
+      const valid = prev.filter((id) => availableServices.some((x) => x.id === id));
+      if (valid.length) return valid;
+      return availableServices.slice(0, 2).map((x) => x.id);
+    });
+  }, [availableServices]);
   const [isResearching, setIsResearching] = useState(false);
   const [researchProgress, setResearchProgress] = useState<string>('');
 
@@ -197,16 +241,11 @@ const AdminPriceWizardPage: React.FC = () => {
         body: JSON.stringify({
           location: newResearchLocation,
           services: newResearchServices.map(s => {
-            // Map service IDs to full names for better search results
-            const serviceMap: Record<string, string> = {
-              'family': 'Family Portrait',
-              'portrait': 'Portrait Photography',
-              'newborn': 'Newborn Photography',
-              'wedding': 'Wedding Photography',
-              'corporate': 'Corporate Photography',
-              'event': 'Event Photography',
-            };
-            return serviceMap[s] || s;
+            // The searchTerm, which is what OpenAIPriceExtractor.serviceKeywords is keyed
+            // on. This was a second copy of the same mapping, spelled inline; the id -> term
+            // relationship now lives in one place with the list itself.
+            const hit = availableServices.find((x) => x.id === s);
+            return hit ? hit.searchTerm : s;
           })
         })
       });
@@ -607,7 +646,7 @@ const AdminPriceWizardPage: React.FC = () => {
                     Services to Research
                   </label>
                   <div className="grid grid-cols-2 gap-2">
-                    {AVAILABLE_SERVICES.map(service => (
+                    {availableServices.map(service => (
                       <button
                         key={service.id}
                         type="button"
@@ -706,7 +745,12 @@ const AdminPriceWizardPage: React.FC = () => {
                     disabled={isAddingPrice}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all disabled:bg-gray-100"
                   >
-                    {AVAILABLE_SERVICES.map(service => (
+                    {/* Union, not her list: this tags a COMPETITOR's price, and a
+                        competitor may sell a service she does not offer. Narrowing it to
+                        her own services would make that price unrecordable. */}
+                    {[...availableServices, ...DEFAULT_SERVICES.filter(
+                      (d) => !availableServices.some((a) => a.id === d.id),
+                    )].map(service => (
                       <option key={service.id} value={service.id}>{service.label}</option>
                     ))}
                   </select>
