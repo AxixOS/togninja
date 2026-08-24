@@ -154,7 +154,10 @@ class GoogleCalendarService {
       dates: `${this.formatDateForGoogle(event.startTime)}/${this.formatDateForGoogle(event.endTime)}`,
       details: event.description || '',
       location: event.location || '',
-      ctz: 'Europe/Vienna' // Austria timezone
+      // The studio's timezone, not the origin studio's. This was hardcoded to
+      // Europe/Vienna, so every "Add to Google Calendar" link a client clicked created
+      // the event in Austrian time.
+      ctz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } })()
     });
 
     return `${baseUrl}&${params.toString()}`;

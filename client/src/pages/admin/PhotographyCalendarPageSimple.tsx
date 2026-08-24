@@ -86,8 +86,15 @@ const getTimezoneOffsetHours = (timezone: string, date: Date): number => {
 };
 
 // Golden Hour calculation returning formatted windows plus raw Date objects for scheduling suggestions
-// Default coordinates: Vienna, Austria (48.2082°N, 16.3738°E)
-const calculateGoldenHour = (date: Date, latitude: number = 48.2082, longitude: number = 16.3738, utcOffsetHours: number = 1) => {
+// Golden hour at a given place. The coordinates are REQUIRED.
+//
+// They used to default to 48.2082 / 16.3738 — Vienna — so any call that forgot to pass
+// them got the origin studio's sun times with nothing anywhere to indicate a fallback
+// had happened. A default parameter is the quietest possible form of this bug.
+const calculateGoldenHour = (date: Date, latitude: number | null, longitude: number | null, utcOffsetHours: number) => {
+  if (!Number.isFinite(latitude as number) || !Number.isFinite(longitude as number)) {
+    return { morning: '—', evening: '—', sunrise: '—', sunset: '—', known: false } as any;
+  }
   const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 86400000);
   const solarDeclination = 23.45 * Math.sin((2 * Math.PI * (284 + dayOfYear)) / 365) * Math.PI / 180;
   const latRad = latitude * Math.PI / 180;
@@ -207,19 +214,34 @@ const PhotographyCalendarPage: React.FC = () => {
   
   // Studio location for Golden Hour calculation
   interface StudioLocation {
-    latitude: number;
-    longitude: number;
+    // Null until the studio's real position is known. It used to default to Vienna's,
+    // which is not a placeholder — it is a different answer to the same question, and
+    // golden hour is computed from it.
+    latitude: number | null;
+    longitude: number | null;
     timezone: string;
     city: string;
     country: string;
     address: string | null;
   }
+  // The studio's own position, or nothing.
+  //
+  // This used to initialise to Vienna — 48.2082, 16.3738, "Vienna", "Austria",
+  // Europe/Vienna — the ORIGIN studio's coordinates. Those values are not inert
+  // placeholders: they feed calculateGoldenHour() below, and the panel captions itself
+  // "Today in {city}". So a Louisiana photographer planning an outdoor shoot was shown
+  // Vienna's golden hour, labelled Vienna, at a latitude 16 degrees north of theirs.
+  //
+  // Worse, the fetch bails with `if (!resp.ok) return;` — so any failure LEFT those
+  // values on screen rather than clearing them. A wrong answer that looks confident is
+  // the failure mode this whole panel should avoid; a photographer arrives at the wrong
+  // hour and the light has gone.
   const [studioLocation, setStudioLocation] = useState<StudioLocation>({
-    latitude: 48.2082, // Default Vienna
-    longitude: 16.3738,
-    timezone: 'Europe/Vienna',
-    city: 'Vienna',
-    country: 'Austria',
+    latitude: null,
+    longitude: null,
+    timezone: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } })(),
+    city: '',
+    country: '',
     address: null
   });
   const [weatherData, setWeatherData] = useState<{ temp?: number; conditions?: string; icon?: string } | null>(null);
@@ -260,18 +282,25 @@ const PhotographyCalendarPage: React.FC = () => {
       });
       if (!resp.ok) return;
       const data = await resp.json();
-      setStudioLocation({
-        latitude: data.latitude || 48.2082,
-        longitude: data.longitude || 16.3738,
-        timezone: data.timezone || 'Europe/Vienna',
-        city: data.city || 'Vienna',
-        country: data.country || 'Austria',
-        address: data.address || null
-      });
-      // Also fetch weather data using location
-      fetchWeatherData(data.latitude || 48.2082, data.longitude || 16.3738);
+      // Number(), because these arrive as numeric strings from Postgres and
+      // calculateGoldenHour does arithmetic on them. Missing stays null rather than
+      // falling back to another city.
+      const lat = Number(data.latitude);
+      const lon = Number(data.longitude);
+      setStudioLocation((prev) => ({
+        latitude: Number.isFinite(lat) ? lat : null,
+        longitude: Number.isFinite(lon) ? lon : null,
+        timezone: data.timezone || prev.timezone,
+        city: data.city || '',
+        country: data.country || '',
+        address: data.address || null,
+      }));
+      // Weather for the studio's own place, or none. This passed Vienna's coordinates
+      // when the studio had none, so the panel reported another continent's weather as
+      // the local forecast.
+      if (Number.isFinite(lat) && Number.isFinite(lon)) fetchWeatherData(lat, lon);
     } catch (err) {
-      console.warn('[Calendar] Failed to fetch studio location, using defaults');
+      console.warn('[Calendar] Could not fetch the studio location; location-based panels stay hidden.');
     }
   };
 
@@ -1008,9 +1037,19 @@ const PhotographyCalendarPage: React.FC = () => {
               <div>
                 <h4 className="font-medium text-gray-900">Golden Hour Optimization</h4>
                 <div className="text-sm text-gray-700 mt-1">
-                  <p className="text-xs text-gray-500">Today in {studioLocation.city}:</p>
-                  <p>🌅 Morning: <span className="font-medium">{calculateGoldenHour(new Date(), studioLocation.latitude, studioLocation.longitude, getTimezoneOffsetHours(studioLocation.timezone, new Date())).morning}</span></p>
-                  <p>🌇 Evening: <span className="font-medium">{calculateGoldenHour(new Date(), studioLocation.latitude, studioLocation.longitude, getTimezoneOffsetHours(studioLocation.timezone, new Date())).evening}</span></p>
+                  {/* Golden hour is only meaningful at a known latitude. Without one this
+                      panel used to state another city's sun times as if they were yours. */}
+                  {studioLocation.latitude === null || studioLocation.longitude === null ? (
+                    <p className="text-xs text-gray-500">
+                      Add your studio address in Settings to see your own golden hour.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-gray-500">Today{studioLocation.city ? ` in ${studioLocation.city}` : ''}:</p>
+                      <p>🌅 Morning: <span className="font-medium">{calculateGoldenHour(new Date(), studioLocation.latitude, studioLocation.longitude, getTimezoneOffsetHours(studioLocation.timezone, new Date())).morning}</span></p>
+                      <p>🌇 Evening: <span className="font-medium">{calculateGoldenHour(new Date(), studioLocation.latitude, studioLocation.longitude, getTimezoneOffsetHours(studioLocation.timezone, new Date())).evening}</span></p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1307,7 +1346,15 @@ const PhotographyCalendarPage: React.FC = () => {
                       </div>
                       {(() => {
                         const sessionDate = new Date(formData.startTime);
-                        // Vienna, Austria coordinates for Golden Hour calculation
+                        // The studio's own coordinates. This comment used to read "Vienna,
+                        // Austria coordinates" and it was accurate — which was the problem.
+                        if (studioLocation.latitude === null || studioLocation.longitude === null) {
+                          return (
+                            <p className="text-xs text-yellow-700">
+                              Add your studio address in Settings to see golden hour for this session.
+                            </p>
+                          );
+                        }
                         const goldenHours = calculateGoldenHour(sessionDate, studioLocation.latitude, studioLocation.longitude, getTimezoneOffsetHours(studioLocation.timezone, sessionDate));
                         return (
                           <div className="text-xs text-yellow-700 space-y-1">
@@ -1959,14 +2006,24 @@ const PhotographyCalendarPage: React.FC = () => {
                       window.open(`https://www.google.com/maps/search/${encodeURIComponent(locationScoutQuery.trim())}`, '_blank');
                     }
                   }}
-                  placeholder="e.g., Vienna parks, Schönbrunn Palace, urban rooftops..."
+                  placeholder={studioLocation.city
+                    ? `e.g., parks near ${studioLocation.city}, rooftops, waterfront…`
+                    : 'e.g., parks, rooftops, waterfront, historic streets…'}
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 mb-4 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   autoFocus
                 />
                 <div className="mb-4">
                   <p className="text-sm text-gray-500 mb-2">Quick suggestions:</p>
                   <div className="flex flex-wrap gap-2">
-                    {['Vienna parks', 'Schönbrunn Palace', 'Danube riverbank', 'Urban streets', 'Coffee shops Vienna', 'Prater'].map((suggestion) => (
+                    {/* These were Schönbrunn Palace, the Danube riverbank and the Prater —
+                        the origin studio's own Viennese landmarks, offered to every
+                        photographer who bought this product. The generic terms below are
+                        the kinds of PLACE any studio shoots, qualified with the studio's
+                        own city so the Maps search that follows lands nearby. */}
+                    {(studioLocation.city
+                      ? [`parks in ${studioLocation.city}`, `${studioLocation.city} waterfront`, `historic streets ${studioLocation.city}`, `rooftops ${studioLocation.city}`, `gardens near ${studioLocation.city}`, `cafés in ${studioLocation.city}`]
+                      : ['public parks', 'waterfront', 'historic streets', 'rooftops', 'botanical gardens', 'cafés']
+                    ).map((suggestion) => (
                       <button
                         key={suggestion}
                         onClick={() => setLocationScoutQuery(suggestion)}

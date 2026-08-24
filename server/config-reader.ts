@@ -96,6 +96,14 @@ const ENV_MAP: Record<string, string> = {
   studio_name: 'STUDIO_NAME',
   business_name: 'BUSINESS_NAME',
   default_cal_tz: 'DEFAULT_CAL_TZ',
+  // The studio's timezone, under the name the calendar and scheduler code reads.
+  //
+  // It was in DB_FIELD_MAP and NOWHERE here, while DEFAULT_CAL_TZ was here and had no
+  // DB source — so the two halves never met and every consumer fell through to its
+  // `|| 'Europe/Vienna'` fallback. The studio's answer was collected, stored, and read
+  // by nobody. Mapped to BOTH names because existing code reads DEFAULT_CAL_TZ and new
+  // code should be able to ask for the obvious one.
+  timezone: 'DEFAULT_CAL_TZ',
 };
 
 // Which DB fields are encrypted and need decryption
@@ -121,6 +129,8 @@ const DB_FIELD_MAP: Record<string, { table: 'studio_configs' | 'studio_integrati
   frontend_url: { table: 'studio_configs', column: 'frontendUrl' },
   public_site_base_url: { table: 'studio_configs', column: 'publicSiteBaseUrl' },
   timezone: { table: 'studio_configs', column: 'timezone' },
+  // Same column, under the legacy key, so whichever name a caller uses resolves.
+  default_cal_tz: { table: 'studio_configs', column: 'timezone' },
   logo_url: { table: 'studio_configs', column: 'logoUrl' },
   primary_color: { table: 'studio_configs', column: 'primaryColor' },
   owner_email: { table: 'studio_configs', column: 'ownerEmail' },

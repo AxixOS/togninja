@@ -64,7 +64,25 @@ const BUSINESS_TYPES = [
   { value: 'other', label: 'Other (tell us below)' }
 ];
 
-const TIMEZONES = [
+// The zone this browser is actually in.
+//
+// The comment further down explains why browser detection was rejected for the site
+// LANGUAGE — the buyer's OS locale is not their website's language. Timezone is the
+// opposite case: the browser reports where the machine physically is, which for a
+// photographer setting up their own studio is very nearly always where they shoot.
+//
+// It matters because the alternative was defaulting to the ORIGIN studio's zone. A
+// Shreveport studio's first scheduler was created in Europe/Vienna and offered their
+// nine-to-five to clients as two in the morning.
+const detectedTimezone = (() => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    return '';
+  }
+})();
+
+const BASE_TIMEZONES = [
   { value: 'Europe/Vienna', label: 'Vienna (CET)' },
   { value: 'Europe/Berlin', label: 'Berlin (CET)' },
   { value: 'Europe/London', label: 'London (GMT)' },
@@ -75,6 +93,17 @@ const TIMEZONES = [
   { value: 'America/Chicago', label: 'Chicago (CST)' },
   { value: 'Australia/Sydney', label: 'Sydney (AEST)' }
 ];
+
+// The detected zone first, and added to the list when it is not already one of the nine.
+// Without this a studio in, say, America/Denver would detect correctly and then find no
+// matching option, so the select would fall back to showing the first entry — Vienna —
+// while holding a value the list does not contain.
+const TIMEZONES = (() => {
+  if (!detectedTimezone) return BASE_TIMEZONES;
+  const known = BASE_TIMEZONES.find((t) => t.value === detectedTimezone);
+  if (known) return [known, ...BASE_TIMEZONES.filter((t) => t !== known)];
+  return [{ value: detectedTimezone, label: `${detectedTimezone.split('/').pop()?.replace(/_/g, ' ')} (detected)` }, ...BASE_TIMEZONES];
+})();
 
 const CURRENCIES = [
   { value: 'EUR', label: '€ Euro (EUR)' },
@@ -98,7 +127,7 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
   const [formData, setFormData] = useState({
     businessName: initialData?.businessName || '',
     businessType: initialData?.businessType || '',
-    timezone: initialData?.timezone || 'Europe/Vienna',
+    timezone: initialData?.timezone || detectedTimezone || 'Europe/Vienna',
     // Deliberately UNSET, not defaulted. Browser detection was tried and was worse —
     // the buyer's OS locale is not their WEBSITE's language. But defaulting to English
     // was worse still in a way that was invisible: the field is required and the studio
