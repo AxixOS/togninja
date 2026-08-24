@@ -248,8 +248,13 @@ check('the de values are not just the English copied across',
 // ── Discovery ────────────────────────────────────────────────────────────────
 console.log('\n=== the studio can find the URL without being told it ===');
 // A page nobody can discover repeats the exact problem the page was built to fix.
-check('the Schedulers page builds the index URL', /const bookingIndexUrl = /.test(admin));
-check('and shows it on screen', /\{bookingIndexUrl\}/.test(admin));
+// The URL is no longer BUILT here — it comes from client/src/lib/bookingUrl.ts, which
+// exists because this path was written inline in seven places across two files and has
+// already shipped wrong twice (/schedule/<slug> from the calendar page, and a gallery
+// slug re-derived in the browser). Assert the SOURCE, not the literal.
+check('the Schedulers page uses the shared booking-URL helper',
+  /lib\/bookingUrl/.test(admin) && /bookingIndexUrl\(\)/.test(admin));
+check('and shows it on screen', /\{bookingIndexHref\}/.test(admin));
 check('there is a Copy button for it', /copyBookingIndexLink/.test(admin));
 check('with its own copied flag, not copiedSlug overloaded',
   /const \[copiedIndex, setCopiedIndex\]/.test(admin) && /\{copiedIndex \?/.test(admin));

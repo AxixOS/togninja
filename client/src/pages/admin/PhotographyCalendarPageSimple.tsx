@@ -4,6 +4,7 @@ import AdvancedPhotographyCalendar from '../../components/calendar/AdvancedPhoto
 import GoogleCalendarIntegration from '../../components/calendar/GoogleCalendarIntegration';
 import { Calendar, Camera, Clock, DollarSign, MapPin, TrendingUp, AlertTriangle, CheckCircle, Plus, Sun, Cloud, Star, ChevronLeft, ChevronRight, Settings, Link2, Copy, Check, Share2 } from 'lucide-react';
 import { useStudioCurrency } from '../../hooks/useStudioCurrency';
+import { bookingUrl, bookingIndexUrl, bookingDisplayUrl } from '../../lib/bookingUrl';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isAfter } from 'date-fns';
 
 interface PhotographySession {
@@ -250,6 +251,10 @@ const PhotographyCalendarPage: React.FC = () => {
   const [showShareSchedulerModal, setShowShareSchedulerModal] = useState(false);
   const [availableSchedulers, setAvailableSchedulers] = useState<Array<{ id: number; name: string; slug: string; isActive: boolean }>>([]);
   const [copiedSchedulerId, setCopiedSchedulerId] = useState<number | null>(null);
+  // Its own flag, not a sentinel value in copiedSchedulerId — that state is typed
+  // number|null, and overloading it would either widen the type for every row or lie
+  // to the type checker about what a scheduler id is.
+  const [copiedIndex, setCopiedIndex] = useState(false);
   
   // Map loaded clients to the shape expected by AdvancedPhotographyCalendar (id, name, email)
   const clientsForCalendar = clients.map(c => ({
@@ -378,7 +383,10 @@ const PhotographyCalendarPage: React.FC = () => {
     // their customer to the catch-all 404 handler. The Schedulers page always used
     // /book/, which is why the two disagreed for so long without anyone noticing: the
     // wrong one was on the page people actually use.
-    const link = `${window.location.origin}/book/${scheduler.slug}`;
+    // lib/bookingUrl.ts. This exact line is where /schedule/<slug> lived, and this
+    // modal is the surface a studio actually shares from — which is why the wrong
+    // link survived here while the Schedulers page had it right.
+    const link = bookingUrl(scheduler.slug) || '';
     navigator.clipboard.writeText(link);
     setCopiedSchedulerId(scheduler.id);
     setTimeout(() => setCopiedSchedulerId(null), 2000);
@@ -2181,6 +2189,32 @@ const PhotographyCalendarPage: React.FC = () => {
                 </p>
                 {availableSchedulers.length > 0 ? (
                   <div className="space-y-3">
+                    {/* One link for everything, first — a studio usually wants to send
+                        "here is what you can book" rather than one session type. The
+                        per-session links below stay for when they mean a specific one. */}
+                    <div className="flex items-center justify-between p-4 border-2 border-purple-200 bg-purple-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-900">All session types</p>
+                        <p className="text-sm text-gray-500">
+                          /book — lists the {availableSchedulers.length} session type{availableSchedulers.length === 1 ? '' : 's'} marked Active
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(bookingIndexUrl());
+                          setCopiedIndex(true);
+                          setTimeout(() => setCopiedIndex(false), 2000);
+                        }}
+                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          copiedIndex
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-purple-600 text-white hover:bg-purple-700'
+                        }`}
+                      >
+                        {copiedIndex ? '✓ Copied!' : 'Copy Link'}
+                      </button>
+                    </div>
+
                     {availableSchedulers.map((scheduler) => (
                       <div
                         key={scheduler.id}
@@ -2188,7 +2222,7 @@ const PhotographyCalendarPage: React.FC = () => {
                       >
                         <div>
                           <p className="font-medium text-gray-900">{scheduler.name}</p>
-                          <p className="text-sm text-gray-500">/book/{scheduler.slug}</p>
+                          <p className="text-sm text-gray-500">{bookingDisplayUrl(scheduler.slug)}</p>
                         </div>
                         <button
                           onClick={() => copySchedulerLink(scheduler)}

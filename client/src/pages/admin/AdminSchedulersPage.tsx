@@ -24,6 +24,7 @@ import {
   ArrowUpDown
 } from 'lucide-react';
 import { useStudioCurrency } from '../../hooks/useStudioCurrency';
+import { bookingIndexUrl, bookingUrl } from '../../lib/bookingUrl';
 import { format, parseISO } from 'date-fns';
 
 interface Scheduler {
@@ -333,7 +334,8 @@ export default function AdminSchedulersPage() {
   };
 
   const copyBookingLink = (slug: string) => {
-    const link = `${window.location.origin}/book/${slug}`;
+    // Never built by hand: this path has shipped wrong twice. See lib/bookingUrl.ts.
+    const link = bookingUrl(slug) || '';
     navigator.clipboard.writeText(link);
     setCopiedSlug(slug);
     setTimeout(() => setCopiedSlug(null), 2000);
@@ -342,7 +344,7 @@ export default function AdminSchedulersPage() {
   // The booking INDEX url - the one link that is worth putting in a signature. Built
   // slash-less to match the per-scheduler links above; server/seoRedirects.ts 301s it
   // to /book/ either way.
-  const bookingIndexUrl = `${window.location.origin}/book`;
+  const bookingIndexHref = bookingIndexUrl();
 
   // Must be the SAME predicate the /public/_index endpoint filters on (isActive is the
   // entire notion of 'published' - there is no draft state on this table). If the two
@@ -350,7 +352,7 @@ export default function AdminSchedulersPage() {
   const activeSchedulerCount = schedulers.filter(s => s.isActive).length;
 
   const copyBookingIndexLink = () => {
-    navigator.clipboard.writeText(bookingIndexUrl);
+    navigator.clipboard.writeText(bookingIndexHref);
     setCopiedIndex(true);
     setTimeout(() => setCopiedIndex(false), 2000);
   };
@@ -1115,7 +1117,7 @@ export default function AdminSchedulersPage() {
               <LinkIcon className="w-4 h-4 text-teal-600" />
               Your booking page
             </div>
-            <code className="block mt-1 text-sm text-gray-600 truncate">{bookingIndexUrl}</code>
+            <code className="block mt-1 text-sm text-gray-600 truncate">{bookingIndexHref}</code>
             <p className="text-xs text-gray-500 mt-1">
               {activeSchedulerCount > 0
                 ? `Lists the ${activeSchedulerCount} session type${activeSchedulerCount === 1 ? '' : 's'} marked Active. Put it in your email signature or on your website.`

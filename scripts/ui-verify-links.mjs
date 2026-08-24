@@ -92,10 +92,23 @@ const cal = fs.readFileSync('client/src/pages/admin/PhotographyCalendarPageSimpl
 const sched = fs.readFileSync('client/src/pages/admin/AdminSchedulersPage.tsx', 'utf8');
 // Compare the pages against each other, not just against App.tsx: two pages sharing the
 // same link must not disagree, which is the shape of the bug that shipped.
-const calUses = /\/book\/\$\{scheduler\.slug\}/.test(cal) || /origin\}\/book\//.test(cal);
-check('the calendar page builds /book/', calUses);
+// The calendar page no longer builds this URL at all, and that is the point: it was
+// written inline in seven places across two files, and this page is where the dead
+// /schedule/<slug> link survived while the Schedulers page had it right. Both now go
+// through client/src/lib/bookingUrl.ts, so the assertion moves from "builds it
+// correctly" to "does not build it by hand".
+const bookingHelper = fs.readFileSync('client/src/lib/bookingUrl.ts', 'utf8');
+check('a single booking-URL helper exists', /export function bookingUrl/.test(bookingHelper));
+check('it holds the only path literal', /const BOOKING_PATH = '\/book'/.test(bookingHelper));
+check('the calendar page uses the helper', /from '\.\.\/\.\.\/lib\/bookingUrl'/.test(cal));
+check('the schedulers page uses the helper', /from '\.\.\/\.\.\/lib\/bookingUrl'/.test(sched));
+// The original defect, still guarded.
 check('the calendar page no longer builds /schedule/', !/['"`/]schedule\/\$\{/.test(cal));
-check('the schedulers page builds /book/', /\/book\//.test(sched));
+// And neither page reconstructs the path by hand any more.
+const inlineBuild = (src) => /\$\{window\.location\.origin\}\/book/.test(
+  src.split('\n').filter((l) => { const t = l.trim(); return !t.startsWith('//') && !t.startsWith('*'); }).join('\n'),
+);
+check('the calendar page does not rebuild the path inline', !inlineBuild(cal));
 check('/book is a registered route', registered.has('/book'));
 check('/schedule is NOT registered, confirming the old link was dead', !registered.has('/schedule'));
 

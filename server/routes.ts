@@ -3522,9 +3522,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...idea,
         socialPack,
       };
+      // The generated post needs a COVER, not only pictures inside the body.
+      //
+      // injectImages() above places the shoot photographs through the article, and this
+      // update then set content, excerpt, seoTitle, metaDescription, status and ideaData
+      // — and never imageUrl. So a post written from five photographs came out with five
+      // photographs in it and no thumbnail: "No img" in the admin list, and a placeholder
+      // on the public blog card. The studio uploaded pictures and the post still looked
+      // like it had none, which is exactly the complaint that surfaced this pipeline.
+      //
+      // First image, because the photographer put it first — the panel uploads in the
+      // order they chose. They can change it afterwards in the normal editor; what they
+      // could not do was start from nothing.
+      const coverFromIdea = ideaImages.find((im: any) => typeof im.url === 'string' && im.url.trim())?.url;
+
       const updated = await storage.updateBlogPost(post.id, {
         content: htmlWithImages,
         contentHtml: htmlWithImages,
+        // Never overwrite a cover the studio has already chosen.
+        ...(coverFromIdea && !post.imageUrl ? { imageUrl: coverFromIdea } : {}),
         excerpt: out.excerpt || post.excerpt,
         seoTitle: out.seoTitle || post.seoTitle,
         metaDescription: out.metaDescription || post.metaDescription,
