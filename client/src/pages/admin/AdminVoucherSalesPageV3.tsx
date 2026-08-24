@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "../../components/admin/AdminLayout";
+import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 import { Button } from "@/components/ui/button";
 import ImageCropper from "../../components/ImageCropper";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -3167,6 +3168,29 @@ const TemplatesView: React.FC = () => {
 };
 
 // Product Dialog Component
+/**
+ * The category values this form used to write, kept so existing rows stay legible.
+ *
+ * The select offered five German options and defaulted to "familie", so every voucher
+ * created here was categorised in German regardless of which studio was using it.
+ * Meanwhile server/lib/starter-products.ts writes Title-Case pillar labels ('Family
+ * Photography'), the Price Wizard writes the constant 'Photography', legacy imports wrote
+ * bare "baby", and one live row is NULL — five writers, five vocabularies, one column.
+ * That disagreement is what made the pricing page drop products it did not recognise.
+ *
+ * New vouchers are categorised by the studio's OWN services, converging on the vocabulary
+ * starter-products already uses. The legacy values stay SELECTABLE so a product created
+ * before this change does not open with an empty category and get silently recategorised
+ * the first time somebody saves an unrelated field.
+ */
+const LEGACY_CATEGORIES: { value: string; label: string }[] = [
+  { value: 'familie', label: 'Familie (legacy)' },
+  { value: 'baby', label: 'Baby & Newborn (legacy)' },
+  { value: 'hochzeit', label: 'Hochzeit (legacy)' },
+  { value: 'business', label: 'Business (legacy)' },
+  { value: 'event', label: 'Event (legacy)' },
+];
+
 const ProductDialog: React.FC<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -3179,6 +3203,14 @@ const ProductDialog: React.FC<{
   onPreview?: (productPreview: any) => void;
 }> = ({ open, onOpenChange, product, onSubmit, form, uploadedImage, onImageUpload, isUploading, onPreview }) => {
   const { currency } = useStudioCurrency();
+  // Her own services first. An empty list still renders the legacy values below, so the
+  // field is never unusable — it just stops being German by default.
+  const { map: svcMap } = useAuthorityMap();
+  const studioCategories = React.useMemo(() => {
+    const pillars = Array.isArray(svcMap?.pillars) ? svcMap.pillars : [];
+    return pillars.map((p: any) => String(p?.label || '').trim()).filter(Boolean)
+      .map((label: string) => ({ value: label, label }));
+  }, [svcMap]);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showCropper, setShowCropper] = useState(false);
@@ -3312,14 +3344,22 @@ const ProductDialog: React.FC<{
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
-                <Select onValueChange={(value) => form.setValue('category', value)} defaultValue={form.watch('category') || 'familie'}>
+                {/* Defaults to the studio's first service, NOT to "familie" — the old
+                    default filed every uncategorised voucher as a German family shoot on
+                    every instance of this product. */}
+                <Select onValueChange={(value) => form.setValue('category', value)} defaultValue={form.watch('category') || studioCategories[0]?.value || ''}>
                   <SelectTrigger className="bg-white"><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="familie">Familie</SelectItem>
-                    <SelectItem value="baby">Baby & Newborn</SelectItem>
-                    <SelectItem value="hochzeit">Hochzeit</SelectItem>
-                    <SelectItem value="business">Business</SelectItem>
-                    <SelectItem value="event">Event</SelectItem>
+                    {studioCategories.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                    {/* Only legacy values not already covered, so a pre-existing row shows
+                        what it is instead of opening blank. */}
+                    {LEGACY_CATEGORIES.filter(
+                      (l) => !studioCategories.some((c) => c.value.toLowerCase() === l.value),
+                    ).map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
