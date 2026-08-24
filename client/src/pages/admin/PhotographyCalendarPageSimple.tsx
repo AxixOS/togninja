@@ -344,7 +344,12 @@ const PhotographyCalendarPage: React.FC = () => {
   };
 
   const copySchedulerLink = (scheduler: { id: number; slug: string }) => {
-    const link = `${window.location.origin}/schedule/${scheduler.slug}`;
+    // Was /schedule/ — a path App.tsx does not register. The only public booking route
+    // is /book/:slug (App.tsx:441), so every link a studio copied from THIS page sent
+    // their customer to the catch-all 404 handler. The Schedulers page always used
+    // /book/, which is why the two disagreed for so long without anyone noticing: the
+    // wrong one was on the page people actually use.
+    const link = `${window.location.origin}/book/${scheduler.slug}`;
     navigator.clipboard.writeText(link);
     setCopiedSchedulerId(scheduler.id);
     setTimeout(() => setCopiedSchedulerId(null), 2000);
@@ -2126,7 +2131,7 @@ const PhotographyCalendarPage: React.FC = () => {
                       >
                         <div>
                           <p className="font-medium text-gray-900">{scheduler.name}</p>
-                          <p className="text-sm text-gray-500">/schedule/{scheduler.slug}</p>
+                          <p className="text-sm text-gray-500">/book/{scheduler.slug}</p>
                         </div>
                         <button
                           onClick={() => copySchedulerLink(scheduler)}

@@ -442,6 +442,11 @@ router.put('/bookings/:bookingId/status', async (req: Request, res: Response) =>
           status: 'scheduled',
           startTime: updated.scheduledDate,
           endTime: updated.scheduledEndDate,
+          // The auto-approve path sets clientId; this one did not, so a booking the
+          // studio confirmed BY HAND produced a calendar session with no link to the
+          // client record — invisible until someone opened the client and found the
+          // shoot missing. The id is already on the booking row.
+          clientId: updated.clientId,
           clientName: updated.clientName,
           clientEmail: updated.clientEmail,
           clientPhone: updated.clientPhone,
