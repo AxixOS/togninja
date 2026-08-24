@@ -1,5 +1,9 @@
 import { pool } from '../db';
-import { DEFAULT_AUTHORITY_MAP, EMPTY_AUTHORITY_MAP, normalizeAuthorityMap, pillarForTopic, type AuthorityMap } from '../../shared/authorityMap.js';
+// DEFAULT_AUTHORITY_MAP was imported here until it was deleted from shared/authorityMap.ts
+// (it was one studio's Vienna pillar graph masquerading as a default). The binding was
+// unused, so tsx/esbuild elided it and the server kept booting — but `tsc --noEmit` and
+// the production server build both fail on a named import that does not exist.
+import { EMPTY_AUTHORITY_MAP, normalizeAuthorityMap, pillarForTopic, type AuthorityMap } from '../../shared/authorityMap.js';
 
 /**
  * Resolve this studio's Authority Map: studio_configs.authority_map when present and valid,
@@ -34,8 +38,8 @@ export async function saveAuthorityMap(map: AuthorityMap): Promise<void> {
 
 /**
  * Close the topical loop: when a cluster article is published, register it as a down-link
- * under the pillar it supports. Only touches a studio's OWN saved map — studios on the
- * default seed (e.g. New Age) are left alone, since they use hand-curated guide lists.
+ * under the pillar it supports. Only touches a studio's OWN saved map. There is no seed to
+ * fall back to any more, so !map means an absent or unparseable map, not 'on the default'.
  * Best-effort and idempotent.
  */
 export async function registerClusterForPost(slug: string, title: string): Promise<void> {
@@ -43,9 +47,14 @@ export async function registerClusterForPost(slug: string, title: string): Promi
   try {
     const r = await pool.query('SELECT authority_map FROM studio_configs LIMIT 1');
     const map = normalizeAuthorityMap(r.rows[0]?.authority_map);
-    if (!map) return; // on the default seed — don't auto-edit
+    if (!map) return; // no stored map, or an unreadable one — nothing to register against
     const target = pillarForTopic(map, `${title} ${slug}`);
-    const pillar = map.pillars.find((p) => p.href === target.pillar.href);
+    // pillarForTopic returns null when nothing matched and the studio has no default —
+    // there is then no pillar to register this article under, which is a no-op, not an
+    // error. Dereferencing target.pillar.href here would throw inside a best-effort
+    // background call and lose the publish.
+    if (!target.pillar) return;
+    const pillar = map.pillars.find((p) => p.href === target.pillar!.href);
     if (!pillar) return;
     const href = `/blog/${slug}`;
     pillar.clusters = pillar.clusters || [];

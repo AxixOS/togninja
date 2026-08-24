@@ -561,13 +561,21 @@ async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
         const { getAuthorityMap } = await import("./lib/authority-map");
         const { pillarForTopic } = await import("../shared/authorityMap.js");
         const authority = pillarForTopic(await getAuthorityMap(), `${post.title || ""} ${post.slug || ""} ${post.excerpt || ""}`);
+        const lang = await getStudioLang();
         meta = {
-          title: post.seoTitle || `${post.title} | New Age Fotografie Blog`,
+          // The STUDIO's name, not the name of the studio this product grew out of. This
+          // read `| New Age Fotografie Blog` on every tenant, server-side, in the title
+          // Google indexes — so one studio's blog was advertising another's brand.
+          // Falls back to the bare post title when the studio has not named itself yet,
+          // because a trailing " | Blog" reads like a broken template.
+          title: post.seoTitle
+            || (studioName ? `${post.title} | ${studioName} Blog` : String(post.title || '')),
           description: String(post.metaDescription || post.excerpt || post.title).slice(0, 160),
           canonical: `${SITE_ORIGIN}/blog/${slug}`,
           // Auto-embed JSON-LD (BlogPosting + FAQ + any ShootCleaner-supplied schema) so
           // published posts are structured-data rich for search and AI-answer citations.
-          bodyHtml: blogBodyHtml(post, authority) + blogJsonLd(post, studioName),
+          bodyHtml: blogBodyHtml(post, authority, studioName, lang, await getAuthorityMap())
+            + blogJsonLd(post, studioName),
         };
       }
     } else if (voucherMatch) {
@@ -578,9 +586,21 @@ async function lookupRouteMeta(reqPath: string): Promise<RouteMeta | null> {
         const products = await storage.getVoucherProducts();
         const v: any = (products as any[]).find((p) => p.slug === slug);
         if (v) {
+          const vName = await getStudioName();
+          const vDe = (await getStudioLang()) === 'de';
+          // Was "Fotoshooting Gutschein Wien | New Age Fotografie" for every tenant: the
+          // origin studio's name, its city and its language, on a voucher sold by somebody
+          // else entirely. The city is simply dropped — this file has no business guessing
+          // where a studio is, and the studio's own metaTitle overrides all of it anyway.
+          const vKind = vDe ? 'Fotoshooting-Gutschein' : 'Photo session gift voucher';
           meta = {
-            title: v.metaTitle || `${v.name} – Fotoshooting Gutschein Wien | New Age Fotografie`,
-            description: String(v.metaDescription || v.description || `${v.name}: Fotoshooting-Gutschein von New Age Fotografie Wien.`).slice(0, 160),
+            title: v.metaTitle
+              || (vName ? `${v.name} – ${vKind} | ${vName}` : `${v.name} – ${vKind}`),
+            description: String(
+              v.metaDescription
+              || v.description
+              || (vName ? `${v.name}: ${vKind} — ${vName}.` : `${v.name}: ${vKind}.`),
+            ).slice(0, 160),
             canonical: `${SITE_ORIGIN}/gutschein/${slug}`,
             bodyHtml:
               `<div class="max-w-3xl mx-auto px-4 py-12">\n` +
@@ -651,9 +671,24 @@ function markdownishToHtml(md: string): string {
   }).filter(Boolean).join("\n");
 }
 
-function blogBodyHtml(post: any, authority: BlogAuthority): string {
+function blogBodyHtml(
+  post: any,
+  authority: BlogAuthority,
+  studioName: string,
+  lang: 'de' | 'en',
+  map: any,
+): string {
   const { pillar, siblings } = authority;
   const published = post.publishedAt ? new Date(post.publishedAt).toISOString().slice(0, 10) : "";
+  const de = lang === 'de';
+  // The few strings this file writes itself. Everything else on the page comes from the
+  // post or the studio's own Authority Map.
+  const T = {
+    publishedOn: de ? 'Veröffentlicht am' : 'Published',
+    blogHome: studioName ? `${studioName} Blog` : (de ? 'Blog' : 'Blog'),
+    ctaHeading: de ? 'Passendes Fotoshooting' : 'A session that fits',
+    pillarSuffix: de ? 'Infos, Pakete & Beispiele' : 'details, packages and examples',
+  };
   const content = post.contentHtml && String(post.contentHtml).trim()
     ? String(post.contentHtml)
     : markdownishToHtml(String(post.content || ""));
@@ -666,22 +701,59 @@ function blogBodyHtml(post: any, authority: BlogAuthority): string {
     `<div class="max-w-3xl mx-auto px-4 py-12">\n` +
     `<article>\n` +
     `<h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">${htmlEsc(String(post.title || ""))}</h1>\n` +
-    (published ? `<p class="text-sm text-gray-500 mb-6">Veröffentlicht am ${published} · <a href="/blog" class="underline">New Age Fotografie Blog</a></p>\n` : "") +
+    (published
+      ? `<p class="text-sm text-gray-500 mb-6">${T.publishedOn} ${published} · <a href="/blog" class="underline">${htmlEsc(T.blogHome)}</a></p>\n`
+      : "") +
     cover +
     `<div class="blog-post-content prose prose-purple max-w-none">\n${content}\n</div>\n` +
     `</article>\n` +
-    `<div class="mt-10 bg-purple-50 border border-purple-100 rounded-xl p-6">\n` +
-    `<h3 class="text-xl font-bold text-gray-900 mb-4">Passendes Fotoshooting</h3>\n` +
-    `<a href="${pillar.href}" class="block bg-purple-600 text-white font-semibold rounded-lg px-5 py-3 mb-4">→ ${htmlEsc(pillar.label)}: Infos, Pakete &amp; Beispiele</a>\n` +
-    `<ul class="grid sm:grid-cols-3 gap-3 mb-4">\n${siblingLinks}\n</ul>\n` +
-    `<p class="text-gray-700">Alle <a href="/preise/" class="underline">Preise &amp; Pakete</a> · <a href="/kundenstimmen/" class="underline">Kundenstimmen</a> · <a href="/kontakt" class="underline">Termin anfragen</a> · <a href="/vouchers" class="underline">Gutscheine</a></p>\n` +
-    `</div>\n` +
+    (pillar
+      ? `<div class="mt-10 bg-purple-50 border border-purple-100 rounded-xl p-6">\n`
+        + `<h3 class="text-xl font-bold text-gray-900 mb-4">${htmlEsc(T.ctaHeading)}</h3>\n`
+        + `<a href="${htmlEsc(pillar.href)}" class="block bg-purple-600 text-white font-semibold rounded-lg px-5 py-3 mb-4">→ ${htmlEsc(pillar.label)}: ${htmlEsc(T.pillarSuffix)}</a>\n`
+        + `<ul class="grid sm:grid-cols-3 gap-3 mb-4">\n${siblingLinks}\n</ul>\n`
+      : "") +
+    // The studio's OWN conversion links, which the Authority Map has carried all along
+    // and this row ignored — it spelled four German paths (/preise/, /kundenstimmen/,
+    // /kontakt, /vouchers) that a studio outside the origin instance may not even have.
+    // Rendered only when the studio actually has some: an empty row beats four 404s.
+    (Array.isArray(map?.conversionLinks) && map.conversionLinks.length
+      ? `<p class="text-gray-700">` + map.conversionLinks
+          .filter((l: any) => l && l.href && l.label)
+          .map((l: any) => `<a href="${htmlEsc(String(l.href))}" class="underline">${htmlEsc(String(l.label))}</a>`)
+          .join(' · ') + `</p>\n`
+      : "")
+      // Closes the uplink card opened above, and only when it was opened.
+      + (pillar ? `</div>\n` : "") +
     `</div>`
   );
 }
 
 // Studio name for JSON-LD publisher/author (multi-tenant), cached 5 min.
 let _studioNameCache: { value: string; at: number } | null = null;
+/**
+ * The studio's site language, for the handful of strings this file renders itself.
+ *
+ * Everything below used to be written in German, because the studio this product grew
+ * out of is Viennese. On an English studio's blog that produced "Veröffentlicht am"
+ * under every headline and a "Passendes Fotoshooting" call to action beneath it.
+ *
+ * Cached with the same 5-minute TTL as the name: this runs on the SSR hot path, and a
+ * database round trip per blog view to fetch a two-letter string would be absurd.
+ */
+let _studioLangCache: { value: 'de' | 'en'; at: number } | null = null;
+async function getStudioLang(): Promise<'de' | 'en'> {
+  if (_studioLangCache && Date.now() - _studioLangCache.at < 300_000) return _studioLangCache.value;
+  let lang: 'de' | 'en' = 'en';
+  try {
+    const { pool } = await import("./db");
+    const r = await pool.query('SELECT site_language FROM studio_configs LIMIT 1');
+    lang = String(r.rows[0]?.site_language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en';
+  } catch { /* studio_configs may not exist yet — English is the product default */ }
+  _studioLangCache = { value: lang, at: Date.now() };
+  return lang;
+}
+
 async function getStudioName(): Promise<string> {
   if (_studioNameCache && Date.now() - _studioNameCache.at < 300_000) return _studioNameCache.value;
   let name = '';

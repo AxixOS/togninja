@@ -38,7 +38,11 @@ export interface AuthorityMap {
   /** Ordered pillar (money) pages. */
   pillars: AuthorityPillar[];
   /** Fallback pillar when a topic matches none. */
-  defaultPillar: { href: string; label: string; siblings: AuthorityLink[] };
+  // Nullable on purpose. A studio with no map of its own has no default pillar to fall
+  // back to — the alternative was one specific studio's German route, rendered into
+  // everybody else's blog. Consumers must handle null; strictNullChecks is OFF in this
+  // repo, so the type will not enforce that for you.
+  defaultPillar: { href: string; label: string; siblings: AuthorityLink[] } | null;
   /** Conversion links appended to internal-link blocks (prices, contact, etc.). */
   conversionLinks: AuthorityLink[];
 }
@@ -50,7 +54,12 @@ export interface AuthorityMap {
  */
 export const EMPTY_AUTHORITY_MAP: AuthorityMap = {
   pillars: [],
-  defaultPillar: { href: '/fotoshootings', label: 'Sessions', siblings: [] },
+  // NO default pillar. This used to be { href: '/fotoshootings', label: 'Sessions' } — a
+  // German route belonging to the studio this product grew out of, which pillarForTopic()
+  // then handed to every blog post on any studio without a map of its own. An internal
+  // link to a page that does not exist on that studio's site, server-rendered into the
+  // markup a crawler reads. A missing uplink is a smaller failure than a broken one.
+  defaultPillar: null,
   conversionLinks: [],
 };
 
@@ -159,19 +168,27 @@ export const NEW_AGE_AUTHORITY_MAP: AuthorityMap = {
 export function pillarForTopic(
   map: AuthorityMap,
   haystack: string,
-): { pillar: AuthorityLink; siblings: AuthorityLink[] } {
+): { pillar: AuthorityLink | null; siblings: AuthorityLink[] } {
   const hit = (map.pillars || []).find((p) => {
     try { return new RegExp(p.match, 'i').test(haystack); } catch { return false; }
   });
   if (hit) return { pillar: { href: hit.href, label: hit.label }, siblings: hit.siblings || [] };
   const d = map.defaultPillar;
+  // No match and no default. Returning null is the honest answer, and the callers render
+  // nothing rather than an uplink to a page that does not exist. This used to read
+  // `d.href` unguarded, which on a studio with no map is a TypeError thrown while
+  // server-rendering a blog post — the whole page, not just the uplink.
+  if (!d || !d.href) return { pillar: null, siblings: [] };
   return { pillar: { href: d.href, label: d.label }, siblings: d.siblings || [] };
 }
 
 /** Best-effort validation used when reading a stored map; returns null if unusable. */
 export function normalizeAuthorityMap(input: any): AuthorityMap | null {
   if (!input || typeof input !== 'object') return null;
-  if (!Array.isArray(input.pillars) || !input.defaultPillar) return null;
+  // A map with pillars but no defaultPillar is valid now — the default was the origin
+  // studio's route and is gone. Rejecting the whole map for its absence would discard a
+  // studio's real pillars over a field that should not have existed.
+  if (!Array.isArray(input.pillars)) return null;
   return {
     pillars: input.pillars,
     defaultPillar: input.defaultPillar,
