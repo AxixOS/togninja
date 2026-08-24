@@ -11,6 +11,7 @@ import { config } from '../config-reader';
 
 import { printStoreEnabled } from '../lib/requirePrintAccess';
 import { parseProdigiSheet, applyMarkup } from '../lib/prodigiSheet';
+import { studioProdigiAccount, catalogueProdigiAccount, connectAccountRequired } from '../lib/prodigiAccount';
 import { createPrintCheckoutSession } from '../lib/printCheckout';
 
 const router = Router();
@@ -19,13 +20,31 @@ const router = Router();
 // env fallback), so each studio uses its OWN key + sandbox/production environment.
 // (Was a module-level process.env.PRODIGI_API_KEY keyed off NODE_ENV — host-level, wrong
 // for a multi-tenant product image.)
+//
+// It is now split by PURPOSE — see server/lib/prodigiAccount.ts. Reading the catalogue
+// may use the platform account so a studio sees products on day one without four steps
+// of setup; PLACING AN ORDER may not, because a platform key in that path silently makes
+// the platform the merchant of record for physical goods.
 export async function getProdigiConfig(): Promise<{ apiKey: string | null; baseUrl: string }> {
-  const apiKey = await config.get('prodigi_api_key');
-  const env = ((await config.get('prodigi_environment')) || 'sandbox').toLowerCase();
-  const baseUrl = env === 'production'
-    ? 'https://api.prodigi.com/v4.0'
-    : 'https://api.sandbox.prodigi.com/v4.0';
+  // Kept for callers that only read. Ordering must use requireStudioProdigi() below.
+  const { apiKey, baseUrl } = await catalogueProdigiAccount();
   return { apiKey, baseUrl };
+}
+
+/**
+ * The studio's own account, or a 402 telling them to connect one.
+ *
+ * Every path that bills a human goes through here. Returning null rather than falling
+ * back is the entire safety property: the platform key cannot be reached by a caller
+ * that forgot which kind of operation it was performing.
+ */
+async function requireStudioProdigi(res: Response): Promise<{ apiKey: string; baseUrl: string } | null> {
+  const own = await studioProdigiAccount();
+  if (!own.apiKey) {
+    res.status(402).json(connectAccountRequired());
+    return null;
+  }
+  return { apiKey: own.apiKey, baseUrl: own.baseUrl };
 }
 
 /** Tenant-neutral order reference prefix, derived from the studio's business name. */
@@ -39,9 +58,24 @@ async function getMerchantPrefix(): Promise<string> {
   }
 }
 
-// Helper to make Prodigi API requests (resolves the tenant key + base URL each call).
-async function prodigiRequest(endpoint: string, method: string = 'GET', body?: any) {
-  const { apiKey, baseUrl } = await getProdigiConfig();
+/**
+ * A Prodigi API call, against an EXPLICIT account.
+ *
+ * This used to resolve the key itself, which meant a caller that had established which
+ * account it was entitled to use had that decision thrown away one frame later.
+ * dispatchPrintOrder is the case that mattered: it refuses to run without the studio's
+ * own account, and then bought the parcel through this helper on whatever key this
+ * resolved — the platform's, once a platform key existed.
+ *
+ * Omitting `account` means "a catalogue read", and only a catalogue read.
+ */
+async function prodigiRequest(
+  endpoint: string,
+  method: string = 'GET',
+  body?: any,
+  account?: { apiKey: string; baseUrl: string },
+) {
+  const { apiKey, baseUrl } = account || (await catalogueProdigiAccount());
   const response = await fetch(`${baseUrl}${endpoint}`, {
     method,
     headers: {
@@ -414,6 +448,14 @@ router.post('/quote', async (req: Request, res: Response) => {
  */
 router.post('/order', async (req: Request, res: Response) => {
     try {
+      // The studio's OWN Prodigi account, or nothing. An order placed on the platform
+      // key would ship under the platform's name, bill the platform's card, and make
+      // the platform the seller of a physical good to a consumer in whichever country
+      // the buyer happens to live in. The catalogue above is browsable without this;
+      // selling from it is not.
+      const studioAccount = await requireStudioProdigi(res);
+      if (!studioAccount) return;
+
       const {
         galleryId,
         galleryImageId,
@@ -552,7 +594,10 @@ router.post('/order', async (req: Request, res: Response) => {
  * makes a Stripe retry a no-op rather than a second parcel.
  */
 export async function dispatchPrintOrder(order: any): Promise<{ ok: boolean; prodigiOrderId?: string; error?: string }> {
-  const { apiKey } = await getProdigiConfig();
+  // The STUDIO'S account. This is the moment a physical parcel is bought and someone's
+  // card is charged, so it must never resolve to the platform key — studioProdigiAccount()
+  // does not fall back, which is what makes that impossible rather than merely unlikely.
+  const { apiKey, baseUrl } = await studioProdigiAccount();
   if (!apiKey) {
     // Paid, but the studio has not connected Prodigi. Recorded honestly rather than
     // reported as dispatched.
@@ -592,7 +637,9 @@ export async function dispatchPrintOrder(order: any): Promise<{ ok: boolean; pro
   };
 
   try {
-    const response = await prodigiRequest('/orders', 'POST', prodigiOrder);
+    // The studio account resolved at the top of this function, passed explicitly. Not
+    // re-resolved: that is how it became the platform's.
+    const response = await prodigiRequest('/orders', 'POST', prodigiOrder, { apiKey, baseUrl });
     await pool.query(`
       UPDATE print_orders SET
         prodigi_order_id = $1, status = $2, prodigi_response = $3,
@@ -629,8 +676,12 @@ router.get('/order/:id', async (req: Request, res: Response) => {
 
       const order = result.rows[0];
 
-      // If we have a Prodigi order ID, get fresh status
-      const { apiKey: statusApiKey } = await getProdigiConfig();
+      // If we have a Prodigi order ID, get fresh status.
+      //
+      // The STUDIO's account: the order was placed on it, so the platform account cannot
+      // see it — asking with the wrong key returns "not found" for an order that exists,
+      // which reads as a lost parcel rather than a wrong credential.
+      const { apiKey: statusApiKey } = await studioProdigiAccount();
       if (order.prodigi_order_id && statusApiKey) {
         try {
           const prodigiOrder = await prodigiRequest(`/orders/${order.prodigi_order_id}`);
