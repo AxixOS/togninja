@@ -100,6 +100,10 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
   const [showPriceList, setShowPriceList] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [priceList, setPriceList] = useState<PriceListItem[]>([]);
+  // Three distinct states. Conflating them is what produced a modal that said
+  // "Loading price list…" indefinitely when the list was simply empty.
+  const [priceListLoading, setPriceListLoading] = useState(false);
+  const [priceListError, setPriceListError] = useState<string | null>(null);
   const [privacyMask, setPrivacyMask] = useState(false);
   const [documentType, setDocumentType] = useState<'invoice' | 'quote' | 'estimate'>('invoice');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -285,11 +289,16 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
   }, [isOpen, prefillClientId, clients]);
 
   const fetchPriceList = async () => {
+    setPriceListLoading(true);
+    setPriceListError(null);
     try {
       const items = await priceListService.getPriceListItems();
       setPriceList(items);
     } catch (err) {
       setPriceList([]);
+      setPriceListError((err as Error).message || 'Could not load your price list.');
+    } finally {
+      setPriceListLoading(false);
     }
   };
 
@@ -1687,9 +1696,24 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
                       </button>
                     </div>
                   );})
-                ) : (
+                ) : priceListLoading ? (
                   <div className="col-span-full text-center py-8 text-gray-500">
-                    Loading price list...
+                    Loading price list…
+                  </div>
+                ) : priceListError ? (
+                  <div className="col-span-full text-center py-8 text-red-600">
+                    {priceListError}
+                  </div>
+                ) : (
+                  /* Empty is not loading. This branch used to say "Loading price list…"
+                     whenever the list had no rows, so a studio that had never added any
+                     watched a spinner that was never going to finish. */
+                  <div className="col-span-full text-center py-8 text-gray-500">
+                    <p className="font-medium text-gray-700">Your price list is empty.</p>
+                    <p className="mt-1 text-sm">
+                      Add the things you sell — session fees, digital files, albums — under
+                      Settings → Price List, and they will appear here.
+                    </p>
                   </div>
                 )}
               </div>

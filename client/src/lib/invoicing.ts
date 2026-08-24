@@ -434,17 +434,16 @@ export const emailService = {
 
 // Price list service
 export const priceListService = {
+  // Returning [] on failure made a broken request indistinguishable from an empty price
+  // list, and the caller rendered both as "Loading price list…" for ever. Throw, so the
+  // caller can tell the studio which of the two actually happened.
   async getPriceListItems(): Promise<PriceListItem[]> {
-    try {
-      const response = await fetch('/api/crm/price-list');
-      if (!response.ok) {
-        return [];
-      }
-      const data = await response.json();
-      return Array.isArray(data) ? data : [];
-    } catch (error) {
-      return [];
+    const response = await fetch('/api/crm/price-list', { credentials: 'include' });
+    if (!response.ok) {
+      throw new Error(`Could not load your price list (HTTP ${response.status})`);
     }
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   },
 
   async createPriceListItem(item: Omit<PriceListItem, 'id'>): Promise<PriceListItem> {

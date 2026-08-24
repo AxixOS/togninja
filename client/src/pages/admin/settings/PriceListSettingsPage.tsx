@@ -58,6 +58,10 @@ const PriceListSettingsPage: React.FC = () => {
   });
 
   // Price guide document state
+  // This is the page a studio comes to WHEN their price list is empty. If the load
+  // fails here it must say so — a silent console.error leaves them adding items to a
+  // list they cannot see.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [priceGuideUrl, setPriceGuideUrl] = useState<string | null>(null);
   const [priceGuideFilename, setPriceGuideFilename] = useState<string | null>(null);
   const [priceGuideMimetype, setPriceGuideMimetype] = useState<string | null>(null);
@@ -135,10 +139,12 @@ const PriceListSettingsPage: React.FC = () => {
   const fetchPriceList = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const items = await priceListService.getPriceListItems();
       setPriceList(items);
     } catch (error) {
       console.error('Failed to fetch price list:', error);
+      setLoadError((error as Error).message || 'Could not load your price list.');
     } finally {
       setLoading(false);
     }
@@ -389,6 +395,11 @@ const PriceListSettingsPage: React.FC = () => {
   return (
     <AdminLayout>
       <div className="space-y-6">
+        {loadError && (
+          <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {loadError}
+          </div>
+        )}
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
