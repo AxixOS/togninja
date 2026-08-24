@@ -15,6 +15,29 @@ import type {
 /**
  * Transform CRM invoice data to CLS format
  */
+/**
+ * What this export is denominated in, and where the studio actually trades.
+ *
+ * Every fallback in this file used to be the ORIGIN studio's: `|| 'EUR'` on invoices
+ * and payments, `|| 'AT'` on invoice and customer country. crm_invoices.currency
+ * defaults to EUR at the column level and invoice creation never set it, so a Louisiana
+ * studio's Xero CSV carried Currency=EUR and POCountry=AT on every line while the
+ * manifest beside it said USD — the request currency reached the manifest and nothing
+ * else. An accountant importing that gets euro-denominated Austrian sales.
+ *
+ * Module-level rather than threaded through every signature because these are a
+ * property of the export as a whole, and the alternative is changing eleven call sites
+ * in four adapters. Set at the top of buildExportData, which is the single entry point.
+ */
+let exportCurrency = 'EUR';
+let studioCountry = '';
+
+/** Called by buildExportData before any row is transformed. */
+export function setExportContext(currency?: string | null, country?: string | null): void {
+  exportCurrency = String(currency || '').trim().toUpperCase() || 'EUR';
+  studioCountry = String(country || '').trim().toUpperCase();
+}
+
 export class CLSTransformer {
   
   /**
@@ -34,7 +57,8 @@ export class CLSTransformer {
       customer_id: crmInvoice.client_id || crmInvoice.clientId,
       
       // Amounts
-      currency: crmInvoice.currency || 'EUR',
+      // The row's own currency wins; otherwise this export's, NOT a hardcoded euro.
+      currency: crmInvoice.currency || exportCurrency,
       fx_rate: parseFloat(crmInvoice.fx_rate || '1.0'),
       net_total,
       tax_total,
@@ -51,7 +75,9 @@ export class CLSTransformer {
       // Customer data (denormalized)
       customer_name: crmInvoice.client_name || crmInvoice.clientName || 'Unknown',
       customer_email: crmInvoice.client_email || crmInvoice.clientEmail || null,
-      customer_country: crmInvoice.client_country || crmInvoice.clientCountry || 'AT',
+      // Blank rather than a guess. "AT" on a Louisiana studio's invoice is not a
+      // missing field, it is a wrong one, and it drives the VAT treatment below.
+      customer_country: crmInvoice.client_country || crmInvoice.clientCountry || studioCountry || '',
       customer_vat_id: crmInvoice.client_vat_id || crmInvoice.clientVatId || null,
       
       // Compliance
@@ -109,7 +135,7 @@ export class CLSTransformer {
       id: crmClient.id,
       name: crmClient.name || crmClient.firstName + ' ' + crmClient.lastName,
       email: crmClient.email || null,
-      country: crmClient.country || 'AT',
+      country: crmClient.country || studioCountry || '',
       vat_id: crmClient.vat_id || crmClient.vatId || null,
       address_line1: crmClient.address || crmClient.address1 || null,
       address_line2: crmClient.address2 || null,
@@ -130,7 +156,7 @@ export class CLSTransformer {
       payment_date: this.formatDate(crmPayment.payment_date || crmPayment.paymentDate),
       method: crmPayment.method || 'bank_transfer',
       amount: parseFloat(crmPayment.amount || '0'),
-      currency: crmPayment.currency || 'EUR',
+      currency: crmPayment.currency || exportCurrency,
       reference: crmPayment.reference || null,
       created_at: this.formatDate(crmPayment.created_at || crmPayment.createdAt),
     };
@@ -207,10 +233,12 @@ export class CLSTransformer {
    */
   private static determineTaxCode(rate: number): string {
     if (rate === 0) return 'EXPORT';
-    if (rate === 0.10) return 'AT-10';
-    if (rate === 0.13) return 'AT-13';
-    if (rate === 0.20) return 'AT-20';
-    return `VAT-${Math.round(rate * 100)}`;
+    // These were AT-10 / AT-13 / AT-20 unconditionally — Austrian VAT codes stamped on
+    // every studio's invoices, including studios in countries with no VAT at all. The
+    // code now names the studio's own jurisdiction when it is known, and states the
+    // rate plainly when it is not.
+    const pct = Math.round(rate * 100);
+    return studioCountry ? `${studioCountry}-${pct}` : `VAT-${pct}`;
   }
 
   /**
@@ -219,7 +247,12 @@ export class CLSTransformer {
   private static detectReverseCharge(invoice: any): boolean {
     // B2B cross-border within EU
     const hasVatId = !!(invoice.client_vat_id || invoice.clientVatId);
-    const isDifferentEU = invoice.client_country !== 'AT' && this.isEUCountry(invoice.client_country);
+    // Reverse charge is an EU B2B cross-border rule, so it can only apply when the
+    // STUDIO is in the EU — this compared against a hardcoded 'AT', which for a US
+    // studio made every EU customer look like a cross-border EU sale.
+    if (!this.isEUCountry(studioCountry)) return false;
+    const buyer = String(invoice.client_country || '').toUpperCase();
+    const isDifferentEU = buyer !== studioCountry && this.isEUCountry(buyer);
     return hasVatId && isDifferentEU;
   }
 
@@ -243,8 +276,11 @@ export class CLSTransformer {
     payments: any[],
     customers: any[],
     period: { start: string; end: string },
-    currency = 'EUR'
+    currency = 'EUR',
+    country?: string | null,
   ): CLSExportData {
+    // Before any row is transformed, so nothing falls back to the origin studio.
+    setExportContext(currency, country);
     return {
       invoices: invoices.map(inv => this.toCLSInvoice(inv)),
       payments: payments.map(pmt => this.toCLSPayment(pmt)),

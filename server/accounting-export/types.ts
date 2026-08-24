@@ -161,6 +161,11 @@ export interface ExportRequest {
   include_credit_notes: boolean;
   include_drafts: boolean;
   filters?: ExportFilters;
+  /** Where the studio trades. Drives the tax code and the reverse-charge test, both of
+   *  which used to assume Austria for every studio in the world. */
+  country?: string | null;
+  /** Named in the manifest so the accountant knows what produced the file. */
+  generated_by?: string | null;
 }
 
 export interface ExportFilters {
@@ -201,6 +206,8 @@ export interface ExportManifest {
     total_invoices: number;
     total_credit_notes: number;
     total_payments: number;
+    /** The money actually received in the period. A count alone does not reconcile. */
+    payments_total: number;
     net_sales: number;
     tax_collected: number;
     gross_sales: number;

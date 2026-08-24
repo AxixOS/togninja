@@ -95,7 +95,10 @@ export class AccountingExportManager {
         start: request.period_start,
         end: request.period_end,
       },
-      request.currency
+      request.currency,
+      // Where the studio trades. Without it the transformer stamps Austrian VAT codes
+      // (AT-20) on every studio and tests reverse charge against a hardcoded AT.
+      request.country,
     );
 
     // Validate data
@@ -209,9 +212,16 @@ export class AccountingExportManager {
     files: ExportFile[],
     adapterVersion: string
   ): ExportManifest {
-    const net_sales = data.invoices.reduce((sum, inv) => sum + inv.net_total, 0);
-    const tax_collected = data.invoices.reduce((sum, inv) => sum + inv.tax_total, 0);
-    const gross_sales = data.invoices.reduce((sum, inv) => sum + inv.gross_total, 0);
+    // Money, to the cent. Summing IEEE-754 doubles produced tax_collected:
+    // 78.80000000000001 in a document handed to an accountant, which invites exactly the
+    // question you do not want asked about a tax figure. The CSVs beside it were already
+    // formatted with toFixed(2); only the manifest leaked the raw sum.
+    const cents = (v: number) => Math.round((Number(v) || 0) * 100);
+    const money = (c: number) => Number((c / 100).toFixed(2));
+    const net_sales = money(data.invoices.reduce((c, inv) => c + cents(inv.net_total), 0));
+    const tax_collected = money(data.invoices.reduce((c, inv) => c + cents(inv.tax_total), 0));
+    const gross_sales = money(data.invoices.reduce((c, inv) => c + cents(inv.gross_total), 0));
+    const payments_total = money(data.payments.reduce((c, p: any) => c + cents(p.amount), 0));
 
     return {
       version: '1.0.0',
@@ -224,6 +234,9 @@ export class AccountingExportManager {
         total_invoices: data.invoices.length,
         total_credit_notes: data.invoices.filter(inv => inv.is_credit_note).length,
         total_payments: data.payments.length,
+        // The count alone did not say whether the money matched the invoices. An
+        // accountant reconciling a period wants the figure, not a row count.
+        payments_total,
         net_sales,
         tax_collected,
         gross_sales,
@@ -235,7 +248,9 @@ export class AccountingExportManager {
         checksum: f.checksum_sha256,
       })),
       generated_at: new Date().toISOString(),
-      generated_by: null,
+      // Was null in every export ever produced. An accountant receiving a ZIP with no
+      // stated origin has nothing to cite when they query a figure.
+      generated_by: request.generated_by || 'TogNinja Accounting Export',
       adapter_version: adapterVersion,
     };
   }

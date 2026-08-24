@@ -7880,8 +7880,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ ok: false, error: 'Missing invoice_id or status' });
       }
       
-      await runSql("UPDATE crm_invoices SET status = $1, updated_at = NOW(), paid_at = CASE WHEN $1='paid' AND paid_at IS NULL THEN NOW() ELSE paid_at END WHERE id = $2::uuid", [status, invoice_id]);
-      
+      // Marking an invoice paid has to record the MONEY, not just the label.
+      //
+      // This used to set status and paid_at alone. paid_amount stayed at 0.00 and nothing
+      // was written to crm_invoice_payments — so an invoice the studio had marked Paid
+      // reported paid_amount 0.00, and the accounting export (which counts payments, not
+      // labels) told their accountant no money had been received on it.
+      const [updated] = await runSql(
+        `UPDATE crm_invoices
+            SET status = $1,
+                updated_at = NOW(),
+                paid_at = CASE WHEN $1 = 'paid' AND paid_at IS NULL THEN NOW()
+                               WHEN $1 <> 'paid' THEN NULL
+                               ELSE paid_at END,
+                -- Moving away from paid un-records it too, or a mistaken click leaves
+                -- money on the books that was never taken.
+                paid_amount = CASE WHEN $1 = 'paid' THEN total ELSE 0 END
+          WHERE id = $2::uuid
+      RETURNING id, total, currency, paid_at, status`,
+        [status, invoice_id],
+      );
+
+      if (!updated) {
+        return res.status(404).json({ ok: false, error: 'No such invoice' });
+      }
+
+      if (status === 'paid') {
+        // One payment row per invoice for a status-driven mark-as-paid. Guarded so
+        // toggling the status twice does not book the money twice — a studio flipping
+        // paid/unpaid while tidying up must not double their revenue.
+        await runSql(
+          `INSERT INTO crm_invoice_payments (invoice_id, amount, payment_method, payment_reference, payment_date, notes)
+           SELECT $1::uuid, $2, 'manual', 'marked-paid', $3::date, 'Recorded when the invoice was marked paid in the admin'
+            WHERE NOT EXISTS (
+              SELECT 1 FROM crm_invoice_payments WHERE invoice_id = $1::uuid AND payment_reference = 'marked-paid'
+            )`,
+          [invoice_id, updated.total, new Date(updated.paid_at || Date.now()).toISOString().slice(0, 10)],
+        ).catch((e: any) => {
+          // The status change is the thing the studio asked for. A payments-table
+          // failure must not undo it — but it must not be silent either.
+          console.warn('[invoices] status set to paid but the payment row failed:', e?.message || e);
+        });
+      } else {
+        // Un-marking removes the row this endpoint created. Payments recorded by any
+        // other route are left strictly alone.
+        await runSql(
+          `DELETE FROM crm_invoice_payments WHERE invoice_id = $1::uuid AND payment_reference = 'marked-paid'`,
+          [invoice_id],
+        ).catch(() => {});
+      }
+
       res.json({ ok: true, success: true });
     } catch (error) {
       console.error("Error updating invoice status:", error);
@@ -8086,6 +8134,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invoiceData.status = 'paid';
         invoiceData.paidAmount = '0';
         console.log('[INVOICE] Zero-amount invoice auto-marked as paid');
+      }
+
+      // The studio bills in ONE currency, and the invoice has to record which.
+      //
+      // This object never set currency, so every invoice fell to the column default of
+      // 'EUR' — including for a studio that had chosen USD in the wizard. Nothing showed
+      // it, because the admin renders amounts through useStudioCurrency and displayed a
+      // dollar sign over a row that said EUR. The accounting export was the first place
+      // the two disagreed out loud: xero_sales.csv carried Currency=EUR on every line,
+      // next to a manifest that said USD, and their accountant caught it.
+      if (!(invoiceData as any).currency) {
+        try {
+          const cfg = await runSql(`SELECT currency FROM studio_configs LIMIT 1`);
+          const c = String(cfg?.[0]?.currency || '').trim().toUpperCase();
+          if (c) (invoiceData as any).currency = c;
+        } catch (e: any) {
+          // Leave it to the column default rather than fail the invoice; the repair
+          // script (scripts/gal-repair-invoice-currency.mjs) can correct it later.
+          console.warn('[INVOICE] could not read the studio currency:', e?.message || e);
+        }
       }
 
       // Create the invoice

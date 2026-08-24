@@ -39,6 +39,73 @@ async function loadInvoicesWithItems(storage: any, periodStart: string, periodEn
   return inPeriod.map((inv: any) => ({ ...inv, items: itemsByInvoice.get(inv.id) || [] }));
 }
 
+/**
+ * The payments received in the period.
+ *
+ * Both call sites used to read:
+ *
+ *   const payments: any[] = []; // payments storage not yet implemented
+ *
+ * crm_invoice_payments has existed the whole time. The consequence was not a missing
+ * section in the ZIP — it was an export that positively asserted total_payments: 0 to
+ * the studio's accountant, on invoices the studio had marked Paid. An accountant
+ * reconciling that sees two unpaid invoices and money in the bank with nothing to match
+ * it against.
+ *
+ * Joined to the invoice so a payment carries the currency and customer it was made
+ * against, rather than the transformer falling back to a default for both.
+ */
+async function loadPayments(periodStart: string, periodEnd: string): Promise<any[]> {
+  const { rows } = await pool.query(
+    `SELECT p.id,
+            p.invoice_id,
+            p.amount,
+            p.payment_method,
+            p.payment_reference,
+            p.payment_date,
+            p.notes,
+            i.invoice_number,
+            i.client_id,
+            i.currency
+       FROM crm_invoice_payments p
+       JOIN crm_invoices i ON i.id = p.invoice_id
+      WHERE p.payment_date >= $1::date AND p.payment_date <= $2::date
+      ORDER BY p.payment_date, p.created_at`,
+    [periodStart, periodEnd],
+  ).catch((e: any) => {
+    // A missing payments table must not fail the whole export — the sales side is still
+    // useful. But say so, rather than returning [] and letting it read as "none taken".
+    console.warn('[accounting-export] could not read payments:', e?.message || e);
+    return { rows: [] as any[] };
+  });
+  return rows;
+}
+
+/**
+ * The studio's own currency and country, read from their configuration.
+ *
+ * Resolved on the SERVER rather than taken from the request body. The client already
+ * sends its currency and gets it right, but these two values decide the tax code written
+ * into an accounting document — `AT-20` versus `US-20` — and a figure an accountant will
+ * rely on should not be settable by whatever posts to the endpoint.
+ *
+ * Both fall back to empty rather than to a guess. The transformer treats an unknown
+ * country by writing a plain `VAT-20` and switching reverse-charge detection off, which
+ * is the honest answer for a studio that has not told us where it trades. It used to
+ * assume Austria.
+ */
+async function studioFiscalIdentity(): Promise<{ currency: string; country: string; name: string }> {
+  const { rows } = await pool.query(
+    `SELECT currency, country, studio_name, business_name FROM studio_configs LIMIT 1`,
+  ).catch(() => ({ rows: [] as any[] }));
+  const c = rows[0] || {};
+  return {
+    currency: String(c.currency || '').trim().toUpperCase(),
+    country: String(c.country || '').trim().toUpperCase(),
+    name: String(c.studio_name || c.business_name || '').trim(),
+  };
+}
+
 // ============================================================================
 // VALIDATION SCHEMAS
 // ============================================================================
@@ -50,7 +117,11 @@ const ExportRequestSchema = z.object({
   profile: z.string().min(1),
   period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  // The client sends the studio's own currency (useStudioCurrency). The default here
+  // only applies to a caller that omits it — it must never be what a US studio gets.
   currency: z.string().default('EUR'),
+  country: z.string().optional().nullable(),
+  generated_by: z.string().optional().nullable(),
   include_payments: z.boolean().default(true),
   include_credit_notes: z.boolean().default(true),
   include_drafts: z.boolean().default(false),
@@ -98,7 +169,13 @@ router.post('/preview', async (req: Request, res: Response) => {
     }
 
     const invoicesWithItems = await loadInvoicesWithItems(storage, requestData.period_start, requestData.period_end);
-    const payments: any[] = []; // payments storage not yet implemented
+    const payments = await loadPayments(requestData.period_start, requestData.period_end);
+
+    // The studio's own fiscal identity wins over anything in the body.
+    const studio = await studioFiscalIdentity();
+    if (studio.currency) requestData.currency = studio.currency;
+    requestData.country = studio.country || null;
+    requestData.generated_by = studio.name ? `TogNinja Accounting Export — ${studio.name}` : 'TogNinja Accounting Export';
     const customers = await storage.getCrmClients();
 
     // Run validation only
@@ -146,7 +223,13 @@ router.post('/generate', async (req: Request, res: Response) => {
     }
 
     const invoicesWithItems = await loadInvoicesWithItems(storage, requestData.period_start, requestData.period_end);
-    const payments: any[] = []; // payments storage not yet implemented
+    const payments = await loadPayments(requestData.period_start, requestData.period_end);
+
+    // The studio's own fiscal identity wins over anything in the body.
+    const studio = await studioFiscalIdentity();
+    if (studio.currency) requestData.currency = studio.currency;
+    requestData.country = studio.country || null;
+    requestData.generated_by = studio.name ? `TogNinja Accounting Export — ${studio.name}` : 'TogNinja Accounting Export';
     const customers = await storage.getCrmClients();
 
     // Generate export
