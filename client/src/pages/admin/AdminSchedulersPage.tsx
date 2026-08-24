@@ -70,6 +70,16 @@ interface SchedulerBooking {
   createdAt: string;
 }
 
+// The timezone a new scheduler should be created in.
+//
+// Both call sites below used to read 'Europe/Vienna' — the origin studio's. The studio
+// config is authoritative when it has been set; otherwise the browser is a far better
+// guess than another continent. Availability is COMPUTED in this value, so getting it
+// wrong does not mislabel the slots, it offers the wrong ones: the demo studio's one
+// scheduler was offering a 9-to-5 working day as 2am-10am.
+const browserTimezone = (() => {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
+})();
 const defaultWeeklyAvailability = {
   monday: [{ start: '09:00', end: '17:00' }],
   tuesday: [{ start: '09:00', end: '17:00' }],
@@ -91,6 +101,10 @@ export default function AdminSchedulersPage() {
   const [editingScheduler, setEditingScheduler] = useState<Scheduler | null>(null);
   const [expandedScheduler, setExpandedScheduler] = useState<string | null>(null);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  // A SEPARATE flag from copiedSlug. Overloading that one with a sentinel value would
+  // light up 'Copied!' on the index bar and on a scheduler row at the same time, since
+  // every row compares copiedSlug against its own slug.
+  const [copiedIndex, setCopiedIndex] = useState(false);
 
   // Bookings sort state
   const [bookingSortField, setBookingSortField] = useState<'clientName' | 'scheduledDate' | 'status'>('scheduledDate');
@@ -133,7 +147,7 @@ export default function AdminSchedulersPage() {
     availabilityType: 'ongoing',
     startDate: '',
     endDate: '',
-    timezone: 'Europe/Vienna',
+    timezone: browserTimezone,
     weeklyAvailability: defaultWeeklyAvailability as Record<string, Array<{ start: string; end: string }>>,
     specificDates: [] as Array<{ date: string; windows: Array<{ start: string; end: string }> }>,
     bufferBefore: 0,
@@ -325,6 +339,22 @@ export default function AdminSchedulersPage() {
     setTimeout(() => setCopiedSlug(null), 2000);
   };
 
+  // The booking INDEX url - the one link that is worth putting in a signature. Built
+  // slash-less to match the per-scheduler links above; server/seoRedirects.ts 301s it
+  // to /book/ either way.
+  const bookingIndexUrl = `${window.location.origin}/book`;
+
+  // Must be the SAME predicate the /public/_index endpoint filters on (isActive is the
+  // entire notion of 'published' - there is no draft state on this table). If the two
+  // ever disagree the bar hands out a link to a page that lists nothing.
+  const activeSchedulerCount = schedulers.filter(s => s.isActive).length;
+
+  const copyBookingIndexLink = () => {
+    navigator.clipboard.writeText(bookingIndexUrl);
+    setCopiedIndex(true);
+    setTimeout(() => setCopiedIndex(false), 2000);
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -337,7 +367,7 @@ export default function AdminSchedulersPage() {
       availabilityType: 'ongoing',
       startDate: '',
       endDate: '',
-      timezone: 'Europe/Vienna',
+      timezone: browserTimezone,
       weeklyAvailability: defaultWeeklyAvailability,
       specificDates: [],
       bufferBefore: 0,
@@ -1072,6 +1102,61 @@ export default function AdminSchedulersPage() {
             <Plus className="w-5 h-5" />
             Add New
           </button>
+        </div>
+
+        {/* YOUR BOOKING PAGE - where the studio finds the one link worth sharing.
+            /book lists every ACTIVE session type. Without this bar the page exists and
+            nobody knows its address, which is precisely the problem it was built to fix.
+            When nothing is active the bar says so and refuses to hand over the URL: a
+            studio must not be able to mail a client a link to an empty page. */}
+        <div className="bg-white rounded-lg shadow p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+              <LinkIcon className="w-4 h-4 text-teal-600" />
+              Your booking page
+            </div>
+            <code className="block mt-1 text-sm text-gray-600 truncate">{bookingIndexUrl}</code>
+            <p className="text-xs text-gray-500 mt-1">
+              {activeSchedulerCount > 0
+                ? `Lists the ${activeSchedulerCount} session type${activeSchedulerCount === 1 ? '' : 's'} marked Active. Put it in your email signature or on your website.`
+                : schedulers.length === 0
+                  ? 'Nothing is listed yet - create a session type first.'
+                  : 'Nothing is listed yet - switch a session type to Active below first.'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={copyBookingIndexLink}
+              disabled={activeSchedulerCount === 0}
+              className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg ${
+                activeSchedulerCount === 0
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : 'text-teal-600 hover:bg-teal-50'
+              }`}
+              title={activeSchedulerCount === 0 ? 'Activate a session type first' : 'Copy booking page link'}
+            >
+              {copiedIndex ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy Link
+                </>
+              )}
+            </button>
+            <a
+              href="/book"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+              title="Preview booking page"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          </div>
         </div>
 
         {/* Tabs */}

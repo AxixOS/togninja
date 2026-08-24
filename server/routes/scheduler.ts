@@ -117,7 +117,11 @@ router.post('/', async (req: Request, res: Response) => {
       availabilityType = 'ongoing',
       startDate,
       endDate,
-      timezone = 'Europe/Vienna',
+      // The studio's own timezone. This literal was the ORIGIN studio's, so a
+      // Shreveport studio's first scheduler was created in Vienna time and offered
+      // their nine-to-five to clients as two in the morning. DEFAULT_CAL_TZ is
+      // hydrated from studio_configs.timezone at boot.
+      timezone = process.env.DEFAULT_CAL_TZ || 'UTC',
       weeklyAvailability,
       specificDates,
       bufferBefore = 0,
@@ -580,6 +584,60 @@ router.delete('/blocked-times/:blockedTimeId', async (req: Request, res: Respons
 });
 
 // ==================== PUBLIC ROUTES (no auth required) ====================
+
+// GET /api/schedulers/public/_index - Every session type a client may book.
+//
+// THE PATH SHAPE IS LOAD-BEARING IN THREE WAYS, none of which any guard can see:
+//   1. It must sit under '/public/' WITH the trailing slash. The auth gate in
+//      server/routes.ts exempts exactly req.path.startsWith('/public/'), so a sibling
+//      named '/api/schedulers/public' would 401 every anonymous visitor - which reads
+//      as a broken session rather than as a routing mistake.
+//   2. It must have two segments. A one-segment path is matched first by
+//      router.get('/:id') above, which looks up a scheduler whose id is 'public' and
+//      answers 404 'Scheduler not found'.
+//   3. It must stay ABOVE '/public/:slug' below, or that param route swallows it and
+//      answers the same 404. scripts/route-dupes.mjs compares literal path strings and
+//      cannot see param-route shadowing, so a later reorder would fail silently and no
+//      script would catch it. This comment is the only warning there is.
+// '_index' can never collide with a real slug: both slug writers replace every
+// character outside their own allow-list with '-' (POST / uses [^a-z0-9], PUT /:id
+// uses [^a-z0-9-]), and neither list contains an underscore.
+//
+// Deliberately NO availability here. /public/:slug/availability below fans out to
+// Google Calendar busy lookups; doing that per row would cost one GCal round trip per
+// session type per page view, on a page that only needs to list what exists.
+router.get('/public/_index', async (req: Request, res: Response) => {
+  try {
+    // isActive is the ENTIRE notion of 'published' - the table has no draft state - so
+    // it is the only predicate. That deliberately matches /public/:slug below: a
+    // date_range scheduler whose endDate has passed still answers there, so excluding
+    // it here would leave the product with two different answers to 'is this bookable'.
+    const activeSchedulers = await db
+      .select({
+        // Key names copied from the projection in /public/:slug below rather than
+        // retyped: Drizzle silently DROPS a key that is not a table property, so a typo
+        // here would not error, it would render a blank field on the card.
+        name: schedulers.name,
+        slug: schedulers.slug,
+        description: schedulers.description,
+        sessionType: schedulers.sessionType,
+        duration: schedulers.duration,
+        location: schedulers.location,
+        price: schedulers.price,
+        brandColor: schedulers.brandColor
+      })
+      .from(schedulers)
+      .where(eq(schedulers.isActive, true))
+      .orderBy(asc(schedulers.name));
+
+    // A bare array, matching GET / above. No id and no questionnaireId: a card needs
+    // neither, and this payload is served to anyone on the internet.
+    res.json(activeSchedulers);
+  } catch (error) {
+    console.error('Error fetching public scheduler index:', error);
+    res.status(500).json({ error: 'Failed to fetch schedulers' });
+  }
+});
 
 // GET /api/schedulers/public/:slug - Get public scheduler info by slug
 router.get('/public/:slug', async (req: Request, res: Response) => {
@@ -1092,8 +1150,10 @@ function generateAvailableSlots(
   const bufferAfter = scheduler.bufferAfter || 0;
   const totalBlockedTime = duration + bufferBefore + bufferAfter;
   
-  // Use the scheduler's configured timezone (default: Europe/Vienna)
-  const tz = scheduler.timezone || 'Europe/Vienna';
+  // The scheduler's own timezone; then the studio's; then UTC. Never another
+  // studio's city. Availability is computed in tz, so a wrong value here does not
+  // mislabel the slots — it offers the wrong ones.
+  const tz = scheduler.timezone || process.env.DEFAULT_CAL_TZ || 'UTC';
 
   // For date_range, clamp the iteration window to the scheduler's start/end dates
   let iterStart = startDate;

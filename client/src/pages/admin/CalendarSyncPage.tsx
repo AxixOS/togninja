@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
 import {
-  Calendar, Check, AlertTriangle, RefreshCw, ExternalLink, Link2, Loader2,
+  Calendar, Check, AlertTriangle, RefreshCw, ExternalLink, Link2, Loader2, Settings,
 } from 'lucide-react';
 
 interface SyncStatus {
@@ -26,6 +27,11 @@ const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('toke
 
 const CalendarSyncPage: React.FC = () => {
   const [status, setStatus] = useState<SyncStatus | null>(null);
+  // Why the status read failed, when it did. Kept apart from `status` so an unreadable
+  // status can be rendered as unknown instead of being guessed at.
+  const [statusError, setStatusError] = useState<string | null>(null);
+  // Does this instance have a Google OAuth app at all? null = not established yet.
+  const [googleConfigured, setGoogleConfigured] = useState<boolean | null>(null);
   const [health, setHealth] = useState<GCalHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -33,11 +39,37 @@ const CalendarSyncPage: React.FC = () => {
   const [rechecking, setRechecking] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // A non-OK status used to be dropped on the floor, leaving `status` null — and the
+  // render below read null as "not NOT-connected" and painted a green Connected dot with
+  // a Sync-now button, on a studio whose session had just expired. Unknown is recorded
+  // as unknown so the page can say which of the two it is.
   const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/google/status', { headers: authHeaders(), credentials: 'include' });
-      if (res.ok) setStatus(await res.json());
-    } catch { /* ignore */ }
+      if (res.ok) { setStatus(await res.json()); setStatusError(null); return; }
+      setStatus(null);
+      setStatusError(res.status === 401
+        ? 'Your admin session has expired. Sign in again to see the calendar connection status.'
+        : `Could not read the calendar connection status (HTTP ${res.status}).`);
+    } catch {
+      setStatus(null);
+      setStatusError('Could not reach the server to read the calendar connection status.');
+    }
+  }, []);
+
+  // Is there a Google OAuth app for this instance AT ALL? Connecting a calendar needs a
+  // client id and secret, supplied either by the host as a shared app (env) or by the
+  // studio in Settings -> Google API. Without this probe the page offered a Connect
+  // button that could only ever fail, which reads as a broken feature rather than an
+  // unfinished setup step. A failed probe leaves it null: unknown must not be reported
+  // as unconfigured, or a working instance gets told to reconfigure itself.
+  const fetchConfig = useCallback(async () => {
+    try {
+      const res = await fetch('/api/setup/technical/current', { credentials: 'include' });
+      if (!res.ok) return;
+      const extras = (await res.json())?.extras || {};
+      setGoogleConfigured(!!extras.googleOAuthManaged || (!!extras.googleClientId && !!extras.googleClientSecretSet));
+    } catch { /* leave unknown */ }
   }, []);
 
   const fetchHealth = useCallback(async (probe = false) => {
@@ -50,10 +82,10 @@ const CalendarSyncPage: React.FC = () => {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([fetchStatus(), fetchHealth()]);
+      await Promise.all([fetchStatus(), fetchHealth(), fetchConfig()]);
       setLoading(false);
     })();
-  }, [fetchStatus, fetchHealth]);
+  }, [fetchStatus, fetchHealth, fetchConfig]);
 
   // Listen for the OAuth popup completing.
   useEffect(() => {
@@ -75,7 +107,13 @@ const CalendarSyncPage: React.FC = () => {
     setConnecting(true);
     try {
       const res = await fetch('/api/auth/google/connect', { headers: authHeaders(), credentials: 'include' });
-      if (!res.ok) throw new Error('Could not start Google authorization. Please make sure you are signed in.');
+      if (!res.ok) {
+        // The server names the actual obstacle ("Google is not configured on this
+        // instance…"). Throwing a generic sign-in message over the top of it sent studios
+        // to check their login when the credentials were what was missing.
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not start Google authorization. Please make sure you are signed in.');
+      }
       const { authUrl } = await res.json();
       const popup = window.open(authUrl, 'Google Calendar Authorization', 'width=600,height=700,left=200,top=100');
       if (!popup) {
@@ -92,7 +130,13 @@ const CalendarSyncPage: React.FC = () => {
     setSyncing(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/calendar/import-google-events', {
+      // This used to POST /api/calendar/import-google-events, which was defined only in
+      // server/routes/calendar.ts — a router nothing ever mounted. Every click 404'd and
+      // the catch below reported it as a bare "Sync failed", so the feature looked broken
+      // rather than absent. That orphan router is gone; /google/sync is registered in
+      // server/routes.ts behind authenticateUser and returns the same
+      // {success, imported, updated, deleted, errors} shape read just below.
+      const res = await fetch('/api/calendar/google/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         credentials: 'include',
@@ -115,7 +159,7 @@ const CalendarSyncPage: React.FC = () => {
 
   const handleRecheck = async () => {
     setRechecking(true);
-    await Promise.all([fetchHealth(true), fetchStatus()]);
+    await Promise.all([fetchHealth(true), fetchStatus(), fetchConfig()]);
     setRechecking(false);
   };
 
@@ -131,9 +175,17 @@ const CalendarSyncPage: React.FC = () => {
     } catch { /* ignore */ }
   };
 
-  const neverConnected = !!status && !status.connected;
+  // Anything that is not an affirmative "connected: true" counts as not connected —
+  // including a status we failed to read. The old `!!status && !status.connected` made
+  // an unreadable status render as Connected.
+  const neverConnected = !status?.connected;
   const tokenExpired = !!status?.tokenExpired;
   const needsReconnect = neverConnected || tokenExpired;
+  // No OAuth app on the instance: Connect cannot work yet, and saying so beats letting
+  // the studio click a button that answers with an error. Gated on needsReconnect so an
+  // already-linked calendar keeps its Sync-now button — credentials disappearing under a
+  // live connection is not the state this copy is written for.
+  const needsSetup = googleConfigured === false && needsReconnect;
   const unhealthy = health?.configured && health?.status === 'unhealthy';
 
   return (
@@ -160,6 +212,38 @@ const CalendarSyncPage: React.FC = () => {
           </div>
         ) : (
           <>
+            {/* Nothing to sync yet — and that is a setup step, not a fault. Amber, not
+                red: red is reserved below for bookings actually being turned away. */}
+            {needsSetup && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+                  <div className="text-sm">
+                    <h3 className="font-semibold text-amber-900">Google is not set up on this instance yet</h3>
+                    <p className="mt-1 text-amber-800">
+                      Calendar sync needs a Google OAuth app before any calendar can be linked. Add a Google
+                      Client ID and Client Secret under Settings → Google API, then come back here and connect
+                      the calendar your bookings live in.
+                    </p>
+                    <p className="mt-2 text-amber-800">
+                      Nothing here is broken — the feature is waiting on that one setup step.
+                    </p>
+                    <Link to="/admin/settings/google" className="mt-3 inline-flex items-center gap-1.5 font-medium text-amber-900 underline underline-offset-2 hover:text-amber-950">
+                      Add Google API credentials
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* The status read itself failed. Saying so beats rendering a guess as fact. */}
+            {statusError && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+                <span>{statusError}</span>
+              </div>
+            )}
+
             {/* Booking-impact banner */}
             {unhealthy && (
               <div className="rounded-lg border border-red-300 bg-red-50 p-4">
@@ -192,7 +276,13 @@ const CalendarSyncPage: React.FC = () => {
                       {neverConnected ? 'Not connected' : tokenExpired ? 'Connection expired' : 'Connected'}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {status?.calendarId ? status.calendarId : 'No calendar linked yet'}
+                      {status?.calendarId
+                        ? status.calendarId
+                        : needsSetup
+                          ? 'Google API credentials not added yet'
+                          : statusError
+                            ? 'Status unavailable'
+                            : 'No calendar linked yet'}
                       {status?.lastSyncAt ? ` · last synced ${new Date(status.lastSyncAt).toLocaleString()}` : ''}
                     </div>
                   </div>
@@ -209,7 +299,15 @@ const CalendarSyncPage: React.FC = () => {
               </div>
 
               <div className="mt-5 flex flex-wrap gap-3">
-                {needsReconnect ? (
+                {needsSetup ? (
+                  <Link
+                    to="/admin/settings/google"
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700"
+                  >
+                    <Settings className="h-5 w-5" />
+                    Set up Google API
+                  </Link>
+                ) : needsReconnect ? (
                   <button
                     type="button"
                     onClick={handleConnect}
@@ -243,7 +341,7 @@ const CalendarSyncPage: React.FC = () => {
                 )}
               </div>
 
-              {needsReconnect && (
+              {needsReconnect && !needsSetup && (
                 <p className="mt-3 text-xs text-gray-500">
                   This opens a Google sign-in pop-up. Approve access on the account that owns your booking calendar — a fresh token is issued and online booking resumes automatically.
                 </p>

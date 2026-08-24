@@ -46,22 +46,18 @@ const AdminLeadsPage = lazyWithRetry(() => import('./pages/admin/AdminLeadsPage'
 const AdminVoucherSalesPageV3 = lazyWithRetry(() => import('./pages/admin/AdminVoucherSalesPageV3'));
 const AdminClientsPage = lazyWithRetry(() => import('./pages/admin/ClientsPage'));
 const ClientDetailPage = lazyWithRetry(() => import('./pages/admin/ClientDetailPage'));
-const ClientProfilePage = lazyWithRetry(() => import('./pages/admin/ClientProfilePage'));
 const ClientFormPage = lazyWithRetry(() => import('./pages/admin/ClientFormPage'));
 const LeadSourcesPage = lazyWithRetry(() => import('./pages/admin/LeadSourcesPage'));
 const AdminClientsImportPage = lazyWithRetry(() => import('./pages/admin/ClientsImportPage'));
 const ImportLogsPage = lazyWithRetry(() => import('./pages/admin/ImportLogsPage'));
 const HighValueClientsPage = lazyWithRetry(() => import('./pages/admin/HighValueClientsPage'));
-const GalleriesPage = lazyWithRetry(() => import('./pages/admin/GalleriesPage'));
 const AdminGalleriesPage = lazyWithRetry(() => import('./pages/admin/AdminGalleriesPage'));
-const CalendarPage = lazyWithRetry(() => import('./pages/admin/CalendarPage'));
 const AdminGalleryCreatePage = lazyWithRetry(() => import('./pages/admin/GalleryCreatePage'));
 const AdminGalleryEditPage = lazyWithRetry(() => import('./pages/admin/GalleryEditPage'));
 const AdminGalleryDetailPage = lazyWithRetry(() => import('./pages/admin/GalleryDetailPage'));
 const InvoicesPage = lazyWithRetry(() => import('./pages/admin/InvoicesPage'));
 const AdminPriceWizardPage = lazyWithRetry(() => import('./pages/admin/AdminPriceWizardPage'));
 const AccountingExportPage = lazyWithRetry(() => import('./pages/admin/accounting/AccountingExportPage'));
-const FilesPage = lazyWithRetry(() => import('./pages/admin/FilesPage'));
 const ProDigitalFilesPage = lazyWithRetry(() => import('./pages/admin/ProDigitalFilesPage'));
 const CampaignsPage = lazyWithRetry(() => import('./pages/admin/CampaignsPage'));
 const AdminInboxPageV2 = lazyWithRetry(() => import('./pages/admin/AdminInboxPageV2'));
@@ -69,10 +65,8 @@ const QuestionnairesPageV2 = lazyWithRetry(() => import('./pages/admin/Questionn
 const ComprehensiveReportsPage = lazyWithRetry(() => import('./pages/admin/ComprehensiveReportsPage'));
 const SettingsPage = lazyWithRetry(() => import('./pages/admin/SettingsPage'));
 const EmailSettingsPage = lazyWithRetry(() => import('./pages/admin/EmailSettingsPage'));
-const CalendarTest = lazyWithRetry(() => import('./pages/admin/CalendarTest'));
 const CustomizationPage = lazyWithRetry(() => import('./pages/admin/CustomizationPage'));
 const StudioCustomization = lazyWithRetry(() => import('./pages/admin/StudioCustomization'));
-const StudioCalendarPage = lazyWithRetry(() => import('./pages/admin/StudioCalendarPage'));
 const WebsiteCustomizationWizard = lazyWithRetry(() => import('./pages/admin/WebsiteCustomizationWizard'));
 const PhotographyCalendarPage = lazyWithRetry(() => import('./pages/admin/PhotographyCalendarPageSimple'));
 import SurveySystemDemoPage from './pages/SurveySystemDemoPage';
@@ -81,7 +75,6 @@ const AdminBlogPostsPage = lazyWithRetry(() => import('./pages/admin/AdminBlogPo
 const AdminBlogNewPage = lazyWithRetry(() => import('./pages/admin/AdminBlogNewPage'));
 const AdminBlogEditPage = lazyWithRetry(() => import('./pages/admin/AdminBlogEditPage'));
 const KnowledgeBasePage = lazyWithRetry(() => import('./pages/admin/KnowledgeBasePage'));
-const CRMOperationsAssistant = lazyWithRetry(() => import('./pages/admin/CRMOperationsAssistant'));
 const AgentV2Page = lazyWithRetry(() => import('./pages/admin/AgentV2Page'));
 const AgentConsolePage = lazyWithRetry(() => import('./pages/admin/AgentConsolePage'));
 const AdminLandingPagesPage = lazyWithRetry(() => import('./pages/admin/AdminLandingPagesPage'));
@@ -128,6 +121,7 @@ import MockSuccessPage from './pages/MockSuccessPage';
 import CommunicationsPage from './pages/CommunicationsPage';
 import QuestionnaireFormPage from './pages/QuestionnaireFormPage';
 import ImageTestPage from './pages/ImageTestPage';
+import BookingIndexPage from './pages/public/BookingIndexPage';
 import PublicSchedulerPage from './pages/public/PublicSchedulerPage';
 const AdminSchedulersPage = lazyWithRetry(() => import('./pages/admin/AdminSchedulersPage'));
 const AdminAutomationsPage = lazyWithRetry(() => import('./pages/admin/AdminAutomationsPage'));
@@ -438,6 +432,11 @@ function App() {
                 <Route path="/survey-demo" element={<SurveySystemDemoPage />} />
                 <Route path="/survey/:id" element={<SurveyTakingPage />} />
                 <Route path="/q/:token" element={<QuestionnaireFormPage />} />
+                {/* The booking front door: one page listing every active session type.
+                    Ungated on purpose - like /q/:token, /gallery/:slug and /invoice/:id,
+                    it is not in shared/sitePages.ts, because a switch-off-able booking
+                    index would need the admin copy button to respect the switch too. */}
+                <Route path="/book" element={<BookingIndexPage />} />
                 <Route path="/book/:slug" element={<PublicSchedulerPage />} />
                 <Route path="/invoice/:invoiceId" element={<PublicInvoicePage />} />
                 <Route path="/inv/:invoiceId" element={<PublicInvoicePage />} />
@@ -935,22 +934,6 @@ function App() {
                 <Route
                   path="/home"
                   element={<HomePage />}
-                />
-                <Route
-                  path="/admin/calendar"
-                  element={
-                    <NeonProtectedRoute>
-                      <PhotographyCalendarPage />
-                    </NeonProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/calendar-test"
-                  element={
-                    <NeonProtectedRoute>
-                      <CalendarTest />
-                    </NeonProtectedRoute>
-                  }
                 />
                 <Route
                   path="/admin/studio-calendar"

@@ -32,6 +32,7 @@ import {
 } from 'date-fns';
 import { de, enUS } from 'date-fns/locale';
 import { useLanguage } from '../../context/LanguageContext';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface Scheduler {
   id: string;
@@ -65,6 +66,8 @@ export default function PublicSchedulerPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { language, t } = useLanguage();
+  // The studio's own currency, from studio_configs — never a symbol in the JSX.
+  const { format: money } = useStudioCurrency();
   const dateLocale = language === 'de' ? de : enUS;
   const dayNames = t('scheduler.dayNames').split(',');
 
@@ -655,7 +658,7 @@ export default function PublicSchedulerPage() {
             {scheduler.price && parseFloat(scheduler.price) > 0 && (
               <div className="flex items-center">
                 <DollarSign className="w-4 h-4 mr-1" />
-                €{parseFloat(scheduler.price).toFixed(0)}
+                {money(scheduler.price)}
               </div>
             )}
           </div>

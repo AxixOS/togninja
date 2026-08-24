@@ -46,6 +46,7 @@ import {
   TrendingUp,
   Zap,
   Camera,
+  RefreshCw,
   Trash2
 } from 'lucide-react';
 
@@ -158,6 +159,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { icon: TrendingUp, label: 'Price List Wizard', path: '/admin/price-wizard', badge: 'AI' },
     { icon: Calendar, label: t('nav.calendar'), path: '/admin/calendar' },
     { icon: CalendarCheck2, label: 'Schedulers', path: '/admin/schedulers' },
+    // Beside Schedulers on purpose: this is the connection the scheduler checks before
+    // it accepts a /book/* booking, so the two are read together. RefreshCw rather than a
+    // third calendar glyph, which would be indistinguishable from the two rows above at
+    // sidebar size (and lucide-react 0.323 has no CalendarSync export).
+    { icon: RefreshCw, label: t('nav.calendarSync'), path: '/admin/calendar-sync' },
     { icon: FolderOpen, label: t('nav.digitalFiles'), path: '/admin/digital-files' },
     { icon: PenTool, label: t('nav.blogAdmin'), path: '/admin/blog' },
     { icon: Mail, label: t('nav.emailCampaigns'), path: '/admin/campaigns' },

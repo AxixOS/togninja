@@ -37,8 +37,10 @@ const ALLOW = {
     'currency picker — an EUR option should show a euro sign',
   'components/admin/AdvancedInvoiceForm.tsx':
     'currency picker — an EUR option should show a euro sign',
-  'components/admin/InvoiceTemplate.tsx':
-    'explanatory comment about the bug this replaced',
+  // NOTE: components/admin/InvoiceTemplate.tsx was allowed here until it was deleted as
+  // unreachable. Its key is gone with it. Do NOT re-add it for the LIVE
+  // components/invoice/InvoiceTemplate.tsx — different file, and TREES does not walk
+  // components/invoice at all, so it needs no entry.
   'pages/admin/ComprehensiveReportsPage.tsx':
     'explanatory comment about the bug this replaced',
 };
@@ -61,6 +63,12 @@ const TREES = [
   'client/src/pages/admin',
   'client/src/components/admin',
   'client/src/components/galleries',
+  // The comment above says the people most affected are the ones being ASKED FOR MONEY,
+  // and then this list still did not walk the pages where a client is asked. The booking
+  // page (pages/public/PublicSchedulerPage.tsx) printed a hardcoded euro sign beside a
+  // lucide DollarSign icon, and quoted the demo studio's USD session as EUR95. This guard
+  // was green the whole time, for the second time, for the same reason.
+  'client/src/pages/public',
 ];
 
 for (const f of TREES.flatMap(walk).filter((x) => /\.tsx?$/.test(x))) {

@@ -930,6 +930,7 @@ const translations = {
   'nav.galleriesAdmin': 'Galleries',
   'nav.invoices': 'Invoices',
   'nav.calendar': 'Calendar',
+  'nav.calendarSync': 'Calendar Sync',
   'nav.digitalFiles': 'Cloud Storage',
   'nav.blogAdmin': 'Blog',
   'nav.aiAutoblog': 'AI AutoBlog',
@@ -1182,7 +1183,18 @@ const translations = {
   'scheduler.loading': 'Loading booking page...',
   'scheduler.unavailable': 'Booking Unavailable',
   'scheduler.timezone': 'Timezone',
-  'scheduler.dayNames': 'Sun,Mon,Tue,Wed,Thu,Fri,Sat'
+  'scheduler.dayNames': 'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
+  // The booking-site index (/book). A key present in one dict and absent from the
+  // other renders the raw key string on screen, and there is no parity guard here,
+  // so every key below exists in de as well - checked by scripts/ui-verify-booking-index.mjs.
+  'bookIndex.title': 'Book a session',
+  'bookIndex.subtitle': 'Choose the session you would like to book.',
+  'bookIndex.loading': 'Loading sessions...',
+  'bookIndex.errorTitle': 'Booking unavailable',
+  'bookIndex.errorBody': 'We could not load the sessions just now. Please try again shortly.',
+  'bookIndex.empty': 'No sessions are open for booking right now.',
+  'bookIndex.emptyHint': 'Please check back soon.',
+  'bookIndex.book': 'Book'
   },
   de: {
     // Phase 4: extracted from inline language ternaries so Website Studio can edit them.
@@ -2069,6 +2081,7 @@ const translations = {
   'nav.galleriesAdmin': 'Galerien',
   'nav.invoices': 'Rechnungen',
   'nav.calendar': 'Kalender',
+  'nav.calendarSync': 'Kalender-Sync',
   'nav.digitalFiles': 'Cloud-Speicher',
   'nav.blogAdmin': 'Blog',
   'nav.aiAutoblog': 'KI AutoBlog',
@@ -2318,7 +2331,16 @@ const translations = {
   'scheduler.loading': 'Buchungsseite wird geladen...',
   'scheduler.unavailable': 'Buchung nicht verfügbar',
   'scheduler.timezone': 'Zeitzone',
-  'scheduler.dayNames': 'So,Mo,Di,Mi,Do,Fr,Sa'
+  'scheduler.dayNames': 'So,Mo,Di,Mi,Do,Fr,Sa',
+  // Gegenstueck zu bookIndex.* im en-Block - beide Dicts muessen dieselben Keys haben.
+  'bookIndex.title': 'Termin buchen',
+  'bookIndex.subtitle': 'Wählen Sie das gewünschte Shooting.',
+  'bookIndex.loading': 'Shootings werden geladen...',
+  'bookIndex.errorTitle': 'Buchung nicht verfügbar',
+  'bookIndex.errorBody': 'Die Shootings konnten gerade nicht geladen werden. Bitte versuchen Sie es in Kürze erneut.',
+  'bookIndex.empty': 'Derzeit sind keine Shootings buchbar.',
+  'bookIndex.emptyHint': 'Bitte schauen Sie bald wieder vorbei.',
+  'bookIndex.book': 'Buchen'
   }
 };
 
