@@ -1031,7 +1031,48 @@ export function serveStatic(app: Express) {
   // (the prerendered pages) do NOT get served here — they must flow through
   // the catch-all below, which stamps the tenant identity into them and
   // handles the data-driven blog/voucher routes.
-  app.use(express.static(distPath, { index: false }));
+  // Cache policy. It was inverted, and that is why a deploy could look like it had not
+  // happened.
+  //
+  // express.static defaults every asset to `Cache-Control: public, max-age=0`, and the
+  // HTML catch-all below sent no Cache-Control at all. So:
+  //
+  //   the FILENAME-HASHED bundles, which can never change under their own name, were
+  //   revalidated on every single page load; and
+  //
+  //   index.html, the one document that MUST be re-fetched after a deploy because it
+  //   names those hashes, had no directive — which leaves the browser free to reuse it
+  //   heuristically. A returning visitor then keeps loading the OLD chunk hashes, so a
+  //   shipped change is invisible to them until a hard refresh, with nothing on screen
+  //   to suggest why.
+  //
+  // Vite emits assets as <name>-<contenthash>.<ext>, so a changed file gets a new URL.
+  // That is exactly the case immutable exists for.
+  const HASHED = /-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2?|png|jpe?g|webp|avif|svg|gif|ico)$/;
+  app.use(express.static(distPath, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      if (HASHED.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        return;
+      }
+      // Unhashed public files (favicon.ico, site.webmanifest, robots.txt, the fonts
+      // referenced by a stable name). Cacheable, but only briefly, because replacing one
+      // does not change its URL — the favicon that shipped as a 16x5 sliver had to be
+      // replaced in place.
+      res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+    },
+  }));
+
+  // Every HTML response below is per-tenant (it carries %SITE_*% identity stamped in at
+  // request time) and names the current asset hashes. It must never be served from cache
+  // without asking us first. Set before the handlers run, so whichever send path the
+  // catch-all takes inherits it.
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/assets/') || req.path.startsWith('/api/')) return next();
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    next();
+  });
 
   // Explicitly serve robots.txt and sitemap.xml for SEO
   app.get("/robots.txt", (_req, res) => {
