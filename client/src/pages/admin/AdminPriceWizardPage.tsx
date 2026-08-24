@@ -478,7 +478,7 @@ const AdminPriceWizardPage: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, errorMessage?: string | null) => {
     const config: Record<string, { bg: string; text: string; label: string; title?: string }> = {
       discovering: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'discovering' },
       scraping: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'scraping' },
@@ -493,7 +493,13 @@ const AdminPriceWizardPage: React.FC = () => {
         bg: 'bg-amber-100', text: 'text-amber-800', label: 'manual entry',
         title: 'Automatic research was not available when this session was created, so nothing was crawled. The competitors and prices here are the ones entered by hand.',
       },
-      failed: { bg: 'bg-red-100', text: 'text-red-800', label: 'failed' }
+      // The reason comes from price_wizard_sessions.error_message. Before that column
+      // existed a failure said only "failed": indistinguishable from a rejected key, a
+      // rate limit, an empty result set, or a deploy that killed the run mid-flight.
+      failed: {
+        bg: 'bg-red-100', text: 'text-red-800', label: 'failed',
+        title: errorMessage || 'This run did not finish, and no reason was recorded. Try it again — if it fails a second time the reason will be shown here.',
+      }
     };
 
     // An unrecognised status must NOT fall through to green "completed" — that is the
@@ -812,7 +818,7 @@ const AdminPriceWizardPage: React.FC = () => {
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div className="font-medium text-gray-900">{session.location}</div>
-                        {getStatusBadge(session.status)}
+                        {getStatusBadge(session.status, (session as any).error_message)}
                       </div>
                       <div className="text-sm text-gray-600 mb-1">
                         {session.services.join(', ')}
@@ -849,7 +855,7 @@ const AdminPriceWizardPage: React.FC = () => {
                         <h3 className="text-lg font-semibold text-gray-900">{selectedSessionData.location}</h3>
                         <p className="text-sm text-gray-600">{selectedSessionData.services.join(', ')}</p>
                       </div>
-                      {getStatusBadge(selectedSessionData.status)}
+                      {getStatusBadge(selectedSessionData.status, (selectedSessionData as any).error_message)}
                     </div>
 
                     {/* Progress Indicator for active sessions */}

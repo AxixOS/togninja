@@ -591,6 +591,9 @@ app.use((req, res, next) => {
         // variable — which a studio who bought this product cannot reach. With no column
         // there was nowhere for their key to live even if the UI offered a box.
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS search_api_key_encrypted TEXT`);
+        // Why a Price Wizard run failed. Without it "failed" is undiagnosable by anyone,
+        // including whoever is trying to help.
+        await db.execute(sql`ALTER TABLE price_wizard_sessions ADD COLUMN IF NOT EXISTS error_message TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_api_key_encrypted TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_place_id TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS pulse_api_key_encrypted TEXT`);

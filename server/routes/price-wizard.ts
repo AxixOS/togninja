@@ -493,8 +493,7 @@ router.get('/suggestions/:sessionId', async (req, res) => {
  */
 router.get('/sessions', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT 
+    const BASE_COLUMNS = `
         id,
         location,
         services,
@@ -503,11 +502,26 @@ router.get('/sessions', async (req, res) => {
         prices_extracted,
         suggestions_generated,
         created_at,
-        updated_at
-      FROM price_wizard_sessions
-      ORDER BY created_at DESC
-      LIMIT 100
-    `);
+        updated_at`;
+
+    let result;
+    try {
+      result = await pool.query(`
+        SELECT ${BASE_COLUMNS}, error_message
+        FROM price_wizard_sessions
+        ORDER BY created_at DESC
+        LIMIT 100
+      `);
+    } catch (e: any) {
+      if (!/column .*error_message.* does not exist/i.test(String(e?.message))) throw e;
+      // Pre-upgrade instance: list the sessions without the reason rather than none at all.
+      result = await pool.query(`
+        SELECT ${BASE_COLUMNS}
+        FROM price_wizard_sessions
+        ORDER BY created_at DESC
+        LIMIT 100
+      `);
+    }
 
     res.json(result.rows);
 

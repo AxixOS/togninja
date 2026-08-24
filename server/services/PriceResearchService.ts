@@ -336,10 +336,24 @@ export class PriceResearchService {
 
     } catch (error: any) {
       console.error('❌ Research failed:', error);
-      
+
+      // Recorded, not just logged. A hosted studio cannot read the server log, and neither
+      // can whoever they ask for help — so the reason has to survive in the row.
+      //
+      // Capped and stripped of anything key-shaped: an upstream 401 body can echo the
+      // credential that was sent, and this string is rendered in the admin.
+      const reason = String(error?.message || error || 'Unknown error')
+        .replace(/\b(tvly|sk|key)[-_][A-Za-z0-9_-]{8,}/gi, '[key redacted]')
+        .slice(0, 500);
       await pool.query(`
-        UPDATE price_wizard_sessions SET status = 'failed', updated_at = NOW() WHERE id = $1
-      `, [sessionId]);
+        UPDATE price_wizard_sessions SET status = 'failed', error_message = $2, updated_at = NOW() WHERE id = $1
+      `, [sessionId, reason]).catch(async () => {
+        // The column is added at boot; an instance that has not restarted yet must still
+        // record the failure rather than throwing inside the error handler.
+        await pool.query(`
+          UPDATE price_wizard_sessions SET status = 'failed', updated_at = NOW() WHERE id = $1
+        `, [sessionId]).catch(() => {});
+      });
 
       return {
         stage: 'failed',
