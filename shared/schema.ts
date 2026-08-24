@@ -51,7 +51,12 @@ export const studioConfigs = pgTable("studio_configs", {
   city: text("city"),
   state: text("state"),
   zip: text("zip"),
-  country: text("country").default("Austria"),
+  // NO default. This was "Austria", and server/accounting-export derives its tax codes
+  // from this column — so a studio in Louisiana that never opened the field had its books
+  // labelled with the tax codes of a country it has never traded in. The transformer
+  // already handles the absence by falling back to a generic code rather than naming a
+  // jurisdiction, which is the honest answer when nobody has said where they are.
+  country: text("country"),
   phone: text("phone"),
   email: text("email"),
   website: text("website"),
@@ -59,7 +64,10 @@ export const studioConfigs = pgTable("studio_configs", {
   // Location Coordinates (for Golden Hour, Weather, etc.)
   latitude: decimal("latitude", { precision: 10, scale: 7 }), // e.g., 48.2082000 (Vienna)
   longitude: decimal("longitude", { precision: 10, scale: 7 }), // e.g., 16.3738000 (Vienna)
-  timezone: text("timezone").default("Europe/Vienna"),
+  // UTC, not Europe/Vienna. Golden hour, scheduler slots, session reminders and calendar
+  // sync all read this, so a wrong value never errors — it silently shifts every time in
+  // the product. Three sibling tables carried the same default and moved with it.
+  timezone: text("timezone").default("UTC"),
   dateFormat: text("date_format").default("auto"), // 'auto' | BCP-47 locale e.g. 'de-AT', 'en-US'
   
   // Social Media
@@ -1077,7 +1085,7 @@ export const schedulers = pgTable("schedulers", {
   availabilityType: text("availability_type").default("ongoing"), // "ongoing", "date_range", "specific_dates"
   startDate: timestamp("start_date", { withTimezone: true }), // For date_range
   endDate: timestamp("end_date", { withTimezone: true }), // For date_range
-  timezone: text("timezone").default("Europe/Vienna"),
+  timezone: text("timezone").default("UTC"),
   
   // Weekly availability (JSON: { monday: [{start: "09:00", end: "17:00"}], ... })
   weeklyAvailability: jsonb("weekly_availability"),
@@ -1129,7 +1137,7 @@ export const schedulerBookings = pgTable("scheduler_bookings", {
   // Booking details
   scheduledDate: timestamp("scheduled_date", { withTimezone: true }).notNull(),
   scheduledEndDate: timestamp("scheduled_end_date", { withTimezone: true }).notNull(),
-  timezone: text("timezone").default("Europe/Vienna"),
+  timezone: text("timezone").default("UTC"),
   
   // Status: pending, confirmed, cancelled, completed, no_show
   status: text("status").default("pending"),
@@ -1746,7 +1754,7 @@ export const studioIntegrations = pgTable("studio_integrations", {
 
   // Currency and Regional Settings
   default_currency: text("default_currency").default("EUR"),
-  timezone: text("timezone").default("Europe/Vienna"),
+  timezone: text("timezone").default("UTC"),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

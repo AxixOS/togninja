@@ -395,6 +395,24 @@ import { sessionConfig, requireAuth, requireAdmin } from './auth';
 import { findCoupon, isCouponActive, allowsSku, forceRefreshCoupons } from './services/coupons';
 
 /**
+ * The studio's timezone, for the calendar and scheduler paths in this file.
+ *
+ * Sixteen places here fell back to studioTz() — the city of the studio this product
+ * grew out of. A wrong timezone never throws: it silently writes a Shreveport booking into
+ * Google Calendar as a Vienna time, seven hours out, and shows every session on the wrong
+ * day at the boundaries.
+ *
+ * DEFAULT_CAL_TZ is the env name config-reader maps studio_configs.timezone to, and
+ * hydrateEnvFromDb() populates it from the row at boot — so this reads the studio's real
+ * answer wherever they set it. Read through a function rather than captured in a const,
+ * because config-reader rewrites the variable when the studio saves a new one.
+ *
+ * UTC is the fallback: visibly a default that wants replacing, where a real city looks
+ * like a setting somebody already chose.
+ */
+const studioTz = (): string => process.env.DEFAULT_CAL_TZ || 'UTC';
+
+/**
  * May this caller see the contents of this gallery?
  *
  * Returns null when yes, or the response to send when no.
@@ -3203,7 +3221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const minute = Number.isFinite(Number(req.body?.minute)) ? Math.min(59, Math.max(0, Number(req.body.minute))) : 0;
       const dryRun = req.body?.dryRun === true;
       // Publish time is a wall-clock time in this zone; default the studio's local time (Vienna).
-      const timeZone = (typeof req.body?.timeZone === 'string' && req.body.timeZone) ? req.body.timeZone : 'Europe/Vienna';
+      const timeZone = (typeof req.body?.timeZone === 'string' && req.body.timeZone) ? req.body.timeZone : studioTz();
       if (!days.length) return res.status(400).json({ error: 'No valid weekday(s) provided' });
 
       // Convert a wall-clock time in `timeZone` to the correct absolute UTC instant, honouring
@@ -5530,8 +5548,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const googleEvent = await studioCalendarService.createGoogleEventPublic({
           summary: `${session_type} - ${client.first_name || client.firstName || ''} ${client.last_name || client.lastName || ''}`.trim(),
           description: `Booked via embed widget by ${client.email || ''}`,
-          start: { dateTime: start.toISOString(), timeZone: 'Europe/Vienna' },
-          end: { dateTime: new Date(start.getTime() + Number(duration_minutes) * 60000).toISOString(), timeZone: 'Europe/Vienna' },
+          start: { dateTime: start.toISOString(), timeZone: studioTz() },
+          end: { dateTime: new Date(start.getTime() + Number(duration_minutes) * 60000).toISOString(), timeZone: studioTz() },
           attendees: client.email ? [{ email: client.email }] : undefined,
         });
 
@@ -6658,7 +6676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/calendar/prune-history", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { before, includeNonImported = false, dryRun = true } = req.body || {};
-      const tz = process.env.DEFAULT_CAL_TZ || 'Europe/Vienna';
+      const tz = process.env.DEFAULT_CAL_TZ || 'UTC';
 
       let localIso: string;
       if (before && /\d{4}-\d{2}-\d{2}/.test(String(before))) {
@@ -10452,7 +10470,7 @@ ${getBizName()} Team`;
         return res.json({
           latitude: 48.2082,
           longitude: 16.3738,
-          timezone: 'Europe/Vienna',
+          timezone: studioTz(),
           city: 'Vienna',
           country: 'Austria',
           address: null
@@ -10463,7 +10481,7 @@ ${getBizName()} Team`;
       res.json({
         latitude: studio.latitude ? parseFloat(studio.latitude) : 48.2082,
         longitude: studio.longitude ? parseFloat(studio.longitude) : 16.3738,
-        timezone: studio.timezone || 'Europe/Vienna',
+        timezone: studio.timezone || studioTz(),
         city: studio.city || 'Vienna',
         country: studio.country || 'Austria',
         address: studio.address || null
@@ -10474,7 +10492,7 @@ ${getBizName()} Team`;
       res.json({
         latitude: 48.2082,
         longitude: 16.3738,
-        timezone: 'Europe/Vienna',
+        timezone: studioTz(),
         city: 'Vienna',
         country: 'Austria',
         address: null
@@ -10501,7 +10519,7 @@ ${getBizName()} Team`;
         .set({
           latitude: latitude?.toString() || null,
           longitude: longitude?.toString() || null,
-          timezone: timezone || 'Europe/Vienna',
+          timezone: timezone || studioTz(),
           city: city || studios[0].city,
           country: country || studios[0].country,
           address: address || studios[0].address,
@@ -11090,7 +11108,7 @@ The {{studioName}} team`,
       if (includePast) return new Date(0); // no cutoff
 
       const from = (req.query.from as string | undefined) || (req.query.cutoff as string | undefined);
-      const tz = process.env.DEFAULT_CAL_TZ || 'Europe/Vienna';
+      const tz = process.env.DEFAULT_CAL_TZ || 'UTC';
 
       let localIso: string;
       if (from && /\d{4}-\d{2}-\d{2}/.test(from)) {
@@ -11122,7 +11140,7 @@ The {{studioName}} team`,
     try {
       const to = (req.query.to as string | undefined) || (req.query.until as string | undefined);
       if (!to || !/\d{4}-\d{2}-\d{2}/.test(to)) return undefined;
-      const tz = process.env.DEFAULT_CAL_TZ || 'Europe/Vienna';
+      const tz = process.env.DEFAULT_CAL_TZ || 'UTC';
       // Interpret as end-of-day local time then convert to UTC
       const localIso = `${to}T23:59:59`;
       const utcIso = convertLocalToUtcIso(localIso, tz);
@@ -11529,7 +11547,7 @@ The {{studioName}} team`,
       const debugSamples: any[] = [];
       const reasonCounts: Record<string, number> = { no_date: 0, invalid_date: 0, outside_time_range: 0, outside_day_range: 0 };
       // Helper: extract local day string (Europe/Vienna) from a UTC ISO string safely
-      const toLocalDay = (iso: string, tz = 'Europe/Vienna'): string | null => {
+      const toLocalDay = (iso: string, tz = studioTz()): string | null => {
         try {
           const d = new Date(iso);
           if (isNaN(d.getTime())) return null;
@@ -11612,7 +11630,7 @@ The {{studioName}} team`,
           // Day-level fallback in Europe/Vienna, only when from/to provided
           let passDay = false;
           if (!passTime && valid && (qFrom || qTo)) {
-            const localDay = toLocalDay((ds as Date).toISOString(), 'Europe/Vienna');
+            const localDay = toLocalDay((ds as Date).toISOString(), studioTz());
             const fromDay = typeof qFrom === 'string' && /\d{4}-\d{2}-\d{2}/.test(qFrom) ? qFrom : null;
             const toDay = typeof qTo === 'string' && /\d{4}-\d{2}-\d{2}/.test(qTo) ? qTo : null;
             if (localDay) {
@@ -11640,7 +11658,7 @@ The {{studioName}} team`,
             try {
               if (valid) {
                 safeIso = (ds as Date).toISOString();
-                localDayDbg = toLocalDay(safeIso, 'Europe/Vienna');
+                localDayDbg = toLocalDay(safeIso, studioTz());
               } else if (ev?.dtstart) {
                 let s = String(ev.dtstart).trim();
                 s = s.replace(/[^0-9TZ]/g, '');
@@ -11656,7 +11674,7 @@ The {{studioName}} team`,
                   const ss = timePart.substring(4, 6);
                   const iso = `${y}-${mo}-${da}T${hh}:${mm}:${ss}.000Z`;
                   safeIso = iso;
-                  localDayDbg = toLocalDay(iso, 'Europe/Vienna');
+                  localDayDbg = toLocalDay(iso, studioTz());
                 }
                 if (safeIso === 'INVALID' && ev._raw_dtstart) {
                   const raw = String(ev._raw_dtstart).trim().replace(/[^0-9TZ]/g, '');
@@ -11670,7 +11688,7 @@ The {{studioName}} team`,
                     const ss = m2[2].substring(4, 6);
                     const iso = `${y}-${mo}-${da}T${hh}:${mm}:${ss}.000Z`;
                     safeIso = iso;
-                    localDayDbg = toLocalDay(iso, 'Europe/Vienna');
+                    localDayDbg = toLocalDay(iso, studioTz());
                   }
                 }
               }
@@ -11692,7 +11710,7 @@ The {{studioName}} team`,
           if (!passes && ev.dtstart) {
             let safeIso2 = 'INVALID';
             try { if (valid) safeIso2 = (ds as Date).toISOString(); } catch {}
-            const localDay = valid ? toLocalDay((ds as Date).toISOString(), 'Europe/Vienna') : 'null';
+            const localDay = valid ? toLocalDay((ds as Date).toISOString(), studioTz()) : 'null';
             console.error(`  FILTERED OUT: ${ev.summary} | dtstart=${ev.dtstart} | date=${safeIso2} | localDay=${localDay} | reason=${!ds ? 'no_date' : !valid ? 'invalid_date' : (!passTime ? 'outside_time_range' : 'outside_day_range')}`);
           }
           return passes;
@@ -11888,7 +11906,7 @@ The {{studioName}} team`,
 
     if (propName === 'dtstart' || propName === 'dtend') {
           try {
-      const defaultTz = process.env.DEFAULT_CAL_TZ || 'Europe/Vienna';
+      const defaultTz = process.env.DEFAULT_CAL_TZ || 'UTC';
       const parsed = parseICalDate(value, params['tzid'] || defaultTz);
       // Preserve raw value for diagnostics
       const rawKey = propName === 'dtstart' ? '_raw_dtstart' : '_raw_dtend';
@@ -14422,7 +14440,7 @@ Status: ${lead.status || 'New'}
 ${leadMessage}
 
 🕐 Received: ${new Date().toLocaleString('de-DE', { 
-  timeZone: 'Europe/Vienna',
+  timeZone: studioTz(),
   year: 'numeric',
   month: '2-digit', 
   day: '2-digit',
@@ -22286,10 +22304,10 @@ URL: ${page.slug ? `/lp/${page.slug}` : ''}
             // Prepare email content with variable substitution
             const dateFormatter = new Intl.DateTimeFormat('de-AT', { 
               weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-              timeZone: 'Europe/Vienna'
+              timeZone: studioTz()
             });
             const timeFormatter = new Intl.DateTimeFormat('de-AT', {
-              hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Vienna'
+              hour: '2-digit', minute: '2-digit', timeZone: studioTz()
             });
 
             const formattedDate = dateFormatter.format(bookingDate);
