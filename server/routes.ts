@@ -3438,6 +3438,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate the article body from the context pack (IDEA -> DRAFT).
+  // Would this article compete with one the studio has already published?
+  //
+  // Two of your own pages targeting one query do not double your chances — they split
+  // the signal, and the weaker one usually wins. A studio publishing weekly will do this
+  // to itself within a couple of months with nothing anywhere to show it happening.
+  //
+  // Read-only and side-effect free, so the panel can call it as the studio types without
+  // committing to anything. It ADVISES; it never refuses. A gate that blocks the studio
+  // from writing what they meant to write gets worked around, and then it protects
+  // nothing at all.
+  app.get("/api/blog/coverage-check", authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const title = String(req.query.title || '').trim();
+      const keyword = String(req.query.keyword || '').trim() || undefined;
+      const tags = String(req.query.tags || '').split(',').map((t) => t.trim()).filter(Boolean);
+      if (!title) return res.json({ conflicts: [], coverage: 0 });
+
+      const { loadCoverage, findConflicts, CONFLICT_THRESHOLDS } = await import('./services/blogCoverage.js');
+      const coverage = await loadCoverage();
+      const conflicts = findConflicts(title, keyword, coverage, tags);
+
+      res.json({
+        coverage: coverage.length,
+        thresholds: CONFLICT_THRESHOLDS,
+        conflicts: conflicts.slice(0, 3).map((c) => ({
+          url: c.item.url,
+          title: c.item.title,
+          kind: c.item.kind,
+          score: Number(c.score.toFixed(2)),
+          shared: c.shared,
+          severity: c.score >= CONFLICT_THRESHOLDS.block ? 'block' : 'warn',
+        })),
+      });
+    } catch (e: any) {
+      // An advisory check must never stop the studio working. Empty means "nothing to
+      // say", which is the honest answer when the lookup failed.
+      console.warn('[coverage-check]', e?.message || e);
+      res.json({ conflicts: [], coverage: 0 });
+    }
+  });
   app.post("/api/blog/idea/:id/generate", authenticateUser, async (req: Request, res: Response) => {
     try {
       const post = await storage.getBlogPost(req.params.id);

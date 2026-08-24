@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, Image as ImageIcon, Wand2, Loader2, AlertCircle, Camera, Eye, Tag, X } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -118,6 +118,33 @@ const IdeaModePanel: React.FC<Props> = ({ postId, title, pillar, initialIdea, on
   const [ctx, setCtx] = useState<IdeaContext>(initialIdea?.context || {});
   const [consent, setConsent] = useState<boolean>(!!initialIdea?.consent?.given);
   const [busy, setBusy] = useState<'' | 'upload' | 'context' | 'analyze' | 'generate'>('');
+
+  // Does this article already exist on the studio's own site?
+  //
+  // Two of their pages targeting one query split the signal rather than doubling it,
+  // and the weaker one usually wins. Nothing anywhere showed this happening, so a studio
+  // publishing weekly would quietly compete with itself for months.
+  //
+  // Advisory only — it never disables Generate. A gate that stops the studio writing what
+  // they meant to write gets worked around, and then it protects nothing.
+  const [conflicts, setConflicts] = useState<Array<{
+    url: string; title: string; kind: string; score: number; shared: string[]; severity: 'warn' | 'block';
+  }>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const t = title?.trim();
+    if (!t) { setConflicts([]); return; }
+    (async () => {
+      try {
+        const r = await fetch(`/api/blog/coverage-check?title=${encodeURIComponent(t)}`, { credentials: 'include' });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!cancelled) setConflicts(Array.isArray(d?.conflicts) ? d.conflicts : []);
+      } catch { /* advisory: silence is the correct failure */ }
+    })();
+    return () => { cancelled = true; };
+  }, [title]);
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
@@ -277,6 +304,45 @@ const IdeaModePanel: React.FC<Props> = ({ postId, title, pillar, initialIdea, on
           {busy === 'context' ? <Loader2 size={16} className="animate-spin inline mr-2" /> : null} {L.saveContext}
         </button>
       </div>
+
+      {/* Cannibalisation notice. Placed ABOVE the generate row so it is read before the
+          button, not discovered afterwards in the published article. */}
+      {conflicts.length > 0 && (
+        <div className={`rounded-lg border p-4 ${
+          conflicts[0].severity === 'block'
+            ? 'border-red-300 bg-red-50'
+            : 'border-amber-300 bg-amber-50'
+        }`}>
+          <p className={`text-sm font-semibold ${
+            conflicts[0].severity === 'block' ? 'text-red-800' : 'text-amber-800'
+          }`}>
+            {conflicts[0].severity === 'block'
+              ? 'You have already published this'
+              : 'You have already covered this ground'}
+          </p>
+          <p className="mt-1 text-sm text-gray-700">
+            {conflicts[0].severity === 'block'
+              ? 'Publishing a second article on the same query splits your ranking between the two rather than doubling it — and the weaker one usually wins. Change the angle, or update the existing page instead.'
+              : 'Take a distinct angle and link to the page below as the authority, rather than competing with it.'}
+          </p>
+          <ul className="mt-2 space-y-1">
+            {conflicts.map((c) => (
+              <li key={c.url} className="text-sm">
+                <a href={c.url} target="_blank" rel="noopener noreferrer"
+                  className="font-medium text-purple-700 underline hover:text-purple-900">
+                  {c.title}
+                </a>
+                <span className="text-gray-500">
+                  {' '}— {Math.round(c.score * 100)}% overlap on: {c.shared.join(', ')}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-gray-500">
+            The writer is told about this either way, and will link rather than repeat. You can still generate.
+          </p>
+        </div>
+      )}
 
       {/* 3. Analyse + generate */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col sm:flex-row sm:items-center gap-4">
