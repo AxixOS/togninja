@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { useLanguage } from '../../context/LanguageContext';
 import { 
-  Plus, 
+  Plus,
+  Sparkles, 
   Search, 
   Filter, 
   Edit, 
@@ -75,8 +76,56 @@ type SortKey = 'date' | 'status';
 
 const AdminBlogPostsPage: React.FC = () => {
   const { t, language } = useLanguage();
+  const navigate = useNavigate();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  // The second door into the blog.
+  //
+  // Everything behind it already existed and had done since August: photo upload,
+  // vision analysis, IPTC writing, the photographer-context form, the article writer.
+  // AdvancedBlogPostForm renders that panel when a post's status is IDEA — and NOTHING
+  // in the product could produce an IDEA post, so the whole pipeline was unreachable.
+  // This is the missing entry point, not a new feature.
+  //
+  // It creates the post first and navigates to the editor, rather than opening a form
+  // that posts on submit: the panel uploads images against a post id, so the id has to
+  // exist before the studio can do anything useful.
+  const [creatingIdea, setCreatingIdea] = useState(false);
+  const startFromPhotos = async () => {
+    if (creatingIdea) return;
+    setCreatingIdea(true);
+    try {
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+      const res = await fetch('/api/blog/posts', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: t('blog.untitledPhotoStory'),
+          slug: `photo-story-${stamp}`,
+          status: 'IDEA',
+          published: false,
+          content: '',
+          ideaData: { images: [], context: {} },
+        }),
+      });
+      if (!res.ok) {
+        // Say what the server said. A bare "failed" leaves the studio with nothing to
+        // report but a screenshot.
+        let detail = `HTTP ${res.status}`;
+        try { const b = await res.json(); detail = b?.details || b?.error || detail; } catch { /* not JSON */ }
+        throw new Error(detail);
+      }
+      const post = await res.json();
+      if (!post?.id) throw new Error('The post was created without an id.');
+      navigate(`/admin/blog/edit/${post.id}`);
+    } catch (e: any) {
+      alert(`Could not start a photo story: ${e?.message || 'unknown error'}`);
+    } finally {
+      setCreatingIdea(false);
+    }
+  };
+
   const [statusFilter, setStatusFilter] = useState<string>('all');
   // Persist the chosen sort so it stays as the user left it across reloads and
   // navigation, until they change it (was resetting to date-desc on every mount).
@@ -510,6 +559,20 @@ const AdminBlogPostsPage: React.FC = () => {
             >
               <Clock size={18} className="mr-2" />
               Reschedule cadence
+            </button>
+            {/* Two doors, one room. This one writes the article from the photographs and
+                then lands in the SAME editor as the button beside it — it does not replace
+                it, and it deliberately does not live in its own section, which is how the
+                four earlier attempts at this ended up unreachable. */}
+            <button
+              type="button"
+              onClick={startFromPhotos}
+              disabled={creatingIdea}
+              title={t('blog.fromPhotosHint')}
+              className="border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 px-4 py-2 rounded-lg flex items-center disabled:opacity-60"
+            >
+              <Sparkles size={18} className="mr-2" />
+              {creatingIdea ? t('blog.fromPhotosStarting') : t('blog.fromPhotos')}
             </button>
             <Link
               to="/admin/blog/new"

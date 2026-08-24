@@ -709,6 +709,21 @@ async function gatherNewsletterSignups(): Promise<Map<string, { email: string; f
 // cron publishes it — so a scheduled post can never go live early, regardless of
 // the `published` flag the client sends. Mutates the given object in place.
 function syncBlogPublishState(data: any): void {
+  // IDEA and ARCHIVED are EDITORIAL states, orthogonal to published/scheduled.
+  //
+  // Without this guard the branch below (`published === false` -> DRAFT) silently
+  // rewrote an IDEA post into a DRAFT on the way in. That is why nothing in the product
+  // could ever create one: the photo-first panel in AdvancedBlogPostForm renders only
+  // while status is IDEA, so the whole vision-and-context pipeline — analysis, IPTC,
+  // the writer — was unreachable behind a status this function would not let exist.
+  // A post can be an unfinished idea and unpublished at the same time; those are not
+  // the same fact.
+  if (data.status === 'IDEA' || data.status === 'ARCHIVED') {
+    data.published = false;
+    data.publishedAt = null;
+    return;
+  }
+
   const now = new Date();
   const sched = data.scheduledFor ? new Date(data.scheduledFor) : null;
   const pub = data.publishedAt ? new Date(data.publishedAt) : null;

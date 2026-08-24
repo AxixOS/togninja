@@ -321,6 +321,10 @@ const translations = {
     'gallery.share': 'Share Gallery',
     'gallery.noImages': 'No images uploaded yet',    // Blog
     'blog.create': 'Create Post',
+    'blog.fromPhotos': 'New from photos',
+    'blog.fromPhotosStarting': 'Starting…',
+    'blog.fromPhotosHint': 'Upload the shoot, add context, and have the article written from the photographs.',
+    'blog.untitledPhotoStory': 'Untitled photo story',
     'blog.edit': 'Edit Post',
     'blog.manage_content': 'Manage your blog content',
     'blog.search_posts': 'Search posts...',
@@ -1643,6 +1647,10 @@ const translations = {
     
     // Blog
     'blog.create': 'Beitrag erstellen',
+    'blog.fromPhotos': 'Neu aus Fotos',
+    'blog.fromPhotosStarting': 'Wird gestartet…',
+    'blog.fromPhotosHint': 'Fotos hochladen, Kontext ergänzen und den Artikel daraus schreiben lassen.',
+    'blog.untitledPhotoStory': 'Unbenannte Fotostory',
     'blog.edit': 'Beitrag bearbeiten',
     'blog.manage_content': 'Verwalten Sie Ihre Blog-Inhalte',
     'blog.search_posts': 'Beiträge suchen...',
