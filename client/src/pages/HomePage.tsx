@@ -13,7 +13,7 @@ import { useCart } from '../context/CartContext';
 import { useManualPageContent } from '../hooks/useManualPageContent';
 import { SEOHead } from '../components/SEO/SEOHead';
 import { Helmet } from 'react-helmet-async';
-import { getCachedData, setCachedData } from '../lib/persistentCache';
+import { getCachedData, getCachedEntry, setCachedData } from '../lib/persistentCache';
 import { useImagePreloader } from '../hooks/useImagePreloader';
 import { useGoogleReviews } from '../hooks/useGoogleReviews';
 import HomepageConfidenceSection from '../components/home/HomepageConfidenceSection';
@@ -92,16 +92,24 @@ const HomePage: React.FC = () => {
       setCachedData('homepage-images', data);
       return data;
     },
-    // Use cached data as initial data to prevent flashing.
-    // NOTE: key must match the setCachedData('homepage-images', ...) write above —
-    // a previous mismatch meant the cache was never reused, so every load waited
-    // on the network before image URLs were known.
-    initialData: () => getCachedData('homepage-images', 1000 * 60 * 60 * 24), // 24 hour cache
-    // Keep data fresh but allow brief caching to prevent flash
-    staleTime: 1000 * 60 * 5, // 5 minutes - images don't change that often
-    cacheTime: 1000 * 60 * 10, // 10 minutes
-    refetchOnMount: false, // Don't refetch if we have cached data
-    refetchOnWindowFocus: false, // Don't refetch on window focus
+    // Paint instantly from the last known list, then ALWAYS revalidate.
+    //
+    // This used to hand React Query 24-hour-old localStorage as `initialData` with no
+    // initialDataUpdatedAt, so it was treated as fresh as of this moment — and with
+    // staleTime 5min plus refetchOnMount:false, nothing ever went back to the server. A
+    // studio replaced their hero image, the upload succeeded, the API returned the new
+    // one first, and they still saw the old picture. So did every returning visitor, for
+    // up to a day.
+    //
+    // Passing the real write time fixes it without losing the anti-flash behaviour the
+    // cache exists for: cached pixels appear immediately, the refetch runs underneath,
+    // and the new image swaps in when it lands.
+    initialData: () => getCachedEntry<any[]>('homepage-images', 1000 * 60 * 60 * 24)?.data,
+    initialDataUpdatedAt: () => getCachedEntry<any[]>('homepage-images', 1000 * 60 * 60 * 24)?.timestamp ?? 0,
+    staleTime: 1000 * 30,
+    gcTime: 1000 * 60 * 10,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
   });
 
   // Utility: resolve image URL by section with local fallback
@@ -149,7 +157,7 @@ const HomePage: React.FC = () => {
     // window reuses the cached data (faster LCP, less jitter) while newly
     // uploaded images still appear within a minute.
     staleTime: 1000 * 60, // 1 minute
-    cacheTime: 1000 * 60 * 5, // Keep in memory for 5 minutes
+    gcTime: 1000 * 60 * 5, // Keep in memory for 5 minutes
     refetchOnMount: true, // Refetch only when stale
     refetchOnWindowFocus: false, // Don't refetch on window focus for homepage
   });

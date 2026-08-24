@@ -14,6 +14,29 @@ interface CachedData<T> {
  * @param maxAgeMs - Maximum age in milliseconds before cache is considered stale
  * @returns Cached data or undefined if not found/expired
  */
+/**
+ * Retrieve cached data AND when it was written.
+ *
+ * The timestamp matters: React Query treats `initialData` as fresh as of now unless it
+ * is told otherwise, so day-old localStorage was being served as if it had just arrived.
+ * Handing the real write time to initialDataUpdatedAt lets it paint instantly from cache
+ * and still revalidate.
+ */
+export function getCachedEntry<T>(key: string, maxAgeMs: number): { data: T; timestamp: number } | undefined {
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return undefined;
+    const parsed: CachedData<T> = JSON.parse(cached);
+    if (Date.now() - parsed.timestamp > maxAgeMs) {
+      localStorage.removeItem(key);
+      return undefined;
+    }
+    return { data: parsed.data, timestamp: parsed.timestamp };
+  } catch {
+    return undefined;
+  }
+}
+
 export function getCachedData<T>(key: string, maxAgeMs: number): T | undefined {
   try {
     const cached = localStorage.getItem(key);

@@ -47,7 +47,7 @@ const VouchersPage: React.FC = () => {
     },
     // NO initialData - prevents flash of old/placeholder images
     staleTime: 0, // Always fetch fresh data for latest images
-    cacheTime: 1000 * 60 * 2, // Keep in memory for 2 minutes only
+    gcTime: 1000 * 60 * 2, // Keep in memory for 2 minutes only
     refetchOnMount: 'always', // Always refetch to get latest uploaded images
     refetchOnWindowFocus: true, // Refetch on window focus
   });

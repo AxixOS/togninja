@@ -248,13 +248,9 @@ const HomepageImagesManager: React.FC = () => {
         }
         const uploadData = await uploadRes.json();
         
-        // Delete old image
-        await fetch(`/api/homepage/images/${data.id}`, { 
-          method: 'DELETE',
-          credentials: 'include',
-          headers: withAdminHeaders()
-        });
-        
+        // No second request. The upload replaces the section server-side, atomically.
+        // This used to fire a DELETE and never look at the response, so a failed delete
+        // left two images on one section and the homepage showed whichever sorted first.
         return uploadData;
       } else if (data.url) {
         // Update with new URL
@@ -1225,6 +1221,14 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
   const [language, setLanguage] = useState<'de' | 'en'>(DEFAULT_EDITOR_LANG);
   const [editedContent, setEditedContent] = useState<Record<string, string>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // What the page held when it loaded — the thing "Modified" is measured against.
+  //
+  // The badge used to test `editedContent[key] !== undefined`, but editedContent is
+  // seeded below with EVERY field on the page. So every field was flagged Modified from
+  // the moment the editor opened, whether or not anybody had touched it. Clicking
+  // "Improve SEO ranking" on one field looked identical to rewriting the whole page,
+  // and there was no way to see what the AI had actually changed.
+  const [loadedContent, setLoadedContent] = useState<Record<string, string>>({});
   const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
   const [uploadErrors, setUploadErrors] = useState<Record<string, string | null>>({});
   const [dragOverFields, setDragOverFields] = useState<Record<string, boolean>>({});
@@ -1299,9 +1303,11 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
         ...(pageContent.draftContent || {})
       } as Record<string, string>;
       setEditedContent(mergedContent);
+      setLoadedContent(mergedContent);
       setHasUnsavedChanges(false);
     } else {
       setEditedContent({});
+      setLoadedContent({});
       setHasUnsavedChanges(false);
     }
   }, [pageContent, selectedPage?.id, language]);
@@ -1412,6 +1418,7 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/manual-pages'] });
+      setLoadedContent(editedContent);
       setHasUnsavedChanges(false);
       flashNote('success', 'Draft saved. It is not live yet — click Publish to put it on the website.');
     },
@@ -1436,6 +1443,7 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/manual-pages'] });
+      setLoadedContent(editedContent);
       setHasUnsavedChanges(false);
       flashNote('success', '✓ Published — your changes are now live on the website.');
     },
@@ -1559,7 +1567,11 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
         {err && <p className="mt-1.5 text-xs text-red-600">{err}</p>}
         {tips && tips.length > 0 && (
           <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
-            <p className="text-xs font-semibold text-emerald-800 mb-1">SEO tips applied:</p>
+            {/* "applied" read as "done, it is live". It is not: the rewrite sits in the
+                draft until Publish. Say which, in the same breath as the tips. */}
+            <p className="text-xs font-semibold text-emerald-800 mb-1">
+              Rewritten in the draft — click <strong>Publish</strong> to put it on the website. What changed:
+            </p>
             <ul className="list-disc pl-4 text-xs text-emerald-700 space-y-0.5">
               {tips.map((tp, i) => <li key={i}>{tp}</li>)}
             </ul>
@@ -1696,7 +1708,8 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
 
   const renderField = (field: ManualPageField) => {
     const value = getFieldValue(field);
-    const isModified = editedContent[field.translationKey] !== undefined;
+    // Genuinely different from what loaded — not merely present.
+    const isModified = (editedContent[field.translationKey] ?? '') !== (loadedContent[field.translationKey] ?? '');
 
     if (field.type === 'longForm') {
       return (

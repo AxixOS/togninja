@@ -14816,7 +14816,25 @@ ${getBizName()} CRM System
       console.log('[HOMEPAGE IMAGE UPLOAD] Public URL:', publicUrl);
 
       console.log('[HOMEPAGE IMAGE UPLOAD] Saving to database...');
-      // Save to database
+
+      // A section holds ONE image, so uploading one replaces what was there.
+      //
+      // This used to only INSERT, and the admin then issued a separate DELETE for the old
+      // row — with no check on the response. When that delete failed, the section ended up
+      // with two rows and the homepage picked whichever sorted first. The live database has
+      // exactly that: two rows for "hero", one from onboarding and one the studio uploaded
+      // two days later.
+      //
+      // Doing it here makes replacing atomic and removes the two-step dance entirely: the
+      // client can no longer half-succeed.
+      const superseded = await runSql(
+        `DELETE FROM homepage_images WHERE section = $1 RETURNING id`,
+        [section],
+      );
+      if (superseded.length) {
+        console.log(`[HOMEPAGE IMAGE UPLOAD] Replaced ${superseded.length} existing image(s) for '${section}'`);
+      }
+
       const result = await runSql(`
         INSERT INTO homepage_images (section, url, alt, title, sort_order, is_active)
         VALUES ($1, $2, $3, $4, $5, $6)
