@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
-import { Calendar, Tag, AlertCircle, Info, ArrowLeft } from 'lucide-react';
+import { Calendar, Tag, AlertCircle, Info, ArrowLeft, ImageOff } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { SEOHead } from '../components/SEO/SEOHead';
 import { SITE } from '../config/site';
@@ -22,6 +22,44 @@ interface ApiVoucher {
   slug?: string | null;
   isActive?: boolean;
 }
+
+// The product image, and something neutral when it is not there.
+//
+// This <img> had no onError at all and defaulted to https://via.placeholder.com — a
+// third-party host that no longer resolves, so a product whose image URL 404s rendered
+// the browser's broken-image icon with the product name sprawling across the layout,
+// which is what the studio was looking at on /gift-vouchers/…. It also sent an
+// off-origin request from the public site for the privilege.
+//
+// The thumbnail is a real second chance, not decoration: when an upload half-succeeded
+// it is usually the derivative that actually exists.
+const VoucherImage: React.FC<{ sources: Array<string | null | undefined>; alt: string }> = ({ sources, alt }) => {
+  const candidates = sources.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+  const key = candidates.join('|');
+  const [failed, setFailed] = useState(0);
+  useEffect(() => { setFailed(0); }, [key]);
+
+  if (failed >= candidates.length) {
+    return (
+      <div
+        className="w-full h-full min-h-[18rem] bg-gray-100 flex flex-col items-center justify-center text-gray-400"
+        role="img"
+        aria-label={alt}
+      >
+        <ImageOff size={40} aria-hidden="true" />
+        <span className="mt-2 text-sm">Image coming soon</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={candidates[failed]}
+      alt={alt}
+      className="w-full h-full object-cover"
+      onError={() => setFailed((n) => n + 1)}
+    />
+  );
+};
 
 const VoucherDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -118,10 +156,12 @@ const VoucherDetailPage: React.FC = () => {
   return (
     <Layout>
       <SEOHead
-        title={`${voucher.name} – Fotoshooting Gutschein | ${SITE.name}`}
+        // Was hardcoded German plus the origin studio's name ("Fotoshooting Gutschein",
+        // "New Age Fotografie Wien") on every tenant's public product page.
+        title={`${voucher.name} | ${SITE.name}`}
         description={
           (voucher.description || '').slice(0, 150) ||
-          `${voucher.name}: Fotoshooting-Gutschein von New Age Fotografie Wien – das perfekte Geschenk.`
+          `${voucher.name} — a photography gift voucher from ${SITE.name}.`
         }
         canonical={`/gutschein/${voucher.slug || slug}`}
         ogImage={voucher.imageUrl || voucher.thumbnailUrl || undefined}
@@ -139,10 +179,9 @@ const VoucherDetailPage: React.FC = () => {
           <div className="md:grid md:grid-cols-2">
             {/* Voucher image */}
             <div className="md:col-span-1">
-              <img
-                src={voucher.imageUrl || voucher.thumbnailUrl || 'https://via.placeholder.com/800x600?text=Voucher'}
+              <VoucherImage
+                sources={[voucher.imageUrl, voucher.thumbnailUrl]}
                 alt={voucher.name}
-                className="w-full h-full object-cover"
               />
             </div>
             

@@ -35,10 +35,17 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <link rel="icon" href="/favicon.ico" sizes="any">
+    <!-- Icons — one unit. server/lib/siteIdentity.ts replaces everything between the
+         markers with the studio's own icon when the tenant has a logo; an icon link
+         added OUTSIDE them would leave a branded site declaring two different marks. -->
+    <!--%SITE_FAVICON%-->
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
     <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png">
     <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <!--/%SITE_FAVICON%-->
+    <link rel="manifest" href="/site.webmanifest">
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">

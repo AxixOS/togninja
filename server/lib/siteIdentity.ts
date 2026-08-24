@@ -3,8 +3,8 @@
 // Assembled from environment variables with NEUTRAL fallbacks (never a specific
 // business). Used in two places:
 //   1. Injected into index.html at serve time — <title>, OG/Twitter tags, the
-//      JSON-LD LocalBusiness block, optional analytics — so crawlers see the
-//      tenant's brand, not a hardcoded one.
+//      JSON-LD LocalBusiness block, optional analytics, and the browser tab icon
+//      — so crawlers and the tab strip see the tenant's brand, not a hardcoded one.
 //   2. Exposed to the SPA as `window.__SITE_CONFIG__` so React chrome (Footer,
 //      Header, SEO defaults) renders the tenant's identity with no flash.
 //
@@ -164,12 +164,98 @@ function clientConfig(id: SiteIdentity) {
   };
 }
 
+// ── Per-tenant tab icon ─────────────────────────────────────────────────────
+//
+// The icon links live inside a MARKED REGION of client/index.html rather than
+// behind one more %SITE_*% token, because the tenant case has to REPLACE the
+// product icons, not sit beside them. A studio that declared both /favicon.svg
+// (the TogNinja mark) and its own logo would get whichever the browser scored
+// higher, and Chrome, Firefox and Safari all score them differently. Swapping
+// the whole region is the only way to be certain which one a visitor sees.
+//
+// Leaving the region untouched is also the right default for the three paths
+// that never reach this function: the dev server (server/vite.ts serves the raw
+// template through vite.transformIndexHtml), the build-time prerender, and the
+// catch-all's fatal-fallback sendFile. All three are unbranded contexts, and all
+// three then serve the product icons, which is correct.
+const FAVICON_OPEN = '<!--%SITE_FAVICON%-->';
+const FAVICON_CLOSE = '<!--/%SITE_FAVICON%-->';
+
+/**
+ * Short stable digest of the logo URL, used as the ?v= cache buster.
+ *
+ * FNV-1a rather than node:crypto deliberately: this module imports nothing, and
+ * that is what keeps renderIndexHtml safe to call from the fatal fallback path.
+ * A tab icon needs a different string when the studio uploads a different logo,
+ * not a cryptographic one — /brand-icon.png is served immutable for a day.
+ *
+ * Exported so server/routes/site-icons.ts derives the SAME value for its ETag as
+ * the ?v= it is being asked for. Two hashes that can drift is a cache that lies.
+ */
+export function shortHash(value: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+/**
+ * The studio's own icon links, or null to keep the product ones.
+ *
+ * Every href points at /brand-icon.png (server/routes/site-icons.ts), never at
+ * the stored logo URL: the stored file is whatever the studio happened to upload
+ * — the demo row is a 500x472 WebP on a Supabase bucket. Safari will not render a
+ * WebP favicon, a raw remote href turns every page load into a third-party request
+ * from the studio's own domain, and a non-square source scaled to a target WIDTH is
+ * exactly the sliver that made the shipped icons blank. The route squares it and
+ * re-encodes to PNG on our own origin.
+ *
+ * No SVG link in this branch: /favicon.svg IS the TogNinja mark, and a browser that
+ * prefers SVG would show it instead of the studio's logo.
+ */
+function tenantFaviconLinks(id: SiteIdentity, eol: string): string | null {
+  const logo = (id.logo || '').trim();
+  if (!logo) return null;
+  const v = shortHash(logo);
+  const href = (extra: string) => htmlEscape(`/brand-icon.png?v=${v}${extra}`);
+  return [
+    `<link rel="icon" href="${href('')}" sizes="any" type="image/png">`,
+    `<link rel="icon" href="${href('&s=32')}" sizes="32x32" type="image/png">`,
+    `<link rel="apple-touch-icon" href="${href('&s=180&flat=1')}">`,
+  ].join(`${eol}    `);
+}
+
+/**
+ * Swap the marked icon region for `block`, or strip just the markers when it is
+ * null. indexOf/slice rather than String.replace because a `$&` or `$$` arriving
+ * through a logo URL would be read as a backreference in the replacement.
+ *
+ * A template WITHOUT the markers comes back untouched. That is the safe
+ * degradation — the product icons stay and a tenant's icon is merely missed. The
+ * alternative, appending the tenant links wherever <head> can be found, would emit
+ * two competing icon sets: the exact failure the region exists to prevent.
+ */
+function applyFaviconRegion(html: string, block: string | null): string {
+  const start = html.indexOf(FAVICON_OPEN);
+  if (start < 0) return html;
+  const end = html.indexOf(FAVICON_CLOSE, start);
+  if (end < 0) return html;
+  const inner = html.slice(start + FAVICON_OPEN.length, end);
+  const replacement = block === null ? inner.trim() : block;
+  return html.slice(0, start) + replacement + html.slice(end + FAVICON_CLOSE.length);
+}
+
 /**
  * Replace the %SITE_*% placeholders in an index.html template with the current
  * tenant identity. Safe to run on any HTML string; unknown placeholders are left
  * untouched and a template with no placeholders is returned unchanged.
  */
-export function renderIndexHtml(template: string, studioAddress?: { name?: string; street?: string; city?: string; postalCode?: string } | null): string {
+export function renderIndexHtml(
+  template: string,
+  studioAddress?: { name?: string; street?: string; city?: string; postalCode?: string; logo?: string } | null,
+): string {
   const base = getSiteIdentity();
   // The studio's stored address, overlaid on the env-derived identity.
   //
@@ -203,6 +289,13 @@ export function renderIndexHtml(template: string, studioAddress?: { name?: strin
         name: (isBootSnapshot('BUSINESS_NAME') ? (studioAddress.name || env('BUSINESS_NAME'))
                                                : (env('BUSINESS_NAME') || studioAddress.name))
               || base.name,
+        // The studio's uploaded logo. Drives the per-tenant tab icon below and the
+        // JSON-LD `image` property, which until now could never be emitted at all:
+        // logo_url has a DB_FIELD_MAP entry in config-reader but NO ENV_MAP entry, so
+        // hydrateEnvFromDb skips it and LOGO_URL is never set from the row. Plain
+        // env-wins, with no isBootSnapshot() dance, precisely because of that — there
+        // is no boot copy of this value that could outrank the row it came from.
+        logo: base.logo || (studioAddress.logo || '').trim(),
         address: {
           street: base.address.street || (studioAddress.street || ''),
           city: base.address.city || (studioAddress.city || ''),
@@ -230,5 +323,11 @@ export function renderIndexHtml(template: string, studioAddress?: { name?: strin
   for (const [token, value] of Object.entries(replacements)) {
     out = out.split(token).join(value);
   }
+  // A region, not a token — see applyFaviconRegion. The EOL is detected from the
+  // template because client/index.html is CRLF while the prerendered snapshots that
+  // also flow through here are not; emitting the wrong one mixes line endings into
+  // a file the next patch script will try to match against.
+  const eol = out.includes('\r\n') ? '\r\n' : '\n';
+  out = applyFaviconRegion(out, tenantFaviconLinks(id, eol));
   return out;
 }

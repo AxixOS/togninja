@@ -62,6 +62,38 @@ import {
   Loader2
 } from "lucide-react";
 
+// One image, several URLs that may not resolve, and something neutral when none of them do.
+//
+// The product list used to hide the <img> on error (style.display = 'none'), which left an
+// empty 48px box: the Package fallback beside it only rendered when there was no URL at
+// all, so a URL that 404s looked like a layout bug rather than a missing picture. It also
+// preferred the full-size original over the thumbnail, so the one URL that still worked
+// was never tried. This walks the candidates in order and shows the placeholder only once
+// every one of them has actually failed.
+const ImageWithFallback: React.FC<{
+  sources: Array<string | null | undefined>;
+  alt: string;
+  className?: string;
+  placeholder: React.ReactNode;
+}> = ({ sources, alt, className, placeholder }) => {
+  const candidates = sources.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+  const key = candidates.join('|');
+  const [failed, setFailed] = React.useState(0);
+  // A different product (or a fresh upload) reuses this component instance; without
+  // this the new image inherits the previous one's failure count and never renders.
+  React.useEffect(() => { setFailed(0); }, [key]);
+  if (failed >= candidates.length) return <>{placeholder}</>;
+  return (
+    <img
+      src={candidates[failed]}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      onError={() => setFailed((n) => n + 1)}
+    />
+  );
+};
+
 // Form schemas
 const voucherProductFormSchema = insertVoucherProductSchema.extend({
   price: z.string().optional().default("0"),
@@ -624,12 +656,16 @@ export default function AdminVoucherSalesPageV3() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('folderName', 'Voucher Products');
-      formData.append('context', 'voucher-product-image');
+      // Not /api/files/upload. That handler re-resolved the storage config for the PUT,
+      // for the URL and again for the thumbnail, and the background refresh in
+      // getS3Config() could swap providers in between — which is how the original for
+      // 'Frühbucher Weihnachts-Familienshooting' was written to one bucket and recorded
+      // under the other. The voucher endpoint takes one snapshot and reads the object
+      // back out of the bucket before it returns a URL.
       
       console.log('[IMAGE UPLOAD] Uploading file:', file.name, file.size, 'bytes');
       
-      const response = await fetch('/api/files/upload', {
+      const response = await fetch('/api/admin/vouchers/products/upload-image', {
         method: 'POST',
         headers: withAdminHeaders(),
         body: formData,
@@ -668,7 +704,11 @@ export default function AdminVoucherSalesPageV3() {
       }
       console.log('[IMAGE UPLOAD] State set - uploadedImage:', data.url);
       console.log('[IMAGE UPLOAD] State set - uploadedThumbnail:', data.thumbnailUrl);
-      alert('Image uploaded successfully! URL: ' + data.url);
+      // The endpoint returns a null thumbnail rather than aliasing it to the full-size
+      // original, so say so instead of letting the list quietly download megabytes.
+      alert(data.thumbnailUrl
+        ? 'Image uploaded successfully.'
+        : 'Image uploaded, but its thumbnail could not be generated — lists will show the full-size image.');
     } catch (error) {
       console.error('[IMAGE UPLOAD] Error:', error);
       alert(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1625,13 +1665,18 @@ const PreviewDialog: React.FC<{ open: boolean; onOpenChange: (b: boolean) => voi
             <DialogDescription>Preview how the voucher will appear to customers</DialogDescription>
           </DialogHeader>
           <div className="p-4">
-            {product.imageUrl ? (
-              <div className="w-full h-64 overflow-hidden mb-4">
-                <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <div className="w-full h-64 bg-gray-100 flex items-center justify-center mb-4 text-gray-400">No Image</div>
-            )}
+            <div className="w-full h-64 overflow-hidden mb-4">
+              <ImageWithFallback
+                sources={[product.imageUrl, (product as any).thumbnailUrl, (product as any).thumbnail_url]}
+                alt={product.name}
+                className="w-full h-full object-cover"
+                placeholder={(
+                  <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 text-sm">
+                    No image
+                  </div>
+                )}
+              />
+            </div>
             <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
             <div className="text-green-600 font-bold mb-4">{formatPrice(product.price)}</div>
             <p className="text-gray-700 whitespace-pre-wrap mb-4">{product.description}</p>
@@ -1970,7 +2015,9 @@ const ProductsView: React.FC<{
                 const thumb = (product as any).thumbnailUrl || (product as any).thumbnail_url;
                 const imgUrl = product.imageUrl || (product as any).image_url;
                 const overrideImage = tempImageMap ? (tempImageMap[product.id] || tempImageMap['new']) : undefined;
-                const imageSrc = overrideImage || imgUrl || thumb;
+                // Thumbnail first: it is a 48px cell, and when an upload half-succeeded the
+                // thumbnail is routinely the derivative that still exists.
+                const imageSources = [overrideImage, thumb, imgUrl];
                 const hasUnsavedImage = overrideImage && overrideImage !== imgUrl;
                 const isActive = product.isActive !== false && (product as any).is_active !== false;
                 const validityMonths = product.validityPeriod || (product as any).validity_period 
@@ -1986,20 +2033,16 @@ const ProductsView: React.FC<{
                       <div className="flex items-center space-x-3">
                         {/* Thumbnail */}
                         <div className="h-12 w-12 rounded overflow-hidden bg-gray-100 flex-shrink-0">
-                          {imageSrc ? (
-                            <img 
-                              src={imageSrc} 
-                              alt={product.name}
-                              className="h-full w-full object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center">
-                              <Package className="h-6 w-6 text-gray-400" />
-                            </div>
-                          )}
+                          <ImageWithFallback
+                            sources={imageSources}
+                            alt={product.name}
+                            className="h-full w-full object-cover"
+                            placeholder={(
+                              <div className="h-full w-full flex items-center justify-center">
+                                <Package className="h-6 w-6 text-gray-400" />
+                              </div>
+                            )}
+                          />
                         </div>
                         {/* Name and description */}
                         <div className="min-w-0 flex-1">
@@ -2927,7 +2970,14 @@ const TemplatesView: React.FC = () => {
           {templates.map(t => (
             <Card key={t.id} className={`overflow-hidden transition-shadow hover:shadow-md ${!t.isActive ? 'opacity-60' : ''}`}>
               <div className="aspect-[4/3] bg-gray-100 relative">
-                <img src={t.imageUrl} alt={t.name} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                <ImageWithFallback
+                  sources={[t.imageUrl, (t as any).thumbnailUrl]}
+                  alt={t.name}
+                  className="w-full h-full object-cover"
+                  placeholder={(
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                  )}
+                />
                 {!t.isActive && (
                   <div className="absolute top-2 right-2">
                     <Badge variant="secondary">Inactive</Badge>
@@ -2992,7 +3042,14 @@ const TemplatesView: React.FC = () => {
                 <Label>Hero Image</Label>
                 {formData.imageUrl && (
                   <div className="mb-2 rounded-lg overflow-hidden border">
-                    <img src={formData.imageUrl} alt="Preview" className="w-full h-40 object-cover" />
+                    <ImageWithFallback
+                      sources={[formData.imageUrl]}
+                      alt="Template hero preview"
+                      className="w-full h-40 object-cover"
+                      placeholder={(
+                        <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400 text-xs">Image unavailable</div>
+                      )}
+                    />
                   </div>
                 )}
                 <div className="flex gap-2">

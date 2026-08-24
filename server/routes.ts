@@ -356,6 +356,7 @@ import PDFDocument from 'pdfkit';
 import { jsPDF } from 'jspdf';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getS3Client, getS3Config, buildPublicUrl, storageHealth, explainStorageError } from './services/s3-storage';
+import { getStorageSnapshot, putObjectVerified, storageKeyFromUrl, extensionForImageMime } from './lib/storage-snapshot';
 import OpenAI from 'openai';
 import websiteWizardRoutes from './routes/website-wizard';
 import onboardingRoutes from './routes/onboarding';
@@ -383,6 +384,7 @@ import filesRouter from './routes/files';
 import shootCleanerRoutes, { invalidateShootCleanerKey } from './routes/shootcleaner';
 import bundleRoutes from './routes/bundle';
 import prodigiRoutes from './routes/prodigi';
+import { registerSiteIcons } from './routes/site-icons';
 import storageRoutes from './storage-routes';
 import fileRoutes from './file-routes';
 import galleryTransferRoutes from './gallery-transfer-routes';
@@ -1960,6 +1962,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/files', authenticateUser, filesRouter);
   console.log('✅ /api/files router registered');
 
+  // Per-tenant browser icons and the web app manifest. Must be registered before
+  // serveStatic() mounts express.static and the '*' catch-all, or /site.webmanifest is
+  // answered with index.html at HTTP 200 and every page logs a manifest syntax error.
+  // registerRoutes runs long before serveStatic, so this position satisfies that.
+  registerSiteIcons(app);
+
   // Questionnaire module (public + admin APIs)
   app.use(questionnairesRouter);
 
@@ -3013,6 +3021,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           buf = await sharp(buf)
             .rotate()
+            // Carry EXIF, ICC, IPTC and XMP through the re-encode. sharp drops all
+            // four by default, and this route is not only a display path — a client
+            // saving a picture out of a gallery saves exactly what this returns.
+            //
+            // Measured on a real file from this studio: the photographer's EXIF (164
+            // bytes), their XMP including the ShootCleaner rating and colour label
+            // (4761 bytes), their IPTC copyright/byline/caption in the JPEG APP13
+            // block (488 bytes) and the ICC colour profile (496 bytes) were ALL being
+            // erased at the moment of delivery. The ICC loss is not cosmetic either:
+            // an untagged JPEG is assumed to be sRGB, so a wide-gamut export shifts.
+            //
+            // And there was never a payload win to trade against it. Stripping saved
+            // 6KB on a 121KB file, of which 5.9KB WAS the metadata.
+            //
+            // keepMetadata(), deliberately, and NOT the withMetadata(studioImageMetadata())
+            // used by the upload routes: this is a derivative of an image that was
+            // already stamped at ingest. Stamping again here would overwrite a
+            // Copyright the photographer set themselves in their own editor.
+            .keepMetadata()
             .resize({ width: w, withoutEnlargement: true })
             .jpeg({ quality: 78 })
             .toBuffer();
@@ -15087,7 +15114,14 @@ ${getBizName()} CRM System
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { bucket, endpoint, isConfigured } = getS3Config();
+      // One snapshot. The client that writes the object and the bucket/endpoint that
+      // name it have to come from the SAME config read: getS3Config() refreshes itself
+      // in the background, so resolving it again inside getS3Client() can hand this PUT
+      // a different provider than the URL this handler returns. That is exactly how the
+      // voucher product image ended up in one tenant's old bucket with the other
+      // provider's URL in the database.
+      const snap = getStorageSnapshot();
+      const { bucket, endpoint, isConfigured } = snap;
       if (!isConfigured) {
         console.error('❌ S3/B2 credentials or bucket not configured');
         return res.status(503).json({ error: "Storage service not configured. Please set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_S3_BUCKET." });
@@ -15101,7 +15135,7 @@ ${getBizName()} CRM System
         .toBuffer();
 
       const key = `vouchers/custom/${Date.now()}_${Math.random().toString(36).slice(2)}.webp`;
-      await getS3Client().send(new PutObjectCommand({
+      await snap.client.send(new PutObjectCommand({
         Bucket: bucket,
         Key: key,
         Body: optimizedBuffer,
@@ -15860,6 +15894,126 @@ Return ONLY a valid JSON object with EXACTLY these keys:
     }
   });
 
+  // Admin: upload a voucher PRODUCT image.
+  //
+  // The admin page used to post these to the generic /api/files/upload, which resolved
+  // the storage config six separate times across two awaited round-trips. The background
+  // refresh in getS3Config() swapped providers between the PUT and the URL builder, so
+  // this tenant's original went to their PREVIOUS Supabase bucket while a Backblaze URL
+  // was written to voucher_products. That row has served a 404 ever since, and the upload
+  // reported success — the same class of defect as the booking email that reported
+  // success while sending nothing.
+  //
+  // Everything below hangs off ONE storage snapshot, and no URL is returned that has not
+  // been read back out of the bucket.
+  app.post("/api/admin/vouchers/products/upload-image", authenticateUser, upload.single('file'), async (req: Request, res: Response) => {
+    const snap = getStorageSnapshot();
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded", details: "Attach the image as the 'file' field." });
+      }
+      if (!snap.isConfigured) {
+        return res.status(503).json({
+          error: "Storage service not configured",
+          details: "Set the storage bucket, keys and endpoint in Settings → Technical Setup → Storage.",
+        });
+      }
+
+      const fileId = crypto.randomUUID();
+      const folderName = 'Voucher Products';
+
+      // Convert first, name second. The key has to describe the BYTES about to be
+      // written; naming it from the source filename is how the bucket filled up with
+      // `.jpg` keys holding WebP. If sharp cannot read the file we keep the original
+      // bytes under the original type rather than mislabelling them.
+      let body = req.file.buffer;
+      let mime = req.file.mimetype;
+      try {
+        body = await sharp(req.file.buffer)
+          .rotate()
+          .resize(2400, 2400, { fit: 'inside', withoutEnlargement: true })
+          .withMetadata(studioImageMetadata())
+          .webp({ quality: 88 })
+          .toBuffer();
+        mime = 'image/webp';
+      } catch (e: any) {
+        console.warn('[VOUCHER IMAGE] WebP conversion failed, storing the original bytes:', e?.message);
+      }
+
+      const ext = extensionForImageMime(mime) || path.extname(req.file.originalname);
+      // S3 object metadata travels as HTTP headers, which are ASCII only, and the SDK
+      // writes the value straight through — a filename with an umlaut in it would fail
+      // the whole upload.
+      const safeName = String(req.file.originalname || 'upload').replace(/[^\x20-\x7E]/g, '_').slice(0, 180);
+
+      // Throws unless the object reads back out of the bucket, so a half-succeeded
+      // upload becomes a failed request instead of a row pointing at a 404.
+      const main = await putObjectVerified(snap, {
+        key: `${folderName}/${fileId}${ext}`,
+        body,
+        contentType: mime,
+        cacheControl: 'public, max-age=31536000',
+        metadata: { originalName: safeName, folder: folderName },
+      });
+
+      let thumbnailUrl: string | null = null;
+      let thumbnailKey: string | null = null;
+      try {
+        const thumbBody = await sharp(req.file.buffer)
+          .rotate()
+          .resize(400, 400, { fit: 'cover', position: 'center' })
+          .webp({ quality: 80 })
+          .toBuffer();
+        const thumb = await putObjectVerified(snap, {
+          key: `${folderName}/${fileId}_thumb.webp`,
+          body: thumbBody,
+          contentType: 'image/webp',
+          cacheControl: 'public, max-age=31536000',
+        });
+        thumbnailUrl = thumb.url;
+        thumbnailKey = thumb.key;
+      } catch (e: any) {
+        // A missing thumbnail is survivable. Aliasing it to the full-size original is
+        // not: that silently turns every 48px admin list row into a multi-megabyte
+        // download, and hides the fact that the thumbnail never got made.
+        console.warn('[VOUCHER IMAGE] Thumbnail failed; the product will fall back to the full image:', e?.message);
+      }
+
+      // The Files browser and /api/files/thumbnail/:id rebuild the object key by
+      // convention: `${folder_name}/${id}${extname(file_name)}`. digital_files has no
+      // column for the key that was actually written, so the stored file_name carries
+      // the REAL extension — otherwise those read paths reconstruct `.jpg` for a `.webp`
+      // object and 404, which is this same defect one layer down. The listing is a
+      // convenience: if it fails, the object and its URL are still good, so the upload
+      // must not be reported as failed.
+      try {
+        const base = path.basename(safeName, path.extname(safeName));
+        await runSql(
+          `INSERT INTO digital_files (id, folder_name, file_name, file_type, file_size, description, tags, is_public, uploaded_at, created_at, updated_at)
+           VALUES ($1, $2, $3, 'image', $4, '', '[]', true, NOW(), NOW(), NOW())`,
+          [fileId, folderName, `${base}${path.extname(main.key)}`, main.bytes],
+        );
+      } catch (e: any) {
+        console.warn('[VOUCHER IMAGE] Stored the object but could not list it in digital_files:', e?.message);
+      }
+
+      console.log(`[VOUCHER IMAGE] Stored ${main.key} (${main.bytes} bytes) in ${snap.bucket}`);
+      res.status(201).json({
+        success: true,
+        id: fileId,
+        url: main.url,
+        key: main.key,
+        thumbnailUrl,
+        thumbnailKey,
+        bucket: snap.bucket,
+      });
+    } catch (error: any) {
+      console.error('[VOUCHER IMAGE] Upload failed:', error);
+      const message = explainStorageError(error, { bucket: snap.bucket, endpoint: snap.endpoint });
+      res.status(500).json({ error: "Failed to upload voucher image", message, details: message });
+    }
+  });
+
   app.put("/api/vouchers/products/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
       console.log('[VOUCHER UPDATE] Updating product:', req.params.id, 'with data:', req.body);
@@ -15898,15 +16052,24 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       if (req.body.metaDescription !== undefined) updates.metaDescription = req.body.metaDescription;
       console.log('[VOUCHER UPDATE] Updates object:', updates);
       const product = await neonDb.updateVoucherProduct(req.params.id, updates);
-      const bucketName = getS3Config().bucket;
-      const parseKey = (urlStr: string): string | null => { if (!urlStr) return null; try { const u = new URL(urlStr); let p = u.pathname.replace(/^\//,''); const b = getS3Config().bucket; if (p.startsWith(b + '/')) p = p.slice(b.length+1); return p||null; } catch { return null; } };
+      // One snapshot: the bucket a key is resolved against has to be the bucket the
+      // client deletes from. storageKeyFromUrl also DECODES the path — the inline copy
+      // this replaces left it percent-encoded, the SDK encoded it again, and S3 answers
+      // 204 for a DELETE of a key that does not exist, so every "Deleted old image
+      // object" line ever logged here was a no-op. It returns null for a URL that does
+      // not address this bucket: rows predating this tenant's Supabase -> Backblaze
+      // migration still hold foreign URLs, and now that the delete really deletes,
+      // reusing a foreign path as a local key would destroy whatever shares it.
+      const snap = getStorageSnapshot();
+      const bucketName = snap.bucket;
+      const parseKey = (urlStr: string): string | null => storageKeyFromUrl(urlStr, snap);
       if (existing && bucketName) {
         const newImageUrl = req.body.imageUrl; const newThumbUrl = req.body.thumbnailUrl;
         if (existing.imageUrl && newImageUrl && existing.imageUrl !== newImageUrl) {
-          const oldKey = parseKey(existing.imageUrl); if (oldKey) { try { await getS3Client().send(new DeleteObjectCommand({ Bucket: bucketName, Key: oldKey })); console.log('[VOUCHER UPDATE] Deleted old image object:', oldKey); } catch (e) { console.warn('[VOUCHER UPDATE] Failed to delete old image object:', oldKey, e); } }
+          const oldKey = parseKey(existing.imageUrl); if (oldKey) { try { await snap.client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: oldKey })); console.log('[VOUCHER UPDATE] Deleted old image object:', oldKey); } catch (e) { console.warn('[VOUCHER UPDATE] Failed to delete old image object:', oldKey, e); } }
         }
         if (existing.thumbnailUrl && newThumbUrl && existing.thumbnailUrl !== newThumbUrl) {
-          const oldThumbKey = parseKey(existing.thumbnailUrl); if (oldThumbKey) { try { await getS3Client().send(new DeleteObjectCommand({ Bucket: bucketName, Key: oldThumbKey })); console.log('[VOUCHER UPDATE] Deleted old thumbnail object:', oldThumbKey); } catch (e) { console.warn('[VOUCHER UPDATE] Failed to delete old thumbnail object:', oldThumbKey, e); } }
+          const oldThumbKey = parseKey(existing.thumbnailUrl); if (oldThumbKey) { try { await snap.client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: oldThumbKey })); console.log('[VOUCHER UPDATE] Deleted old thumbnail object:', oldThumbKey); } catch (e) { console.warn('[VOUCHER UPDATE] Failed to delete old thumbnail object:', oldThumbKey, e); } }
         }
       }
       const response = {
@@ -15960,15 +16123,24 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       }
 
       const existing = await neonDb.getVoucherProduct(id);
-      const bucketName = getS3Config().bucket;
-      const parseKey = (urlStr: string): string | null => { if (!urlStr) return null; try { const u = new URL(urlStr); let p = u.pathname.replace(/^\//,''); const b = getS3Config().bucket; if (p.startsWith(b + '/')) p = p.slice(b.length+1); return p||null; } catch { return null; } };
+      // One snapshot: the bucket a key is resolved against has to be the bucket the
+      // client deletes from. storageKeyFromUrl also DECODES the path — the inline copy
+      // this replaces left it percent-encoded, the SDK encoded it again, and S3 answers
+      // 204 for a DELETE of a key that does not exist, so every "Deleted old image
+      // object" line ever logged here was a no-op. It returns null for a URL that does
+      // not address this bucket: rows predating this tenant's Supabase -> Backblaze
+      // migration still hold foreign URLs, and now that the delete really deletes,
+      // reusing a foreign path as a local key would destroy whatever shares it.
+      const snap = getStorageSnapshot();
+      const bucketName = snap.bucket;
+      const parseKey = (urlStr: string): string | null => storageKeyFromUrl(urlStr, snap);
       if (existing && bucketName) {
         const imgUrl = (existing.imageUrl ?? existing.image_url) as string | undefined;
         const thumbUrl = (existing.thumbnailUrl ?? existing.thumbnail_url) as string | undefined;
         for (const url of [imgUrl, thumbUrl]) {
           const key = url ? parseKey(url) : null;
           if (key) {
-            try { await getS3Client().send(new DeleteObjectCommand({ Bucket: bucketName, Key: key })); console.log('[VOUCHER DELETE] Deleted object:', key); } catch (e) { console.warn('[VOUCHER DELETE] Failed to delete object:', key, e); }
+            try { await snap.client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key })); console.log('[VOUCHER DELETE] Deleted object:', key); } catch (e) { console.warn('[VOUCHER DELETE] Failed to delete object:', key, e); }
           }
         }
       }
@@ -16162,7 +16334,14 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
-      const { bucket, endpoint, isConfigured } = getS3Config();
+      // One snapshot. The client that writes the object and the bucket/endpoint that
+      // name it have to come from the SAME config read: getS3Config() refreshes itself
+      // in the background, so resolving it again inside getS3Client() can hand this PUT
+      // a different provider than the URL this handler returns. That is exactly how the
+      // voucher product image ended up in one tenant's old bucket with the other
+      // provider's URL in the database.
+      const snap = getStorageSnapshot();
+      const { bucket, endpoint, isConfigured } = snap;
       if (!isConfigured) {
         return res.status(503).json({ error: "Storage service not configured" });
       }
@@ -16173,7 +16352,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
         .toBuffer();
 
       const key = `vouchers/templates/${Date.now()}_${Math.random().toString(36).slice(2)}.webp`;
-      await getS3Client().send(new PutObjectCommand({
+      await snap.client.send(new PutObjectCommand({
         Bucket: bucket,
         Key: key,
         Body: optimizedBuffer,

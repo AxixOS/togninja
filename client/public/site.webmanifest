@@ -1,0 +1,11 @@
+{
+  "_comment": "FALLBACK ONLY. server/routes/site-icons.ts serves the real per-tenant manifest at this path once registerSiteIcons(app) is mounted in registerRoutes; that route is registered before express.static, so it wins. This file exists so that an UNMOUNTED route degrades to a valid manifest instead of the SPA catch-all answering /site.webmanifest with index.html at HTTP 200, which makes every page log a manifest syntax error. name, short_name and theme_color are omitted rather than hardcoded: a checked-in 'TogNinja' would land on every studio's Android home screen. With no name the browser falls back to the document <title>, which siteIdentity.ts already fills per tenant.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "browser",
+  "background_color": "#ffffff",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

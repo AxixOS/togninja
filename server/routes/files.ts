@@ -10,6 +10,7 @@ import fs from 'fs';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import crypto from 'crypto';
 import { getS3Client, getS3Config, buildPublicUrl } from '../services/s3-storage';
+import { getStorageSnapshot, publicUrlFor, putObjectVerified, extensionForImageMime } from '../lib/storage-snapshot';
 // removed unused imports
 
 const router = Router();
@@ -330,7 +331,26 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     folderName = folderName || 'Manual Website Images';
     const fileName = `${folderName}/${fileId}${fileExt}`;
     
-    // Upload to Backblaze B2
+    // ONE storage provider for the whole of this request.
+    //
+    // This handler used to resolve the config six separate times — getS3Client() and
+    // getS3Config().bucket for the main PUT, buildB2Url() for the main URL, then all
+    // three again for the thumbnail — across two awaited network round-trips. But
+    // getS3Config() refreshes itself in the background: once its 60s TTL lapses it
+    // fires refreshStorageConfig() WITHOUT awaiting and returns the OLD object, and
+    // the refresh REPLACES the module-level current config on a later tick. In an
+    // upload handler, "a later tick" is any tick after an await.
+    //
+    // That is not theoretical. This studio was migrated Supabase -> Backblaze, and
+    // their voucher product image was PUT to the old Supabase bucket and then had a
+    // Backblaze URL written to the database, because the PUT and the URL builder
+    // resolved the config on opposite sides of the sharp await below. The object is
+    // live on Supabase to this day; the stored URL has 404'd since it was written.
+    // The studio saw "upload successful" and a blank image, forever.
+    //
+    // Read once, and carry the client, bucket and endpoint around together.
+    const snap = getStorageSnapshot();
+
     let processedBuffer = req.file.buffer;
     let processedMime = req.file.mimetype;
     
@@ -349,20 +369,27 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       }
     }
     
-    // Upload to B2
-    await getS3Client().send(new PutObjectCommand({
-      Bucket: getS3Config().bucket,
-      Key: fileName,
-      Body: processedBuffer,
-      ContentType: processedMime,
-      Metadata: {
+    // The key has to describe the BYTES. The extension came from the source filename
+    // while the block above re-encodes to WebP, so the bucket filled with '.jpg' keys
+    // holding image/webp payloads. A browser sniffs and copes, but every read path that
+    // rebuilds a key by convention guesses the extension, and a wrong guess is a 404.
+    const storedExt = extensionForImageMime(processedMime) || fileExt;
+    const storedName = `${folderName}/${fileId}${storedExt}`;
+
+    // PUT, then prove it landed. A PUT that does not throw is not proof that a row may
+    // point at it — the same class of defect as the booking email that reported success
+    // while sending nothing. Throws rather than recording a URL that would 404.
+    const stored = await putObjectVerified(snap, {
+      key: storedName,
+      body: processedBuffer,
+      contentType: processedMime,
+      metadata: {
         originalName: req.file.originalname,
         uploadedBy: userId,
         folder: folderName,
       },
-    }));
-    
-    const fileUrl = buildB2Url(fileName);
+    });
+    const fileUrl = stored.url;
     
     // Generate thumbnail for images
     let thumbnailUrl: string | undefined;
@@ -370,19 +397,25 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       try {
         const thumbBuffer = await sharp(req.file.buffer)
           .resize(300, 300, { fit: 'cover', position: 'center' })
+          // Not the full metadata block — 6KB of XMP on a 5KB thumbnail is all cost.
+          // But keep the colour profile: without it the browser assumes sRGB and a
+          // wide-gamut original renders a different colour in the grid than it does
+          // full size, which a photographer notices immediately.
+          .keepIccProfile()
           .webp({ quality: 80 })
           .toBuffer();
-        
+
         const thumbFileName = `${folderName}/${fileId}_thumb.webp`;
-        
-        await getS3Client().send(new PutObjectCommand({
-          Bucket: getS3Config().bucket,
-          Key: thumbFileName,
-          Body: thumbBuffer,
-          ContentType: 'image/webp',
-        }));
-        
-        thumbnailUrl = buildB2Url(thumbFileName);
+
+        // Same snapshot as the original, so the thumbnail cannot land in a different
+        // bucket than the image it is a thumbnail of.
+        const thumb = await putObjectVerified(snap, {
+          key: thumbFileName,
+          body: thumbBuffer,
+          contentType: 'image/webp',
+        });
+
+        thumbnailUrl = thumb.url;
         console.log(`✅ Generated thumbnail for ${req.file.originalname}`);
       } catch (error) {
         console.error('Failed to generate thumbnail:', error);
