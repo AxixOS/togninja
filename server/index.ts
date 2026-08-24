@@ -32,6 +32,7 @@ import agentShadowRoutes from './routes/agent-shadow';
 // Manual Pages: Squarespace-style CMS for public pages
 import manualPagesRoutes from './routes/manual-pages';
 import studioBrandingRoutes from './routes/studio-branding';
+import contractRoutes from './routes/contracts';
 
 // Import and configure session middleware
 import { sessionConfig, requireAuth } from './auth';
@@ -244,6 +245,11 @@ console.log('[MANUAL-PAGES] Routes registered at /api/manual-pages');
 
 // Studio Branding (logo, business info, colours, template) — drives public site
 app.use('/api/studio', studioBrandingRoutes);
+
+// Contracts. Studio-side routes are auth-gated inside the router; the client's signing
+// page is public by necessity and authorised by an unguessable per-contract token.
+app.use('/api/contracts', contractRoutes);
+console.log('[CONTRACTS] Routes registered at /api/contracts');
 console.log('[STUDIO-BRANDING] Routes registered at /api/studio/branding');
 
 // Shadow mode routes (V1 vs V2 comparison)
@@ -850,6 +856,32 @@ app.use((req, res, next) => {
       // the exact columns each route uses. No FKs (defensive). ──
       // Gallery shop (server/routes/gallery-shop.ts) + Prodigi print (server/routes/prodigi.ts).
       // print_products is shared by both — columns unioned across the two.
+      // Contracts. A template is prose with [Merge Fields]; a contract is a SNAPSHOT of
+      // that template with the fields already filled, taken when it is sent — editing a
+      // template later must not change what somebody already signed.
+      await ensureTable('contract_templates', sql`CREATE TABLE IF NOT EXISTS contract_templates (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        name text NOT NULL, category text DEFAULT 'general',
+        body text NOT NULL, is_active boolean DEFAULT true,
+        created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('contracts', sql`CREATE TABLE IF NOT EXISTS contracts (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        template_id uuid, client_id uuid,
+        title text NOT NULL, body text NOT NULL, merge_values jsonb,
+        status text NOT NULL DEFAULT 'draft',
+        access_token text UNIQUE,
+        sent_at timestamptz, viewed_at timestamptz, signed_at timestamptz,
+        expires_at timestamptz,
+        created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+      )`);
+      await ensureTable('contract_signers', sql`CREATE TABLE IF NOT EXISTS contract_signers (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        contract_id uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+        name text NOT NULL, email text NOT NULL, role text NOT NULL DEFAULT 'client',
+        signed_at timestamptz, signature text, signed_ip text, signed_user_agent text,
+        sort_order integer DEFAULT 0, created_at timestamptz DEFAULT now()
+      )`);
       await ensureTable('print_products', sql`CREATE TABLE IF NOT EXISTS print_products (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         studio_id uuid, sku text, name text, description text, category text,

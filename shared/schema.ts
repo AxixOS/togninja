@@ -1187,6 +1187,63 @@ export const questionnaires = pgTable("questionnaires", {
 });
 
 // Questionnaire responses table
+// ── Contracts ───────────────────────────────────────────────────────────────
+//
+// Modelled on the questionnaire flow, which already does "send a document to a client,
+// they act on it, it comes back" — token in a link, public page, stored response.
+//
+// A template is prose with merge fields ([Client Name], [Total Fee] — see
+// shared/contractMerge.ts). A contract is a SNAPSHOT of that template with the fields
+// already substituted, taken at the moment it is sent. That matters legally: editing a
+// template afterwards must not retroactively change what somebody signed.
+export const contractTemplates = pgTable("contract_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  category: text("category").default("general"),
+  // Rich text, containing merge fields in [Square Brackets].
+  body: text("body").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const contracts = pgTable("contracts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  templateId: uuid("template_id").references(() => contractTemplates.id),
+  clientId: uuid("client_id").references(() => crmClients.id),
+  title: text("title").notNull(),
+  // The merged text as sent. Never re-rendered from the template afterwards.
+  body: text("body").notNull(),
+  // The values used, kept so the studio can see WHY it says what it says.
+  mergeValues: jsonb("merge_values"),
+  // draft | sent | viewed | signed | declined | expired
+  status: text("status").default("draft").notNull(),
+  // The capability in the link a client is emailed. Unguessable, like a gallery token.
+  accessToken: text("access_token").unique(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  viewedAt: timestamp("viewed_at", { withTimezone: true }),
+  signedAt: timestamp("signed_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// Two signers is the norm — the studio and the client — and the reference UI supports
+// adding a second client signer, so this is a table rather than two columns.
+export const contractSigners = pgTable("contract_signers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contractId: uuid("contract_id").references(() => contracts.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  role: text("role").default("client").notNull(), // studio | client
+  signedAt: timestamp("signed_at", { withTimezone: true }),
+  // The typed or drawn signature. Kept with the evidence of who and from where.
+  signature: text("signature"),
+  signedIp: text("signed_ip"),
+  signedUserAgent: text("signed_user_agent"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
 export const questionnaireResponses = pgTable("questionnaire_responses", {
   id: serial("id").primaryKey(),
   questionnaireId: integer("questionnaire_id").notNull().references(() => questionnaires.id),
