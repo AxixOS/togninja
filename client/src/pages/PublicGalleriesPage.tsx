@@ -35,9 +35,13 @@ const PublicGalleriesPage: React.FC = () => {
     <Layout>
       <SEOHead
         title={de ? `Kundengalerie – Zugang | ${SITE.name}` : `Client Gallery Access | ${SITE.name}`}
+        // The origin studio's name was hardcoded into both of these, so every studio
+        // that bought this product advertised a Viennese photographer in the meta
+        // description of their own client-gallery page. The title beside it already used
+        // SITE.name; only the description was missed.
         description={de
-          ? 'Zugang zu Ihrer privaten Fotogalerie bei New Age Fotografie. Geben Sie Ihren Galerie-Code ein und entsperren Sie Ihre Bilder mit Ihrem Passwort.'
-          : 'Access your private photo gallery at New Age Fotografie. Enter your gallery code and unlock your images with your password.'}
+          ? `Zugang zu Ihrer privaten Fotogalerie bei ${SITE.name}. Geben Sie Ihren Galerie-Code ein und entsperren Sie Ihre Bilder mit Ihrem Passwort.`
+          : `Access your private photo gallery at ${SITE.name}. Enter your gallery code and unlock your images with your password.`}
         canonical="/galleries/"
         noindex
       />

@@ -5,6 +5,7 @@ import { Calendar, Tag, AlertCircle, Info, ArrowLeft, ImageOff } from 'lucide-re
 import { useLanguage } from '../context/LanguageContext';
 import { SEOHead } from '../components/SEO/SEOHead';
 import { SITE } from '../config/site';
+import { useStudioCurrency } from '../hooks/useStudioCurrency';
 
 interface ApiVoucher {
   id: string;
@@ -114,6 +115,22 @@ const VoucherDetailPage: React.FC = () => {
     return () => { active = false; };
   }, [slug, language]);
 
+  const { format: money } = useStudioCurrency();
+
+  // "Valid for 12 months from purchase" — the thing the studio actually sells.
+  // validity_period is a number of DAYS; months read better and are how the admin
+  // presents it. Null when the studio has not set one, so the row hides rather than
+  // asserting something untrue.
+  const validityLabel = (() => {
+    const days = Number(voucher?.validityPeriod ?? 0);
+    if (!Number.isFinite(days) || days <= 0) return null;
+    const months = Math.round(days / 30);
+    const period = months >= 1
+      ? `${months} ${months === 1 ? t('voucherDetail.month') : t('voucherDetail.months')}`
+      : `${days} ${days === 1 ? t('voucherDetail.day') : t('voucherDetail.days')}`;
+    return `${t('voucherDetail.validFor')} ${period}`;
+  })();
+
   if (loading) {
     return (
       <Layout>
@@ -195,12 +212,21 @@ const VoucherDetailPage: React.FC = () => {
               <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4">{voucher.name}</h1>
               
               <div className="flex items-center mb-6">
-                <div className="mr-6 flex items-center">
-                  <Calendar size={16} className="text-gray-500 mr-1" />
-                  <span className="text-sm text-gray-500">
-                    {t('voucherDetail.validUntil')} {new Date(voucher.validUntil).toLocaleDateString()}
-                  </span>
-                </div>
+                {/* This read "Valid until Invalid Date" on every voucher in the product.
+                    voucher_products stores validity_period — a number of DAYS — and has no
+                    valid_until column, so voucher.validUntil was always undefined and
+                    new Date(undefined) stringifies to "Invalid Date".
+
+                    A fixed calendar date would be the wrong thing to show even if one
+                    existed: the voucher has not been bought yet, so its validity runs from
+                    the day of purchase. Say that instead, and say nothing at all when the
+                    studio has not set a period. */}
+                {validityLabel && (
+                  <div className="mr-6 flex items-center">
+                    <Calendar size={16} className="text-gray-500 mr-1" />
+                    <span className="text-sm text-gray-500">{validityLabel}</span>
+                  </div>
+                )}
                 
                 <div className="flex items-center">
                   <span className={`inline-block w-2 h-2 rounded-full mr-1 ${isValid ? 'bg-green-500' : 'bg-red-500'}`}></span>
@@ -212,9 +238,9 @@ const VoucherDetailPage: React.FC = () => {
               
               <div className="mb-6">
                 {voucher.originalPrice && voucher.originalPrice > voucher.price && (
-                  <span className="text-gray-500 line-through text-lg">€{voucher.originalPrice.toFixed(2)}</span>
+                  <span className="text-gray-500 line-through text-lg">{money(voucher.originalPrice)}</span>
                 )}
-                <span className="text-purple-600 font-bold text-3xl ml-2">€{voucher.price.toFixed(2)}</span>
+                <span className="text-purple-600 font-bold text-3xl ml-2">{money(voucher.price)}</span>
               </div>
               
               <p className="text-gray-700 mb-6">{getTranslatedDescription(voucher.description)}</p>
@@ -255,7 +281,7 @@ const VoucherDetailPage: React.FC = () => {
                       <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002 2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      {t('voucherDetail.buyNowPersonalize')} - €{(voucher.price * quantity).toFixed(2)}
+                      {t('voucherDetail.buyNowPersonalize')} - {money(voucher.price * quantity)}
                     </button>
                   </div>
                   
