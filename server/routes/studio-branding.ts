@@ -24,6 +24,11 @@ import { db } from '../db';
 import { studioConfigs } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '../auth';
+// The studio's address is a merge field, and the contract sender resolves it from the same
+// two columns this endpoint reads. Imported rather than restated: this endpoint IS what the
+// composer's preview reads, so a fallback spelled twice is a preview that disagrees with
+// the document about who the studio is.
+import { resolveStudioEmail } from '../../shared/contractMerge';
 
 const router = express.Router();
 
@@ -49,7 +54,10 @@ router.get('/branding', requireAuth, async (_req, res) => {
       state: sc?.state || '',
       country: sc?.country || '',
       phone: sc?.phone || '',
-      email: sc?.email || sc?.ownerEmail || '',
+      // Same rule as server/routes/contracts.ts studioValues(). It also trims, so a
+      // whitespace-only address is reported as no address here as well — mergeContract()
+      // counts '   ' as missing, and the form should not show a value the sender will not.
+      email: resolveStudioEmail(sc),
       logoUrl: sc?.logoUrl || null,
       primaryColor: sc?.primaryColor || '#7C3AED',
       secondaryColor: sc?.secondaryColor || '#F59E0B',

@@ -28,18 +28,43 @@
 // signing page. So the gate is here, before the service, and it reports honestly that
 // nothing was sent.
 //
+// That gate used to RETURN before the send loop, and in doing so it quietly falsified the
+// paragraph below it: nothing reached EnhancedEmailService, so nothing was written to
+// crm_messages, so on the one instance this header names as the live one the studio had no
+// trace of a delivery at all beyond a line in the server log. There are two ways to make
+// the file agree with itself and only one of them keeps the studio informed. Dropping the
+// gate would let a demo with working SMTP mail real strangers — the exact side effect
+// demoMode.ts exists to prevent, so that is not on the table. Amending the paragraph to
+// admit "except under DEMO_MODE, where nothing is recorded" would be honest prose about a
+// silent drop, and a message that disappears without a trace is a worse outcome than one
+// recorded as not sent. So the gate stays exactly where it is and the record is written
+// HERE instead, by recordDemoDelivery(), in the shape and with the status the mail service
+// would have used. Not sent is still not sent: `emailed` stays false, `emailedCount` stays
+// 0, the problem string says so in words, and the row is filed 'demo_sent', never 'sent'.
+//
 // WHERE THE STUDIO SEES THE OUTCOME
 //
 // contracts has no column for a delivery result and adding one is not this change's to
-// make. It does not need one: EnhancedEmailService writes every attempt into crm_messages,
-// real sends as status 'sent' and demo ones as 'demo_sent', so the durable record already
-// exists in the sent-mail view. What this returns is the immediate answer for the caller,
-// and GET /:id/pdf is the fallback that does not depend on mail working at all.
+// make. Where a SEND is attempted, the record is durable: EnhancedEmailService writes the
+// real ones as status 'sent' and its own unconfigured-SMTP ones as 'demo_sent', and
+// recordDemoDelivery() below writes the DEMO_MODE ones, also 'demo_sent'. The sent-mail
+// view files that status under Sent — GET /api/emails/sent and AdminInboxPageV2 both name
+// it — and the demo rows carry the disclaimer in their subject, because that view renders
+// the subject and ignores the status.
+//
+// This paragraph used to claim that EVERY attempt lands in crm_messages. It does not, and
+// saying so was exactly the kind of overclaim this file exists to prevent. THREE paths
+// return before any row is written: the contract no longer exists, the PDF could not be
+// built, and there is nobody to send to. Each returns a `problem` string, and the caller
+// logs it — but nothing durable is filed, so a studio reading the Sent folder alone would
+// not learn that delivery was attempted and failed. That gap is known and named here
+// rather than papered over; GET /:id/pdf remains the fallback that needs no mail at all.
 import { pool } from '../db';
 import { EnhancedEmailService } from '../services/enhancedEmailService';
 import { isDemoMode } from './demoMode';
+import { config } from '../config-reader';
 import { formatMoney, studioMoneyContext } from './money';
-import { MERGE_FIELDS } from '../../shared/contractMerge';
+import { MERGE_FIELDS, resolveStudioEmail } from '../../shared/contractMerge';
 import {
   renderExecutedContractPdf,
   executedContractFilename,
@@ -159,7 +184,11 @@ async function studioContext(): Promise<StudioRow> {
     locale,
     studio: {
       name: s.studio_name || s.business_name || '',
-      email: s.email || '',
+      // The SAME chain as the merge engine and the composer preview. Resolved here
+      // independently, this became a fourth answer to "what is the studio's email" —
+      // and it feeds both the executed-copy recipient list and the PDF letterhead, so
+      // disagreeing with the body text produces a contract that contradicts itself.
+      email: resolveStudioEmail(s),
       phone: s.phone || '',
       address: s.address || '',
       city: s.city || '',
@@ -248,6 +277,54 @@ export async function buildExecutedContract(contractId: string): Promise<Execute
 }
 
 /**
+ * Write down the attempt DEMO_MODE refused to make.
+ *
+ * Shaped exactly like the row EnhancedEmailService writes on its own demo path — outbound,
+ * status 'demo_sent', the recipient in recipient_email — because the sent-mail view keys off
+ * precisely those, and a differently shaped row would simply never appear.
+ *
+ * Raw SQL with the columns named, not a Drizzle object literal: crm_messages declares
+ * sender_name, sender_email, subject, content and message_type NOT NULL, and a mistyped key
+ * in a Drizzle insert is dropped in silence rather than rejected — which here would surface
+ * as a NOT NULL violation on a column the code appears to set.
+ *
+ * Never throws. Rule 2 of this file is that delivery cannot cost the signature, and that has
+ * to hold for the bookkeeping too. Returns whether the row really was written, so the caller
+ * can avoid claiming a record it does not have.
+ */
+async function recordDemoDelivery(
+  to: string,
+  subject: string,
+  content: string,
+  filename: string,
+): Promise<boolean> {
+  try {
+    const fromEmail = (await config.get('from_email')) || process.env.SMTP_FROM || process.env.SMTP_USER || 'demo@example.com';
+    const fromName = (await config.get('business_name')) || process.env.BUSINESS_NAME || 'Studio';
+    await pool.query(
+      `INSERT INTO crm_messages
+         (sender_name, sender_email, recipient_email, subject, content,
+          message_type, status, direction, email_message_id, attachments, sent_at, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'email', 'demo_sent', 'outbound', $6, $7::jsonb, NOW(), NOW())`,
+      [
+        String(fromName),
+        String(fromEmail),
+        to,
+        // Marked in the SUBJECT, not only in status. See the note above recordDemoDelivery.
+        `[DEMO — not actually sent] ${subject}`,
+        content,
+        `demo_${Date.now()}`,
+        JSON.stringify([{ filename, contentType: 'application/pdf' }]),
+      ],
+    );
+    return true;
+  } catch (e: any) {
+    console.warn('[contracts] demo delivery could not be recorded:', e?.message);
+    return false;
+  }
+}
+
+/**
  * Email the executed copy to every signer and to the studio.
  *
  * Never throws. Every failure comes back in the result, named, so a caller cannot
@@ -306,20 +383,10 @@ export async function deliverExecutedContract(contractId: string): Promise<Contr
 
   const problems: string[] = [];
 
-  // The demo gate. Before the mailer, not after it — see the header.
-  if (isDemoMode()) {
-    for (const t of targets) {
-      t.emailed = false;
-      t.problem = 'DEMO_MODE is on, so no email was sent.';
-    }
-    return {
-      generated: true,
-      filename,
-      recipients: targets,
-      emailedCount: 0,
-      problem: `The contract is signed and the signed copy was produced, but this instance runs in demo mode so nothing was emailed to ${targets.length === 1 ? 'the signer' : 'the signers'} or the studio. Download it from the contract instead.`,
-    };
-  }
+  // The demo gate. Before the mailer, not after it — see the header. Read ONCE, so every
+  // recipient of one delivery is treated the same way and a half-demo result is impossible.
+  const demo = isDemoMode();
+  let demoRecorded = 0;
 
   for (const t of targets) {
     const forStudio = t.as === 'studio';
@@ -331,36 +398,53 @@ export async function deliverExecutedContract(contractId: string): Promise<Contr
       : `<p>Hi ${escapeHtml((t.name || '').split(' ')[0] || t.name)},</p>
          <p>Everyone has now signed <strong>${escapeHtml(contract.title)}</strong>. Your copy is attached, including the record of who signed and when.</p>`;
 
-    try {
-      const sent: any = await withTimeout(
-        EnhancedEmailService.sendEmail({
-          to: t.email,
-          subject,
-          content:
-            `${contract.title}\n\nFully executed ${executedAt}.\n\nSigned by:\n${whoSigned}\n\n` +
-            `The signed PDF is attached.`,
-          html: `${intro}
+    // Built before the branch rather than inside the send call: the demo record has to
+    // carry the same words a real send would have carried, or the sent-mail view shows a
+    // stand-in for a message that was never actually composed.
+    const content =
+      `${contract.title}\n\nFully executed ${executedAt}.\n\nSigned by:\n${whoSigned}\n\n` +
+      `The signed PDF is attached.`;
+    const html = `${intro}
                  <p style="color:#666">Fully executed ${escapeHtml(executedAt)}.</p>
                  <ul style="color:#666">${whoSignedHtml}</ul>
-                 <p style="color:#666">${escapeHtml(studio.name)}</p>`,
-          attachments: [{ filename, content: pdf, contentType: 'application/pdf' }],
-          autoLinkClient: true,
-        }),
-      );
+                 <p style="color:#666">${escapeHtml(studio.name)}</p>`;
 
-      if (sent && sent.timedOut) {
-        t.problem = `No confirmation from the mail server within ${Math.round(SEND_TIMEOUT_MS / 1000)} seconds, so this copy is not confirmed as sent.`;
-      } else if (sent?.demo) {
-        // success:true WITH demo:true. Reading only `success` is the exact defect the
-        // gallery route shipped.
-        t.problem = sent?.error || 'No mail server is configured, so nothing was sent.';
-      } else if (sent?.success === false) {
-        t.problem = sent?.error || 'The mail server refused it.';
-      } else {
-        t.emailed = true;
+    if (demo) {
+      // Nothing is handed to the mailer. The attempt is still written down, so the studio
+      // can see what would have gone where — filed as demo_sent, which is not sent.
+      t.emailed = false;
+      const recorded = await recordDemoDelivery(t.email, subject, content, filename);
+      if (recorded) demoRecorded++;
+      t.problem = recorded
+        ? 'DEMO_MODE is on, so no email was sent. The message is in the sent-mail view, filed as demo_sent.'
+        : 'DEMO_MODE is on, so no email was sent — and the record of it could not be written either.';
+    } else {
+      try {
+        const sent: any = await withTimeout(
+          EnhancedEmailService.sendEmail({
+            to: t.email,
+            subject,
+            content,
+            html,
+            attachments: [{ filename, content: pdf, contentType: 'application/pdf' }],
+            autoLinkClient: true,
+          }),
+        );
+
+        if (sent && sent.timedOut) {
+          t.problem = `No confirmation from the mail server within ${Math.round(SEND_TIMEOUT_MS / 1000)} seconds, so this copy is not confirmed as sent.`;
+        } else if (sent?.demo) {
+          // success:true WITH demo:true. Reading only `success` is the exact defect the
+          // gallery route shipped.
+          t.problem = sent?.error || 'No mail server is configured, so nothing was sent.';
+        } else if (sent?.success === false) {
+          t.problem = sent?.error || 'The mail server refused it.';
+        } else {
+          t.emailed = true;
+        }
+      } catch (e: any) {
+        t.problem = e?.message || 'The send failed.';
       }
-    } catch (e: any) {
-      t.problem = e?.message || 'The send failed.';
     }
     if (!t.emailed) {
       problems.push(`${t.email}: ${t.problem}`);
@@ -373,8 +457,14 @@ export async function deliverExecutedContract(contractId: string): Promise<Contr
     filename,
     recipients: targets,
     emailedCount,
-    problem: problems.length
-      ? `The contract is signed and the signed copy was produced, but it did not reach everybody — ${problems.join('; ')}`
-      : undefined,
+    problem: demo
+      ? `The contract is signed and the signed copy was produced, but this instance runs in demo mode so nothing was emailed to ${targets.length === 1 ? 'the signer' : 'the signers'} or the studio. ${
+        demoRecorded === targets.length
+          ? 'Each copy is listed in the sent-mail view as demo_sent.'
+          : `Only ${demoRecorded} of ${targets.length} could even be recorded in the sent-mail view.`
+      } Download it from the contract instead.`
+      : problems.length
+        ? `The contract is signed and the signed copy was produced, but it did not reach everybody — ${problems.join('; ')}`
+        : undefined,
   };
 }

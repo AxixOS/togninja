@@ -16,7 +16,7 @@
 //    rules on it; this module only carries values to and from the server.
 import { format, parseISO } from 'date-fns';
 import { de, enUS } from 'date-fns/locale';
-import { MERGE_FIELDS, type MergeField } from '../../../../shared/contractMerge';
+import { MERGE_FIELDS, resolveStudioEmail, type MergeField } from '../../../../shared/contractMerge';
 
 // ── What the endpoints return ───────────────────────────────────────────────
 //
@@ -182,9 +182,8 @@ export const updateTemplate = (
  * The studio-sourced merge values the BROWSER is able to see, for a preview.
  *
  * The server fills these from studio_configs inside studioValues(). The admin endpoint
- * that exposes that same row is GET /api/studio/branding — and it does not carry
- * `country`, which the merge field [State/Country] needs. So this returns what it can and
- * NAMES what it cannot, in `unreadable`.
+ * that exposes that same row is GET /api/studio/branding. It carries country now, so
+ * [State/Country] resolves here too; what it cannot produce is named in `unreadable`.
  *
  * No screen may present that difference as a data gap. A field the browser cannot read is
  * not a field the server is missing, and reporting it as "missing" would train a studio to
@@ -200,10 +199,10 @@ export async function fetchStudioMergeValues(): Promise<{
   values: Record<string, string>;
   unreadable: string[];
 }> {
-  // Today is on this list rather than computed here on purpose. The server formats it
-  // inside studioValues(); a second date format in the browser would be a preview that
-  // disagrees with the document about how the date is written.
-  const unreadable = ['State/Country', 'Today'];
+  // Today only. It is on this list rather than computed here on purpose: the server
+  // formats it inside studioValues(), and a second date format in the browser would be a
+  // preview that disagrees with the document about how the date is written.
+  const unreadable = ['Today'];
   try {
     const res = await fetch('/api/studio/branding', { credentials: 'include' });
     if (!res.ok) return { values: {}, unreadable };
@@ -212,10 +211,22 @@ export async function fetchStudioMergeValues(): Promise<{
     // studio_name || business_name — the same precedence as studioValues().
     const name = String(b?.studioName || b?.businessName || '').trim();
     if (name) values['Studio Name'] = name;
-    if (b?.email) values['Studio Email'] = String(b.email);
+    // resolveStudioEmail(), not `b.email`, and not a fallback re-typed here: it is the
+    // same function server/routes/contracts.ts studioValues() merges with, so this preview
+    // cannot resolve [Studio Email] differently from the document. studio_configs.email is
+    // empty on a fresh instance and owner_email is the address the studio actually has —
+    // reading `email` alone showed the preview one answer and stored the placeholder.
+    // It trims too: '   ' passed `if (b?.email)` and was still counted missing by
+    // mergeContract() on the way in.
+    const studioEmail = resolveStudioEmail(b);
+    if (studioEmail) values['Studio Email'] = studioEmail;
     if (b?.phone) values['Studio Phone'] = String(b.phone);
     if (b?.address) values['Studio Address'] = String(b.address);
     if (b?.city) values['City Name'] = String(b.city);
+    // Same expression as studioValues() on the server: country alone, not city+country.
+    // A preview that composes this field differently from the document is a preview that
+    // lies about the document.
+    if (b?.country) values['State/Country'] = String(b.country);
     return { values, unreadable };
   } catch {
     return { values: {}, unreadable };

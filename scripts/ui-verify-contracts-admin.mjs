@@ -63,6 +63,93 @@ const code = (src) => {
     .join('\n');
 };
 
+/**
+ * The same source with the INSIDE of every string, template literal and comment blanked to
+ * spaces, newlines kept.
+ *
+ * Exactly as long as the input, so an index found in here addresses the same character in
+ * the original. It exists only so braces can be counted: a '{' inside a SQL string or an
+ * HTML template is punctuation, not structure, and counting it walks the end of a block to
+ * the wrong place. `${` and its `}` are blanked together, so a template's interpolations
+ * stay balanced rather than half-counted.
+ *
+ * Two shapes it does not model — a regex literal containing an unmatched brace, and a
+ * template nested inside another template's `${}`. Neither occurs in the file this reads,
+ * and neither can pass silently: both would run the brace count off the end of the block,
+ * and every caller asserts the slice it got back before believing anything about it.
+ */
+const blank = (src) => {
+  const out = src.split('');
+  const n = src.length;
+  const wipe = (i) => { if (i >= 0 && i < n && src[i] !== '\n') out[i] = ' '; };
+  let i = 0;
+  while (i < n) {
+    const c = src[i];
+    if (c === '/' && src[i + 1] === '/') {
+      while (i < n && src[i] !== '\n') { wipe(i); i++; }
+      continue;
+    }
+    if (c === '/' && src[i + 1] === '*') {
+      wipe(i); wipe(i + 1); i += 2;
+      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) { wipe(i); i++; }
+      wipe(i); wipe(i + 1); i += 2;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      i++;
+      while (i < n) {
+        if (src[i] === '\\') { wipe(i); wipe(i + 1); i += 2; continue; }
+        if (src[i] === c) break;
+        wipe(i); i++;
+      }
+      i++;
+      continue;
+    }
+    i++;
+  }
+  return out.join('');
+};
+
+/**
+ * The brace-delimited block that opens at the first '{' after `marker`, up to its match.
+ *
+ * This is how a claim about ONE handler gets asked of that handler and nothing else. A
+ * fixed-width window around a marker is not a substitute — it either truncates a long
+ * handler, so a mailer at the bottom of it goes unseen, or it reaches into the next one and
+ * answers about the wrong route. This project has already been bitten by that.
+ *
+ * Returns '' when the marker is missing or the braces never balance. That empty string is
+ * the trap every caller has to close: it trivially "contains no mailer", so a broken
+ * extraction would read as a clean bill of health. Assert the slice before trusting it.
+ */
+const blockAfter = (src, marker) => {
+  const at = src.indexOf(marker);
+  if (at < 0) return '';
+  const flat = blank(src);
+  // Where the body opens depends on what is being extracted, and getting this wrong in
+  // either direction produces a guard nobody can trust.
+  //
+  // A ROUTE registration can carry middleware that takes an object literal —
+  // upload.single({ ... }), rateLimit({ ... }) — so the first brace after the path may be
+  // that config rather than the handler. Anchor those on the arrow, which only the
+  // handler has.
+  //
+  // A plain `async function foo(...) {` has no arrow at all, and searching for one runs
+  // past the declaration into whatever arrow appears next, slicing an unrelated region.
+  // (Anchoring everything on the arrow did exactly that here and turned a passing check
+  // red.) Those open at the first brace, which is already correct for them.
+  const brace = flat.indexOf('{', at);
+  const arrow = marker.includes('router.') ? flat.indexOf('=> {', at) : -1;
+  const open = arrow >= 0 ? arrow + 3 : brace;
+  if (open < 0) return '';
+  let depth = 0;
+  for (let i = open; i < flat.length; i++) {
+    if (flat[i] === '{') depth++;
+    else if (flat[i] === '}' && --depth === 0) return src.slice(open, i + 1);
+  }
+  return '';
+};
+
 const DIR = 'client/src/pages/admin';
 const PAGES = {
   api: `${DIR}/contractsApi.ts`,
@@ -189,18 +276,7 @@ check('isServerFilled matches the route: studio-sourced keys, plus Today',
 
 // The keys studioValues() actually supplies, read from its own body — bounded at the
 // function's closing brace rather than a character count.
-const fnAt = route.indexOf('async function studioValues');
-const openAt = fnAt < 0 ? -1 : route.indexOf('{', fnAt);
-let depth = 0;
-let closeAt = -1;
-for (let i = openAt; i >= 0 && i < route.length; i++) {
-  if (route[i] === '{') depth++;
-  else if (route[i] === '}') {
-    depth--;
-    if (depth === 0) { closeAt = i; break; }
-  }
-}
-const studioBody = closeAt > 0 ? route.slice(openAt, closeAt) : '';
+const studioBody = blockAfter(route, 'async function studioValues');
 const serverKeys = [...studioBody.matchAll(/^\s*(?:'([^']+)'|([A-Za-z][A-Za-z ]*)):/gm)]
   .map((m) => (m[1] || m[2] || '').trim())
   // `const s: any = ...` inside the function matches the unquoted branch; a declaration is
@@ -229,11 +305,47 @@ check('and says why rather than just greying out',
 // button labelled Send that quietly does not send is the same defect class as the agent
 // page that promised a confirmation prompt which never fired — a studio acts on the claim,
 // then waits a week for a signature on a link that never left the screen.
+//
+// Note the shape of that claim: it is about ONE handler, not about the file. contracts.ts
+// mails people from its SIGN route, correctly, via deliverExecutedContract(). So this used
+// to be read out of the whole file and was wrong twice over — silent when /send gained a
+// mailer it reached through a helper the word list did not name, and red when mail was
+// added to the sign route, where mail belongs. It reads the handler now.
 console.log('\n=== the screens do not claim an email was sent ===');
-const MAILERS = ['sendMail', 'nodemailer', 'sendEmail', 'transporter', 'sendgrid'];
-const mailerInRoute = MAILERS.filter((m) => route.includes(m));
-check('the send endpoint really has no mailer in it (premise)', mailerInRoute.length === 0,
-  mailerInRoute.join(', ') || 'none');
+// Asked of the HANDLER, not of the file. contracts.ts really does email people — the sign
+// route calls deliverExecutedContract(), which mails every signer and the studio with the
+// executed PDF attached — so a whole-file scan gets the question wrong in both directions.
+// It stays green while POST /:id/send grows a mailer it reaches through a helper whose name
+// is not in the list, and it goes red when mail is added to the sign route, where mailing is
+// the correct behaviour. The claim these three screens make is about one route, so one route
+// is what gets read.
+const sendRoute = blockAfter(route, "router.post('/:id/send'");
+// The trap first. An extraction that failed returns '', and '' contains no mailer name at
+// all — so an unchecked slice would turn a broken guard into a passing one, which is the
+// precise failure this whole file was written to refuse. So the slice is proved before it is
+// believed: against landmarks only this handler has, and against the route that follows it.
+const extracted = sendRoute.includes("'unresolved_fields'") && sendRoute.includes('access_token');
+check('the send handler was extracted from the route (premise)', extracted,
+  sendRoute.length ? `${sendRoute.length} chars` : 'nothing extracted');
+check('  and the slice stops before the next route begins',
+  extracted && !sendRoute.includes("router.get('/public/:token'"));
+// Proof that scoping it is load-bearing rather than decorative: this file DOES mail people,
+// just not from here. A whole-file scan would have to either miss that or fail on it.
+check('  (the file mails elsewhere, which is why the scan is scoped)',
+  route.includes('deliverExecutedContract('));
+const MAILERS = [
+  'sendMail', 'nodemailer', 'sendEmail', 'transporter', 'sendgrid',
+  // The indirect ones. A scan for 'sendEmail' never sees a mailer reached through a helper,
+  // and deliverExecutedContract is already imported at the top of contracts.ts — putting it
+  // in this route is a one-line change, so it is named here rather than left to be noticed.
+  'deliverExecutedContract', 'EnhancedEmailService', 'BrevoService',
+];
+const mailerInSend = MAILERS.filter((m) => sendRoute.includes(m));
+// Conditioned on `extracted`, so this line can never report a clean handler it never read.
+// "I searched nothing and found nothing" is the answer a broken guard gives.
+check('the send endpoint really has no mailer in it (premise)',
+  extracted && mailerInSend.length === 0,
+  mailerInSend.join(', ') || (extracted ? 'none' : 'no handler was read — this is not evidence'));
 check('the draft screen says so beside the Send button',
   src.detail.includes('does not email anybody'));
 check('and again where the link is shown', src.detail.includes('Nothing was emailed'));

@@ -29,7 +29,7 @@ import { Router, type Request, type Response } from 'express';
 import crypto from 'crypto';
 import { pool } from '../db';
 import { requireAuth } from '../auth';
-import { mergeContract, canSend, fieldsUsed } from '../../shared/contractMerge';
+import { mergeContract, canSend, fieldsUsed, resolveStudioEmail } from '../../shared/contractMerge';
 import {
   buildExecutedContract,
   deliverExecutedContract,
@@ -57,14 +57,21 @@ function sendPdf(res: Response, pdf: Buffer, filename: string): void {
 
 /** Studio-side values available to every contract, read once per request. */
 async function studioValues(): Promise<Record<string, string>> {
+  // owner_email is selected because it is where a fresh instance's only address lives:
+  // studio_configs.email is nullable and empty until the Studio Customization form is
+  // saved, while owner_email is NOT NULL and written by the bootstrap insert.
   const r = await pool.query(
-    `SELECT studio_name, business_name, email, phone, address, city, country
+    `SELECT studio_name, business_name, email, owner_email, phone, address, city, country
        FROM studio_configs LIMIT 1`,
   ).catch(() => ({ rows: [] as any[] }));
   const s: any = r.rows?.[0] || {};
   return {
     'Studio Name': s.studio_name || s.business_name || '',
-    'Studio Email': s.email || '',
+    // Not `s.email || ''`. resolveStudioEmail() is the ONE chain — the browser's preview
+    // (contractsApi.fetchStudioMergeValues) and GET /api/studio/branding call the same
+    // function, so the address the studio approves on screen is the address that is
+    // merged into the snapshot. Spelling the fallback here again is how they drifted.
+    'Studio Email': resolveStudioEmail(s),
     'Studio Phone': s.phone || '',
     'Studio Address': s.address || '',
     'City Name': s.city || '',

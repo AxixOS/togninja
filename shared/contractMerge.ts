@@ -19,6 +19,10 @@
 //    placeholder must not be re-expanded — otherwise a client called "[Client Name]" (or a
 //    malicious one) could inject fields.
 //  - Values are escaped for HTML by default, because templates are rich text.
+//  - And escaped for the OTHER grammar the merged body is read with. The send gate re-scans
+//    an already-merged contract for tokens that survived, so a value carrying brackets —
+//    "Meet at the north gate [not the main car park]" — would be read back as a field the
+//    template never contained and the contract refused for ever. See escapeHtml().
 
 export interface MergeField {
   /** The token as it appears in the template, without brackets. */
@@ -54,8 +58,38 @@ const KEYS = new Set(MERGE_FIELDS.map((f) => f.key));
 /** Matches [Anything In Brackets] — the token shape the reference templates use. */
 const TOKEN = /\[([^\][\n]{1,60})\]/g;
 
+/**
+ * Render a merged VALUE so it is inert in the document it lands in.
+ *
+ * & < > " are escaped because a contract body is HTML. [ and ] are escaped for a second
+ * reason that is easy to miss: the stored body is read by TWO grammars, not one. HTML is
+ * the obvious one. The other is TOKEN above — POST /:id/send and the draft screen run
+ * mergeContract() over the ALREADY MERGED body to ask "did any placeholder survive?", and
+ * that question is only answerable if every bracket in the body came from the template.
+ *
+ * A value carrying brackets breaks that premise, and the damage is permanent rather than
+ * cosmetic: contracts.body is a snapshot that is never re-rendered, so a draft merged from
+ * a location like "Meet at the north gate [not the main car park]" is refused with "this
+ * template uses a field that does not exist" and cannot be repaired from any screen. The
+ * studio has to delete it and start again. Free text reaches every non-studio field here —
+ * a client named "Studio 7 [Vienna] GmbH" is enough.
+ *
+ * Numeric character references, so both renderers still show a literal bracket: the
+ * browser decodes them in sanitizeContractHtml's DOMParser pass, and the PDF decodes them
+ * in contractPdf's entityChar(). & is replaced FIRST, so a value that literally contains
+ * the text "&#91;" becomes "&amp;#91;" and reads back as itself rather than as a bracket.
+ *
+ * NOT applied on the escape:false path. That output is plain text for a subject line,
+ * nothing re-scans it, and entities there would be shown to a person verbatim.
+ */
 const escapeHtml = (v: string) =>
-  v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  v
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\[/g, '&#91;')
+    .replace(/\]/g, '&#93;');
 
 export interface MergeResult {
   /** The template with every KNOWN field substituted. */
@@ -125,6 +159,49 @@ export function canSend(result: MergeResult): { ok: boolean; reason?: string } {
     };
   }
   return { ok: true };
+}
+
+/**
+ * The studio's own email address, resolved the SAME way everywhere.
+ *
+ * studio_configs holds it in two columns. `email` is nullable and stays empty until
+ * somebody saves the Studio Customization form; `owner_email` is NOT NULL and is written
+ * by the bootstrap insert. So on a fresh instance the only address the studio has is
+ * owner_email, and a rule that reads `email` alone resolves to nothing at all there.
+ *
+ * That rule existed in three versions. GET /api/studio/branding fell back to ownerEmail,
+ * the browser's preview used whatever that endpoint handed back, and studioValues() in
+ * server/routes/contracts.ts did not fall back. The preview therefore filled
+ * [Studio Email] and told the studio every field was filled, while the sender stored a
+ * body with the placeholder still in it and then refused the send — naming a field the
+ * studio could see was filled, on a snapshot they could not repair.
+ *
+ * They are not two addresses; they are one address and one blank. So this is not a
+ * reconciliation, it is the single chain, and all three call it.
+ *
+ * Takes snake_case pg rows and camelCase JSON alike, because the server reads the row and
+ * the browser reads the endpoint. Whitespace is not an address: '   ' resolves to '',
+ * which is what mergeContract() would call missing anyway — checking it here means the
+ * preview and the sender agree about that case too.
+ */
+export function resolveStudioEmail(
+  source:
+    | { email?: string | null; ownerEmail?: string | null; owner_email?: string | null }
+    | null
+    | undefined,
+): string {
+  // Guarded here rather than trusted from the type: strictNullChecks is off in this repo,
+  // so `source` being null is not something the signature prevents.
+  const s: any = source || {};
+  const trim = (v: unknown) => (v == null ? '' : String(v).trim());
+  // DELIBERATELY not falling back to ownerEmail/owner_email. Those columns hold a
+  // bootstrap placeholder ('admin@localhost', 'setup@togninja.com') on every instance
+  // that has not been through technical setup, and the one writer that sets a real
+  // owner_email sets `email` alongside it — so a fallback can only ever substitute a
+  // placeholder. Returning blank keeps the send GATE closed, which is what makes the
+  // studio go and enter a real address instead of signing a contract that names one
+  // nobody can reach.
+  return trim(s.email);
 }
 
 /** Which merge fields does this template actually use? For the editor's field list. */
