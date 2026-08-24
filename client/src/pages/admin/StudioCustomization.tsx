@@ -32,6 +32,8 @@ interface StudioConfig {
   businessName: string;
   address: string;
   city: string;
+  state: string;
+  country: string;
   phone: string;
   email: string;
   defaultTaxRate: string;
@@ -50,6 +52,8 @@ const StudioCustomization: React.FC = () => {
     businessName: SITE.name,
     address: '',
     city: '',
+    state: '',
+    country: '',
     phone: SITE.phone,
     email: SITE.email,
     defaultTaxRate: '0',
@@ -108,6 +112,8 @@ const StudioCustomization: React.FC = () => {
             businessName: data.businessName || prev.businessName,
             address: data.address || prev.address,
             city: data.city || prev.city,
+            state: data.state || prev.state,
+            country: data.country || prev.country,
             phone: data.phone || prev.phone,
             email: data.email || prev.email,
             logoUrl: data.logoUrl || prev.logoUrl,
@@ -531,15 +537,43 @@ const StudioCustomization: React.FC = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       />
                     </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                        <input
+                          type="text"
+                          value={config.city}
+                          onChange={(e) => handleInputChange('city', e.target.value)}
+                          placeholder="Shreveport"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          State / Region
+                        </label>
+                        <input
+                          type="text"
+                          value={config.state}
+                          onChange={(e) => handleInputChange('state', e.target.value)}
+                          placeholder="Louisiana"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+                    </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
                       <input
                         type="text"
-                        value={config.city}
-                        onChange={(e) => handleInputChange('city', e.target.value)}
-                        placeholder="Brighton"
+                        value={config.country}
+                        onChange={(e) => handleInputChange('country', e.target.value)}
+                        placeholder="United States"
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Used on contracts and invoices, and to work out the tax codes on your
+                        accounting export — so it needs to be where the business is registered.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>

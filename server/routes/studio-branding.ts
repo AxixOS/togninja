@@ -46,6 +46,8 @@ router.get('/branding', requireAuth, async (_req, res) => {
       businessName: sc?.businessName || sc?.studioName || '',
       address: sc?.address || '',
       city: sc?.city || '',
+      state: sc?.state || '',
+      country: sc?.country || '',
       phone: sc?.phone || '',
       email: sc?.email || sc?.ownerEmail || '',
       logoUrl: sc?.logoUrl || null,
@@ -105,6 +107,8 @@ router.put('/branding', requireAuth, async (req, res) => {
       businessName,
       address,
       city,
+      state,
+      country,
       phone,
       email,
       logoUrl,
@@ -129,6 +133,10 @@ router.put('/branding', requireAuth, async (req, res) => {
     if (businessName !== undefined) set.businessName = businessName;
     if (address !== undefined) set.address = address;
     if (city !== undefined) set.city = city;
+    if (state !== undefined) set.state = state;
+    // The country drives the contract merge field and the tax codes on the accounting
+    // export, so it is a business fact, not decoration.
+    if (country !== undefined) set.country = country;
     if (phone !== undefined) set.phone = phone;
     if (email !== undefined) set.email = email;
     if (logoUrl !== undefined) set.logoUrl = logoUrl;
