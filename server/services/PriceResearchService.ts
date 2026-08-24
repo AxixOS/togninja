@@ -8,6 +8,7 @@
  */
 
 import { TavilySearchService } from './TavilySearchService.js';
+import { searchProvider, type SearchProvider } from '../lib/searchProvider';
 import { AxixosSearchService } from './AxixosSearchService.js';
 import { OpenAIPriceExtractor } from './OpenAIPriceExtractor.js';
 import { CompetitorDiscoveryService } from './CompetitorDiscoveryService.js';
@@ -36,8 +37,36 @@ export class PriceResearchService {
   private discovery: CompetitorDiscoveryService;
   private scraper: PriceScraperService;
 
+  /**
+   * The search account this run is using — the studio own key when they have set one,
+   * the platform key otherwise. Resolved once per run by ensureProvider() rather than
+   * read from process.env at each decision point, which is what made a studio key
+   * invisible to every one of them.
+   */
+  private provider: SearchProvider | null = null;
+
+  /** Whether a Tavily-shaped search is possible with whatever key was resolved. */
+  private get hasTavilyKey(): boolean {
+    return this.provider?.kind === 'tavily' && !!this.provider.apiKey;
+  }
+
+  /**
+   * Resolve the provider and hand its key to the Tavily client.
+   *
+   * Called at the top of every entry point. Cheap after the first call within a run, and
+   * deliberately re-resolved per run so a studio adding a key does not have to wait for a
+   * restart to use it.
+   */
+  private async ensureProvider(): Promise<void> {
+    this.provider = await searchProvider();
+    if (this.provider.kind === 'tavily') {
+      this.tavily = new TavilySearchService(this.provider.apiKey);
+    }
+  }
+
   constructor() {
-    this.tavily = new TavilySearchService();
+    // Constructed keyless; ensureProvider() supplies the key before any search runs.
+    this.tavily = new TavilySearchService(null);
     this.axixos = new AxixosSearchService();
     this.openai = new OpenAIPriceExtractor();
     this.discovery = new CompetitorDiscoveryService();
@@ -48,6 +77,7 @@ export class PriceResearchService {
    * Run full price research for a session
    */
   async runResearch(config: ResearchConfig): Promise<ResearchProgress> {
+    await this.ensureProvider();
     const { sessionId, location, services, maxCompetitors = 12 } = config;
     
     console.log(`\n${'='.repeat(60)}`);
@@ -74,7 +104,7 @@ export class PriceResearchService {
       }
 
       // Then Tavily, if AxixOS is unset or returned nothing.
-      if (competitors.length === 0 && process.env.TAVILY_API_KEY) {
+      if (competitors.length === 0 && this.hasTavilyKey) {
         try {
           competitors = await this.tavily.searchCompetitors(location, services, maxCompetitors);
           discoverySource = 'tavily';
@@ -106,8 +136,10 @@ export class PriceResearchService {
       }
 
       if (competitors.length === 0) {
-        if (!this.axixos.isConfigured() && !process.env.TAVILY_API_KEY) {
-          throw new Error('Competitor search is not configured. Set AXIXOS_INTERNAL_API_KEY (or a Tavily key) to enable AI competitor discovery, then run AI Research again.');
+        if (!this.provider?.apiKey) {
+          // Names no environment variable: this message reaches a photographer, and if
+          // the PLATFORM has not configured search there is nothing they can do about it.
+          throw new Error('Automatic competitor research is not available on this instance right now. You can still add competitors and their prices by hand, then generate suggestions from those.');
         }
         throw new Error('No competitors found for this location/services. Try a broader location or different service selection.');
       }
@@ -150,7 +182,7 @@ export class PriceResearchService {
               const crawled = await this.axixos.searchCompetitorPricing(comp.website, comp.name);
               if (crawled && crawled.trim().length > 40) parts.push(crawled);
             } catch { /* crawl failed — other sources below */ }
-          } else if (comp.website && process.env.TAVILY_API_KEY) {
+          } else if (comp.website && this.hasTavilyKey) {
             try {
               const pricingContent = await this.tavily.searchCompetitorPricing(comp.website, comp.name);
               if (pricingContent) parts.push(pricingContent);
@@ -407,6 +439,7 @@ export class PriceResearchService {
    * not the old no-op that marked everything failed.
    */
   async rescrapeSession(sessionId: string): Promise<ResearchProgress> {
+    await this.ensureProvider();
     const sessionRes = await pool.query(
       `SELECT location, services FROM price_wizard_sessions WHERE id = $1`, [sessionId]);
     if (sessionRes.rows.length === 0) throw new Error('Session not found');
@@ -420,7 +453,7 @@ export class PriceResearchService {
     }
 
     const hasAxixos = this.axixos.isConfigured();
-    const hasTavily = !!process.env.TAVILY_API_KEY;
+    const hasTavily = this.hasTavilyKey;
     await this.updateSessionStatus(sessionId, 'scraping');
     let totalPrices = 0;
 
@@ -469,7 +502,7 @@ export class PriceResearchService {
           : (analysis.extractionError
               || ((hasAxixos || hasTavily)
                     ? `Couldn't read prices from the site (${(fullContent || '').length} chars). Add them manually with +.`
-                    : 'Automated reading needs a search provider (AXIXOS_INTERNAL_API_KEY) — add prices manually with +.'));
+                    : 'Automatic price reading is not available on this instance — add prices manually with +.'));
         await pool.query(
           `UPDATE competitor_research SET status = $2, scraped_at = NOW(), scrape_error = $3 WHERE id = $1`,
           [competitorId, status, error]);

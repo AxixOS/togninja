@@ -491,7 +491,7 @@ const AdminPriceWizardPage: React.FC = () => {
       // believe than the truth.
       manual: {
         bg: 'bg-amber-100', text: 'text-amber-800', label: 'manual entry',
-        title: 'No search provider is configured, so no automated crawl ran. Add competitors by hand, or set AXIXOS_INTERNAL_API_KEY (or a Tavily key) and run AI Research.',
+        title: 'Automatic research was not available when this session was created, so nothing was crawled. The competitors and prices here are the ones entered by hand.',
       },
       failed: { bg: 'bg-red-100', text: 'text-red-800', label: 'failed' }
     };
@@ -1318,7 +1318,8 @@ const AdminPriceWizardPage: React.FC = () => {
                 {selectedSessionData && competitors.length === 0 && !['discovering', 'scraping', 'analyzing'].includes(selectedSessionData.status) && (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
                     <p className="text-sm text-gray-600 mb-3">
-                      No competitors yet. Use <b>AI Research</b> to find them automatically (needs a Tavily key), or add them by hand and enter their prices, then generate suggestions.
+                      No competitors yet. Use <b>AI Research</b> to find them automatically, or
+                      add them by hand and enter their prices, then generate suggestions.
                     </p>
                     <div className="flex justify-center gap-2">
                       <button

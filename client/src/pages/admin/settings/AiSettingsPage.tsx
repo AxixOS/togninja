@@ -12,10 +12,11 @@ interface AiState {
   openaiApiKey: string; openaiKeySet: boolean;
   openaiAssistantId: string;
   anthropicApiKey: string; anthropicKeySet: boolean;
+  searchApiKey: string; searchKeySet: boolean;
 }
 
 const AiSettingsPage: React.FC = () => {
-  const [s, setS] = useState<AiState>({ openaiApiKey: '', openaiKeySet: false, openaiAssistantId: '', anthropicApiKey: '', anthropicKeySet: false });
+  const [s, setS] = useState<AiState>({ openaiApiKey: '', openaiKeySet: false, openaiAssistantId: '', anthropicApiKey: '', anthropicKeySet: false, searchApiKey: '', searchKeySet: false });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -31,6 +32,7 @@ const AiSettingsPage: React.FC = () => {
             openaiKeySet: !!ex.openaiKeySet,
             openaiAssistantId: ex.openaiAssistantId || '',
             anthropicKeySet: !!ex.anthropicKeySet,
+            searchKeySet: !!ex.searchKeySet,
           }));
         }
       } catch { /* keep defaults */ } finally { setIsLoading(false); }
@@ -43,12 +45,13 @@ const AiSettingsPage: React.FC = () => {
       const body: any = { openaiAssistantId: s.openaiAssistantId };
       if (s.openaiApiKey) body.openaiApiKey = s.openaiApiKey;
       if (s.anthropicApiKey) body.anthropicApiKey = s.anthropicApiKey;
+      if (s.searchApiKey) body.searchApiKey = s.searchApiKey;
       const res = await fetch('/api/setup/technical/extras', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Save failed');
       setMessage({ type: 'success', text: 'AI keys saved.' });
-      setS(prev => ({ ...prev, openaiApiKey: '', anthropicApiKey: '', openaiKeySet: prev.openaiKeySet || !!prev.openaiApiKey, anthropicKeySet: prev.anthropicKeySet || !!prev.anthropicApiKey }));
+      setS(prev => ({ ...prev, openaiApiKey: '', anthropicApiKey: '', searchApiKey: '', openaiKeySet: prev.openaiKeySet || !!prev.openaiApiKey, anthropicKeySet: prev.anthropicKeySet || !!prev.anthropicApiKey, searchKeySet: prev.searchKeySet || !!prev.searchApiKey }));
     } catch (e: any) {
       setMessage({ type: 'error', text: e?.message || 'Could not save AI keys.' });
     } finally { setIsSaving(false); }
@@ -92,6 +95,17 @@ const AiSettingsPage: React.FC = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Anthropic API Key <span className="text-gray-400">(optional)</span></label>
             <input type="password" value={s.anthropicApiKey} onChange={e => setS(p => ({ ...p, anthropicApiKey: e.target.value }))} className={field} placeholder={s.anthropicKeySet ? '•••••••• (saved — leave blank to keep)' : 'sk-ant-…'} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Competitor search key <span className="text-gray-400">(optional)</span>
+            </label>
+            <input type="password" value={s.searchApiKey} onChange={e => setS(p => ({ ...p, searchApiKey: e.target.value }))} className={field} placeholder={s.searchKeySet ? '•••••••• (saved — leave blank to keep)' : 'tvly-…'} />
+            <p className="mt-1 text-xs text-gray-500">
+              The Price Wizard already researches competitors without this. Add a Tavily key
+              only if you want the research to run on your own account rather than the
+              shared one — useful if you research often.
+            </p>
           </div>
         </div>
 

@@ -6,6 +6,8 @@
  */
 
 import { Router } from 'express';
+import { config } from '../config-reader';
+import { searchProvider, searchConfigured, searchUnavailable } from '../lib/searchProvider';
 import { pool } from '../db.js';
 import { PriceScraperService } from '../services/PriceScraperService.js';
 import { CompetitorDiscoveryService } from '../services/CompetitorDiscoveryService.js';
@@ -143,8 +145,12 @@ router.post('/scrape', async (req, res) => {
 
     console.log(`📋 Re-reading competitor sites for session ${sessionId}`);
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: 'OpenAI API key not configured. Set OPENAI_API_KEY to extract prices.' });
+    if (!(await config.get('openai_api_key'))) {
+      return res.status(400).json({
+        error: 'openai_key_required',
+        message: 'Reading prices off a competitor page needs an OpenAI key. Add yours in Settings, then run this again.',
+        settingsPath: '/admin/settings/technical-setup',
+      });
     }
 
     const countRes = await pool.query(
@@ -249,16 +255,25 @@ router.get('/competitors/:sessionId', async (req, res) => {
  * pings OpenAI (extraction) and AxixOS (discovery + crawl). No secrets returned.
  */
 router.get('/diagnostics', async (_req, res) => {
-  const out: any = { openai: {}, axixos: {}, tavily: { configured: !!process.env.TAVILY_API_KEY } };
+  // Reports the provider that would REALLY be picked, studio key included — this used to
+  // read process.env.TAVILY_API_KEY alone and so told a studio "not configured" about a key
+  // they had entered themselves.
+  const picked = await searchProvider();
+  const out: any = {
+    openai: {},
+    axixos: {},
+    search: { configured: !!picked.apiKey, using: picked.kind, source: picked.source },
+  };
 
   // OpenAI — the extraction engine. A present-but-invalid key passes the "is it
   // set" guard yet throws on every real call, which looks exactly like "0 prices".
-  if (!process.env.OPENAI_API_KEY) {
+  const openaiKey = await config.get('openai_api_key');
+  if (!openaiKey) {
     out.openai = { ok: false, reason: 'OPENAI_API_KEY not set' };
   } else {
     try {
       const OpenAI = (await import('openai')).default;
-      const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const client = new OpenAI({ apiKey: openaiKey });
       const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
       await client.chat.completions.create({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 });
       out.openai = { ok: true, model };
@@ -268,15 +283,15 @@ router.get('/diagnostics', async (_req, res) => {
   }
 
   // AxixOS — discovery (/v1/search/web) + page crawl.
-  if (!process.env.AXIXOS_INTERNAL_API_KEY) {
+  if (picked.kind !== 'axixos' || !picked.apiKey) {
     out.axixos = { ok: false, reason: 'AXIXOS_INTERNAL_API_KEY not set' };
   } else {
     try {
-      const base = (process.env.AXIXOS_API_BASE || 'https://axixos-intelligence.onrender.com').replace(/\/+$/, '');
+      const base = picked.baseUrl || '';
       const h = await fetch(`${base}/health`).catch(() => null);
       const s = await fetch(`${base}/v1/search/web`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-axixos-api-key': process.env.AXIXOS_INTERNAL_API_KEY },
+        headers: { 'Content-Type': 'application/json', 'x-axixos-api-key': picked.apiKey },
         body: JSON.stringify({ query: 'Fotograf Wien Preise', limit: 2, country: 'AT', language: 'de' }),
       });
       const sj: any = await s.json().catch(() => ({}));
@@ -774,20 +789,19 @@ router.post('/research', async (req, res) => {
 
     const session = sessionResult.rows[0];
 
-    // Check if API keys are configured (only OpenAI is required; Tavily is optional with fallback)
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ 
-        error: 'OpenAI API key not configured. Set OPENAI_API_KEY in your environment.' 
+    if (!(await config.get('openai_api_key'))) {
+      return res.status(400).json({
+        error: 'openai_key_required',
+        message: 'Reading prices off a competitor page needs an OpenAI key. Add yours in Settings, then run this again.',
+        settingsPath: '/admin/settings/technical-setup',
       });
     }
 
-    if (!process.env.AXIXOS_INTERNAL_API_KEY && !process.env.TAVILY_API_KEY) {
-      // Without a search provider there is no reliable way to discover + read
-      // competitor sites. Fail loudly (and BEFORE wiping any manual data) with
-      // an actionable message instead of silently finding nothing.
-      return res.status(400).json({
-        error: 'Automated competitor discovery needs a search provider (AXIXOS_INTERNAL_API_KEY or a Tavily key). Add it to enable AI Research — or add competitors and prices manually below and click "Generate Suggestions".',
-      });
+    // Without a search provider there is no reliable way to discover and read competitor
+    // sites. Refuse BEFORE wiping any manual data, and say what still works rather than
+    // naming an environment variable at a photographer.
+    if (!(await searchConfigured())) {
+      return res.status(400).json(searchUnavailable());
     }
 
     // Clear any previous data for this session (in case of retry)
@@ -845,14 +859,15 @@ router.post('/quick-start', async (req, res) => {
       });
     }
 
-    // Check if API keys are configured (only OpenAI is required; Tavily is optional with fallback)
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ 
-        error: 'OpenAI API key not configured. Set OPENAI_API_KEY in your environment.' 
+    if (!(await config.get('openai_api_key'))) {
+      return res.status(400).json({
+        error: 'openai_key_required',
+        message: 'Reading prices off a competitor page needs an OpenAI key. Add yours in Settings, then run this again.',
+        settingsPath: '/admin/settings/technical-setup',
       });
     }
 
-    const hasProvider = !!process.env.AXIXOS_INTERNAL_API_KEY || !!process.env.TAVILY_API_KEY;
+    const hasProvider = await searchConfigured();
 
     // Create the session either way, so the manual path always has a workspace.
     const result = await pool.query(`

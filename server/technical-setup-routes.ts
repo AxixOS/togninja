@@ -397,6 +397,9 @@ router.post('/extras', async (req: Request, res: Response) => {
       // Social & Reviews — each studio connects its OWN accounts here.
       googlePlacesApiKey, googlePlacesPlaceId,
       pulseApiKey, pulseProfiles, pulseMode,
+      // Price Wizard competitor search. Optional — the platform key covers a studio who
+      // never sets one; setting one moves them onto their own quota.
+      searchApiKey,
     } = req.body;
 
     // Update studio_integrations
@@ -419,6 +422,9 @@ router.post('/extras', async (req: Request, res: Response) => {
     if (smsFromNumber) siUpdate.sms_from_number = smsFromNumber;
 
     // Social & Reviews (per-tenant). Secrets encrypted at rest like the rest.
+    // Only overwrite when the studio actually typed a new one — the field is masked on
+    // load, so an untouched form must not blank a key they already have.
+    if (searchApiKey) siUpdate.search_api_key_encrypted = encrypt(searchApiKey);
     if (googlePlacesApiKey) siUpdate.google_places_api_key_encrypted = encrypt(googlePlacesApiKey);
     if (googlePlacesPlaceId !== undefined) siUpdate.google_places_place_id = googlePlacesPlaceId || null;
     // Saving a key with no place id leaves reviews still off, and a place id is not
@@ -889,6 +895,7 @@ router.get('/current', async (_req: Request, res: Response) => {
         openaiKeySet: !!si?.openai_api_key_encrypted,
         openaiAssistantId: si?.openai_assistant_id || '',
         anthropicKeySet: !!si?.anthropic_api_key_encrypted,
+        searchKeySet: !!si?.search_api_key_encrypted,
         googleClientId: ident(si?.google_client_id),
         googleClientSecretSet: !!si?.google_client_secret_encrypted,
         googleCalendarId: si?.google_calendar_id || '',

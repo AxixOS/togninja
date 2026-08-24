@@ -31,10 +31,16 @@ export class TavilySearchService {
   private apiKey: string;
   private baseUrl = 'https://api.tavily.com';
 
-  constructor() {
-    this.apiKey = process.env.TAVILY_API_KEY || '';
+  /**
+   * @param apiKey resolved by the caller through server/lib/searchProvider.ts — the
+   * studio own key when they have set one, the platform key otherwise. Passed in rather
+   * than read here, because reading process.env directly is what made a studio key
+   * invisible to this class no matter where they entered it.
+   */
+  constructor(apiKey?: string | null) {
+    this.apiKey = (apiKey || '').trim();
     if (!this.apiKey) {
-      console.warn('⚠️ TAVILY_API_KEY not set - search will fail');
+      console.warn('⚠️ No competitor-search key resolved — search will fail');
     }
   }
 
@@ -47,7 +53,9 @@ export class TavilySearchService {
     maxResults: number = 12
   ): Promise<CompetitorSearchResult[]> {
     console.log(`🔍 Tavily: Searching for photographers in ${location}...`);
-    console.log(`   API key configured: ${this.apiKey ? 'Yes (' + this.apiKey.substring(0, 8) + '...)' : 'NO!'}`);
+    // Presence only. This printed the first eight characters of a live credential on
+    // every single search.
+    console.log(`   API key configured: ${this.apiKey ? 'yes' : 'NO'}`);
 
     // Build search queries for different services
     const searchQueries = this.buildSearchQueries(location, services);

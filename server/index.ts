@@ -586,6 +586,11 @@ app.use((req, res, next) => {
       // Per-tenant Social & Reviews credentials. Purely ADDITIVE columns, so
       // this is safe on an existing production database.
       try {
+        // The studio's OWN competitor-search key. The Price Wizard read TAVILY_API_KEY
+        // straight from process.env, so the only way to set one was a host environment
+        // variable — which a studio who bought this product cannot reach. With no column
+        // there was nowhere for their key to live even if the UI offered a box.
+        await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS search_api_key_encrypted TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_api_key_encrypted TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_place_id TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS pulse_api_key_encrypted TEXT`);
