@@ -338,13 +338,18 @@ async function main() {
     /if \(complete\) \{[\s\S]{0,200}deliverExecutedContract/.test(route));
   // After the COMMIT, or a mail server being down could roll back a signature.
   const commitAt = route.indexOf("await client.query('COMMIT')");
-  const deliverAt = route.indexOf('await deliverExecutedContract(');
+  const deliverAt = route.indexOf('deliverExecutedContract(');
   check('and only AFTER the signature is committed', commitAt > 0 && deliverAt > commitAt,
     `commit@${commitAt} deliver@${deliverAt}`);
-  check('the outcome is reported rather than assumed', /copySent: complete \? !!delivery/.test(route));
-  // The privacy half of the same line. This endpoint is public: returning the delivery
-  // object would hand one signer the other signers' email addresses.
-  check('but the recipient list is NOT returned to a public caller',
+  // Delivery is detached, not awaited. Sends are sequential with a 25s timeout each, so
+  // awaiting held the signer for over a minute on a three-party contract after their
+  // signature was already durable — long enough for a proxy to time out and make a
+  // successful signing look like a failure.
+  check('delivery is fired without blocking the response', /void deliverExecutedContract\(/.test(route));
+  check('and it can neither throw nor reject into the request', /\.catch\(/.test(route));
+  // This endpoint is public: returning the delivery object would hand one signer the
+  // other signers' email addresses.
+  check('the recipient list is NOT returned to a public caller',
     !/remaining: remaining\.rows\[0\]\.n, delivery/.test(route)
     && !/\bdelivery\s*\}\)/.test(route));
 

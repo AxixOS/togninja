@@ -1179,6 +1179,10 @@ app.use((req, res, next) => {
       // not be indexed. /gallery renders behind auth — a crawler only ever gets
       // the empty shell, so keep it out of search.
       if (clean === '/gallery' || clean.startsWith('/gallery/') || clean.startsWith('/invoice/')) return true;
+      // A contract signing page carries the full terms and the names of the parties, and
+      // is reachable by token alone. If one of those links ever reaches a crawlable place,
+      // the document must not end up in search results.
+      if (clean.startsWith('/contract/')) return true;
       return false;
     };
     app.use((req, res, next) => {

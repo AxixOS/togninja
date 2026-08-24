@@ -33,7 +33,6 @@ import { mergeContract, canSend, fieldsUsed } from '../../shared/contractMerge';
 import {
   buildExecutedContract,
   deliverExecutedContract,
-  type ContractDeliveryResult,
 } from '../lib/contractDelivery';
 
 const router = Router();
@@ -241,6 +240,25 @@ router.put('/:id/signers', requireAuth, async (req: Request, res: Response) => {
       }
     }
     await client.query('BEGIN');
+
+    // "Replace the signers on a DRAFT" — enforced here, not just in the composer that
+    // hides the button. This DELETE takes signed_at, the signature itself and the IP it
+    // was signed from with it, so on an executed contract it destroys the only evidence
+    // the studio has that the client agreed to anything. A client-side guard is not a
+    // guard: this endpoint is reachable directly.
+    const already = await client.query(
+      `SELECT count(*)::int AS n FROM contract_signers
+        WHERE contract_id = $1 AND signed_at IS NOT NULL`,
+      [req.params.id],
+    );
+    if ((already.rows[0]?.n || 0) > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'signed_already',
+        message: 'Somebody has already signed this contract, so the signers cannot be changed. Duplicate it to send a revised version.',
+      });
+    }
+
     await client.query(`DELETE FROM contract_signers WHERE contract_id = $1`, [req.params.id]);
     for (let i = 0; i < signers.length; i++) {
       await client.query(
@@ -435,30 +453,32 @@ router.post('/public/:token/sign', async (req: Request, res: Response) => {
 
     // ── The executed copy ─────────────────────────────────────────────────
     //
-    // AFTER the commit, and outside the transaction, on purpose. The signature is the
-    // thing that matters and it is already durable; a mail server that is down, slow or
-    // absent must not be able to undo it. deliverExecutedContract never throws and never
-    // claims a send it did not make, so `delivery` is safe to hand straight to the caller
-    // — including the honest "nothing was emailed" a demo instance returns.
-    let delivery: ContractDeliveryResult | undefined;
+    // AFTER the commit, outside the transaction, and DETACHED from the response.
+    //
+    // The signature is the thing that matters and it is already durable; a mail server
+    // that is down, slow or absent must not be able to undo it — or to delay telling the
+    // signer it worked. Delivery sends sequentially with a 25s timeout per recipient, so
+    // awaiting it held a three-party contract for over a minute after the signature was
+    // safe. The realistic cost is not a slow page: a proxy times the request out, the
+    // signer believes signing failed, signs again, and meets a 409 that reads like an
+    // error. So the response goes now and the copies follow.
+    //
+    // Nothing is claimed to the signer about email as a result — the page says the
+    // document is complete and offers the PDF, which needs no mail server at all.
     if (complete) {
-      delivery = await deliverExecutedContract(c.id);
-      if (delivery.problem) {
-        console.warn('[contracts] executed copy not fully delivered:', delivery.problem);
-      }
+      void deliverExecutedContract(c.id)
+        .then((d) => {
+          if (d.problem) console.warn('[contracts] executed copy not fully delivered:', d.problem);
+        })
+        .catch((e) => console.warn('[contracts] executed copy delivery threw:', e?.message || e));
     }
 
     // Deliberately NOT the delivery result. This endpoint is unauthenticated, and that
     // object names every recipient the executed copy was mailed to — so returning it
     // hands one signer the other parties' email addresses. The studio sees the detail
-    // in the admin, where they are authenticated; the signer needs only to know the
-    // document is complete. A delivery problem is logged above, not surfaced here.
-    res.json({
-      ok: true,
-      complete,
-      remaining: remaining.rows[0].n,
-      copySent: complete ? !!delivery && !delivery.problem : undefined,
-    });
+    // in the admin, where they are authenticated; the signer needs only to know their
+    // signature landed and whether the document is now complete.
+    res.json({ ok: true, complete, remaining: remaining.rows[0].n });
   } catch (e: any) {
     // Only while the connection is still ours. Past the COMMIT it has been handed back to
     // the pool, and rolling back there would abort somebody else's transaction.
