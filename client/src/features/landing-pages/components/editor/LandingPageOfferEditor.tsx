@@ -2,6 +2,7 @@ import type { LandingPageOfferBlock } from '../../types/landingPageGeneration.ty
 import LandingPageInlineTextField from './LandingPageInlineTextField';
 import LandingPageInlineTextarea from './LandingPageInlineTextarea';
 import LandingPageArrayEditor from './LandingPageArrayEditor';
+import { useStudioCurrency } from '@/hooks/useStudioCurrency';
 
 interface Props {
   data: LandingPageOfferBlock;
@@ -9,6 +10,10 @@ interface Props {
 }
 
 export default function LandingPageOfferEditor({ data, onChange }: Props) {
+  // The example price has to be in the currency the studio sells in. A currency symbol
+  // written into the placeholder hinted at money a Shreveport photographer never quotes in.
+  const { format: money } = useStudioCurrency();
+
   return (
     <div className="space-y-4">
       <LandingPageInlineTextField
@@ -36,7 +41,7 @@ export default function LandingPageOfferEditor({ data, onChange }: Props) {
           label="Price"
           value={data.price || ''}
           onChange={v => onChange({ ...data, price: v })}
-          placeholder="e.g., €225"
+          placeholder={`e.g., ${money(225)}`}
         />
         <LandingPageInlineTextField
           label="Urgency"

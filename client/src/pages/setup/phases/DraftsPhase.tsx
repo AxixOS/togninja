@@ -76,7 +76,10 @@ export default function DraftsPhase({ onComplete }: DraftsPhaseProps) {
       if (!res.ok) throw new Error(d.error || 'Failed');
       setSeedStatus(d.alreadySeeded
         ? 'Sample data already loaded.'
-        : `Loaded ${d.clients} clients, ${d.invoices} paid invoices, ${d.leads} leads and ${d.galleries ?? 0} sample galleries (≈ €${d.revenue?.toLocaleString?.() || d.revenue} revenue).`);
+        // No symbol: this is a seeded-data summary shown during setup, and the studio
+        // may not have chosen a currency yet. A bare number with the word "revenue" is
+        // true in every currency; a euro sign is true in one.
+        : `Loaded ${d.clients} clients, ${d.invoices} paid invoices, ${d.leads} leads and ${d.galleries ?? 0} sample galleries (≈ ${d.revenue?.toLocaleString?.() || d.revenue} revenue).`);
     } catch (e: any) {
       setSeedStatus(`Could not load sample data: ${e?.message || 'error'}`);
     } finally { setSeeding(false); }

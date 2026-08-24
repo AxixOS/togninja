@@ -13,6 +13,7 @@ import { apiRequest } from '@/lib/queryClient';
 import VoucherPersonalization from '@/components/VoucherPersonalization';
 import { SITE } from '../config/site';
 import { useLanguage } from '../context/LanguageContext';
+import { useStudioCurrency } from '../hooks/useStudioCurrency';
 
 // Make sure to call `loadStripe` outside of a component's render to avoid
 // recreating the `Stripe` object on every render.
@@ -47,6 +48,7 @@ const CheckoutForm: React.FC<{ voucher: VoucherProduct }> = ({ voucher }) => {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const de = language === 'de';
+  const { format: money } = useStudioCurrency();
   const [isProcessing, setIsProcessing] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -273,7 +275,7 @@ const CheckoutForm: React.FC<{ voucher: VoucherProduct }> = ({ voucher }) => {
             <span>{de ? 'Wird verarbeitet...' : 'Processing...'}</span>
           </div>
         ) : (
-          `${de ? 'Jetzt kaufen' : 'Buy now'} - €${totalPrice.toFixed(2)}`
+          `${de ? 'Jetzt kaufen' : 'Buy now'} - ${money(totalPrice)}`
         )}
       </Button>
     </form>
@@ -285,6 +287,7 @@ const VoucherCheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const de = language === 'de';
+  const { format: money } = useStudioCurrency();
   // The studio's own address as one line; empty when unset, which hides the block.
   const studioAddress = [SITE.address.street, SITE.address.postalCode, SITE.address.city, SITE.address.country]
     .filter(Boolean)
@@ -440,9 +443,9 @@ const VoucherCheckoutPage: React.FC = () => {
 
                 <div className="mb-6">
                   {voucher.originalPrice && (
-                    <span className="text-lg text-gray-400 line-through mr-2">€{voucher.originalPrice}</span>
+                    <span className="text-lg text-gray-400 line-through mr-2">{money(voucher.originalPrice)}</span>
                   )}
-                  <span className="text-3xl font-bold text-purple-600">€{voucher.price}</span>
+                  <span className="text-3xl font-bold text-purple-600">{money(voucher.price)}</span>
                 </div>
 
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">

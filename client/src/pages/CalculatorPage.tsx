@@ -5,10 +5,15 @@ import { SEOHead } from '../components/SEO/SEOHead';
 import { SITE } from '../config/site';
 import { useLanguage } from '../context/LanguageContext';
 import { useQuery } from '@tanstack/react-query';
+import { useStudioCurrency } from '../hooks/useStudioCurrency';
 
 const CalculatorPage: React.FC = () => {
   const { language } = useLanguage();
   const de = language === 'de';
+  // The package tiles below quoted the amounts with a euro sign written into the JSX, so
+  // a studio configured in USD advertised its shoots in euros. The amount still needs to
+  // come from the studio's own catalogue; the SYMBOL now comes from its configuration.
+  const { format: money } = useStudioCurrency();
   // The studio's OWN calculator. This page used to hardcode a pricingembed.com id — the
   // origin studio's — so every studio's /calculator showed another studio's packages and
   // prices. No configured calculator now means no iframe, not somebody else's.
@@ -72,17 +77,17 @@ const CalculatorPage: React.FC = () => {
           {/* Package overview for SEO context */}
           <div className="mt-12 grid md:grid-cols-3 gap-6 text-center">
             <div className="bg-white rounded-xl p-6 shadow-sm">
-              <div className="text-3xl font-bold text-purple-600 mb-2">{de ? 'ab €95' : 'from €95'}</div>
+              <div className="text-3xl font-bold text-purple-600 mb-2">{de ? `ab ${money(95)}` : `from ${money(95)}`}</div>
               <p className="text-gray-800 font-semibold">Mini-Shooting</p>
               <p className="text-sm text-gray-500 mt-1">{de ? '30 Minuten, 5 bearbeitete Fotos' : '30 minutes, 5 edited photos'}</p>
             </div>
             <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-purple-200">
-              <div className="text-3xl font-bold text-purple-600 mb-2">{de ? 'ab €199' : 'from €199'}</div>
+              <div className="text-3xl font-bold text-purple-600 mb-2">{de ? `ab ${money(199)}` : `from ${money(199)}`}</div>
               <p className="text-gray-800 font-semibold">Standard-Shooting</p>
               <p className="text-sm text-gray-500 mt-1">{de ? '60 Minuten, 15 bearbeitete Fotos' : '60 minutes, 15 edited photos'}</p>
             </div>
             <div className="bg-white rounded-xl p-6 shadow-sm">
-              <div className="text-3xl font-bold text-purple-600 mb-2">{de ? 'ab €299' : 'from €299'}</div>
+              <div className="text-3xl font-bold text-purple-600 mb-2">{de ? `ab ${money(299)}` : `from ${money(299)}`}</div>
               <p className="text-gray-800 font-semibold">Premium-Shooting</p>
               <p className="text-sm text-gray-500 mt-1">{de ? '90 Minuten, 30 bearbeitete Fotos' : '90 minutes, 30 edited photos'}</p>
             </div>

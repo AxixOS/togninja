@@ -7,11 +7,13 @@ import VoucherFlow from '../components/voucher/VoucherFlow';
 import { VoucherService, AppliedVoucher } from '../services/voucherService';
 import { Trash2, ShoppingBag, ArrowLeft, Gift } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useStudioCurrency } from '../hooks/useStudioCurrency';
 
 const CartPage: React.FC = () => {
   const { items, removeItem, updateQuantity, total, clearCart } = useCart();
   const navigate = useNavigate();
   const { language } = useLanguage();
+  const { format: money } = useStudioCurrency();
   const [appliedVoucher, setAppliedVoucher] = useState<AppliedVoucher | undefined>();
   const [showVoucherFlow, setShowVoucherFlow] = useState(false);
   const [selectedVoucherItem, setSelectedVoucherItem] = useState<any>(null);
@@ -299,10 +301,10 @@ const CartPage: React.FC = () => {
 
                       <div className="text-right min-w-[100px]">
                         <div className="font-semibold text-gray-800">
-                          €{(item.price * item.quantity).toFixed(2)}
+                          {money(item.price * item.quantity)}
                         </div>
                         <div className="text-sm text-gray-500">
-                          €{item.price.toFixed(2)} pro Stück
+                          {money(item.price)} pro Stück
                         </div>
                       </div>
 
@@ -329,12 +331,12 @@ const CartPage: React.FC = () => {
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-gray-600">
                   <span>Zwischensumme</span>
-                  <span>€{total.toFixed(2)}</span>
+                  <span>{money(total)}</span>
                 </div>
                 {appliedVoucher && (
                   <div className="flex justify-between text-green-600">
                     <span>Rabatt ({appliedVoucher.code})</span>
-                    <span>-€{(appliedVoucher.discount / 100).toFixed(2)}</span>
+                    <span>-{money(appliedVoucher.discount / 100)}</span>
                   </div>
                 )}
               </div>
@@ -342,7 +344,7 @@ const CartPage: React.FC = () => {
               <div className="border-t border-gray-200 pt-4 mb-6">
                 <div className="flex justify-between text-xl font-bold text-gray-800">
                   <span>Gesamt</span>
-                  <span>€{discountedTotal.toFixed(2)}</span>
+                  <span>{money(discountedTotal)}</span>
                 </div>
               </div>
 

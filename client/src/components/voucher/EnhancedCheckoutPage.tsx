@@ -5,6 +5,7 @@ import type { VoucherPersonalizationData } from './VoucherPersonalization';
 import { getAttributedCampaignId } from '../../lib/attribution';
 import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface EnhancedCheckoutPageProps {
   voucherData?: VoucherPersonalizationData;
@@ -35,6 +36,7 @@ const EnhancedCheckoutPage: React.FC<EnhancedCheckoutPageProps> = ({
 }) => {
   const { language } = useLanguage();
   const de = language === 'de';
+  const { format: money } = useStudioCurrency();
   const [email, setEmail] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [appliedVoucherCode, setAppliedVoucherCode] = useState<string>();
@@ -393,7 +395,7 @@ const EnhancedCheckoutPage: React.FC<EnhancedCheckoutPageProps> = ({
                     )}
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold">{baseAmount.toFixed(2)} €</p>
+                    <p className="font-semibold">{money(baseAmount)}</p>
                   </div>
                 </div>
 
@@ -405,7 +407,7 @@ const EnhancedCheckoutPage: React.FC<EnhancedCheckoutPageProps> = ({
                       <span className="text-sm">{voucherData.deliveryOption.name}</span>
                     </div>
                     <span className="text-sm font-medium">
-                      {voucherData.deliveryOption.price === 0 ? (de ? 'Kostenlos' : 'Free') : `${voucherData.deliveryOption.price.toFixed(2)} €`}
+                      {voucherData.deliveryOption.price === 0 ? (de ? 'Kostenlos' : 'Free') : money(voucherData.deliveryOption.price)}
                     </span>
                   </div>
                 </div>
@@ -419,25 +421,25 @@ const EnhancedCheckoutPage: React.FC<EnhancedCheckoutPageProps> = ({
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span>{de ? 'Zwischensumme' : 'Subtotal'}</span>
-                  <span>{baseAmount.toFixed(2)} €</span>
+                  <span>{money(baseAmount)}</span>
                 </div>
 
                 <div className="flex justify-between">
                   <span>{de ? 'Versandkosten' : 'Shipping'}</span>
-                  <span>{deliveryAmount === 0 ? (de ? 'Kostenlos' : 'Free') : `${deliveryAmount.toFixed(2)} €`}</span>
+                  <span>{deliveryAmount === 0 ? (de ? 'Kostenlos' : 'Free') : money(deliveryAmount)}</span>
                 </div>
 
                 {discount > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>{de ? 'Rabatt' : 'Discount'} ({appliedVoucherCode})</span>
-                    <span>-{discount.toFixed(2)} €</span>
+                    <span>-{money(discount)}</span>
                   </div>
                 )}
 
                 <div className="border-t pt-3">
                   <div className="flex justify-between font-semibold text-lg">
                     <span>{de ? 'Gesamtpreis' : 'Total'}</span>
-                    <span>{total.toFixed(2)} €</span>
+                    <span>{money(total)}</span>
                   </div>
                 </div>
               </div>

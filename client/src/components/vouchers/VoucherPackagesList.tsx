@@ -4,6 +4,7 @@ import { useCart } from '../../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { voucherThumbnail } from '../../lib/voucherThumbnail';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 type Voucher = {
   id: string;
@@ -20,6 +21,7 @@ type Voucher = {
 const VoucherPackagesList: React.FC<{ category?: string; limit?: number; featuredIndex?: number }> = ({ category, limit = 3, featuredIndex = 1 }) => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { format: money } = useStudioCurrency();
 
   const { data: apiProducts } = useQuery({
     queryKey: ['/api/vouchers/products'],
@@ -72,7 +74,7 @@ const VoucherPackagesList: React.FC<{ category?: string; limit?: number; feature
             <h3 className={isFeatured ? 'text-2xl font-bold mb-4' : 'text-2xl font-bold mb-4 text-purple-900'}>{v.name}</h3>
 
             <div className={isFeatured ? 'text-3xl font-bold mb-6' : 'text-3xl font-bold text-purple-600 mb-6'}>
-              €{v.price}
+              {money(v.price)}
             </div>
 
             <ul className={isFeatured ? 'space-y-3 mb-8 text-white/90' : 'space-y-3 mb-8 text-gray-700'}>

@@ -3,11 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import { useAppContext } from '../context/AppContext';
 import { CheckCircle, AlertCircle, Copy, Home, ShoppingBag, Download, User } from 'lucide-react';
+import { useStudioCurrency } from '../hooks/useStudioCurrency';
 
 const OrderCompletePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { orders, isLoggedIn } = useAppContext();
+  const { format: money } = useStudioCurrency();
   
   // Find the order
   const order = orders.find(o => o.id === id);
@@ -92,7 +94,7 @@ const OrderCompletePage: React.FC = () => {
             
             <div className="flex justify-between mb-2">
               <span className="text-gray-600">Total:</span>
-              <span className="font-medium text-gray-800">€{order.totalPrice.toFixed(2)}</span>
+              <span className="font-medium text-gray-800">{money(order.totalPrice)}</span>
             </div>
             
             <div className="flex justify-between mb-2">

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Upload, Loader2, ImageIcon, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useStudioCurrency } from '@/hooks/useStudioCurrency';
 
 interface Props {
   page: LandingPageRecord;
@@ -28,6 +29,10 @@ function heroVideoEmbedUrl(url: string): string | null {
 export default function LandingPageSettingsPanel({ page, title, onTitleChange }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  // voucher_products has no currency column, so the amount is a bare number and the
+  // currency can only come from the studio's own configuration. This product list and the
+  // price hint above it both printed a hardcoded euro sign to a studio trading in dollars.
+  const { currency, format: money } = useStudioCurrency();
   const p = page as any;
   const [voucherSlug, setVoucherSlug] = useState<string>(p.cta_voucher_slug || '');
   // Button destination when there's no voucher (e.g. school-portrait enquiries).
@@ -225,7 +230,7 @@ export default function LandingPageSettingsPanel({ page, title, onTitleChange }:
             type="number" min="0" step="1" value={offerAmount}
             onChange={(e) => setOfferAmount(e.target.value)}
             onBlur={() => saveField('cta_voucher_amount', offerAmount && Number(offerAmount) > 0 ? offerAmount : null)}
-            placeholder="€ e.g. 225"
+            placeholder={`${currency} e.g. 225`}
             className="w-24 border border-gray-300 rounded-md px-2 py-2 text-sm focus:ring-2 focus:ring-purple-500"
           />
           <input
@@ -252,7 +257,7 @@ export default function LandingPageSettingsPanel({ page, title, onTitleChange }:
         >
           <option value="">— Voucher list (/vouchers) —</option>
           {products.map(pr => (
-            <option key={pr.id} value={pr.slug}>{pr.name} — €{Number(pr.price).toFixed(0)}</option>
+            <option key={pr.id} value={pr.slug}>{pr.name} — {money(pr.price)}</option>
           ))}
         </select>
         <p className="text-xs text-gray-400">

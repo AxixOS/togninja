@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Tag, Check, X } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface VoucherCodeInputProps {
   onApplyVoucher?: (code: string) => Promise<{ success: boolean; discount?: number; message: string }>;
@@ -23,6 +24,7 @@ const VoucherCodeInput: React.FC<VoucherCodeInputProps> = ({
 }) => {
   const { language } = useLanguage();
   const de = language === 'de';
+  const { format: money } = useStudioCurrency();
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -104,7 +106,10 @@ const VoucherCodeInput: React.FC<VoucherCodeInputProps> = ({
         <p className="text-sm text-green-600 mt-1">
           {appliedVoucher.type === 'percentage'
             ? `${appliedVoucher.discount}% ${de ? 'Rabatt' : 'discount'}`
-            : `€${appliedVoucher.discount} ${de ? 'Rabatt' : 'discount'}`}
+            // CENTS. CartPage.tsx sets this as Math.round(parseFloat(x) * 100), so the
+            // major-unit value format() expects is this divided by 100. Printing the raw
+            // number put "$5,000.00" under a $50 coupon.
+            : `${money(appliedVoucher.discount / 100)} ${de ? 'Rabatt' : 'discount'}`}
         </p>
       </div>
     );

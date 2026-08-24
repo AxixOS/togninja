@@ -3,6 +3,7 @@ import { Check, ShoppingCart, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface Package {
   title: string;
@@ -24,6 +25,7 @@ const VoucherPackages: React.FC<VoucherPackagesProps> = ({ packages }) => {
   const { addItem } = useCart();
   const { language } = useLanguage();
   const de = language === 'de';
+  const { format: money } = useStudioCurrency();
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
 
@@ -66,7 +68,7 @@ const VoucherPackages: React.FC<VoucherPackagesProps> = ({ packages }) => {
             <div className="p-6">
               <h3 className="text-2xl font-bold text-purple-900 mb-2">{pkg.title}</h3>
               <p className="text-gray-600 mb-4">{pkg.subtitle}</p>
-              <div className="text-3xl font-bold text-purple-600 mb-6">€{pkg.price}</div>
+              <div className="text-3xl font-bold text-purple-600 mb-6">{money(pkg.price)}</div>
               <ul className="space-y-3 mb-6">
                 {pkg.features.map((feature, i) => (
                   <li key={i} className="flex items-center">
@@ -103,8 +105,8 @@ const VoucherPackages: React.FC<VoucherPackagesProps> = ({ packages }) => {
             <div className="mb-6">
               <p className="text-gray-600">
                 {de
-                  ? `Möchten Sie das ${selectedPackage.title} Paket (${selectedPackage.subtitle}) für €${selectedPackage.price} zum Warenkorb hinzufügen?`
-                  : `Would you like to add the ${selectedPackage.title} package (${selectedPackage.subtitle}) for €${selectedPackage.price} to your cart?`}
+                  ? `Möchten Sie das ${selectedPackage.title} Paket (${selectedPackage.subtitle}) für ${money(selectedPackage.price)} zum Warenkorb hinzufügen?`
+                  : `Would you like to add the ${selectedPackage.title} package (${selectedPackage.subtitle}) for ${money(selectedPackage.price)} to your cart?`}
               </p>
             </div>
             <div className="flex justify-end space-x-4">

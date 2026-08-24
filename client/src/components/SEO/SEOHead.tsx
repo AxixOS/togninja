@@ -3,6 +3,8 @@ import { useLocation } from 'react-router-dom';
 import { SITE } from '../../config/site';
 import { getAlternates } from '../../config/localeRoutes';
 import { useCanonicalPath } from '../../hooks/useCanonicalPath';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
+import { priceBand } from '../../utils/currency';
 
 interface SEOProps {
   title: string;
@@ -29,6 +31,9 @@ export function SEOHead({
   hreflang = []
 }: SEOProps) {
   const location = useLocation();
+  // For the priceRange band below. Read here rather than at the point of use so the hook
+  // order cannot depend on which branches the render takes.
+  const { currency } = useStudioCurrency();
 
   // Always build ABSOLUTE URLs. Fall back to the canonical origin when the
   // per-tenant config hasn't populated SITE.url yet (e.g. during the build-time
@@ -89,7 +94,11 @@ export function SEOHead({
     image: ogImageAbs,
     '@id': origin,
     url: origin,
-    priceRange: '€€',
+    // Schema.org's priceRange is a price BAND, not an amount, so format() is the wrong
+    // tool for it and this line is not the €{price} defect. It is a quieter version of the
+    // same one: a hand-written glyph, so a Shreveport studio told Google it charged in
+    // euros. The band notation is kept; only the glyph follows the studio's currency.
+    priceRange: priceBand(currency),
   };
   if (SITE.phone) structuredData.telephone = SITE.phone;
   if (SITE.email) structuredData.email = SITE.email;

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lock } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 const invoiceI18n: Record<string, Record<string, string>> = {
   en: {
@@ -144,6 +145,10 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoice, showPayButto
   console.log('📄 INVOICE TEMPLATE RECEIVED:', invoice);
   
   const { language } = useLanguage();
+  // An invoice prints the currency it was ISSUED in, so invoice.currency still wins. But
+  // the fallback for a row that carries none was the euro, which is this product's origin
+  // studio rather than this studio: a Shreveport client was emailed EUR totals.
+  const { currency: studioCurrency } = useStudioCurrency();
   const tx = (key: string) => (invoiceI18n[language] || invoiceI18n.en)[key] || invoiceI18n.en[key] || key;
   
   // State for studio configuration
@@ -208,7 +213,7 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoice, showPayButto
   // separators right, which string concatenation cannot. And it handles the zero-decimal
   // currencies that a fixed two-decimal format renders a hundred times too small.
   const formatCurrency = (amount: number, currency?: string | null) => {
-    const code = String(currency || 'EUR').toUpperCase();
+    const code = String(currency || studioCurrency || 'EUR').toUpperCase();
     const locale = language === 'en' ? 'en-GB' : 'de-DE';
     const value = Number(amount);
     if (!Number.isFinite(value)) {

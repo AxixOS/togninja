@@ -8,6 +8,7 @@ import { CheckCircle, AlertCircle, CreditCard, User, Mail, ArrowLeft } from 'luc
 import { purchaseVoucher } from '../lib/voucher';
 import { SITE } from '../config/site';
 import { useLanguage } from '../context/LanguageContext';
+import { useStudioCurrency } from '../hooks/useStudioCurrency';
 
 interface LocationState {
   quantity: number;
@@ -27,6 +28,7 @@ const CheckoutPage: React.FC = () => {
   const { items: cartItems, total: cartTotal, clearCart } = useCart();
   const { language } = useLanguage();
   const de = language === 'de';
+  const { format: money } = useStudioCurrency();
 
   const state = location.state as LocationState;
   const initialQuantity = state?.quantity || 1;
@@ -395,7 +397,7 @@ const CheckoutPage: React.FC = () => {
                       {de ? 'Verarbeitung...' : 'Processing...'}
                     </span>
                   ) : (
-                    `${de ? 'Zahlen' : 'Pay'} €${totalPrice.toFixed(2)}`
+                    `${de ? 'Zahlen' : 'Pay'} ${money(totalPrice)}`
                   )}
                 </button>
               </form>
@@ -439,14 +441,14 @@ const CheckoutPage: React.FC = () => {
                     
                     <div className="flex justify-between mb-2">
                       <span className="text-gray-600">{de ? 'Preis pro Gutschein:' : 'Price per voucher:'}</span>
-                      <span className="text-gray-800">€{voucher.discountPrice.toFixed(2)}</span>
+                      <span className="text-gray-800">{money(voucher.discountPrice)}</span>
                     </div>
                     
                     <hr className="my-4 border-gray-200" />
                     
                     <div className="flex justify-between font-bold text-lg">
                       <span>{de ? 'Gesamt:' : 'Total:'}</span>
-                      <span className="text-purple-600">€{totalPrice.toFixed(2)}</span>
+                      <span className="text-purple-600">{money(totalPrice)}</span>
                     </div>
                   </div>
                 </>
@@ -463,7 +465,7 @@ const CheckoutPage: React.FC = () => {
                         <p className="text-gray-600 text-sm">{de ? 'Menge:' : 'Quantity:'} {item.quantity}</p>
                       </div>
                       <div className="text-right">
-                        <span className="text-gray-800">€{(item.price * item.quantity).toFixed(2)}</span>
+                        <span className="text-gray-800">{money(item.price * item.quantity)}</span>
                       </div>
                     </div>
                   ))}
@@ -472,7 +474,7 @@ const CheckoutPage: React.FC = () => {
                   
                   <div className="flex justify-between font-bold text-lg">
                     <span>{de ? 'Gesamt:' : 'Total:'}</span>
-                    <span className="text-purple-600">€{totalPrice.toFixed(2)}</span>
+                    <span className="text-purple-600">{money(totalPrice)}</span>
                   </div>
                 </>
               ) : null}

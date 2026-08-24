@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Voucher } from '../../types';
 import { Calendar, Tag, Percent } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface VoucherCardProps {
   voucher: Voucher;
@@ -10,6 +11,7 @@ interface VoucherCardProps {
 
 const VoucherCard: React.FC<VoucherCardProps> = ({ voucher }) => {
   const { t } = useLanguage();
+  const { format: money } = useStudioCurrency();
   const discountPercentage = Math.round(((voucher.price - voucher.discountPrice) / voucher.price) * 100);
   
   return (
@@ -56,8 +58,8 @@ const VoucherCard: React.FC<VoucherCardProps> = ({ voucher }) => {
           
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-gray-500 line-through text-sm">€{voucher.price.toFixed(2)}</span>
-              <span className="text-purple-600 font-bold text-lg ml-2">€{voucher.discountPrice.toFixed(2)}</span>
+              <span className="text-gray-500 line-through text-sm">{money(voucher.price)}</span>
+              <span className="text-purple-600 font-bold text-lg ml-2">{money(voucher.discountPrice)}</span>
             </div>
             
             <span className="text-gray-600 text-xs">

@@ -41,8 +41,31 @@ const ALLOW = {
   // unreachable. Its key is gone with it. Do NOT re-add it for the LIVE
   // components/invoice/InvoiceTemplate.tsx — different file, and TREES does not walk
   // components/invoice at all, so it needs no entry.
-  'pages/admin/ComprehensiveReportsPage.tsx':
-    'explanatory comment about the bug this replaced',
+  // NOTE: pages/admin/ComprehensiveReportsPage.tsx was allowed here for 'an explanatory
+  // comment about the bug this replaced'. Comment lines are now stripped before counting,
+  // for every file, so the entry exempted nothing — while still standing ready to swallow
+  // a real price added to that file later. Removed. Do not re-add it for a comment.
+
+  // TogNinja's own plan ladder — the same EUR 9.99 / 19.99 / 39.99 as ProDigitalFilesPage
+  // above. What the studio pays US does not move when the studio sells in dollars, and
+  // running it through the tenant's format() would relabel a euro charge as USD 9.99.
+  'pages/MySubscriptionPage.tsx':
+    "TogNinja's own subscription pricing, not the tenant's",
+  'pages/StorageDemoPage.tsx':
+    "mock of TogNinja's own subscription pricing, not the tenant's",
+  'pages/StorageDemoIndexPage.tsx':
+    "mock of TogNinja's own subscription pricing, not the tenant's",
+
+  'pages/setup/phases/BasicsPhase.tsx':
+    'currency picker — the wizard asks which currency the studio sells in, so the EUR and ' +
+    'GBP options have to show their own signs; there is no tenant currency yet to follow',
+
+  // The one file here whose symbols are never rendered at all. formatPrice() tests whether
+  // the photographer already typed a currency into the offer field and, if so, leaves their
+  // wording alone; the class is a matcher, and narrowing it would start double-formatting
+  // prices the photographer wrote by hand.
+  'features/landing-pages/components/public/PublicLandingPageOfferSection.tsx':
+    'character class that DETECTS a currency the photographer typed; never printed',
 };
 
 const SYMBOLS = [
@@ -60,26 +83,70 @@ let allowed = 0;
 // modal, which was still printing seven euro signs at a studio configured in GBP. This
 // guard stayed green throughout, because it never looked there.
 const TREES = [
-  'client/src/pages/admin',
-  'client/src/components/admin',
-  'client/src/components/galleries',
   // The comment above says the people most affected are the ones being ASKED FOR MONEY,
   // and then this list still did not walk the pages where a client is asked. The booking
   // page (pages/public/PublicSchedulerPage.tsx) printed a hardcoded euro sign beside a
   // lucide DollarSign icon, and quoted the demo studio's USD session as EUR95. This guard
   // was green the whole time, for the second time, for the same reason.
-  'client/src/pages/public',
+  // Was pages/admin only, then pages/admin + pages/public. Both times the list named
+  // individual leaves while the sweep moved across the whole customer-facing surface, and
+  // both times the guard was green over screens that still printed a euro sign. The whole
+  // pages tree is walked now — support/, legal/, settings/, setup/ and the top-level buyer
+  // pages (CartPage, CheckoutPage, Voucher*Page, Account*Page) were never covered either.
+  'client/src/pages',
+  'client/src/components/admin',
+  'client/src/components/galleries',
+  // The components the buyer pages are assembled from. A price rendered in a child
+  // component is the same price on the same screen; walking only the page files meant a
+  // symbol moved one file down the import graph left the guard with nothing to see.
+  'client/src/components/account',
+  'client/src/components/cart',
+  'client/src/components/checkout',
+  'client/src/components/fotoshootings',
+  'client/src/components/voucher',
+  'client/src/components/vouchers',
+  'client/src/features/landing-pages',
 ];
 
-for (const f of TREES.flatMap(walk).filter((x) => /\.tsx?$/.test(x))) {
+// Deduped: TREES may name a directory and one of its ancestors, and walking a file twice
+// would double its count and double-charge the allowlist total.
+const FILES = [...new Set(TREES.flatMap(walk))].filter((x) => /\.tsx?$/.test(x));
+
+for (const f of FILES) {
   const src = fs.readFileSync(f, 'utf8');
   const rel = f.split(path.sep).join('/').replace('client/src/', '');
 
+  // Comment lines are not prices. This sweep leaves a note wherever a hardcoded symbol was
+  // removed, so widening the trees above would otherwise turn every correct fix into a
+  // failure — and a guard that fails on correct code gets switched off.
+  //
+  // Only whole comment LINES are dropped: a line that opens a comment, or one inside a
+  // block already opened. Cutting from a mid-line '//' instead would eat the tail of any
+  // line holding a URL, and a price sitting after one would vanish with it.
+  //
+  // A leading '*' counts only INSIDE a block. Treating it as a comment marker on its own
+  // looks right for a JSDoc body, but a JSDoc body is already inside a block — and it also
+  // matched wrapped JSX text such as '* All prices include VAT', which is a line a price
+  // really can sit on. A guard must not go quiet on real markup to tidy up comments.
+  let inBlock = false;
+  const code = src.split(/\r?\n/).filter((raw) => {
+    const l = raw.trim();
+    if (inBlock) {
+      if (l.includes('*/')) inBlock = false;
+      return false;
+    }
+    if (l.startsWith('/*') || l.startsWith('{/*')) {
+      if (!l.includes('*/')) inBlock = true;
+      return false;
+    }
+    return !l.startsWith('//');
+  }).join('\n');
+
   // Subtract mojibake em-dashes before counting euros.
-  const mojibake = (src.match(/â€/g) || []).length;
+  const mojibake = (code.match(/â€/g) || []).length;
 
   for (const [sym, name] of SYMBOLS) {
-    let count = (src.match(new RegExp(sym, 'g')) || []).length;
+    let count = code.split(sym).length - 1;
     if (sym === '€') count -= mojibake;
     if (count <= 0) continue;
 
@@ -90,8 +157,20 @@ for (const f of TREES.flatMap(walk).filter((x) => /\.tsx?$/.test(x))) {
     }
     bad += count;
     console.log(`  FAIL  ${rel}  ${count} hardcoded ${name} sign(s)`);
-    const line = src.split('\n').findIndex((l) => l.includes(sym) && !l.includes('â€'));
-    if (line >= 0) console.log(`          ${line + 1}: ${src.split('\n')[line].trim().slice(0, 84)}`);
+    // Reported from the ORIGINAL source so the number is the number in the editor, and
+    // matched against the stripped text so it never points at a comment.
+    const kept = new Set(code.split('\n'));
+    const all = src.split(/\r?\n/);
+    const line = all.findIndex((l) => l.includes(sym) && !l.includes('â€') && kept.has(l));
+    if (line >= 0) {
+      // Centre the excerpt on the symbol. A flat slice(0, 84) printed DraftsPhase's
+      // failure as a line of text with no currency sign anywhere in it, which reads as a
+      // bug in the guard rather than a finding.
+      const t = all[line].trim();
+      const from = Math.max(0, t.indexOf(sym) - 40);
+      const excerpt = (from ? '...' : '') + t.slice(from, from + 84) + (from + 84 < t.length ? '...' : '');
+      console.log(`          ${line + 1}: ${excerpt}`);
+    }
   }
 }
 

@@ -3,6 +3,7 @@ import VoucherPersonalization, { type VoucherPersonalizationData } from './Vouch
 import EnhancedCheckoutPage from './EnhancedCheckoutPage';
 import { ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface VoucherFlowProps {
   voucherType: string;
@@ -26,6 +27,7 @@ const VoucherFlow: React.FC<VoucherFlowProps> = ({
   initialVoucher,
 }) => {
   const { language } = useLanguage();
+  const { format: money } = useStudioCurrency();
   // Use sessionStorage to persist voucher flow state
   const getStoredStep = (): FlowStep => {
     try {
@@ -259,7 +261,7 @@ const VoucherFlow: React.FC<VoucherFlowProps> = ({
               <div className="text-sm text-gray-600 space-y-1">
                 <p>{language === 'en' ? 'Voucher' : 'Gutschein'}: {voucherType}</p>
                 <p>{language === 'en' ? 'Delivery' : 'Versandart'}: {voucherData?.deliveryOption.name}</p>
-                <p>{language === 'en' ? 'Amount' : 'Betrag'}: {baseAmount.toFixed(2)} €</p>
+                <p>{language === 'en' ? 'Amount' : 'Betrag'}: {money(baseAmount)}</p>
               </div>
             </div>
             <button

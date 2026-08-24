@@ -1,5 +1,7 @@
 import { Helmet } from 'react-helmet-async';
 import { SITE } from '../../config/site';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
+import { priceBand } from '../../utils/currency';
 
 interface ServiceSchemaProps {
   serviceName: string;
@@ -19,9 +21,17 @@ export function ServiceSchema({
   description,
   url,
   image = `${SITE.url}/og-default.jpg`,
-  priceRange = '€€',
+  priceRange,
   serviceType = 'PhotographyService'
 }: ServiceSchemaProps) {
+  // priceRange is a Schema.org price BAND, not an amount, so format() is the wrong tool
+  // for it — but the default was '€€', which put a euro band on every service page of a
+  // studio that sells in dollars. A caller that passes its own band still wins.
+  //
+  // Defaulted here and not in the destructuring above because the studio's currency is
+  // not known until the hook has run, and a hook cannot run in a parameter default.
+  const { currency } = useStudioCurrency();
+  const band = priceRange || priceBand(currency);
   const siteUrl = SITE.url;
   const fullUrl = url.startsWith('http') ? url : `${siteUrl}${url}`;
 
@@ -40,7 +50,7 @@ export function ServiceSchema({
       url: siteUrl,
       telephone: SITE.phone,
       email: SITE.email,
-      priceRange: priceRange,
+      priceRange: band,
       // Address comes from the studio's own identity, and is omitted entirely when
       // unset. This was hardcoded to Wehrgasse 11A, 1050 Wien with Vienna coordinates
       // and fixed opening hours — asserted by every instance, on every service page.

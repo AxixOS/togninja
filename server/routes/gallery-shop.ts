@@ -57,6 +57,11 @@ router.post('/checkout', async (req, res) => {
 
     // 2. Calculate total
     let totalAmount = 0;
+    // One currency for the row, the response and the confirmation message. All three
+    // used to say 'EUR' regardless of what the shop drawer had totalled.
+    const { studioCurrencyCode, formatMoney } = await import('../lib/money');
+    const orderCurrency = await studioCurrencyCode();
+
     const lineItems = data.items.map(item => {
       const product = products.find((p: any) => p.sku === item.product_sku);
       if (!product) {
@@ -83,7 +88,10 @@ router.post('/checkout', async (req, res) => {
         status, total, currency
       ) VALUES (
         ${orderId}, ${studioId}, ${data.gallery_id}, ${data.client_id},
-        'pending', ${totalAmount}, 'EUR'
+        -- The studio's own currency. This was the literal 'EUR', so a dollar studio's
+        -- print orders were RECORDED in euros while the shop drawer that produced them
+        -- totalled in dollars. The screen and the books disagreed about what was sold.
+        'pending', ${totalAmount}, ${orderCurrency}
       )
     `;
 
@@ -104,9 +112,9 @@ router.post('/checkout', async (req, res) => {
       success: true,
       order_id: orderId,
       total: totalAmount,
-      currency: 'EUR',
+      currency: orderCurrency,
       checkout_url: `/gallery/${data.gallery_id}/order/${orderId}`,
-      message: `Order created successfully for €${totalAmount.toFixed(2)}`
+      message: `Order created successfully for ${await formatMoney(totalAmount, orderCurrency)}`
     });
 
   } catch (error) {

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "@/styles/naf-hero-deals.css";
 import { useLanguage } from "@/context/LanguageContext";
 import { useCart } from "@/context/CartContext";
+import { useStudioCurrency } from "@/hooks/useStudioCurrency";
 
 type AnyObj = Record<string, any>;
 
@@ -66,11 +67,13 @@ export default function HeroDealsAuto({ items }: { items: AnyObj[] }) {
   const top3 = (items || []).slice(0, 3).map(normalize).filter(v => v.imageUrl && v.title && v.url);
   if (!top3.length) return null;
 
-  const formatter = new Intl.NumberFormat(t('heroDeals.enAt'), {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-  });
+  // The studio's currency, not a literal, and not a hardcoded Austrian locale.
+  //
+  // This component is imported by VouchersPage and never rendered, so the defect is
+  // latent — but it is exactly one `<HeroDealsAuto />` away from printing "€195,00"
+  // directly above the same voucher priced in dollars by the grid below it.
+  const { format: money } = useStudioCurrency();
+  const formatter = { format: (v: number) => money(v) };
 
   const handleBuyNow = (voucher: ReturnType<typeof normalize>) => {
     // Add to cart with productSlug for coupon validation

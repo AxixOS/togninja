@@ -21,7 +21,7 @@ const VouchersPage: React.FC = () => {
   const { selectedCategory } = useAppContext();
   const { t, language } = useLanguage();
   // Prices in the STUDIO'S currency, not a hardcoded euro sign.
-  const { format: formatPrice } = useStudioCurrency();
+  const { format: formatPrice, currency: studioCurrency } = useStudioCurrency();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = React.useState('');
 
@@ -261,7 +261,9 @@ const VouchersPage: React.FC = () => {
                   offers: {
                     '@type': 'Offer',
                     price: voucher.price,
-                    priceCurrency: 'EUR',
+                    // Google ingests this. A dollar studio was publishing every voucher
+                    // as a euro offer into rich results and shopping surfaces.
+                    priceCurrency: studioCurrency,
                     availability: 'https://schema.org/InStock',
                     url: `${SITE.url}${voucher.route}`,
                     seller: { '@type': 'Organization', name: SITE.name },

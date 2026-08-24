@@ -1,12 +1,14 @@
 import React from 'react';
 import { Order } from '../../types';
 import { Calendar, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface OrderCardProps {
   order: Order;
 }
 
 const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
+  const { format: money } = useStudioCurrency();
   // Status badge styling
   const getStatusBadge = () => {
     switch (order.status) {
@@ -56,7 +58,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
             <div>
               <p className="text-gray-600">Quantity: {order.quantity}</p>
-              <p className="text-gray-600">Total Price: <span className="font-semibold">€{(order.totalPrice || 0).toFixed(2)}</span></p>
+              <p className="text-gray-600">Total Price: <span className="font-semibold">{money(order.totalPrice)}</span></p>
             </div>
             <div>
               <p className="text-gray-600">Voucher Code: <span className="font-semibold">{order.voucherCode}</span></p>

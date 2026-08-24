@@ -9,6 +9,7 @@ import { SEOHead } from '../../components/SEO/SEOHead';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuthorityMap } from '../../hooks/useAuthorityMap';
 import { SITE } from '../../config/site';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 // Map API categories → grouped sections for the Preise page.
 // Shared with the Vouchers page categorisation so cards stay in sync.
@@ -93,12 +94,6 @@ type VoucherProduct = {
   badge?: string | null;
 };
 
-function formatPrice(value: number | undefined | null): string {
-  if (value === undefined || value === null || isNaN(value as number)) return '';
-  const rounded = Math.round(value);
-  return `€${rounded.toLocaleString('de-AT')}`;
-}
-
 function stripMarkup(text: string | undefined): string {
   if (!text) return '';
   return text.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
@@ -107,6 +102,11 @@ function stripMarkup(text: string | undefined): string {
 const PreisePage: React.FC = () => {
   const { language } = useLanguage();
   const de = language === 'de';
+  // Card prices ran through a local formatPrice() that wrote a euro sign into the string
+  // and did Math.round() with de-AT grouping, so a Shreveport studio's $195.50 package
+  // was advertised rounded and in euros. format() carries the studio's own currency and
+  // locale and keeps the minor units, so the helper is gone rather than wrapped.
+  const { format: money } = useStudioCurrency();
 
   // Fetch the same live voucher catalogue the /vouchers page uses. Pass the
   // language so product names/descriptions are server-translated (otherwise the
@@ -371,11 +371,11 @@ const PreisePage: React.FC = () => {
                         <h3 className="text-xl font-bold mb-2 text-gray-900">{product.name}</h3>
                         <div className="flex items-baseline gap-2 mb-4">
                           <span className={`text-3xl font-bold ${group.accent}`}>
-                            {formatPrice(product.price)}
+                            {money(product.price)}
                           </span>
                           {product.originalPrice && product.originalPrice > product.price && (
                             <span className="text-sm text-gray-400 line-through">
-                              {formatPrice(product.originalPrice)}
+                              {money(product.originalPrice)}
                             </span>
                           )}
                         </div>

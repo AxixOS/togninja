@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useStudioCurrency } from "@/hooks/useStudioCurrency";
 
 interface CartItem {
   product_sku: string;
@@ -24,6 +25,7 @@ interface ShopDrawerProps {
 export function ShopDrawer({ galleryId, clientId, isOpen, onClose }: ShopDrawerProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const { toast } = useToast();
+  const { format: money } = useStudioCurrency();
 
   const { data: products, isLoading } = useQuery({
     queryKey: ['/api/gallery/print-catalog'],
@@ -46,7 +48,7 @@ export function ShopDrawer({ galleryId, clientId, isOpen, onClose }: ShopDrawerP
       } else {
         toast({
           title: "Order Created",
-          description: `Order #${data.order_id} created for €${data.total}`,
+          description: `Order #${data.order_id} created for ${money(data.total)}`,
         });
       }
     },
@@ -142,7 +144,7 @@ export function ShopDrawer({ galleryId, clientId, isOpen, onClose }: ShopDrawerP
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <h5 className="font-medium">{product.name}</h5>
-                        <p className="text-sm text-gray-600">€{product.base_price}</p>
+                        <p className="text-sm text-gray-600">{money(product.base_price)}</p>
                       </div>
                       <Button 
                         size="sm" 
@@ -169,7 +171,7 @@ export function ShopDrawer({ galleryId, clientId, isOpen, onClose }: ShopDrawerP
                       <div className="flex justify-between items-center">
                         <div className="flex-1">
                           <h5 className="text-sm font-medium">{item.product_name}</h5>
-                          <p className="text-xs text-gray-600">€{item.unit_price} each</p>
+                          <p className="text-xs text-gray-600">{money(item.unit_price)} each</p>
                         </div>
                         
                         <div className="flex items-center gap-2">
@@ -205,7 +207,7 @@ export function ShopDrawer({ galleryId, clientId, isOpen, onClose }: ShopDrawerP
           <div className="border-t p-4 space-y-3">
             <div className="flex justify-between items-center text-lg font-semibold">
               <span>Total:</span>
-              <span>€{getTotalPrice().toFixed(2)}</span>
+              <span>{money(getTotalPrice())}</span>
             </div>
             
             <Button 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Upload, Check, ChevronRight, ChevronLeft, Camera, Eye, Download, ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { SITE } from '../../config/site';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface DeliveryOption {
   id: string;
@@ -52,6 +53,7 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
   onBack 
 }) => {
   const { language } = useLanguage();
+  const { format: money } = useStudioCurrency();
   const [currentStep, setCurrentStep] = useState(1);
 
   // A fixed summary bar is shown at the bottom on steps 1-3; signal the global
@@ -152,7 +154,7 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
     {
       id: 'post-standard',
       name: 'POST Standard',
-      description: '4,49 €',
+      description: money(4.49),
       price: 4.49,
       image: 'https://images.unsplash.com/photo-1566125882500-87e10f726cdc?w=400&h=300&fit=crop',
       detailedDescription: language === 'en' ? 'Colour print on 200g paper | Postal delivery (3–5 business days)' : 'Farbdruck auf 200g Papier | Versand per Post (3-5 Werktage)'
@@ -160,7 +162,7 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
     {
       id: 'post-premium',
       name: 'POST Premium',
-      description: '6,49 €',
+      description: money(6.49),
       price: 6.49,
       image: 'https://i.postimg.cc/RZ7PBrvT/firstvoucher-lettershop-premium.webp',
       detailedDescription: language === 'en' ? 'Colour print on premium 300g paper incl. matching envelope | Postal delivery (3–5 business days)' : 'Farbdruck auf hochwertigem 300g Papier inkl. passendem Umschlag | Versand per Post (3-5 Werktage)'
@@ -168,7 +170,7 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
     {
       id: 'post-geschenkbox',
       name: language === 'en' ? 'POST Gift Box' : 'POST Geschenkbox',
-      description: '34,95 €',
+      description: money(34.95),
       price: 34.95,
       image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=400&h=300&fit=crop',
       detailedDescription: language === 'en' ? 'Premium voucher in a gift box | Premium soap (250 ml) & premium chocolates | Postal delivery (3–5 business days) – Free shipping within Austria' : 'Premium-Gutschein in Geschenkbox | Premium-Seife (250 ml) & Premium-Schokoladen | Versand per Post (3-5 Werktage) - Kostenloser Versand innerhalb Österreichs'
@@ -621,7 +623,7 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
                           <p className="text-gray-600 text-sm">{language === 'en' ? '1 person, approx. 30 min' : '1 Person, ca. 30 min'}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-2xl font-bold text-blue-600">{voucherAmount},00 €</p>
+                          <p className="text-2xl font-bold text-blue-600">{money(voucherAmount)}</p>
                         </div>
                       </div>
                       
@@ -892,9 +894,9 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
 
               {/* Price */}
               <div className="mt-6 pt-4 border-t text-right">
-                <p className="text-2xl font-bold text-gray-800">{voucherAmount.toFixed(2)} €</p>
+                <p className="text-2xl font-bold text-gray-800">{money(voucherAmount)}</p>
                 {selectedDelivery && selectedDelivery.price > 0 && (
-                  <p className="text-sm text-gray-500">+ {selectedDelivery.price.toFixed(2)} € {t.shipping}</p>
+                  <p className="text-sm text-gray-500">+ {money(selectedDelivery.price)} {t.shipping}</p>
                 )}
               </div>
             </div>
@@ -947,7 +949,7 @@ const VoucherPersonalization: React.FC<VoucherPersonalizationProps> = ({
             <div className="text-right">
               <p className="text-xs text-gray-600">{t.subtotal}</p>
               <p className="font-bold">
-                {(voucherAmount + selectedDelivery.price).toFixed(2)} €
+                {money(voucherAmount + selectedDelivery.price)}
               </p>
             </div>
           </div>

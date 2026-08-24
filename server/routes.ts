@@ -8341,18 +8341,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? `${invoice.first_name} ${invoice.last_name}`
         : 'Client';
       
+      // The invoice's OWN currency, not the studio's current one: an invoice raised in
+      // euros stays in euros after the studio switches, or the email contradicts what
+      // the client actually paid. Both this and the plain-text body below used to
+      // hardcode a euro sign, so a dollar studio mailed "Amount Due: €195.00" and
+      // linked it to a page reading "$195.00".
+      const { formatMoney } = await import('./lib/money');
+      const amountDue = await formatMoney(invoice.total, (invoice as any).currency);
+
       const html = `
         <div style="font-family:system-ui;line-height:1.6">
           <p>Hello ${clientName},</p>
           <p>Please find your invoice <strong>${invoice.invoice_number}</strong> attached.</p>
-          <p><strong>Amount Due:</strong> €${(invoice.total || 0).toFixed(2)}</p>
+          <p><strong>Amount Due:</strong> ${amountDue}</p>
           <p><strong>Due Date:</strong> ${invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A'}</p>
           <p><a href="${link}" style="display:inline-block;padding:12px 24px;background-color:#7C3AED;color:white;text-decoration:none;border-radius:6px;">View Invoice</a></p>
           <p>Thank you for your business.</p>
           <p>— ${getBizName()}</p>
         </div>`;
       
-      const textContent = `Invoice ${invoice.invoice_number}\nAmount Due: €${(invoice.total || 0).toFixed(2)}\nView Invoice: ${link}`;
+      const textContent = `Invoice ${invoice.invoice_number}\nAmount Due: ${amountDue}\nView Invoice: ${link}`;
       
       // Send email using the enhanced email service
       const { EnhancedEmailService } = await import('./services/enhancedEmailService');
@@ -20817,7 +20825,11 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
         hero: { schema: '{"eyebrow": "short kicker (optional)", "headline": "main headline", "subheadline": "1-2 sentences", "ctaText": "primary button label", "secondaryCtaText": "secondary button label (optional)", "badgeText": "small badge (optional)"}' },
         trustBar: { schema: '{"items": ["4 short trust points, e.g. \\"Seit 2012 in Wien\\""]}' },
         problemSection: { schema: '{"headline": "question-style headline", "description": "2-3 sentences", "painPoints": ["3 short pain points"]}' },
-        offerSection: { schema: '{"headline": "offer name", "description": "2-3 sentences", "price": "e.g. \\"€225\\"", "inclusions": ["4-6 things included"], "urgency": "scarcity line (optional)"}' },
+        // The example price carries NO symbol on purpose. It read "€225", so the model
+        // dutifully returned euro prices for every studio — and the renderer passes a
+        // hand-typed currency straight through, so a dollar studio who pressed Regenerate
+        // got a euro price back with no layer downstream correcting it.
+        offerSection: { schema: '{"headline": "offer name", "description": "2-3 sentences", "price": "a number only, no currency symbol, e.g. \\"225\\"", "inclusions": ["4-6 things included"], "urgency": "scarcity line (optional)"}' },
         benefits: { schema: '{"title": "short section heading", "items": [{"title": "benefit", "description": "1 sentence"}]} — 4-6 items' },
         whyChooseUs: { schema: '{"headline": "section headline", "reasons": [{"title": "reason", "description": "1 sentence"}] } with 3-4 reasons' },
         inclusions: { schema: '{"title": "short section heading, e.g. \\"Das ist alles dabei\\"", "items": ["4-8 short things that are included, e.g. \\"20 bearbeitete Fotos\\""]}' },

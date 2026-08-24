@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Minus, ShoppingCart } from 'lucide-react';
 import { GalleryImage } from '../../types/gallery';
+import { useStudioCurrency } from '../../hooks/useStudioCurrency';
 
 interface Product {
   id: string;
@@ -26,6 +27,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
+  const { format: money } = useStudioCurrency();
 
   useEffect(() => {
     loadProducts();
@@ -179,7 +181,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
                                 )}
                               </div>
                               <p className="font-semibold text-green-600 ml-4">
-                                €{(typeof product.price === 'number' ? product.price : parseFloat(product.price) || 0).toFixed(2)}
+                                {money(product.price)}
                               </p>
                             </div>
                           </button>
@@ -214,7 +216,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
                         <div className="flex justify-between items-center mb-4">
                           <span className="text-gray-600">Subtotal:</span>
                           <span className="text-2xl font-bold text-gray-900">
-                            €{((typeof selectedProduct.price === 'number' ? selectedProduct.price : parseFloat(selectedProduct.price) || 0) * quantity).toFixed(2)}
+                            {money(Number(selectedProduct.price) * quantity)}
                           </span>
                         </div>
                       </div>
