@@ -66,7 +66,7 @@ const CATEGORY_GROUPS: {
     icon: <Briefcase className="w-8 h-8 text-blue-600" />,
     accent: 'text-blue-600',
     bgIcon: 'bg-blue-100',
-    match: ['business', 'portrait', 'porträt', 'bewerbung', 'team'],
+    match: ['business', 'portrait', 'porträt', 'bewerbung', 'team', 'corporate', 'headshot', 'branding'],
   },
   {
     key: 'event',
@@ -77,9 +77,35 @@ const CATEGORY_GROUPS: {
     icon: <Camera className="w-8 h-8 text-yellow-600" />,
     accent: 'text-yellow-600',
     bgIcon: 'bg-yellow-100',
-    match: ['event', 'wedding', 'hochzeit'],
+    match: ['event', 'wedding', 'hochzeit', 'engagement', 'couples'],
   },
 ];
+
+/**
+ * Anything the five groups above do not recognise.
+ *
+ * The grouping used to end with .filter(g => g.items.length > 0), which reads like it only
+ * hides empty SECTIONS — but a product whose category matched no group never entered one,
+ * so it was dropped from the page entirely with nothing to indicate it. On the live demo
+ * tenant that hid "Boudoir Photography Session" and "Milestone Photography Session":
+ * TWO OF THE STUDIO'S FOUR SERVICES were invisible on her own pricing page, while she had
+ * no way to tell, because an absent section looks exactly like a section she never made.
+ *
+ * The five groups exist for their icons and hand-written copy, so they stay. This catches
+ * everything else, and it is deliberately generic: a studio can sell anything, and a page
+ * that silently omits what it does not recognise is worse than one that lists it plainly.
+ */
+const OTHER_GROUP = {
+  key: 'other',
+  title: 'Weitere Fotoshootings',
+  titleEn: 'More Sessions',
+  subtitle: 'Alle weiteren Shootings aus unserem Angebot',
+  subtitleEn: 'Everything else we offer',
+  icon: <Camera className="w-8 h-8 text-purple-600" />,
+  accent: 'text-purple-600',
+  bgIcon: 'bg-purple-100',
+  match: [] as string[],
+};
 
 type VoucherProduct = {
   id: string;
@@ -145,7 +171,7 @@ const PreisePage: React.FC = () => {
 
   const grouped = useMemo(() => {
     const seen = new Set<string>();
-    return CATEGORY_GROUPS.map((group) => {
+    const groups = CATEGORY_GROUPS.map((group) => {
       const items = products
         .filter((p) => {
           if (seen.has(p.id)) return false;
@@ -160,6 +186,19 @@ const PreisePage: React.FC = () => {
       items.forEach((it) => seen.add(it.id));
       return { ...group, items };
     }).filter((group) => group.items.length > 0);
+
+    // Whatever the curated groups did not claim. `seen` holds every id already placed, so
+    // this is exactly the remainder — and it is appended rather than dropped.
+    const leftovers = products.filter((p) => !seen.has(p.id));
+    if (leftovers.length) {
+      leftovers.sort((a, b) => {
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        return a.price - b.price;
+      });
+      groups.push({ ...OTHER_GROUP, items: leftovers });
+    }
+    return groups;
   }, [products]);
 
   // This page had two Vienna blocks: an intro paragraph naming ten "… Wien" services and
