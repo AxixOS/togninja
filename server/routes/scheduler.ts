@@ -18,6 +18,7 @@ import {
 } from '../../shared/schema';
 import { eq, and, gte, lte, gt, lt, desc, asc, or, isNull, ne } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { sendBookingConfirmation } from '../lib/bookingEmails';
 import { 
   addMinutes, 
   addDays, 
@@ -456,10 +457,31 @@ router.put('/bookings/:bookingId/status', async (req: Request, res: Response) =>
           updatedAt: new Date()
         } as any);
 
-        // Update booking with session ID
+        // The other transition to confirmed, and the other place a client heard nothing.
+        const mailed = await sendBookingConfirmation({
+          booking: {
+            id: bookingId,
+            clientName: updated.clientName,
+            clientEmail: updated.clientEmail,
+            clientPhone: updated.clientPhone,
+            clientNotes: updated.clientNotes,
+            scheduledDate: updated.scheduledDate,
+            scheduledEndDate: updated.scheduledEndDate,
+          },
+          scheduler: {
+            name: scheduler.name, location: scheduler.location,
+            confirmationMessage: scheduler.confirmationMessage, timezone: scheduler.timezone,
+          },
+        });
+        if (mailed.problem) console.warn(`[scheduler] booking ${bookingId}: ${mailed.problem}`);
+
         await db
           .update(schedulerBookings)
-          .set({ sessionId })
+          .set({
+            sessionId,
+            confirmationSent: mailed.clientEmailed,
+            confirmationSentAt: mailed.clientEmailed ? new Date() : null,
+          })
           .where(eq(schedulerBookings.id, bookingId));
 
         updated.sessionId = sessionId;
@@ -892,10 +914,29 @@ router.post('/public/:slug/book', async (req: Request, res: Response) => {
         updatedAt: new Date()
       } as any);
 
-      // Update booking with session ID
+      // Tell the client. Nothing here sent an email before — the scheduler saved a
+      // confirmationMessage and this line recorded confirmationSent: true regardless, so
+      // the database asserted a confirmation that had never existed.
+      const mailed = await sendBookingConfirmation({
+        booking: {
+          id: bookingId, clientName, clientEmail, clientPhone, clientNotes,
+          scheduledDate: bookingStart, scheduledEndDate: bookingEnd,
+        },
+        scheduler: {
+          name: scheduler.name, location: scheduler.location,
+          confirmationMessage: scheduler.confirmationMessage, timezone: scheduler.timezone,
+        },
+      });
+      if (mailed.problem) console.warn(`[scheduler] booking ${bookingId}: ${mailed.problem}`);
+
       await db
         .update(schedulerBookings)
-        .set({ sessionId, confirmationSent: true, confirmationSentAt: new Date() })
+        // Recorded from what actually happened, not assumed.
+        .set({
+          sessionId,
+          confirmationSent: mailed.clientEmailed,
+          confirmationSentAt: mailed.clientEmailed ? new Date() : null,
+        })
         .where(eq(schedulerBookings.id, bookingId));
     }
 
