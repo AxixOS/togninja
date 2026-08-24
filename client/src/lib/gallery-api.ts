@@ -253,6 +253,33 @@ export async function updateGallery(id: string, galleryData: GalleryFormData): P
 }
 
 // Delete a gallery (admin only)
+/**
+ * When the gallery stops opening for the client. null clears it.
+ *
+ * Deliberately NOT updateGallery(): that takes a whole GalleryFormData, and a partial
+ * object passed to it is one forgotten field away from blanking a title or a password
+ * on what the studio thought was a date change. PUT /api/galleries/:id is a partial
+ * update, so sending only this key is both correct and the smallest thing that can go
+ * wrong. The server maps expiresAt -> expires_at and stores NULL for a falsy value.
+ */
+export async function setGalleryExpiry(id: string, expiresAt: string | null): Promise<void> {
+  const response = await fetch(`/api/galleries/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ expiresAt }),
+  });
+  if (!response.ok) {
+    // Carry the server's own words up to the dialog. A bare "failed" leaves the studio
+    // with a screenshot and nothing to report.
+    let detail = `HTTP ${response.status}`;
+    try {
+      const body = await response.json();
+      detail = body?.message || body?.error || detail;
+    } catch { /* not JSON */ }
+    throw new Error(detail);
+  }
+}
 export async function deleteGallery(id: string): Promise<void> {
   try {
     // console.log removed

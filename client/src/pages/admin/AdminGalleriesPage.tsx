@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Plus, Search, Filter, Eye, Edit, Trash2, Clock, MoreVertical, Mail, Flag, Image, ChevronLeft, ChevronRight, RotateCcw, HelpCircle, BookOpen, X, Globe, Lock, HardDrive, Share2 } from 'lucide-react';
-import { getGalleries, deleteGallery, restoreGallery, deleteGalleryPermanently } from '../../lib/gallery-api';
+import { getGalleries, deleteGallery, restoreGallery, deleteGalleryPermanently, setGalleryExpiry } from '../../lib/gallery-api';
 import AdvancedGalleryForm from '../../components/admin/AdvancedGalleryForm';
 import GalleryShareDialog from '../../components/admin/GalleryShareDialog';
 import { galleryPublicUrl } from '../../lib/galleryUrl';
@@ -46,7 +46,12 @@ interface Gallery {
   coverImage: string;
   status: 'active' | 'draft' | 'archived' | 'expired';
   createdAt: string;
+  // The gallery's public address. Dropped by the transform below, which meant
+  // galleryPublicUrl() was handed undefined and returned null on every row — so View
+  // silently did nothing and the Share dialog opened with no link and no QR code.
+  slug?: string;
   expiresAt?: string;
+  isPublic?: boolean;
   attachedShoot?: string;
   brand?: string;
   type?: string;
@@ -81,6 +86,7 @@ const AdminGalleriesPage: React.FC = () => {
   // Sharing used to be reachable only from the last step of the create/edit wizard, so
   // re-sending a link meant clicking through the whole wizard and re-saving the gallery.
   const [sharing, setSharing] = useState<any | null>(null);
+  const [expiring, setExpiring] = useState<Gallery | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   // Column sorting. Default newest-first, matching what the list did before.
   const [sortBy, setSortBy] = useState<keyof Gallery>('createdAt');
@@ -184,6 +190,11 @@ const AdminGalleriesPage: React.FC = () => {
       const transformedGalleries: Gallery[] = data.map((g: any) => ({
         id: g.id,
         title: g.title,
+        // A slug is a value the SERVER assigns (client/src/lib/galleryUrl.ts explains
+        // why it must never be recomputed in the browser). This object literal lists
+        // every field the page can see, so omitting one deletes it — there is no
+        // spread to fall back on.
+        slug: g.slug || g.gallery_slug || undefined,
         description: g.description || '',
         clientName: g.client_name || 'No client assigned',
         clientId: g.client_id || '',
@@ -194,6 +205,7 @@ const AdminGalleriesPage: React.FC = () => {
         status: g.is_public ? 'active' : (g.status || 'draft'),
         createdAt: g.created_at || g.createdAt,
         expiresAt: g.expires_at || g.expiresAt,
+        isPublic: Boolean(g.is_public ?? g.isPublic),
         attachedShoot: g.attached_shoot || g.attachedShoot || '',
         brand: SITE.name,
         type: 'Gallery'
@@ -799,7 +811,9 @@ const AdminGalleriesPage: React.FC = () => {
                             setSharing(gallery);
                             setOpenMenuId(null);
                           }}
-                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          disabled={!gallery.slug}
+                          title={gallery.slug ? 'Copy the link, or show the QR code' : 'This gallery has no public address yet'}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                         >
                           <Share2 size={16} className="mr-2" />
                           Share
@@ -809,27 +823,30 @@ const AdminGalleriesPage: React.FC = () => {
                             // /gallery/<uuid> resolved only because the public route
                             // falls back to an id lookup. Use the real address.
                             const url = galleryPublicUrl(gallery.slug);
-                            if (url) window.open(url, "_blank");
+                            if (url) window.open(url, "_blank", "noopener");
                             setOpenMenuId(null);
                           }}
-                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          // galleryPublicUrl returns null for a gallery with no slug, and its
+                          // docblock says callers should disable the control rather than let
+                          // the click do nothing. Silently doing nothing is what made this
+                          // look broken instead of looking not-ready.
+                          disabled={!gallery.slug}
+                          title={gallery.slug ? 'Open the gallery as a client sees it' : 'This gallery has no public address yet'}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                         >
                           <Eye size={16} className="mr-2" />
                           View
                         </button>
                         <button
-                          onClick={() => setOpenMenuId(null)}
+                          onClick={() => {
+                            setExpiring(gallery);
+                            setOpenMenuId(null);
+                          }}
+                          title={gallery.expiresAt ? 'Change or clear when this gallery stops working' : 'Stop this gallery working after a date'}
                           className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         >
                           <Clock size={16} className="mr-2" />
-                          Set Expiration
-                        </button>
-                        <button
-                          onClick={() => setOpenMenuId(null)}
-                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          <BookOpen size={16} className="mr-2" />
-                          Add to Catalog
+                          {gallery.expiresAt ? 'Change Expiry' : 'Set Expiration'}
                         </button>
                         <hr className="my-1" />
                         <button
@@ -904,6 +921,14 @@ const AdminGalleriesPage: React.FC = () => {
           </div>
         )}
 
+        {expiring && (
+          <ExpiryDialog
+            gallery={expiring}
+            onClose={() => setExpiring(null)}
+            onSaved={() => { setExpiring(null); fetchGalleries(); fetchAnalytics(); }}
+          />
+        )}
+
         {sharing && (
           <GalleryShareDialog gallery={sharing} onClose={() => setSharing(null)} />
         )}
@@ -913,3 +938,122 @@ const AdminGalleriesPage: React.FC = () => {
 };
 
 export default AdminGalleriesPage;
+
+/**
+ * When does this gallery stop working?
+ *
+ * The menu item was `onClick={() => setOpenMenuId(null)}` — it closed the menu and did
+ * nothing else, so a studio setting a delivery deadline had no way to do it and no
+ * indication that the control was a placeholder. The server side has been complete the
+ * whole time: PUT /api/galleries/:id maps expiresAt -> expires_at, and the public gallery
+ * route already returns 410 gallery_expired past that date.
+ *
+ * Presets rather than a bare date field, because "30 days from today" is the thing a
+ * photographer actually wants and making them compute the date is the sort of small
+ * friction that stops a feature being used. The exact date stays editable underneath.
+ */
+const ExpiryDialog: React.FC<{
+  gallery: Gallery;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ gallery, onClose, onSaved }) => {
+  // <input type="date"> speaks YYYY-MM-DD in LOCAL time. Building it from toISOString()
+  // would shift the date by a day for anyone west of UTC, which is every US studio.
+  const localDate = (d: Date) => {
+    const p = (v: number) => String(v).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+  const inDays = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return localDate(d);
+  };
+
+  const [value, setValue] = useState<string>(
+    gallery.expiresAt ? localDate(new Date(gallery.expiresAt)) : inDays(30),
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async (nextDate: string | null) => {
+    setSaving(true);
+    setError(null);
+    try {
+      // End of the chosen day, not midnight at its start — "expires on the 14th" means
+      // the client can still open it during the 14th.
+      const iso = nextDate ? new Date(`${nextDate}T23:59:59`).toISOString() : null;
+      await setGalleryExpiry(gallery.id, iso);
+      onSaved();
+    } catch (e: any) {
+      setError(e?.message || 'Could not save the expiry date');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900">Gallery expiry</h3>
+        <p className="mt-1 text-sm text-gray-500 truncate">{gallery.title}</p>
+
+        <p className="mt-3 text-sm text-gray-600">
+          After this date the gallery stops opening for the client and shows an expired notice.
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {[['7 days', 7], ['30 days', 30], ['90 days', 90], ['1 year', 365]].map(([label, days]) => (
+            <button
+              key={String(label)}
+              type="button"
+              onClick={() => setValue(inDays(days as number))}
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                value === inDays(days as number)
+                  ? 'border-teal-500 bg-teal-50 text-teal-700'
+                  : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-gray-500">
+          Expires on
+        </label>
+        <input
+          type="date"
+          value={value}
+          min={localDate(new Date())}
+          onChange={(e) => setValue(e.target.value)}
+          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
+        />
+
+        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+        <div className="mt-5 flex items-center justify-between gap-2">
+          {/* Clearing matters as much as setting: a studio that expired a gallery by
+              accident needs a way back that is not "recreate it". */}
+          <button
+            type="button"
+            onClick={() => save(null)}
+            disabled={saving || !gallery.expiresAt}
+            className="text-sm text-gray-500 underline hover:text-gray-700 disabled:opacity-40 disabled:no-underline"
+          >
+            Never expires
+          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} disabled={saving}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="button" onClick={() => save(value)} disabled={saving || !value}
+              className="rounded-md bg-teal-500 px-4 py-2 text-sm font-medium text-white hover:bg-teal-600 disabled:opacity-50">
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
