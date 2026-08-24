@@ -170,7 +170,14 @@ export function pillarForTopic(
   haystack: string,
 ): { pillar: AuthorityLink | null; siblings: AuthorityLink[] } {
   const hit = (map.pillars || []).find((p) => {
-    try { return new RegExp(p.match, 'i').test(haystack); } catch { return false; }
+    // An EMPTY match is not a wildcard. new RegExp('', 'i') tests true against every
+    // string, and .find() takes the first hit — so a single pillar with a blank match
+    // captured every article on the site and pointed all of them at itself. The admin
+    // "Add pillar" button creates exactly that: match: ''. An unconfigured pillar should
+    // match nothing until somebody says what it is for.
+    const pattern = typeof p?.match === 'string' ? p.match.trim() : '';
+    if (!pattern) return false;
+    try { return new RegExp(pattern, 'i').test(haystack); } catch { return false; }
   });
   if (hit) return { pillar: { href: hit.href, label: hit.label }, siblings: hit.siblings || [] };
   const d = map.defaultPillar;
@@ -189,9 +196,26 @@ export function normalizeAuthorityMap(input: any): AuthorityMap | null {
   // studio's route and is gone. Rejecting the whole map for its absence would discard a
   // studio's real pillars over a field that should not have existed.
   if (!Array.isArray(input.pillars)) return null;
+
+  // Per-pillar validation. This used to pass input.pillars straight through, so a stored
+  // map containing ['not-an-object', null, 42] was accepted and handed to consumers that
+  // immediately read .href off it. The map is JSONB written by several generators and by
+  // hand in the admin — it cannot be assumed well-formed just because it parsed.
+  const pillars = input.pillars.filter((p: any) =>
+    p && typeof p === 'object'
+    && typeof p.href === 'string' && p.href.trim()
+    && typeof p.label === 'string' && p.label.trim());
+
+  // A defaultPillar that is not a usable link is dropped rather than kept: pillarForTopic
+  // guards it, but every other consumer would have to as well.
+  const d = input.defaultPillar;
+  const defaultPillar = d && typeof d === 'object' && typeof d.href === 'string' && d.href.trim()
+    ? d
+    : null;
+
   return {
-    pillars: input.pillars,
-    defaultPillar: input.defaultPillar,
+    pillars,
+    defaultPillar,
     // Was DEFAULT_AUTHORITY_MAP.conversionLinks — so a studio whose stored map omitted
     // conversionLinks silently inherited the Vienna studio's German "Kundenstimmen /
     // Termin anfragen / Gutscheine" anchors. An absent list means no conversion links.
