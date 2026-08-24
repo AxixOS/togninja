@@ -129,7 +129,13 @@ async function main() {
     const guarded = (src.match(/router\.(get|post|put)\('[^']*',\s*requireAuth/g) || []).length;
     const publicRoutes = (src.match(/router\.(get|post)\('\/public\//g) || []).length;
     check('every non-public route requires auth', guarded >= 6, guarded + ' guarded');
-    check('exactly two public routes exist', publicRoutes === 2, publicRoutes + ' found');
+    // Named, not counted. Every entry here is token-scoped and safe to reach without a
+    // session; anything NOT here is a new hole in the public surface and fails the check.
+    const ALLOWED_PUBLIC = ['/public/:token', '/public/:token/sign', '/public/:token/pdf'];
+    const publicPaths = [...src.matchAll(/router\.(?:get|post)\('(\/public\/[^']*)'/g)].map((m) => m[1]);
+    const unexpected = publicPaths.filter((p) => !ALLOWED_PUBLIC.includes(p));
+    check('the public surface is exactly the routes we intend', unexpected.length === 0,
+      unexpected.join(', ') || publicPaths.length + ' known-public route(s)');
     check('sending is blocked on unresolved fields', /unresolved_fields/.test(src));
     check('an already-signed contract cannot be re-sent', /already been signed/.test(src));
   } finally {

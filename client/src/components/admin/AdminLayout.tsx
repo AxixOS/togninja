@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Inbox,
   ClipboardList,
+  ScrollText,
   BarChart3,
   Settings,
   Palette,
@@ -155,6 +156,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { icon: Tags, label: 'Lead Sources', path: '/admin/lead-sources' },
     { icon: Image, label: t('nav.galleriesAdmin'), path: '/admin/galleries' },
     { icon: FileText, label: t('nav.invoices'), path: '/admin/invoices' },
+    // Next to Invoices: both are the paperwork one booking generates, and a studio
+    // reaches for them in the same moment. ScrollText rather than a fourth FileText,
+    // which is already Invoices and Landing Pages and is unreadable at sidebar size
+    // once three rows share it.
+    { icon: ScrollText, label: t('nav.contracts'), path: '/admin/contracts' },
     { icon: Calculator, label: 'Accounting Export', path: '/admin/accounting' },
     { icon: TrendingUp, label: 'Price List Wizard', path: '/admin/price-wizard', badge: 'AI' },
     { icon: Calendar, label: t('nav.calendar'), path: '/admin/calendar' },

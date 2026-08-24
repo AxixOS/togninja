@@ -14,13 +14,47 @@
 //    never re-rendered.
 //  - Nothing is sent while a merge field is unresolved. A contract that reads "the retainer
 //    is [Retainer Amount]" — or worse, "the retainer is ." — must not reach a client.
+//
+// AND, once everybody has signed, BOTH SIDES GET THE EXECUTED DOCUMENT.
+//
+// The "every signer has signed" transition below used to tell nobody: the studio found out
+// by opening the admin, and the client who had just put their name to a legal agreement
+// received nothing and held no copy of what they had agreed to. server/lib/contractDelivery
+// builds the signed PDF — text plus the audit trail, which is the part that makes it a
+// record rather than a nicely formatted page — and mails it to every signer and to the
+// studio. It is best-effort and it reports honestly which copies really went, because
+// DEMO_MODE and an unconfigured mail server both look like success from the outside.
+// GET /:id/pdf and GET /public/:token/pdf are the fallback that needs no mail at all.
 import { Router, type Request, type Response } from 'express';
 import crypto from 'crypto';
 import { pool } from '../db';
 import { requireAuth } from '../auth';
 import { mergeContract, canSend, fieldsUsed } from '../../shared/contractMerge';
+import {
+  buildExecutedContract,
+  deliverExecutedContract,
+  type ContractDeliveryResult,
+} from '../lib/contractDelivery';
 
 const router = Router();
+
+/**
+ * Hand a generated PDF back.
+ *
+ * The filename comes from executedContractFilename(), which emits nothing but lowercase
+ * letters, digits and hyphens — so it cannot close the quoted string or inject a second
+ * header line, and does not need escaping here. Kept in one function so both the studio's
+ * download and the signer's cannot drift apart on the headers.
+ */
+function sendPdf(res: Response, pdf: Buffer, filename: string): void {
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Length', String(pdf.length));
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  // A signed contract is unchanging but it is also nobody else's business: no shared cache
+  // may keep a copy, and the token in the URL must not end up in one.
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.send(pdf);
+}
 
 /** Studio-side values available to every contract, read once per request. */
 async function studioValues(): Promise<Record<string, string>> {
@@ -169,6 +203,32 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * The executed copy, as a file, for the studio.
+ *
+ * Email is best-effort by design and it legitimately does not send on a demo instance, so
+ * there has to be a way to obtain the document that does not depend on mail working at
+ * all. This is it, and it re-renders from the stored row every time rather than from a
+ * cached blob — contracts.body is a snapshot and the signer rows are append-only, so the
+ * output is stable, and there is no second copy to fall out of step with the first.
+ */
+router.get('/:id/pdf', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const pkg = await buildExecutedContract(req.params.id);
+    if (!pkg) return res.status(404).json({ error: 'Contract not found.' });
+    sendPdf(res, pkg.pdf, pkg.filename);
+  } catch (e: any) {
+    if (e?.code === 'not_executed') {
+      return res.status(409).json({
+        error: 'not_executed',
+        message: 'There is no signed copy yet — everybody has to sign first.',
+      });
+    }
+    console.error('[contracts] executed pdf failed:', e?.message);
+    res.status(500).json({ error: 'Could not produce the signed copy.' });
+  }
+});
+
 /** Replace the signers on a draft. */
 router.put('/:id/signers', requireAuth, async (req: Request, res: Response) => {
   const client = await pool.connect();
@@ -284,9 +344,45 @@ router.get('/public/:token', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * The signer's own copy of the executed contract.
+ *
+ * Public, on the same capability as the signing page — the token IS the authorisation, and
+ * the person who signed is exactly the person who holds it.
+ *
+ * Deliberately NOT gated on expires_at. That column is a deadline to SIGN by; once a
+ * contract is executed, telling a client their own signed agreement has expired and they
+ * may no longer have a copy of it would be absurd.
+ */
+router.get('/public/:token/pdf', async (req: Request, res: Response) => {
+  try {
+    const r = await pool.query(
+      `SELECT id FROM contracts WHERE access_token = $1`, [req.params.token]);
+    if (!r.rows.length) return res.status(404).json({ error: 'This link is not valid.' });
+
+    const pkg = await buildExecutedContract(r.rows[0].id);
+    if (!pkg) return res.status(404).json({ error: 'This link is not valid.' });
+    sendPdf(res, pkg.pdf, pkg.filename);
+  } catch (e: any) {
+    if (e?.code === 'not_executed') {
+      return res.status(409).json({
+        error: 'not_executed',
+        message: 'The signed copy is ready once everybody has signed.',
+      });
+    }
+    console.error('[contracts] signer pdf failed:', e?.message);
+    res.status(500).json({ error: 'Could not produce your copy.' });
+  }
+});
+
 /** Sign it. */
 router.post('/public/:token/sign', async (req: Request, res: Response) => {
   const client = await pool.connect();
+  // Released explicitly once the transaction is over: delivering the executed copy can
+  // take tens of seconds against a slow mail server, and holding a pooled connection for
+  // that long starves every other request on a small pool.
+  let released = false;
+  const release = () => { if (!released) { released = true; client.release(); } };
   try {
     const { signerId, signature } = req.body || {};
     if (!signerId) return res.status(400).json({ error: 'Which signer is this?' });
@@ -306,7 +402,12 @@ router.post('/public/:token/sign', async (req: Request, res: Response) => {
     const signed = await client.query(
       `UPDATE contract_signers
           SET signed_at = NOW(), signature = $1, signed_ip = $2, signed_user_agent = $3
+        -- role <> studio: the public token is proof somebody was SENT a link, not proof of
+        -- which named party they are. The studio countersigns from the admin, authenticated.
+        -- Enforced here and not only in the page, because the page does not decide this: a
+        -- POST carrying the studio signer id would otherwise sign on their behalf.
         WHERE id = $4 AND contract_id = $5 AND signed_at IS NULL
+          AND coalesce(role, 'client') <> 'studio'
         RETURNING id`,
       [String(signature).slice(0, 4000),
        String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').slice(0, 100),
@@ -330,13 +431,42 @@ router.post('/public/:token/sign', async (req: Request, res: Response) => {
     }
 
     await client.query('COMMIT');
-    res.json({ ok: true, complete, remaining: remaining.rows[0].n });
+    release();
+
+    // ── The executed copy ─────────────────────────────────────────────────
+    //
+    // AFTER the commit, and outside the transaction, on purpose. The signature is the
+    // thing that matters and it is already durable; a mail server that is down, slow or
+    // absent must not be able to undo it. deliverExecutedContract never throws and never
+    // claims a send it did not make, so `delivery` is safe to hand straight to the caller
+    // — including the honest "nothing was emailed" a demo instance returns.
+    let delivery: ContractDeliveryResult | undefined;
+    if (complete) {
+      delivery = await deliverExecutedContract(c.id);
+      if (delivery.problem) {
+        console.warn('[contracts] executed copy not fully delivered:', delivery.problem);
+      }
+    }
+
+    // Deliberately NOT the delivery result. This endpoint is unauthenticated, and that
+    // object names every recipient the executed copy was mailed to — so returning it
+    // hands one signer the other parties' email addresses. The studio sees the detail
+    // in the admin, where they are authenticated; the signer needs only to know the
+    // document is complete. A delivery problem is logged above, not surfaced here.
+    res.json({
+      ok: true,
+      complete,
+      remaining: remaining.rows[0].n,
+      copySent: complete ? !!delivery && !delivery.problem : undefined,
+    });
   } catch (e: any) {
-    await client.query('ROLLBACK').catch(() => {});
+    // Only while the connection is still ours. Past the COMMIT it has been handed back to
+    // the pool, and rolling back there would abort somebody else's transaction.
+    if (!released) await client.query('ROLLBACK').catch(() => {});
     console.error('[contracts] sign failed:', e?.message);
     res.status(500).json({ error: 'Could not record the signature.' });
   } finally {
-    client.release();
+    release();
   }
 });
 

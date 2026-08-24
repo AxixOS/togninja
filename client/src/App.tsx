@@ -123,9 +123,16 @@ import QuestionnaireFormPage from './pages/QuestionnaireFormPage';
 import ImageTestPage from './pages/ImageTestPage';
 import BookingIndexPage from './pages/public/BookingIndexPage';
 import PublicSchedulerPage from './pages/public/PublicSchedulerPage';
+import ContractSignPage from './pages/public/ContractSignPage';
 const AdminSchedulersPage = lazyWithRetry(() => import('./pages/admin/AdminSchedulersPage'));
 const AdminAutomationsPage = lazyWithRetry(() => import('./pages/admin/AdminAutomationsPage'));
 const CalendarSyncPage = lazyWithRetry(() => import('./pages/admin/CalendarSyncPage'));
+// Contracts, the studio's side. The client's half is ContractSignPage above, which is
+// public and reached only through the token in its link.
+const ContractsPage = lazyWithRetry(() => import('./pages/admin/ContractsPage'));
+const ContractComposerPage = lazyWithRetry(() => import('./pages/admin/ContractComposerPage'));
+const ContractTemplatesPage = lazyWithRetry(() => import('./pages/admin/ContractTemplatesPage'));
+const ContractDetailPage = lazyWithRetry(() => import('./pages/admin/ContractDetailPage'));
 import CalculatorPage from './pages/CalculatorPage';
 const UnifiedSetupWizard = lazyWithRetry(() => import('./pages/setup/UnifiedSetupWizard'));
 import ScrollToTop from './components/ScrollToTop';
@@ -440,6 +447,10 @@ function App() {
                 <Route path="/book/:slug" element={<PublicSchedulerPage />} />
                 <Route path="/invoice/:invoiceId" element={<PublicInvoicePage />} />
                 <Route path="/inv/:invoiceId" element={<PublicInvoicePage />} />
+                {/* The contract a client signs. The token IS the authorisation, so the
+                    path carries nothing else - and it must match the signUrl the server
+                    hands back from POST /api/contracts/:id/send, which is /contract/<token>. */}
+                <Route path="/contract/:token" element={<ContractSignPage />} />
                 <Route path="/download-data" element={<DownloadDataPage />} />
 
                 {/* Admin routes */}
@@ -604,6 +615,41 @@ function App() {
                   element={
                     <NeonProtectedRoute>
                       <InvoicesPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                {/* Contracts. The literal paths are written before /admin/contracts/:id for
+                    readability only — React Router 6 ranks a static segment above a dynamic
+                    one whatever the order, so /new and /templates cannot be swallowed. */}
+                <Route
+                  path="/admin/contracts"
+                  element={
+                    <NeonProtectedRoute>
+                      <ContractsPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/contracts/new"
+                  element={
+                    <NeonProtectedRoute>
+                      <ContractComposerPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/contracts/templates"
+                  element={
+                    <NeonProtectedRoute>
+                      <ContractTemplatesPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/contracts/:id"
+                  element={
+                    <NeonProtectedRoute>
+                      <ContractDetailPage />
                     </NeonProtectedRoute>
                   }
                 />
