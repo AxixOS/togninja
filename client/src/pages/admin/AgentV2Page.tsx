@@ -315,7 +315,8 @@ const AgentV2Page: React.FC = () => {
               <h3 className="font-semibold text-lg">Smart Tool Execution</h3>
             </div>
             <p className="text-gray-600 text-sm">
-              10 production-ready tools with Zod validation: search, create, update, email, calendar, and invoices.
+              50 registered tools, every one with a Zod parameter schema: search, reporting,
+              create, update, email, calendar, invoices, workflows and the price wizard.
             </p>
           </div>
 
@@ -351,7 +352,8 @@ const AgentV2Page: React.FC = () => {
             <div className="border-l-4 border-red-500 pl-4">
               <h4 className="font-semibold text-red-700 mb-1">Auto-Full Mode</h4>
               <p className="text-sm text-gray-600">
-                High autonomy. Only high-risk actions require confirmation.
+                Every tool runs without asking, including sending email, sending invoices and
+                marking them paid. Nothing prompts. Turn this on only when you are watching.
               </p>
             </div>
           </div>
@@ -359,7 +361,9 @@ const AgentV2Page: React.FC = () => {
 
         {/* Available Tools */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-200">
-          <h3 className="font-semibold text-lg mb-4">Available Tools (10 Total)</h3>
+          <h3 className="font-semibold text-lg mb-4">
+            Available Tools <span className="font-normal text-gray-500 text-base">(50 registered — a representative selection below)</span>
+          </h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <h4 className="font-medium text-green-600 mb-2 flex items-center gap-2">
@@ -416,14 +420,15 @@ const AgentV2Page: React.FC = () => {
             </li>
             <li className="flex items-start gap-2">
               <span className="font-bold">4.</span>
-              <span>Check the Agent Console (coming soon) to view audit logs and session history</span>
+              <span>Open the <strong>Agent Console</strong> (Settings &rarr; Agent Console) to view audit logs and session history</span>
             </li>
           </ol>
         </div>
 
         {/* Note about V1 */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-          <strong>Note:</strong> This is Agent V2 with enhanced safety features. The legacy CRM Assistant (V1) remains available during the migration period.
+          <strong>Note:</strong> This is Agent V2. The legacy CRM Assistant (V1) has been
+          removed — <code>/admin/crm-assistant</code> now redirects to the dashboard.
         </div>
         </div>
 
