@@ -20,6 +20,12 @@ export interface SeedResult {
   seeded: number;
   skipped: number;
   reason?: string;
+  /** The currency the shipped COSTS are denominated in, when it is not the studio own. */
+  costCurrency?: string;
+  /** Seeded switched OFF, because a price could not be trusted. Needs the studio eyes. */
+  inactive?: number;
+  /** Rows with no usable cost in the sheet, left out entirely. */
+  unpriced?: number;
 }
 
 /** The default margin a studio starts on. */
@@ -47,6 +53,16 @@ export function hasStarterCatalogue(): boolean {
  * this does nothing at all once the table has rows.
  */
 export async function seedPrintCatalogue(markupPercent = DEFAULT_MARKUP_PERCENT): Promise<SeedResult> {
+  // Guard the margin HERE, not at the call site. A parameter typed number enforces
+  // nothing in this project — strictNullChecks is off — and a null arriving from a
+  // studio's unset setting would reach applyMarkup, which treats a non-finite percentage
+  // as 0 and would seed the whole catalogue at cost. That is the exact silent, expensive
+  // failure the 100% default above exists to prevent, so it cannot be reachable by
+  // passing the wrong thing in.
+  const pct = Number.isFinite(markupPercent) && markupPercent >= 0
+    ? markupPercent
+    : DEFAULT_MARKUP_PERCENT;
+
   const file = catalogueFile();
   if (!fs.existsSync(file)) {
     return { seeded: 0, skipped: 0, reason: 'No starter catalogue ships with this build.' };
@@ -72,26 +88,60 @@ export async function seedPrintCatalogue(markupPercent = DEFAULT_MARKUP_PERCENT)
   const studio = await pool.query(`SELECT id FROM studio_configs LIMIT 1`).catch(() => ({ rows: [] as any[] }));
   const studioId = studio.rows[0]?.id || null;
 
-  // The studio's own currency, not the sheet's. A GBP cost sheet seeding a USD studio
-  // would otherwise put pound prices in an American shop — the same class of defect as
-  // the euro signs that were on every checkout screen this morning.
+  // CURRENCY. This used to stamp the studio own currency onto every row and claim, in a
+  // comment right here, that doing so prevented "pound prices in an American shop". It did
+  // the opposite: the NUMBER is the lab charge in the LAB currency, and relabelling it USD
+  // does not convert it. A GBP 7.50 print became "$7.50 cost / $15.00 sell" — a 56% margin
+  // presented as 100%. In a low-unit-value currency it is not a margin error but a loss.
+  //
+  // There is no FX source in this product and inventing one would be worse, so the sheet
+  // currency is KEPT and the mismatch is surfaced instead. Prices a studio cannot trust are
+  // seeded switched OFF: a stocked shop selling at the wrong price is worse than an empty
+  // one, because nothing about it looks wrong.
   const cfg = await pool.query(`SELECT currency FROM studio_configs LIMIT 1`).catch(() => ({ rows: [] as any[] }));
-  const currency = String(cfg.rows[0]?.currency || 'EUR').toUpperCase();
+  const studioCurrency = String(cfg.rows[0]?.currency || 'EUR').toUpperCase();
+  const sheetCurrency = String(
+    parsed?.currency || products.find((p: any) => p?.currency)?.currency || studioCurrency,
+  ).toUpperCase();
+  const currency = sheetCurrency;
+  const currencyMatches = sheetCurrency === studioCurrency;
 
   let seeded = 0;
+  let inactive = 0;
+  let unpriced = 0;
   for (const p of products) {
     if (!p?.sku) continue;
-    const sell = applyMarkup(typeof p.cost === 'number' ? p.cost : parseFloat(p.cost), markupPercent);
+    const cost = typeof p.cost === 'number' ? p.cost : parseFloat(p.cost);
+    const sell = applyMarkup(cost, pct);
+
+    // A row the sheet gave no usable cost for. applyMarkup returns null here, and this
+    // used to insert it anyway, switched ON, and count it as seeded — so the studio was
+    // told "N products added, priced at cost plus 100%" about products with no price at
+    // all, which the gallery would then advertise at 0.00. Leave them out.
+    if (!Number.isFinite(cost) || sell === null || !Number.isFinite(Number(sell))) {
+      unpriced++;
+      continue;
+    }
+
+    // Live only if the money is in the studio own currency. Otherwise the product is
+    // real, the price is not yet, and they must look before they sell.
+    const isActive = currencyMatches;
+    if (!isActive) inactive++;
     try {
       await pool.query(
         `INSERT INTO print_products
            (studio_id, sku, name, description, category, base_price, currency,
             width_inches, height_inches, attributes, is_active)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
          ON CONFLICT (sku) DO NOTHING`,
         [studioId, p.sku, p.name || p.sku, p.description || null, p.category || null,
          sell, currency, p.widthInches ?? null, p.heightInches ?? null,
-         JSON.stringify(p.attributes || {})],
+         // What the lab charges, kept beside the product. base_price is the SELL price
+         // and print_products has no cost column, so without this the studio can see
+         // what they charge but never what they make — and a margin they cannot see is
+         // one they will not adjust.
+         JSON.stringify({ ...(p.attributes || {}), cost }),
+         isActive],
       );
       seeded++;
     } catch {
@@ -99,5 +149,11 @@ export async function seedPrintCatalogue(markupPercent = DEFAULT_MARKUP_PERCENT)
     }
   }
 
-  return { seeded, skipped: 0 };
+  return {
+    seeded,
+    skipped: 0,
+    inactive,
+    unpriced,
+    costCurrency: currencyMatches ? undefined : sheetCurrency,
+  };
 }

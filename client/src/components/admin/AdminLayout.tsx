@@ -48,7 +48,8 @@ import {
   Zap,
   Camera,
   RefreshCw,
-  Trash2
+  Trash2,
+  Printer
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -155,6 +156,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { icon: Crown, label: t('nav.topClients'), path: '/admin/high-value-clients' },
     { icon: Tags, label: 'Lead Sources', path: '/admin/lead-sources' },
     { icon: Image, label: t('nav.galleriesAdmin'), path: '/admin/galleries' },
+    // Directly under Galleries because that is where a client orders a print from, so the
+    // two are read together — and because this list was previously reachable only from
+    // the bottom of a settings page about API keys, which is not where anyone looks for
+    // the things they sell. Printer is already this product's print glyph (the Prodigi
+    // settings tile and page both use it) and nothing else in the sidebar claims it.
+    { icon: Printer, label: 'Print Products', path: '/admin/print-products' },
     { icon: FileText, label: t('nav.invoices'), path: '/admin/invoices' },
     // Next to Invoices: both are the paperwork one booking generates, and a studio
     // reaches for them in the same moment. ScrollText rather than a fourth FileText,

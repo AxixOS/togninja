@@ -12,6 +12,7 @@ import { config } from '../config-reader';
 import { printStoreEnabled } from '../lib/requirePrintAccess';
 import { parseProdigiSheet, applyMarkup } from '../lib/prodigiSheet';
 import { studioProdigiAccount, catalogueProdigiAccount, connectAccountRequired } from '../lib/prodigiAccount';
+import { seedPrintCatalogue, hasStarterCatalogue } from '../lib/seedPrintCatalogue';
 import { createPrintCheckoutSession } from '../lib/printCheckout';
 
 const router = Router();
@@ -198,10 +199,221 @@ router.get('/catalog', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `SELECT id, sku, name, description, category, base_price, currency,
-              width_inches, height_inches, is_active, sort_order
+              width_inches, height_inches, is_active, sort_order, attributes
        FROM print_products ORDER BY sort_order, name`,
     );
-    res.json({ products: result.rows.map((p: any) => ({ ...p, basePrice: p.base_price != null ? parseFloat(p.base_price) : null })) });
+    // base_price is the SELL price. What the lab charges is carried in attributes.cost,
+    // because print_products has no cost column — so the seeder and the sheet importer
+    // both record it there and the admin screen can show margin instead of asking the
+    // studio to remember what they paid.
+    res.json({
+      products: result.rows.map((p: any) => ({
+        ...p,
+        basePrice: p.base_price != null ? parseFloat(p.base_price) : null,
+        cost: costOf(p.attributes),
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** The lab cost recorded beside a product, or null. Never 0 — a zero-cost product is an
+ *  unpriced one, and showing it as free is how a studio gives prints away. */
+function costOf(attributes: any): number | null {
+  const raw = attributes && typeof attributes === 'object' ? (attributes as any).cost : null;
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw ?? ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+// ── Where the studio's markup lives ──────────────────────────────────────────────────
+//
+// Markup is the only number in this feature that is studio POLICY rather than a fact
+// about a product: it decides what everything stocked or imported from now on sells for.
+// Until now it existed for the length of one request — POST /catalog/import read it off
+// the body and threw it away — so stocking the shop and the next pricing sheet could
+// silently disagree about margin, and the studio had nowhere to state their answer once.
+//
+// It belongs on studio_integrations, beside prodigi_api_key_encrypted and
+// prodigi_environment: same feature, same tenant row, same lifetime. Two facts about this
+// codebase decide HOW it is read and written:
+//
+//   1. There is no prodigi_markup_percent in shared/schema.ts, and config-reader loads
+//      studio_integrations with a Drizzle select, which returns only mapped columns. So
+//      config.get('prodigi_markup_percent') cannot see this value, and a Drizzle
+//      .set({ prodigi_markup_percent }) would drop the key rather than fail. Everything
+//      below therefore goes through pool.query with the column named explicitly.
+//   2. The column is added the way every other late column in this image is added, an
+//      idempotent ALTER ... ADD COLUMN IF NOT EXISTS. Run on first use rather than at
+//      boot so it also lands on an instance whose boot-time table audit predates it.
+const DEFAULT_MARKUP_PERCENT = 100;
+const MARKUP_MAX_PERCENT = 1000;
+
+/** Keep a typed percentage inside what a price can survive. */
+function clampMarkup(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_MARKUP_PERCENT;
+  return Math.min(MARKUP_MAX_PERCENT, Math.max(0, Math.round(n * 100) / 100));
+}
+
+let markupColumnReady: Promise<void> | null = null;
+function ensureMarkupColumn(): Promise<void> {
+  if (!markupColumnReady) {
+    markupColumnReady = pool
+      .query('ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS prodigi_markup_percent numeric')
+      .then(() => undefined)
+      .catch((e: any) => {
+        // A database that refuses the column must still leave the page usable on the
+        // default, and the next request should get another go rather than inheriting one
+        // failure for the life of the process.
+        console.warn('[Prodigi] could not add studio_integrations.prodigi_markup_percent:', e?.message);
+        markupColumnReady = null;
+      });
+  }
+  return markupColumnReady;
+}
+
+/** The studio's markup, or the default. Never null — callers price with this. */
+async function getMarkupPercent(): Promise<number> {
+  try {
+    await ensureMarkupColumn();
+    const r = await pool.query('SELECT prodigi_markup_percent AS pct FROM studio_integrations LIMIT 1');
+    const raw = r.rows[0]?.pct;
+    if (raw === null || raw === undefined || raw === '') return DEFAULT_MARKUP_PERCENT;
+    const n = Number(raw);
+    return Number.isFinite(n) ? clampMarkup(n) : DEFAULT_MARKUP_PERCENT;
+  } catch (e: any) {
+    console.warn('[Prodigi] markup lookup failed, using the default:', e?.message);
+    return DEFAULT_MARKUP_PERCENT;
+  }
+}
+
+/** Write the markup. Returns false when there was no row to write it to. */
+async function setMarkupPercent(pct: number): Promise<boolean> {
+  await ensureMarkupColumn();
+  const updated = await pool.query('UPDATE studio_integrations SET prodigi_markup_percent = $1', [pct]);
+  if (updated.rowCount && updated.rowCount > 0) return true;
+
+  // Nothing has been connected on this instance yet, so studio_integrations is empty.
+  // Create the single row the rest of the app already assumes is there.
+  const inserted = await pool.query(
+    'INSERT INTO studio_integrations (studio_id, prodigi_markup_percent) SELECT id, $1 FROM studios LIMIT 1',
+    [pct],
+  );
+  return Boolean(inserted.rowCount && inserted.rowCount > 0);
+}
+
+/** How many products the studio has, and how many a buyer can actually see. */
+async function countProducts(): Promise<{ total: number; active: number }> {
+  const r = await pool.query(
+    'SELECT count(*)::int AS total, COALESCE(sum(CASE WHEN is_active THEN 1 ELSE 0 END), 0)::int AS active FROM print_products',
+  );
+  return { total: r.rows[0]?.total ?? 0, active: r.rows[0]?.active ?? 0 };
+}
+
+/** The studio's own currency. studio_configs.currency is the live column; the
+ *  default_currency that shared/schema.ts declares does not exist in the database. */
+async function studioCurrency(): Promise<string> {
+  try {
+    const r = await pool.query('SELECT currency FROM studio_configs LIMIT 1');
+    return String(r.rows[0]?.currency || 'EUR').toUpperCase();
+  } catch {
+    return 'EUR';
+  }
+}
+
+/**
+ * GET /catalog/status — everything the Print Products screen needs to tell the truth
+ * before the studio touches anything.
+ *
+ * ordering.ready is the same question the 402 answers, asked before there is an order to
+ * refuse. The wording and the link come from connectAccountRequired() either way, so the
+ * screen cannot drift from the refusal the studio will meet later.
+ */
+router.get('/catalog/status', async (_req: Request, res: Response) => {
+  try {
+    const [counts, markupPercent, currency, own] = await Promise.all([
+      countProducts(),
+      getMarkupPercent(),
+      studioCurrency(),
+      studioProdigiAccount(),
+    ]);
+    const required = connectAccountRequired();
+    res.json({
+      products: counts,
+      currency,
+      markupPercent,
+      defaultMarkupPercent: DEFAULT_MARKUP_PERCENT,
+      maxMarkupPercent: MARKUP_MAX_PERCENT,
+      starterCatalogue: { available: hasStarterCatalogue() },
+      ordering: own.apiKey
+        ? { ready: true }
+        : { ready: false, message: required.message, settingsPath: required.settingsPath },
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /catalog/markup — the margin every future stock/import prices at.
+router.post('/catalog/markup', async (req: Request, res: Response) => {
+  try {
+    // strictNullChecks is off here, so a null body value would pass through Number() as 0
+    // and be stored as "sell at cost". Look at the raw value before trusting the number.
+    const raw = req.body?.markupPercent;
+    const usable = typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '');
+    const n = usable ? Number(raw) : NaN;
+    if (!Number.isFinite(n) || n < 0 || n > MARKUP_MAX_PERCENT) {
+      return res.status(400).json({
+        error: 'invalid_markup',
+        message: 'Enter a markup between 0 and ' + MARKUP_MAX_PERCENT
+          + ' percent. 100 means you sell at double what the lab charges you.',
+      });
+    }
+
+    const pct = clampMarkup(n);
+    const saved = await setMarkupPercent(pct);
+    const stored = await getMarkupPercent();
+    if (!saved || stored !== pct) {
+      return res.status(500).json({
+        error: 'markup_not_saved',
+        message: 'The markup could not be stored, so nothing changed. Finish the studio setup, then set it here.',
+      });
+    }
+    res.json({ ok: true, markupPercent: stored });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /catalog/seed — stock an empty shop from the catalogue that ships in this build.
+ *
+ * No Prodigi call and no key of any kind: this copies a file that is already in the image
+ * into the studio's own rows and applies their markup. Browsing and stocking stay free;
+ * the account question arrives at the order, which is the only place it is anyone's
+ * business.
+ *
+ * seedPrintCatalogue refuses to touch a table that already has rows, and says why. That
+ * reason is handed straight back rather than flattened into "success" — a studio who
+ * clicks this twice needs to know the second click changed nothing.
+ */
+router.post('/catalog/seed', async (_req: Request, res: Response) => {
+  try {
+    const before = await countProducts();
+    const markupPercent = await getMarkupPercent();
+    const result = await seedPrintCatalogue(markupPercent);
+    const [after, currency] = await Promise.all([countProducts(), studioCurrency()]);
+    res.json({
+      ok: true,
+      seeded: result.seeded,
+      skipped: result.skipped,
+      reason: result.reason,
+      markupPercent,
+      currency,
+      products: after,
+      changed: after.total !== before.total,
+      starterCatalogue: { available: hasStarterCatalogue() },
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -210,15 +422,23 @@ router.get('/catalog', async (_req: Request, res: Response) => {
 // POST /catalog — add a product (validate SKU via Prodigi; studio sets the sell price).
 router.post('/catalog', async (req: Request, res: Response) => {
   try {
-    const { sku, name, basePrice, currency = 'EUR', category = 'prints', validate = true } = req.body;
+    const { sku, name, basePrice, category = 'prints', validate = true } = req.body;
     if (!sku) return res.status(400).json({ error: 'SKU is required' });
+    // The studio's own currency when the caller does not name one. The default here was
+    // 'EUR', which is only ever right for some studios; a euro sign on an American shop
+    // is a defect this project has already paid for once.
+    const currency = String(req.body?.currency || (await studioCurrency())).toUpperCase();
 
     let details: any = { name: name || sku, description: '', widthInches: null, heightInches: null, attributes: {} };
+    // Whether the SKU was actually CHECKED, as opposed to merely accepted. Reported back
+    // so the caller can say which of the two happened instead of implying the stronger one.
+    let skuVerified = false;
     if (validate) {
       const { apiKey } = await getProdigiConfig();
       if (apiKey) {
         try {
           details = { ...details, ...(await fetchProdigiProduct(sku)) };
+          skuVerified = true;
         } catch (e: any) {
           return res.status(400).json({ error: `Prodigi could not find SKU "${sku}": ${e?.message || 'lookup failed'}` });
         }
@@ -227,15 +447,42 @@ router.post('/catalog', async (req: Request, res: Response) => {
 
     const studioRow = await pool.query('SELECT id FROM studio_configs LIMIT 1');
     const studioId = studioRow.rows[0]?.id || null;
-    const result = await pool.query(
-      `INSERT INTO print_products
-         (studio_id, sku, name, description, category, base_price, currency, width_inches, height_inches, attributes, is_active)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true) RETURNING id`,
-      [studioId, sku, name || details.name, details.description, category,
-       basePrice != null ? parseFloat(basePrice) : null, currency, details.widthInches, details.heightInches,
-       JSON.stringify(details.attributes || {})],
-    );
-    res.json({ ok: true, id: result.rows[0].id });
+    // is_active follows the PRICE. This hardcoded true, so a product added with the price
+    // box left blank went on sale immediately at no price — and the gallery advertises
+    // those at 0.00. A product nobody has priced is a draft, not an offer.
+    const price = basePrice != null && String(basePrice).trim() !== '' ? parseFloat(basePrice) : null;
+    const priced = price != null && Number.isFinite(price) && price > 0;
+
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO print_products
+           (studio_id, sku, name, description, category, base_price, currency, width_inches, height_inches, attributes, is_active)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+        [studioId, sku, name || details.name, details.description, category,
+         priced ? price : null, currency, details.widthInches, details.heightInches,
+         JSON.stringify(details.attributes || {}), priced],
+      );
+    } catch (e: any) {
+      // print_products.sku carries a unique index, and this used to surface the raw
+      // driver text ("duplicate key value violates unique constraint ...") straight into
+      // the studio's screen. Say what happened in their terms.
+      if (String(e?.code) === '23505' || /duplicate key|unique constraint/i.test(String(e?.message))) {
+        return res.status(409).json({
+          error: 'sku_exists',
+          message: `You already have a product with the SKU "${sku}".`,
+        });
+      }
+      throw e;
+    }
+
+    res.json({
+      ok: true,
+      id: result.rows[0].id,
+      // Both stated plainly, because the page shows different copy for each.
+      skuVerified,
+      isActive: priced,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -253,7 +500,15 @@ router.post('/catalog', async (req: Request, res: Response) => {
 router.post('/catalog/import', async (req: Request, res: Response) => {
   try {
     const text = String(req.body?.sheet || '');
-    const markupPercent = Number(req.body?.markupPercent ?? 100);
+    // The studio's saved margin is the default, so an import and a "stock my shop" price
+    // the same way; an explicit value in the body still wins for a one-off. The raw value
+    // is inspected first because strictNullChecks is off here and Number(null) is 0 —
+    // which would import an entire pricing sheet at cost.
+    const rawMarkup = req.body?.markupPercent;
+    const markupGiven =
+      (typeof rawMarkup === 'number' || (typeof rawMarkup === 'string' && rawMarkup.trim() !== ''))
+      && Number.isFinite(Number(rawMarkup));
+    const markupPercent = markupGiven ? clampMarkup(Number(rawMarkup)) : await getMarkupPercent();
     const currency = String(req.body?.currency || 'GBP');
     const category = String(req.body?.category || 'prints');
     const dryRun = req.body?.dryRun === true;
@@ -320,7 +575,8 @@ router.post('/catalog/import', async (req: Request, res: Response) => {
              attributes = EXCLUDED.attributes
            RETURNING id, sku`,
           [studioId, row.sku, details.name, details.description, category, sellPrice, currency,
-           details.widthInches, details.heightInches, JSON.stringify(details.attributes || {})],
+           details.widthInches, details.heightInches,
+           JSON.stringify({ ...(details.attributes || {}), cost: row.cost ?? null })],
         );
         created.push({ id: result.rows[0].id, sku: row.sku, name: details.name, cost: row.cost, sellPrice });
       } catch (e: any) {

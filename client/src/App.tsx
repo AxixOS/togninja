@@ -98,6 +98,7 @@ const CalculatorSettingsPage = lazyWithRetry(() => import('./pages/admin/setting
 const PulseSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/PulseSettingsPage'));
 const ShootCleanerSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/ShootCleanerSettingsPage'));
 const ProdigiSettingsPage = lazyWithRetry(() => import('./pages/admin/settings/ProdigiSettingsPage'));
+const PrintProductsPage = lazyWithRetry(() => import('./pages/admin/PrintProductsPage'));
 const ManualWebsiteUpdatePage = lazyWithRetry(() => import('./pages/admin/ManualWebsiteUpdatePage'));
 const WebsiteStudioPage = lazyWithRetry(() => import('./pages/admin/WebsiteStudioPage'));
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -838,6 +839,25 @@ function App() {
                   element={
                     <NeonProtectedRoute>
                       <ProdigiSettingsPage />
+                    </NeonProtectedRoute>
+                  }
+                />
+                {/* connectAccountRequired() in server/lib/prodigiAccount.ts hands the UI
+                    the settings path to link to, and names it there so one string cannot
+                    drift across screens. That string is /admin/settings/technical-setup
+                    and no route has ever answered it, so every screen that did the right
+                    thing and followed the server's link landed on a 404. Answer it here
+                    rather than correcting the path in each client: the fix then covers
+                    the screens nobody has written yet too. */}
+                <Route
+                  path="/admin/settings/technical-setup"
+                  element={<Navigate to="/admin/settings/prodigi" replace />}
+                />
+                <Route
+                  path="/admin/print-products"
+                  element={
+                    <NeonProtectedRoute>
+                      <PrintProductsPage />
                     </NeonProtectedRoute>
                   }
                 />
