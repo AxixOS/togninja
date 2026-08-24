@@ -139,6 +139,10 @@ export const studioConfigs = pgTable("studio_configs", {
   // exists in the database and Drizzle drops undeclared keys on .set() without error,
   // which would erase it on the first unrelated write to this row.
   authorityMap: jsonb("authority_map"),
+  // Studio-level document design defaults. Declared here as well as in the boot DDL because
+  // Drizzle silently drops keys the model does not know, so a settings save would report
+  // success and write nothing.
+  documentDesign: jsonb("document_design"),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

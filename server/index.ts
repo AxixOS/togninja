@@ -594,6 +594,10 @@ app.use((req, res, next) => {
         // Why a Price Wizard run failed. Without it "failed" is undiagnosable by anyone,
         // including whoever is trying to help.
         await db.execute(sql`ALTER TABLE price_wizard_sessions ADD COLUMN IF NOT EXISTS error_message TEXT`);
+        // The studio-level document design defaults: header image, the cover-image library,
+        // and whether to prefer the client own gallery. Per-document overrides use the same
+        // shape, so one merge covers both (see server/lib/documentHeader.ts).
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS document_design JSONB`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_api_key_encrypted TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_place_id TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS pulse_api_key_encrypted TEXT`);
