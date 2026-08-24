@@ -18,7 +18,7 @@ import { eq, desc, gte } from "drizzle-orm";
 import { ToolContext, ConfirmRequiredError, AuthzError, ValidationError } from "../../agent/v2/core/Types";
 import { selectTools } from "../../agent/v2/core/selectTools";
 import { listOpenAITools, executeTool, getStats } from "../../agent/v2/core/ToolBus";
-import { getRecommendedMode } from "../../agent/v2/core/Guardrails";
+import { getRecommendedMode, resolveMode } from "../../agent/v2/core/Guardrails";
 import OpenAI from "openai";
 
 // Import tools to register them with ToolBus
@@ -72,7 +72,7 @@ async function getOpenAI(): Promise<OpenAI | null> {
  */
 router.post("/chat", async (req: Request, res: Response) => {
   try {
-    const { message, sessionId, mode } = req.body;
+    const { message, sessionId, mode, confirm } = req.body;
     
     // Validate input
     if (!message || typeof message !== "string") {
@@ -100,7 +100,50 @@ router.post("/chat", async (req: Request, res: Response) => {
     const scopes = getUserScopes(userRole);
     
     // Determine execution mode
-    const executionMode = mode || getRecommendedMode(userRole);
+    // Clamped to the role ceiling. `mode` arrives in the request body, so without this a
+    // viewer could send { mode: "auto_full" } and auto-approve every guardrail.
+    const executionMode = resolveMode(mode, userRole);
+
+    // A HUMAN APPROVING A TOOL THE AGENT ASKED TO RUN.
+    //
+    // Until now there was no way to answer "Confirmation needed". The guardrail threw
+    // ConfirmRequiredError, the endpoint returned confirmRequired:true, and nothing on
+    // any reachable screen could say yes — so every risky tool was permanently stuck.
+    // The one component that could (AgentConfirmModal) is imported only by an orphaned
+    // page, and the key it sent (confirmedArgs) was read by nobody.
+    //
+    // __confirm is injected HERE, server-side, on a request a person made. It is still
+    // stripped from the schema the model sees (ToolBus.listOpenAITools), so the model
+    // cannot approve itself — only this path can, and only for the tool named.
+    if (confirm && typeof confirm === "object" && typeof confirm.tool === "string") {
+      const approveCtx: ToolContext = {
+        userId, studioId, scopes,
+        mode: resolveMode(mode, userRole) as any,
+        sessionId: sessionId || `sess_${randomUUID()}`,
+      } as any;
+      try {
+        const approved = await executeTool(approveCtx, confirm.tool, {
+          ...(confirm.args || {}),
+          __confirm: true,
+        });
+        return res.json({
+          sessionId: sessionId || null,
+          confirmed: true,
+          tool: confirm.tool,
+          ok: approved?.ok !== false,
+          message: approved?.ok === false
+            ? `That did not work: ${approved?.error || "unknown error"}`
+            : `Done — ${confirm.tool.replace(/_/g, " ")}.`,
+          result: approved,
+        });
+      } catch (e: any) {
+        return res.status(400).json({
+          sessionId: sessionId || null,
+          confirmed: false,
+          error: e?.message || "Could not run that action.",
+        });
+      }
+    }
     
     // Create or load session
     let currentSessionId = sessionId;

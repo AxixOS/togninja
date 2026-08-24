@@ -12,6 +12,14 @@ const AgentChatWidget: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('checking');
+
+  // A tool the agent wants to run and a person has not yet approved.
+  //
+  // The widget asks for auto_safe, so the server answers risky tools with
+  // confirmRequired — and there was nothing here to read it. The reply fell through to
+  // the plain-text branch, so the studio saw "Confirmation needed: this action is medium
+  // risk" and had no way whatsoever to say yes. Every write tool was stuck.
+  const [pending, setPending] = useState<{ tool: string; args: any; reason: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const retryCountRef = useRef(0);
   const maxRetries = 3;
@@ -236,6 +244,13 @@ const AgentChatWidget: React.FC = () => {
         setSessionId(result.sessionId);
       }
       
+      // The agent is asking permission. Hold the tool and render the approval.
+      if (result.confirmRequired) {
+        setPending({ tool: result.tool, args: result.args, reason: result.reason || result.message });
+        setMessages(prev => [...prev, { role: 'assistant', content: result.message || 'This needs your approval.' }]);
+        return;
+      }
+
       if (result.message) {
         setMessages(prev => [...prev, { role: 'assistant', content: result.message }]);
       } else if (result.error) {
@@ -278,6 +293,36 @@ const AgentChatWidget: React.FC = () => {
         <Icon className={`w-3 h-3 ${connectionStatus === 'reconnecting' ? 'animate-spin' : ''}`} />
       </div>
     );
+  };
+
+  /** Run the tool the agent asked for. __confirm is added server-side, on this request. */
+  const approvePending = async () => {
+    if (!pending) return;
+    const toRun = pending;
+    setPending(null);
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/agent/v2/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ sessionId, confirm: { tool: toRun.tool, args: toRun.args } }),
+      });
+      const result = await response.json().catch(() => ({}));
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: result.message || result.error || 'That did not complete.',
+      }]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Could not reach the server to run that.' }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const declinePending = () => {
+    setPending(null);
+    setMessages(prev => [...prev, { role: 'assistant', content: 'Left it alone.' }]);
   };
 
   // Floating button when closed. Draggable, because parked bottom-right it sat on top
@@ -464,6 +509,41 @@ const AgentChatWidget: React.FC = () => {
 
             {/* Input area */}
             <div className="p-3 border-t border-gray-200 bg-white flex-shrink-0">
+              {/* The approval the agent is waiting on.
+
+                  Deliberately above the input and impossible to miss: this is the moment
+                  a person takes responsibility for something the agent is about to do to
+                  their business — send an email, create an invoice, write to the CRM. */}
+              {pending && (
+                <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+                  <p className="text-sm font-medium text-amber-900">
+                    Run <span className="font-mono">{pending.tool.replace(/_/g, ' ')}</span>?
+                  </p>
+                  {pending.reason && (
+                    <p className="mt-1 text-xs text-amber-800">{pending.reason}</p>
+                  )}
+                  {pending.args && Object.keys(pending.args).length > 0 && (
+                    <pre className="mt-2 max-h-32 overflow-auto rounded bg-white/70 p-2 text-[11px] text-amber-900">
+                      {JSON.stringify(pending.args, null, 2)}
+                    </pre>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={approvePending}
+                      className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+                    >
+                      Yes, do it
+                    </button>
+                    <button
+                      onClick={declinePending}
+                      className="rounded-lg border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleNewSession}

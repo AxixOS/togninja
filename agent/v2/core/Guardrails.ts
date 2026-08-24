@@ -108,25 +108,63 @@ function checkMode(
   }
 }
 
+export type ExecutionMode = "read_only" | "auto_safe" | "auto_full";
+
+const MODE_RANK: Record<ExecutionMode, number> = { read_only: 0, auto_safe: 1, auto_full: 2 };
+
 /**
- * Get recommended mode for a user based on their role
- * This is a helper for the frontend to suggest appropriate modes
+ * The most permissive mode a role may EVER run in.
+ *
+ * Separate from the default below, because the two answer different questions: what is
+ * this person allowed to ask for, versus what do they get if they ask for nothing.
  */
-export function getRecommendedMode(userRole: string): "read_only" | "auto_safe" | "auto_full" {
+export function getMaxMode(userRole: string): ExecutionMode {
   switch (userRole) {
     case "admin":
     case "owner":
-      return "auto_full"; // Admins can auto-approve
-    
+      return "auto_full";        // may opt in, deliberately, per request
     case "photographer":
     case "manager":
-      return "auto_safe"; // Staff needs confirmations
-    
-    case "viewer":
-    case "client":
+      return "auto_safe";
     default:
-      return "read_only"; // Restricted users
+      return "read_only";
   }
+}
+
+/**
+ * The mode a user gets when they do not ask for one.
+ *
+ * owner and admin used to default to auto_full, which auto-approves EVERY risky tool.
+ * The studio owner is exactly the person whose agent can send email, create invoices and
+ * write to the CRM, and they were the one person never asked to confirm any of it. The
+ * confirmation machinery existed and simply never ran for them.
+ *
+ * They can still opt into auto_full explicitly. It is no longer what happens by default.
+ */
+export function getRecommendedMode(userRole: string): ExecutionMode {
+  switch (userRole) {
+    case "admin":
+    case "owner":
+    case "photographer":
+    case "manager":
+      return "auto_safe";
+    default:
+      return "read_only";
+  }
+}
+
+/**
+ * Resolve the mode for a request, never exceeding what the role permits.
+ *
+ * The chat endpoint read `mode` straight out of req.body and passed it through. A viewer
+ * — whose ceiling is read_only — could send { mode: "auto_full" } and have every
+ * guardrail auto-approve. The mode is a request, not an instruction.
+ */
+export function resolveMode(requested: unknown, userRole: string): ExecutionMode {
+  const ceiling = getMaxMode(userRole);
+  const asked = String(requested || "") as ExecutionMode;
+  if (!(asked in MODE_RANK)) return getRecommendedMode(userRole);
+  return MODE_RANK[asked] <= MODE_RANK[ceiling] ? asked : ceiling;
 }
 
 /**
