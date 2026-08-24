@@ -1030,7 +1030,21 @@ app.use((req, res, next) => {
       // Auto-detect: if existing instance already has key infra, mark setup complete
       // Uses raw SQL to avoid Drizzle column-mapping failures if columns don't exist yet
       try {
-        const adminCheck = await db.execute(sql`SELECT EXISTS(SELECT 1 FROM admin_users LIMIT 1) AS has_admin`);
+        // "Has this instance already been set up?" is NOT "does an admin row exist".
+        //
+        // The seeder created one before the buyer had typed anything, so this was true
+        // on a brand-new instance — and marking onboarding complete puts every
+        // POST /api/setup behind authenticateUser (server/routes.ts:2083). A studio
+        // provisioned this morning could not complete the setup they had just bought,
+        // and the login page helpfully pre-filled an email they had no password for.
+        //
+        // A studio that has told us its own name has genuinely been through Basics.
+        // That is a fact about the STUDIO rather than about the auth table.
+        const adminCheck = await db.execute(sql`
+          SELECT EXISTS(
+            SELECT 1 FROM studio_configs
+             WHERE coalesce(nullif(trim(business_name), ''), nullif(trim(studio_name), '')) IS NOT NULL
+          ) AS has_admin`);
         const hasAdmin = !!(adminCheck.rows?.[0] as any)?.has_admin;
         if (hasAdmin) {
           // Use raw SQL to update — more reliable than Drizzle if schema is out of sync
@@ -1039,7 +1053,7 @@ app.use((req, res, next) => {
             SET technical_setup_complete = true, creative_setup_complete = true
             WHERE id = (SELECT id FROM studio_configs LIMIT 1)
           `);
-          console.log('✅ Existing instance detected (admin exists) — auto-marked onboarding complete via raw SQL');
+          console.log('✅ Existing instance detected (the studio has a name) — auto-marked onboarding complete');
         }
       } catch (autoDetectError: any) {
         console.warn('⚠️ Onboarding auto-detect skipped:', autoDetectError.message);

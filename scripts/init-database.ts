@@ -111,7 +111,23 @@ async function createDefaultAdmin() {
     }
     
     // Create default admin
-    const passwordHash = await bcrypt.hash('admin123', 10);
+    // Opt-in, and off by default.
+    //
+    // This used to run on every provisioned instance, putting a known password on a
+    // public URL — and worse, its mere existence made server/index.ts mark onboarding
+    // COMPLETE, which put /api/setup behind a login the buyer had never been given.
+    // The buyer creates their own admin during setup (technical-setup-routes.ts), so
+    // this exists only for a local demo where somebody wants to skip that.
+    if (String(process.env.SEED_DEMO_ADMIN || '').toLowerCase() !== 'true') {
+      log('ℹ️  Skipping the demo admin (set SEED_DEMO_ADMIN=true to create one).', COLORS.blue);
+      // true: the step succeeded. It simply had nothing to create — same contract as the
+      // "already exists" branch above, so a future caller that DOES check this cannot be
+      // told a healthy skip was a failure.
+      return true;
+    }
+
+    const demoPassword = process.env.SEED_DEMO_ADMIN_PASSWORD || 'admin123';
+    const passwordHash = await bcrypt.hash(demoPassword, 10);
     
     await db.insert(adminUsers).values({
       email: 'admin@photography-crm.local',

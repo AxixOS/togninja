@@ -4,7 +4,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, AlertCircle, CheckCircle, XCircle, RefreshCw, ExternalLink } from 'lucide-react';
 
 const AdminLoginPage: React.FC = () => {
-  const [email, setEmail] = useState('admin@photography-crm.local');
+  // Empty. This pre-filled the seeded demo account, so every instance sold shipped
+  // with a known username already typed into its public login form — and a buyer who
+  // had just created their OWN admin during setup was greeted by somebody else's.
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
