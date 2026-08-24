@@ -31,6 +31,12 @@ router.post('/start', async (req, res) => {
     }
 
     // Create session
+    // 'manual', not 'completed'. A session created without a search provider has not
+    // finished a crawl — it has not started one. Both words produced the same green
+    // "completed" badge in the list, above 0 photographers / 0 prices / 0 suggestions,
+    // which reads as "we searched your area and there is nobody there" rather than
+    // "no search provider is configured". The studio reported it as a failed crawl,
+    // which is a fair reading of what the screen said.
     const result = await pool.query(`
       INSERT INTO price_wizard_sessions (user_id, location, services, status)
       VALUES ($1, $2, $3, 'discovering')
@@ -853,12 +859,6 @@ router.post('/quick-start', async (req, res) => {
       INSERT INTO price_wizard_sessions (user_id, location, services, status)
       VALUES ($1, $2, $3, $4)
       RETURNING id, created_at
-    // 'manual', not 'completed'. A session created without a search provider has not
-    // finished a crawl — it has not started one. Both words produced the same green
-    // "completed" badge in the list, above 0 photographers / 0 prices / 0 suggestions,
-    // which reads as "we searched your area and there is nobody there" rather than
-    // "no search provider is configured". The studio reported it as a failed crawl,
-    // which is a fair reading of what the screen said.
     `, [userId || null, location, services, hasProvider ? 'discovering' : 'manual']);
 
     const session = result.rows[0];
