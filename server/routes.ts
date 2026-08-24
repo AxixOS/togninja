@@ -931,13 +931,26 @@ async function generateModernInvoicePDF(invoice: any, client: any): Promise<Buff
   const invoiceItems = await storage.getCrmInvoiceItems(invoice.id);
   const contactEmail = await resolveContactEmail();
   
-  // Default studio configuration
+  // ONE resolver, reading studio_configs LIMIT 1 like every other correct reader here.
+  //
+  // What this replaced: a lookup keyed on `process.env.STUDIO_ID ||
+  // '550e8400-e29b-41d4-a716-446655440000'` — a hardcoded demo UUID — and a hardcoded
+  // `const language = 'de'`. On the live tenant the real studio_configs.id is 575f04f5-…,
+  // so every branding field missed and fell back to a placeholder, while the same
+  // function printed German labels and euro signs onto invoices whose own currency column
+  // says USD. A photographer in Shreveport was sending German invoices, in euros, for
+  // dollar amounts, from a studio the document could not name.
+  const { documentBrand, documentLabels, formatDocumentMoney, brandAddressLines } = await import('./lib/documentBrand');
+  const brand = await documentBrand();
+  const L = documentLabels(brand.language);
+  const money = (n: number) => formatDocumentMoney(n, brand);
+
   let studioConfig = {
-    logo: null as string | null,
-    studioName: getBizName(),
-    address: process.env.BUSINESS_ADDRESS || '',
-    phone: process.env.BUSINESS_PHONE || '',
-    email: contactEmail || getEnvContactEmailSync() || 'no-reply@localhost'
+    logo: brand.logoUrl,
+    studioName: brand.name || getBizName(),
+    address: brandAddressLines(brand).join(', ') || process.env.BUSINESS_ADDRESS || '',
+    phone: brand.phone || process.env.BUSINESS_PHONE || '',
+    email: brand.email || contactEmail || getEnvContactEmailSync() || 'no-reply@localhost'
   };
   
   // Try to fetch dynamic studio configuration
@@ -1046,9 +1059,9 @@ async function generateModernInvoicePDF(invoice: any, client: any): Promise<Buff
   const dueDate = new Date(invoice.dueDate || invoice.due_date || new Date()).toLocaleDateString('de-DE');
   
   yPosition += 25;
-  doc.text(`Rechnung Nr.: ${invoiceNumber}`, pageWidth - 75, yPosition);
-  doc.text(`Rechnungsdatum: ${issueDate}`, pageWidth - 75, yPosition + 6);
-  doc.text(`Fälligkeitsdatum: ${dueDate}`, pageWidth - 75, yPosition + 12);
+  doc.text(`${L.invoiceNo}: ${invoiceNumber}`, pageWidth - 75, yPosition);
+  doc.text(`${L.invoiceDate}: ${issueDate}`, pageWidth - 75, yPosition + 6);
+  doc.text(`${L.dueDate}: ${dueDate}`, pageWidth - 75, yPosition + 12);
 
   // Client information with modern box
   yPosition += 25;
@@ -1089,10 +1102,10 @@ async function generateModernInvoicePDF(invoice: any, client: any): Promise<Buff
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('BESCHREIBUNG', 25, yPosition + 2);
-  doc.text('MENGE', 120, yPosition + 2, { align: 'center' });
-  doc.text('EINZELPREIS', 140, yPosition + 2, { align: 'right' });
-  doc.text('GESAMTPREIS', pageWidth - 25, yPosition + 2, { align: 'right' });
+  doc.text(L.description.toUpperCase(), 25, yPosition + 2);
+  doc.text(L.qty.toUpperCase(), 120, yPosition + 2, { align: 'center' });
+  doc.text(L.unitPrice.toUpperCase(), 140, yPosition + 2, { align: 'right' });
+  doc.text(L.amount.toUpperCase(), pageWidth - 25, yPosition + 2, { align: 'right' });
   
   // Table items
   doc.setTextColor(0, 0, 0);
@@ -1101,7 +1114,7 @@ async function generateModernInvoicePDF(invoice: any, client: any): Promise<Buff
   
   if (invoiceItems && Array.isArray(invoiceItems) && invoiceItems.length > 0) {
     invoiceItems.forEach((item: any, index: number) => {
-      const description = item.description || 'Fotografie-Leistung';
+      const description = item.description || L.defaultLineItem;
       const quantity = parseFloat(item.quantity?.toString() || '1');
       const unitPrice = parseFloat(item.unitPrice?.toString() || item.unit_price?.toString() || '0');
       const amount = quantity * unitPrice;
@@ -1114,18 +1127,18 @@ async function generateModernInvoicePDF(invoice: any, client: any): Promise<Buff
       
       doc.text(description, 25, yPosition + 2);
       doc.text(quantity.toString(), 120, yPosition + 2, { align: 'center' });
-      doc.text(`€${unitPrice.toFixed(2)}`, 140, yPosition + 2, { align: 'right' });
-      doc.text(`€${amount.toFixed(2)}`, pageWidth - 25, yPosition + 2, { align: 'right' });
+      doc.text(money(unitPrice), 140, yPosition + 2, { align: 'right' });
+      doc.text(money(amount), pageWidth - 25, yPosition + 2, { align: 'right' });
       yPosition += 12;
     });
   } else {
     // Fallback if no items found
     doc.setTextColor(100, 100, 100);
-    doc.text('Alle Porträts Insgesamt', 25, yPosition + 2);
+    doc.text(L.defaultLineItem, 25, yPosition + 2);
     doc.text('1', 120, yPosition + 2, { align: 'center' });
     const subtotal = parseFloat(invoice.subtotal?.toString() || '0');
-    doc.text(`€${subtotal.toFixed(2)}`, 140, yPosition + 2, { align: 'right' });
-    doc.text(`€${subtotal.toFixed(2)}`, pageWidth - 25, yPosition + 2, { align: 'right' });
+    doc.text(money(subtotal), 140, yPosition + 2, { align: 'right' });
+    doc.text(money(subtotal), pageWidth - 25, yPosition + 2, { align: 'right' });
     yPosition += 12;
     doc.setTextColor(0, 0, 0);
   }
@@ -1139,7 +1152,7 @@ async function generateModernInvoicePDF(invoice: any, client: any): Promise<Buff
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
-  doc.text(`GESAMTBETRAG: €${total.toFixed(2)}`, pageWidth - 25, yPosition + 5, { align: 'right' });
+  doc.text(`${L.total}: ${money(total)}`, pageWidth - 25, yPosition + 5, { align: 'right' });
 
   // Check if we need a new page for payment info and model release
   if (yPosition > pageHeight - 100) {
@@ -1152,7 +1165,7 @@ async function generateModernInvoicePDF(invoice: any, client: any): Promise<Buff
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('ZAHLUNGSINFORMATIONEN', 20, yPosition);
+  doc.text(brand.language === 'de' ? 'ZAHLUNGSINFORMATIONEN' : 'PAYMENT DETAILS', 20, yPosition);
   
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
