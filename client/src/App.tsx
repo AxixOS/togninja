@@ -429,7 +429,26 @@ function App() {
                 <Route path="/checkout/mock-success" element={<MockSuccessPage />} />
                 <Route path="/order-complete/:id" element={<OrderCompletePage />} />                <Route path="/account" element={<AccountPage />} />
                 <Route path="/account/profile" element={<AccountProfilePage />} />
-                <Route path="/my-archive" element={<MyArchivePage />} />
+                {/*
+                  Guarded, like every other page that renders AdminLayout.
+
+                  It sits among the public storefront routes and had no guard, but
+                  MyArchivePage wraps itself in AdminLayout — so anyone who typed the URL got
+                  the whole admin shell: the sidebar with Leads, Inbox, Calendar and
+                  Dashboard, and the CRM assistant widget mounted alongside it. The APIs
+                  behind all of it answer 401, so no data came out, but the product was
+                  handing its entire back office to an anonymous visitor to look at.
+
+                  It is the only page outside /admin that renders AdminLayout.
+                */}
+                <Route
+                  path="/my-archive"
+                  element={
+                    <NeonProtectedRoute>
+                      <MyArchivePage />
+                    </NeonProtectedRoute>
+                  }
+                />
                 <Route path="/my-subscription" element={<MySubscriptionPage />} />
                 <Route path="/storage-demo-index" element={<StorageDemoIndexPage />} />
                 <Route path="/storage-demo" element={<StorageDemoPage />} />

@@ -14,7 +14,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { db } from "../db";
 import { agentSession, agentMessage, agentAudit } from "../../shared/schema";
-import { eq, desc, gte } from "drizzle-orm";
+import { eq, and, desc, gte } from "drizzle-orm";
 import { ToolContext, ConfirmRequiredError, AuthzError, ValidationError } from "../../agent/v2/core/Types";
 import { selectTools } from "../../agent/v2/core/selectTools";
 import { listOpenAITools, executeTool, getStats } from "../../agent/v2/core/ToolBus";
@@ -66,16 +66,29 @@ async function getOpenAI(): Promise<OpenAI | null> {
  * Main chat endpoint
  * 
  * Body:
- * - message: string
+ * - message: string — required, EXCEPT on a confirm-only request
  * - sessionId?: string (creates new if not provided)
  * - mode?: "read_only" | "auto_safe" | "auto_full"
+ * - confirm?: { tool, args } — a person approving a tool the agent asked to run.
+ *   This is a complete request on its own: the message was sent on the previous turn,
+ *   which is what produced the confirmation prompt being answered.
  */
 router.post("/chat", async (req: Request, res: Response) => {
   try {
     const { message, sessionId, mode, confirm } = req.body;
     
-    // Validate input
-    if (!message || typeof message !== "string") {
+    // An approval is a request in its own right.
+    //
+    // The confirm branch below was added so a studio could answer "Confirmation needed",
+    // and it never once ran. This check sits above it and rejected the approval for having
+    // no message — 400 "Message is required" — so every write tool stayed exactly as stuck
+    // as it was before the branch existed. The comment below still describes the fix as
+    // done; the fix was unreachable.
+    //
+    // A confirm envelope carries no message because the message was the PREVIOUS turn. That
+    // is what produced the prompt being answered.
+    const isApproval = confirm && typeof confirm === "object" && typeof confirm.tool === "string";
+    if (!isApproval && (!message || typeof message !== "string")) {
       return res.status(400).json({ error: "Message is required" });
     }
 
@@ -115,7 +128,7 @@ router.post("/chat", async (req: Request, res: Response) => {
     // __confirm is injected HERE, server-side, on a request a person made. It is still
     // stripped from the schema the model sees (ToolBus.listOpenAITools), so the model
     // cannot approve itself — only this path can, and only for the tool named.
-    if (confirm && typeof confirm === "object" && typeof confirm.tool === "string") {
+    if (isApproval) {
       const approveCtx: ToolContext = {
         userId, studioId, scopes,
         mode: resolveMode(mode, userRole) as any,
@@ -126,14 +139,38 @@ router.post("/chat", async (req: Request, res: Response) => {
           ...(confirm.args || {}),
           __confirm: true,
         });
+
+        // Record the approval in the conversation.
+        //
+        // This branch returned without writing a row, so the transcript held the studio
+        // asking for something and the agent asking permission, and then stopped. The one
+        // moment worth being able to point at afterwards — a person said yes, and this ran
+        // — was the only part not kept.
+        const outcome = approved?.ok === false
+          ? `That did not work: ${approved?.error || "unknown error"}`
+          : `Done — ${confirm.tool.replace(/_/g, " ")}.`;
+        if (sessionId) {
+          await db.insert(agentMessage).values({
+            sessionId,
+            role: "assistant",
+            content: outcome,
+            metadata: { approvedTool: confirm.tool, args: confirm.args || {}, ok: approved?.ok !== false },
+            createdAt: new Date(),
+          }).catch((e: any) => console.warn("[agent-v2] approval not recorded:", e?.message || e));
+          // Without this the history list sorts by when a conversation STARTED, so the one
+          // just acted on sinks below older ones.
+          await db.update(agentSession)
+            .set({ updatedAt: new Date() })
+            .where(eq(agentSession.id, sessionId))
+            .catch((e: any) => console.warn("[agent-v2] session timestamp not bumped:", e?.message || e));
+        }
+
         return res.json({
           sessionId: sessionId || null,
           confirmed: true,
           tool: confirm.tool,
           ok: approved?.ok !== false,
-          message: approved?.ok === false
-            ? `That did not work: ${approved?.error || "unknown error"}`
-            : `Done — ${confirm.tool.replace(/_/g, " ")}.`,
+          message: outcome,
           result: approved,
         });
       } catch (e: any) {
@@ -374,10 +411,17 @@ router.get("/session/:sessionId", async (req: Request, res: Response) => {
     const { sessionId } = req.params;
     
     // Get session details
+    // Scoped to the studio. The lookup was by id alone, so any authenticated user could
+    // read any conversation and its audit log by guessing or reusing an id.
+    const requester = (req as any).user;
+    if (!requester?.id) return res.status(401).json({ error: "Authentication required" });
     const [session] = await db
       .select()
       .from(agentSession)
-      .where(eq(agentSession.id, sessionId));
+      .where(and(
+        eq(agentSession.id, sessionId),
+        eq(agentSession.studioId, String(requester.studioId || "default")),
+      ));
     
     if (!session) {
       return res.status(404).json({ error: "Session not found" });

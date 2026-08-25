@@ -2,16 +2,40 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Bot, Send, X, Loader2, RefreshCw, Wifi, WifiOff, Minimize2, Maximize2 } from 'lucide-react';
 import DraftApproveCard from './DraftApproveCard';
 import { clampToViewport, isDrag, widgetSize } from '../../lib/widgetPosition';
+import { onOpenAssistant } from '../../lib/assistantBus';
 
 type ConnectionStatus = 'connected' | 'checking' | 'disconnected' | 'reconnecting';
 
+const STORE_KEY = 'assistantConversation';
+
+type StoredConversation = {
+  sessionId: string | null;
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+};
+
+/** Whatever was being said before the last navigation. Never throws. */
+function loadConversation(): StoredConversation {
+  try {
+    const raw = sessionStorage.getItem(STORE_KEY);
+    if (!raw) return { sessionId: null, messages: [] };
+    const parsed = JSON.parse(raw);
+    return {
+      sessionId: typeof parsed?.sessionId === 'string' ? parsed.sessionId : null,
+      messages: Array.isArray(parsed?.messages) ? parsed.messages : [],
+    };
+  } catch {
+    return { sessionId: null, messages: [] };
+  }
+}
+
 const AgentChatWidget: React.FC = () => {
+  const restored = useRef(loadConversation()).current;
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>(restored.messages);
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(restored.sessionId);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('checking');
 
   // A tool the agent wants to run and a person has not yet approved.
@@ -196,6 +220,21 @@ const AgentChatWidget: React.FC = () => {
     }
   }, [isOpen, checkAgentHealth, attemptReconnection]);
 
+  // Write the conversation back on every change, so the next mount picks it up.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(STORE_KEY, JSON.stringify({ sessionId, messages }));
+    } catch { /* private mode, or a quota — not worth breaking the chat over */ }
+  }, [sessionId, messages]);
+
+  // The one way in from elsewhere in the app. The assistant page used to render its own
+  // second chat instead of opening this one; now it calls openAssistant() and this answers.
+  useEffect(() => onOpenAssistant((prefill) => {
+    setIsOpen(true);
+    setIsMinimized(false);
+    if (prefill) setMessage(prefill);
+  }), []);
+
   const handleSendMessage = async (retryMessage?: string) => {
     const userMessage = retryMessage || message.trim();
     if (!userMessage || isLoading) return;
@@ -278,6 +317,9 @@ const AgentChatWidget: React.FC = () => {
     setSessionId(null);
     setMessages([]);
     retryCountRef.current = 0;
+    // Starting again means starting again — otherwise the stored conversation is put
+    // straight back by the persist effect on the next navigation.
+    try { sessionStorage.removeItem(STORE_KEY); } catch {}
   };
 
   const ConnectionIndicator = () => {
@@ -379,7 +421,7 @@ const AgentChatWidget: React.FC = () => {
       >
         <div className="flex items-center gap-2">
           <Bot className="w-5 h-5 text-white" />
-          <span className="font-semibold text-white text-sm">Agent V2 Assistant</span>
+          <span className="font-semibold text-white text-sm">AI Assistant</span>
           <ConnectionIndicator />
         </div>
         <div className="flex items-center gap-1">

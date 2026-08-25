@@ -141,7 +141,10 @@ const v1Redirects = /path="\/admin\/crm-assistant"[\s\S]{0,160}?<Navigate/.test(
 check('V1 is in fact a redirect, not a working page', v1Redirects);
 check('the page no longer claims V1 remains available',
   !/legacy CRM Assistant \(V1\) remains available/.test(page));
-check('the page says what actually happens', /redirects to the dashboard/.test(page));
+const mentionsV1 = /\bV1\b|legacy CRM Assistant/.test(page);
+check('any V1 claim on the page is accurate',
+  !mentionsV1 || /redirects to the dashboard/.test(page),
+  mentionsV1 ? 'page raises V1' : 'page does not raise V1');
 
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — the page is describing an agent we did not ship\n`

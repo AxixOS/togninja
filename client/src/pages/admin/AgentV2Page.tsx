@@ -1,115 +1,20 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Shield, Sparkles, Zap, MessageSquare, Send, X, Loader2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { openAssistant } from '../../lib/assistantBus';
+import { Shield, Sparkles, Zap } from 'lucide-react';
 import AdminLayout from '../../components/admin/AdminLayout';
 
-// Connection status type
-type ConnectionStatus = 'connected' | 'checking' | 'disconnected' | 'reconnecting';
+// The connection status type went with the reconnection chain it described.
 
 const AgentV2Page: React.FC = () => {
-  const [showChat, setShowChat] = useState(false);
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [connectionError, setConnectionError] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('checking');
-  const retryCountRef = useRef(0);
-  const maxRetries = 5; // Increased from 3
-  const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 10;
-
-  // Health check function - verify agent endpoint is reachable
-  const checkAgentHealth = useCallback(async (): Promise<boolean> => {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
-      
-      const response = await fetch('/api/agent/v2/stats', {
-        method: 'GET',
-        credentials: 'include',
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      return response.ok;
-    } catch (error) {
-      console.warn('[Agent V2] Health check failed:', error);
-      return false;
-    }
-  }, []);
-
-  // Auto-reconnection logic
-  const attemptReconnection = useCallback(async () => {
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      setConnectionStatus('disconnected');
-      console.error('[Agent V2] Max reconnection attempts reached');
-      return;
-    }
-
-    setConnectionStatus('reconnecting');
-    reconnectAttemptsRef.current++;
-    
-    const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000); // Exponential backoff, max 30s
-    console.log(`[Agent V2] Reconnection attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts} in ${delay}ms`);
-    
-    await new Promise(resolve => setTimeout(resolve, delay));
-    
-    const isHealthy = await checkAgentHealth();
-    if (isHealthy) {
-      setConnectionStatus('connected');
-      reconnectAttemptsRef.current = 0;
-      console.log('[Agent V2] ✅ Reconnected successfully');
-    } else {
-      attemptReconnection();
-    }
-  }, [checkAgentHealth]);
-
-  // Start health monitoring on mount
-  useEffect(() => {
-    let isMounted = true;
-
-    const startHealthMonitoring = async () => {
-      // Initial health check
-      const isHealthy = await checkAgentHealth();
-      if (isMounted) {
-        setConnectionStatus(isHealthy ? 'connected' : 'disconnected');
-        if (!isHealthy) {
-          attemptReconnection();
-        }
-      }
-
-      // Periodic health checks every 30 seconds
-      healthCheckIntervalRef.current = setInterval(async () => {
-        if (!isMounted) return;
-        
-        const healthy = await checkAgentHealth();
-        if (!healthy && connectionStatus === 'connected') {
-          console.warn('[Agent V2] Connection lost, attempting to reconnect...');
-          setConnectionStatus('reconnecting');
-          attemptReconnection();
-        } else if (healthy && connectionStatus !== 'connected') {
-          setConnectionStatus('connected');
-          reconnectAttemptsRef.current = 0;
-        }
-      }, 30000);
-    };
-
-    startHealthMonitoring();
-
-    return () => {
-      isMounted = false;
-      if (healthCheckIntervalRef.current) {
-        clearInterval(healthCheckIntervalRef.current);
-      }
-    };
-  }, [checkAgentHealth, attemptReconnection, connectionStatus]);
-
-  // Reset session on mount
-  useEffect(() => {
-    setSessionId(null);
-    setMessages([]);
-  }, []);
+  // Everything that used to live here — session state, a message list, a send handler, a
+  // retry handler, a health poller and a reconnection chain — drove this page's own chat
+  // panel, which was a second copy of the assistant AdminLayout already mounts. With the
+  // panel gone it was all unreachable, and unreachable chat code is exactly what this
+  // codebase already had three of.
+  //
+  // One thing it did was a live bug worth naming: the health-monitor effect listed
+  // connectionStatus in its own dependency array, so every status change tore the monitor
+  // down and started a fresh reconnection chain on top of the one already sleeping.
 
   /**
    * An intent handed over from the Create hub.
@@ -125,174 +30,14 @@ const AgentV2Page: React.FC = () => {
   useEffect(() => {
     const ask = new URLSearchParams(window.location.search).get('ask');
     if (!ask) return;
-    setShowChat(true);
-    setMessage(ask);
+    // Opens the assistant AdminLayout already mounted, rather than a second one of our
+    // own. Still pre-filled and not auto-sent, for the reason above.
+    openAssistant(ask);
     // Drop it from the URL so a refresh does not re-fill a box the studio has cleared.
     const url = new URL(window.location.href);
     url.searchParams.delete('ask');
     window.history.replaceState({}, '', url.toString());
   }, []);
-
-  const handleSendMessage = async (retryMessage?: string) => {
-    const userMessage = retryMessage || message.trim();
-    if (!userMessage || isLoading) return;
-
-    // Check connection before sending
-    if (connectionStatus === 'disconnected') {
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: '⚠️ Agent is currently disconnected. Attempting to reconnect...'
-      }]);
-      attemptReconnection();
-      return;
-    }
-
-    if (!retryMessage) {
-      setMessage('');
-      setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    }
-    setIsLoading(true);
-    setConnectionError(false);
-
-    const attemptRequest = async (): Promise<void> => {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for chat requests
-        
-        const response = await fetch('/api/agent/v2/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          signal: controller.signal,
-          body: JSON.stringify({
-            message: userMessage,
-            sessionId: sessionId,
-            mode: 'auto_safe'
-          })
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          // Handle specific HTTP errors
-          if (response.status === 401 || response.status === 403) {
-            throw new Error('Authentication required. Please refresh the page and log in again.');
-          }
-          if (response.status === 500) {
-            throw new Error('Server error. The team has been notified.');
-          }
-          if (response.status === 503) {
-            throw new Error('Service temporarily unavailable. Retrying...');
-          }
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        retryCountRef.current = 0; // Reset retry count on success
-        setConnectionStatus('connected'); // Confirm connection is good
-        
-        // Save session ID for conversation continuity
-        if (result.sessionId) {
-          setSessionId(result.sessionId);
-          // Persist session ID to localStorage for page refreshes
-          localStorage.setItem('agentV2SessionId', result.sessionId);
-        }
-        
-        if (result.message) {
-          setMessages(prev => [...prev, { 
-            role: 'assistant', 
-            content: result.message
-          }]);
-        } else if (result.confirmRequired) {
-          setMessages(prev => [...prev, { 
-            role: 'assistant', 
-            content: `⚠️ Confirmation required: ${result.message || result.reason || 'This action needs your approval.'}`
-          }]);
-        } else if (result.error) {
-          setMessages(prev => [...prev, { 
-            role: 'assistant', 
-            content: `Error: ${result.error}`
-          }]);
-        } else {
-          setMessages(prev => [...prev, { 
-            role: 'assistant', 
-            content: 'Task completed.'
-          }]);
-        }
-      } catch (error: any) {
-        console.error('[Agent V2] Request failed:', error);
-        
-        // Check if it's a network error vs application error
-        const isNetworkError = error.name === 'AbortError' || 
-                              error.message?.includes('fetch') || 
-                              error.message?.includes('network') ||
-                              error.message?.includes('Failed to fetch');
-        
-        // Retry logic with exponential backoff
-        if (retryCountRef.current < maxRetries) {
-          retryCountRef.current++;
-          const delay = Math.min(1000 * Math.pow(1.5, retryCountRef.current), 10000);
-          console.log(`[Agent V2] Retrying... attempt ${retryCountRef.current}/${maxRetries} in ${delay}ms`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return attemptRequest();
-        }
-        
-        // All retries failed
-        setConnectionError(true);
-        if (isNetworkError) {
-          setConnectionStatus('disconnected');
-          attemptReconnection();
-        }
-        
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: isNetworkError 
-            ? '⚠️ Connection lost. Attempting to reconnect automatically...'
-            : `Error: ${error.message || 'Failed to process request. Please try again.'}`
-        }]);
-      }
-    };
-
-    await attemptRequest();
-    setIsLoading(false);
-  };
-
-  const handleRetry = () => {
-    const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
-    if (lastUserMessage) {
-      // Remove the error message
-      setMessages(prev => prev.slice(0, -1));
-      retryCountRef.current = 0;
-      handleSendMessage(lastUserMessage.content);
-    }
-  };
-
-  const handleNewSession = () => {
-    setSessionId(null);
-    setMessages([]);
-    setConnectionError(false);
-    retryCountRef.current = 0;
-    localStorage.removeItem('agentV2SessionId');
-  };
-
-  // Connection status indicator component
-  const ConnectionIndicator = () => {
-    const statusConfig = {
-      connected: { color: 'bg-green-500', text: 'Connected', icon: Wifi },
-      checking: { color: 'bg-yellow-500 animate-pulse', text: 'Checking...', icon: Wifi },
-      disconnected: { color: 'bg-red-500', text: 'Disconnected', icon: WifiOff },
-      reconnecting: { color: 'bg-yellow-500 animate-pulse', text: 'Reconnecting...', icon: RefreshCw }
-    };
-    const config = statusConfig[connectionStatus];
-    const Icon = config.icon;
-    
-    return (
-      <div className="flex items-center gap-1 text-xs">
-        <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
-        <Icon className={`w-3 h-3 ${connectionStatus === 'reconnecting' ? 'animate-spin' : ''}`} />
-      </div>
-    );
-  };
 
   return (
     <AdminLayout>
@@ -428,162 +173,53 @@ const AgentV2Page: React.FC = () => {
           </div>
         </div>
 
-        {/* Instructions */}
-        <div className="bg-gradient-to-r from-violet-600 to-purple-600 rounded-xl shadow-md p-6 text-white mb-8">
-          <h3 className="font-semibold text-lg mb-3">How to Use</h3>
-          <ol className="space-y-2 text-sm">
-            <li className="flex items-start gap-2">
-              <span className="font-bold">1.</span>
-              <span>Click the chat button in the bottom-right corner to start a conversation</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-bold">2.</span>
-              <span>Ask the agent to perform tasks like "Search for client John Doe" or "Create an invoice for..."</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-bold">3.</span>
-              <span>Review confirmation modals for medium and high-risk actions before they execute</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-bold">4.</span>
-              <span>Open the <strong>Agent Console</strong> (Settings &rarr; Agent Console) to view audit logs and session history</span>
-            </li>
-          </ol>
-        </div>
+        {/*
+          A button, not a set of directions to one.
 
-        {/* Note about V1 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-          <strong>Note:</strong> This is Agent V2. The legacy CRM Assistant (V1) has been
-          removed — <code>/admin/crm-assistant</code> now redirects to the dashboard.
+          Step 1 used to read "Click the chat button in the bottom-right corner" — on a page
+          that was itself rendering a second chat button in that corner, on top of the real
+          one. Step 4 pointed at an Agent Console for "audit logs and session history"; those
+          tables hold no rows, which is why that claim was removed from this page in v1.9.121.
+          The history that does exist is the conversation itself, under Assistant history.
+        */}
+        <div className="bg-gradient-to-r from-violet-600 to-purple-600 rounded-xl shadow-md p-6 text-white mb-8">
+          <h3 className="font-semibold text-lg">Ready when you are</h3>
+          <p className="mt-1 text-sm text-white/90">
+            Try &ldquo;show me unpaid invoices&rdquo;, &ldquo;draft a follow-up to Sarah&rdquo;, or
+            &ldquo;what did I earn last month?&rdquo;. Anything that changes a record will stop and
+            ask you first.
+          </p>
+          <button
+            type="button"
+            onClick={() => openAssistant()}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-violet-700 shadow-sm hover:bg-violet-50 focus:outline-none focus:ring-2 focus:ring-white/70"
+          >
+            <Sparkles className="w-4 h-4" />
+            Open the assistant
+          </button>
+          <p className="mt-3 text-xs text-white/80">
+            It stays with you as you move around &mdash; and everything you have asked it is kept
+            under Assistant history.
+          </p>
         </div>
         </div>
 
         {/* Floating Chat Button */}
-        {!showChat && (
-          <button
-            onClick={() => setShowChat(true)}
-            className="fixed bottom-6 right-6 bg-gradient-to-r from-violet-600 to-purple-600 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 z-50"
-          >
-            <MessageSquare className="w-6 h-6" />
-          </button>
-        )}
+        {/*
+          The page used to render its own chat here — a second one. AdminLayout mounts
+          AgentChatWidget on every admin page, so this page showed two windows with the
+          same title, holding two unrelated conversations against the same endpoint.
 
-        {/* Chat Interface */}
-        {showChat && (
-          <div className="fixed bottom-6 right-6 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col z-50" style={{ height: '500px' }}>
-            {/* Chat Header */}
-            <div className="bg-gradient-to-r from-violet-600 to-purple-600 text-white p-4 rounded-t-xl flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5" />
-                <h3 className="font-semibold">Agent V2 Assistant</h3>
-                <ConnectionIndicator />
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={handleNewSession}
-                  className="hover:bg-white/20 p-1 rounded transition-colors"
-                  title="New conversation"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setShowChat(false)}
-                  className="hover:bg-white/20 p-1 rounded transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+          They were not equals. The widget can approve a tool the agent asks permission
+          for; this panel printed "Confirmation required" as a chat bubble with no control
+          to answer it, and its confirmRequired branch could never even run, because the
+          server always sends a message alongside and the branch above it matched first. So
+          the page devoted to the assistant offered the copy that could not act, and the
+          three cards above it described approving and remembering — neither of which this
+          panel did.
 
-            {/* Connection Warning Banner */}
-            {connectionStatus === 'disconnected' && (
-              <div className="bg-red-50 border-b border-red-200 px-4 py-2 flex items-center justify-between">
-                <span className="text-red-700 text-xs">Connection lost</span>
-                <button 
-                  onClick={attemptReconnection}
-                  className="text-red-700 text-xs underline hover:text-red-900"
-                >
-                  Reconnect
-                </button>
-              </div>
-            )}
-            {connectionStatus === 'reconnecting' && (
-              <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 flex items-center gap-2">
-                <Loader2 className="w-3 h-3 animate-spin text-yellow-700" />
-                <span className="text-yellow-700 text-xs">Reconnecting...</span>
-              </div>
-            )}
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.length === 0 ? (
-                <div className="text-center text-gray-500 mt-8">
-                  <Sparkles className="w-12 h-12 mx-auto mb-3 text-violet-400" />
-                  <p className="text-sm">Ask me anything!</p>
-                  <p className="text-xs mt-2">Try: "Search for clients" or "Create an invoice"</p>
-                </div>
-              ) : (
-                messages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[80%] p-3 rounded-lg ${
-                        msg.role === 'user'
-                          ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-100 p-3 rounded-lg">
-                    <Loader2 className="w-5 h-5 text-violet-600 animate-spin" />
-                  </div>
-                </div>
-              )}
-              {connectionError && !isLoading && (
-                <div className="flex justify-center">
-                  <button
-                    onClick={handleRetry}
-                    className="flex items-center gap-2 text-violet-600 hover:text-violet-700 text-sm"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    Retry
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Input */}
-            <div className="p-4 border-t border-gray-200">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Type your command..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm"
-                  disabled={isLoading}
-                />
-                <button
-                  onClick={() => handleSendMessage()}
-                  disabled={isLoading || !message.trim()}
-                  className="bg-gradient-to-r from-violet-600 to-purple-600 text-white p-2 rounded-lg hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
+          There is now one chat in the product. This page opens it.
+        */}
         {/* Agent disabled */}
       </div>
     </AdminLayout>

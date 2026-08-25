@@ -42,8 +42,12 @@ const agentPage = fs.readFileSync('client/src/pages/admin/AgentV2Page.tsx', 'utf
 // people learn to skip.
 check('the agent page reads ?ask=', /URLSearchParams\([^)]*\)\.get\('ask'\)/.test(agentPage));
 // The safety property: a misclick must not start the agent doing something.
-check('it PRE-FILLS rather than auto-sending',
-  /setMessage\(ask\)/.test(agentPage) && !/handleSendMessage\(ask\)/.test(agentPage));
+const widget = fs.readFileSync('client/src/components/admin/AgentChatWidget.tsx', 'utf8');
+check('the page hands the intent over without sending it',
+  /openAssistant\(ask\)/.test(agentPage) && !/handleSendMessage/.test(agentPage));
+check('and the assistant receiving it pre-fills rather than sends',
+  /onOpenAssistant/.test(widget)
+  && /if \(prefill\) setMessage\(prefill\)/.test(widget));
 check('and clears the param so a refresh does not re-fill',
   /searchParams\.delete\('ask'\)/.test(agentPage));
 
