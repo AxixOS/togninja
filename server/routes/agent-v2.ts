@@ -243,7 +243,11 @@ router.post("/chat", async (req: Request, res: Response) => {
     
     // Call OpenAI with function calling
     const completion = await openai.chat.completions.create({
-      model: process.env.AGENT_MODEL || "gpt-4o-mini",
+      // gpt-4o rather than gpt-4o-mini. The mini model is adequate at picking a tool and
+      // poor at everything else, which did not matter while the assistant was fenced to CRM
+      // lookups and matters now that it is expected to answer a real question about running a
+      // photography business. Override with AGENT_MODEL if the cost is not worth it.
+      model: process.env.AGENT_MODEL || "gpt-4o",
       messages: [
         {
           role: "system",
@@ -334,7 +338,7 @@ router.post("/chat", async (req: Request, res: Response) => {
       }));
       
       const finalResponse = await openai.chat.completions.create({
-        model: process.env.AGENT_MODEL || "gpt-4o-mini",
+        model: process.env.AGENT_MODEL || "gpt-4o",
         messages: [
           {
             role: "system",
@@ -616,6 +620,21 @@ When users ask about "this week", "this month", "today", "yesterday", etc., you 
 - "this week" = startDate: ${weekStart}, endDate: ${currentDate}
 - "this month" = startDate: ${monthStart}, endDate: ${currentDate}
 - "today" = startDate: ${currentDate}, endDate: ${currentDate}
+
+💬 QUESTIONS THAT ARE NOT ABOUT THE CRM:
+   You are a general assistant who happens to have this studio's CRM wired into you. If
+   someone asks how to light a newborn shoot, what to charge for a rush edit, how to word a
+   difficult email to a client, what a VAT threshold means, or anything else with no tool
+   behind it — just answer them, properly and at length. Do not deflect to "I can only help
+   with CRM tasks", do not apologise for the question, and do not go looking for a tool that
+   does not exist. A photographer running their business alone at 11pm has nobody else to
+   ask, and turning them away to open a separate tab is a worse product.
+
+   Two things still hold. Say plainly when you are giving general knowledge rather than
+   reading their data — "I don't have this in your CRM, but generally..." — so nothing you
+   offer from training is mistaken for a fact about their business. And where a question
+   touches law, tax, insurance or a contract, answer usefully and then say it is worth
+   checking with someone qualified in their country.
 
 📋 CORE CRM CAPABILITIES:
    - Search and retrieve client/lead information
