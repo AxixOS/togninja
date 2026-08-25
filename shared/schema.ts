@@ -142,9 +142,6 @@ export const studioConfigs = pgTable("studio_configs", {
   // Studio-level document design defaults. Declared here as well as in the boot DDL because
   // Drizzle silently drops keys the model does not know, so a settings save would report
   // success and write nothing.
-  // Reminder stages already sent for this invoice. Declared here as well as the boot
-  // DDL because Drizzle drops undeclared keys on .set() without erroring.
-  remindersSent: jsonb("reminders_sent"),
   documentDesign: jsonb("document_design"),
 
   createdAt: timestamp("created_at").defaultNow(),
@@ -283,6 +280,14 @@ export const crmLeads = pgTable("crm_leads", {
 export const crmInvoices = pgTable("crm_invoices", {
   id: uuid("id").primaryKey().defaultRandom(),
   invoiceNumber: text("invoice_number").unique().notNull(),
+  // Reminder stages already sent for THIS INVOICE — [{stage, at, demo}].
+  //
+  // Was mistakenly declared on studio_configs, where the column does not exist. That made
+  // config-reader's whole DB load throw "column reminders_sent does not exist", so EVERY
+  // credential silently fell back to env — the exact class of drift this product has been
+  // chasing all week, introduced by a patch script that anchored on the first match of a
+  // name shared by three tables.
+  remindersSent: jsonb("reminders_sent"),
   // Per-document design override, same shape as studio_configs.document_design. Declared
   // here as well as the boot DDL because Drizzle drops undeclared keys on .set() without
   // error, and a picker that reports success and saves nothing is worse than no picker.

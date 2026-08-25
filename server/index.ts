@@ -33,6 +33,7 @@ import agentShadowRoutes from './routes/agent-shadow';
 import manualPagesRoutes from './routes/manual-pages';
 import studioBrandingRoutes from './routes/studio-branding';
 import contractRoutes from './routes/contracts';
+import capabilityRoutes from './routes/capabilities';
 
 // Import and configure session middleware
 import { sessionConfig, requireAuth } from './auth';
@@ -249,6 +250,9 @@ app.use('/api/studio', studioBrandingRoutes);
 // Contracts. Studio-side routes are auth-gated inside the router; the client's signing
 // page is public by necessity and authorised by an unguessable per-contract token.
 app.use('/api/contracts', contractRoutes);
+// What this studio can actually do. Read by the client gate so a locked feature looks and
+// behaves the same everywhere instead of each screen inventing its own refusal.
+app.use('/api/capabilities', capabilityRoutes);
 console.log('[CONTRACTS] Routes registered at /api/contracts');
 console.log('[STUDIO-BRANDING] Routes registered at /api/studio/branding');
 
