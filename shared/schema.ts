@@ -142,6 +142,9 @@ export const studioConfigs = pgTable("studio_configs", {
   // Studio-level document design defaults. Declared here as well as in the boot DDL because
   // Drizzle silently drops keys the model does not know, so a settings save would report
   // success and write nothing.
+  // Reminder stages already sent for this invoice. Declared here as well as the boot
+  // DDL because Drizzle drops undeclared keys on .set() without erroring.
+  remindersSent: jsonb("reminders_sent"),
   documentDesign: jsonb("document_design"),
 
   createdAt: timestamp("created_at").defaultNow(),

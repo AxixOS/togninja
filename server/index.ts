@@ -604,6 +604,9 @@ app.use((req, res, next) => {
         // rather than reinvented.
         await db.execute(sql`ALTER TABLE crm_invoices ADD COLUMN IF NOT EXISTS document_design JSONB`);
         await db.execute(sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS document_design JSONB`);
+        // Which payment reminders have gone out for an invoice, so a stage is never sent
+        // twice. [{ stage, at, demo }].
+        await db.execute(sql`ALTER TABLE crm_invoices ADD COLUMN IF NOT EXISTS reminders_sent JSONB`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_api_key_encrypted TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_place_id TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS pulse_api_key_encrypted TEXT`);

@@ -54,6 +54,26 @@ export function startPaymentReconciler(): void {
     log('Failed to register cron', err instanceof Error ? err.message : err);
   }
 
+  try {
+    // Reminders at :40, AFTER the reconciler at :20. That order is the whole point: an
+    // invoice Stripe already took money for must be corrected before anything emails the
+    // client about it.
+    cron.schedule('40 * * * *', async () => {
+      try {
+        const { runPaymentReminders } = await import('../lib/paymentReminders');
+        const r = await runPaymentReminders();
+        if (r.problem) { log('reminders: ' + r.problem); return; }
+        if (r.sent || r.markedOverdue) {
+          log('reminders: ' + r.sent + ' sent, ' + r.markedOverdue + ' marked overdue');
+          for (const d of r.details) log('  ' + d);
+        }
+      } catch (e: any) { log('reminders failed', e?.message || e); }
+    }, { timezone: process.env.TZ || 'UTC' });
+    log('Hourly payment reminders registered.');
+  } catch (err) {
+    log('Failed to register reminder cron', err instanceof Error ? err.message : err);
+  }
+
   // Boot catch-up. A studio restarting after a deploy is exactly when an abandoned checkout
   // is most likely to be sitting unrecorded, and waiting until :20 to find out is a payment
   // the studio might chase in the meantime.
