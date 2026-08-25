@@ -2,14 +2,43 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { neon } from '../db-compat.js';
 
+/**
+ * This studio's id.
+ *
+ * Three routes in this file read
+ *     process.env.STUDIO_ID || '550e8400-e29b-41d4-a716-446655440000'
+ * and then filter print_products on it. That UUID is a demo placeholder, and STUDIO_ID is
+ * not set on a real instance — while every WRITER of print_products stamps the studio's
+ * actual studio_configs.id (575f04f5-… on the live tenant). So the gallery store filtered
+ * on an id nothing had ever been written under, and could never return a single product no
+ * matter how well stocked the shop was.
+ *
+ * This product is single-tenant — one database is one studio — so the id is simply the one
+ * row in studio_configs, read the way every other correct reader in this codebase reads it.
+ * The env var still wins when it is set, for anyone who genuinely relies on it.
+ */
+let _studioIdCache: { value: string | null; at: number } | null = null;
+async function currentStudioId(): Promise<string | null> {
+  const fromEnv = (process.env.STUDIO_ID || '').trim();
+  if (fromEnv) return fromEnv;
+  if (_studioIdCache && Date.now() - _studioIdCache.at < 60_000) return _studioIdCache.value;
+  let value: string | null = null;
+  try {
+    const rows = await sql`SELECT id FROM studio_configs LIMIT 1`;
+    value = (rows as any[])[0]?.id || null;
+  } catch { /* a shop that cannot resolve the studio returns nothing, rather than throwing */ }
+  _studioIdCache = { value, at: Date.now() };
+  return value;
+}
+
 const router = Router();
 const sql = neon(process.env.DATABASE_URL!);
 
 // Get print catalog for a studio
 router.get('/print-catalog', async (req, res) => {
   try {
-    // For now, use a default studio ID - in production this would come from auth
-    const studioId = (process.env.STUDIO_ID || '550e8400-e29b-41d4-a716-446655440000');
+    // The studio this instance belongs to. See currentStudioId() above for why this is
+    const studioId = await currentStudioId();
     
     const products = await sql`
       SELECT id, sku, name, base_price, unit, variant_json, is_active
@@ -40,7 +69,7 @@ const checkoutSchema = z.object({
 router.post('/checkout', async (req, res) => {
   try {
     const data = checkoutSchema.parse(req.body);
-    const studioId = (process.env.STUDIO_ID || '550e8400-e29b-41d4-a716-446655440000');
+    const studioId = await currentStudioId();
 
     // 1. Fetch product prices
     const skus = data.items.map(i => i.product_sku);
@@ -127,7 +156,7 @@ router.post('/checkout', async (req, res) => {
 router.get('/orders/:galleryId', async (req, res) => {
   try {
     const { galleryId } = req.params;
-    const studioId = (process.env.STUDIO_ID || '550e8400-e29b-41d4-a716-446655440000');
+    const studioId = await currentStudioId();
 
     const orders = await sql`
       SELECT 

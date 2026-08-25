@@ -18091,7 +18091,59 @@ Return ONLY a valid JSON object with EXACTLY these keys:
         isActive: item.isActive
       }));
 
-      res.json(formattedPriceList);
+      // PRINT PRODUCTS, offered here rather than copied into this table.
+      //
+      // The ask is "one SKU and price serves both the gallery store and an invoice". The
+      // two tables are genuinely different things and neither should absorb the other:
+      // price_list_items carries tax_rate and is invoice-native, print_products carries
+      // width_inches/attributes/variant_json and is fulfilment-native. Duplicating rows
+      // between them would create exactly the drift Phase 2b just spent its time undoing.
+      //
+      // So the picker READS both and the SKU stays in one place. A print sold on an
+      // invoice and the same print sold from the gallery are the same row.
+      let prints: any[] = [];
+      try {
+        // tax_rate is the studio default: print_products has no such column, and a print
+        // is taxed like anything else the studio sells.
+        const cfg = await pool.query('SELECT default_tax_rate FROM studio_configs LIMIT 1')
+          .catch(() => ({ rows: [] as any[] }));
+        const defaultTax = parseFloat(cfg.rows?.[0]?.default_tax_rate ?? '0') || 0;
+
+        const rows = await pool.query(
+          `SELECT id, sku, name, description, base_price, currency, unit,
+                  width_inches, height_inches
+             FROM print_products
+            WHERE is_active = true
+              AND base_price IS NOT NULL
+            ORDER BY sort_order NULLS LAST, name`,
+        ).catch(() => ({ rows: [] as any[] }));
+
+        prints = (rows.rows as any[]).map((p) => ({
+          // Namespaced so a print id can never collide with a price-list id in the picker.
+          id: `print:${p.id}`,
+          category: 'PRINTS',
+          name: p.name,
+          // The size, when the catalogue knows it — "20x16in" is the difference between
+          // two rows that otherwise read identically on an invoice line.
+          description: [p.description, p.width_inches && p.height_inches
+            ? `${p.width_inches}x${p.height_inches}in` : null].filter(Boolean).join(' · ') || null,
+          price: parseFloat(p.base_price) || 0,
+          currency: p.currency,
+          taxRate: defaultTax,
+          sku: p.sku,
+          productCode: p.sku,
+          unit: p.unit || 'each',
+          notes: null,
+          isActive: true,
+          // So the form can tell a fulfilable print from a service line.
+          fulfilled: true,
+        }));
+      } catch (e: any) {
+        // A print catalogue that cannot be read must not cost the studio its price list.
+        console.warn('[price-list] print products unavailable:', e?.message || e);
+      }
+
+      res.json([...formattedPriceList, ...prints]);
     } catch (error) {
       console.error("Error fetching price list:", error);
       res.status(500).json({ error: "Internal server error" });

@@ -99,11 +99,21 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [showPriceList, setShowPriceList] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+
   const [priceList, setPriceList] = useState<PriceListItem[]>([]);
   // Three distinct states. Conflating them is what produced a modal that said
   // "Loading price list…" indefinitely when the list was simply empty.
   const [priceListLoading, setPriceListLoading] = useState(false);
   const [priceListError, setPriceListError] = useState<string | null>(null);
+
+  // What the picker actually shows. An empty category means everything, which is what the
+  // dropdown default has always implied and never delivered.
+  const visiblePriceList = React.useMemo(
+    () => (selectedCategory
+      ? priceList.filter((i: any) => String(i.category || '').toUpperCase() === selectedCategory.toUpperCase())
+      : priceList),
+    [priceList, selectedCategory],
+  );
   const [privacyMask, setPrivacyMask] = useState(false);
   const [documentType, setDocumentType] = useState<'invoice' | 'quote' | 'estimate'>('invoice');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -1666,8 +1676,12 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
 
               {/* Complete Price List from API */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {priceList.length > 0 ? (
-                  priceList.map((item) => {
+                {/* The category filter finally does something. selectedCategory was
+                    declared at :101 and bound to this dropdown, and NOTHING ever read it —
+                    so the Print Products option sat there as dead code while the list
+                    ignored every choice. */}
+                {visiblePriceList.length > 0 ? (
+                  visiblePriceList.map((item) => {
                     // Truncate long descriptions for display
                     const displayDesc = item.description && item.description.length > 80 
                       ? item.description.substring(0, 80) + '...' 
