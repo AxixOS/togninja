@@ -763,6 +763,53 @@ router.post('/homepage/starter', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * The studio's look — arrangement and palette — set from the first step of onboarding.
+ *
+ * A setup-scoped route rather than the admin one it mirrors, for a reason that is easy to
+ * get wrong: /api/admin/site-layout and /api/admin/site-theme are behind authenticateUser,
+ * and at this point in the wizard there IS no account. The admin user is created several
+ * steps later, so a first-step look picker calling those endpoints would have 401d on every
+ * save and silently kept the defaults.
+ *
+ * The /api/setup mount is open while onboarding is in progress and requires authentication
+ * once creative_setup_complete flips, so this cannot be used to repaint a live studio.
+ *
+ * Both ids are narrowed by their resolvers before they reach the database, so an unknown
+ * value cannot be stored and then render as nothing.
+ */
+router.post('/site-look', async (req: Request, res: Response) => {
+  const out: { layout?: string; theme?: string; problems: string[] } = { problems: [] };
+
+  const layoutId = String(req.body?.layout || '').trim();
+  if (layoutId) {
+    try {
+      const { saveSiteLayout } = await import('./lib/site-layout');
+      out.layout = (await saveSiteLayout(layoutId)).id;
+    } catch (e: any) {
+      out.problems.push('layout: ' + (e?.message || 'could not save'));
+    }
+  }
+
+  const themeId = String(req.body?.theme || req.body?.preset || '').trim();
+  if (themeId) {
+    try {
+      const { saveSiteTheme } = await import('./lib/site-theme');
+      out.theme = (await saveSiteTheme(themeId)).id;
+    } catch (e: any) {
+      out.problems.push('theme: ' + (e?.message || 'could not save'));
+    }
+  }
+
+  // Reported separately rather than as one boolean: the two are independent settings, and
+  // "we saved your layout but not your colours" is a different thing to tell somebody than
+  // "that did not work".
+  return res.status(out.problems.length && !out.layout && !out.theme ? 500 : 200).json({
+    ok: out.problems.length === 0,
+    ...out,
+  });
+});
+
 router.get('/homepage/status', async (_req: Request, res: Response) => {
   try {
     const config = await getConfigRow();

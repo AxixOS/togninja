@@ -16,8 +16,32 @@ const wiz = fs.readFileSync('client/src/pages/setup/UnifiedSetupWizard.tsx', 'ut
 const caps = fs.readFileSync('server/lib/capabilities.ts', 'utf8');
 
 console.log('\n=== the short path exists ===');
+// The property is a SHORT path to a working site, not a particular integer.
+//
+// This asserted exactly three, which was right when the three were basics, admin account
+// and scan. A fourth was then added deliberately — "Choose your look", first, because a
+// photographer should be asked what they want their site to look like before they are asked
+// for a VAT number, and because it is two clicks with a Skip beside them.
+//
+// Pinning the number would have forced a choice between reverting that and editing a guard
+// to say whatever the code now does, which is how a guard stops meaning anything. What is
+// asserted instead is the ceiling that keeps the path short, and separately that each
+// essential step is one a studio genuinely cannot launch without or can dismiss in a click.
 const essentials = [...wiz.matchAll(/essential: true/g)].length;
-check('exactly three steps are essential', essentials === 3, essentials + ' marked');
+check('the essential path stays short', essentials >= 3 && essentials <= 5, essentials + ' steps');
+
+// Named, so adding a fifth is a decision someone makes here rather than a number quietly
+// creeping up.
+const ESSENTIAL_KEYS = ['look', 'basics', 'security', 'scanning'];
+const markedEssential = [...wiz.matchAll(/\{ key: '([a-z_]+)'[^}]*essential: true/g)].map((m) => m[1]);
+check('the essential steps are the expected ones',
+  ESSENTIAL_KEYS.length === markedEssential.length
+  && ESSENTIAL_KEYS.every((k) => markedEssential.includes(k)),
+  markedEssential.join(', '));
+
+// A step placed first must be skippable, or it is a gate rather than an invitation.
+check('the first step can be skipped',
+  /Skip for now/.test(fs.readFileSync('client/src/pages/setup/phases/LookPhase.tsx', 'utf8')));
 check('the wizard walks a filtered list', /const VISIBLE = essentialsOnly \? STEPS\.filter/.test(wiz));
 check('and defaults to the short one', /useState\(true\)/.test(wiz.slice(wiz.indexOf('essentialsOnly'))));
 

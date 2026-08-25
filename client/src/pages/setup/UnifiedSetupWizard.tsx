@@ -31,6 +31,7 @@ import StorageStep from './technical/StorageStep';
 import ExtrasStep from './technical/ExtrasStep';
 import SecurityStep from './technical/SecurityStep';
 // Creative phases
+import LookPhase from './phases/LookPhase';
 import BasicsPhase from './phases/BasicsPhase';
 import CalendarPhase from './phases/CalendarPhase';
 import LeadSourcesPhase from './phases/LeadSourcesPhase';
@@ -104,6 +105,11 @@ export default function UnifiedSetupWizard() {
 
   const STEPS: StepDef[] = [
     { key: 'welcome', group: 'Your studio', label: 'Welcome', render: () => <WelcomeStep status={techStatus} onComplete={goNext} /> },
+    // FIRST, and essential. Setup used to open with twelve fields about VAT numbers and
+    // timezones, and a photographer saw nothing that looked like a website until the last
+    // step. Somebody buying a product for photographers should be asked what they want it to
+    // LOOK like before they are asked for their company registration.
+    { key: 'look', group: 'Your studio', label: 'Choose your look', essential: true, render: () => <LookPhase onComplete={goNext} /> },
     { key: 'basics', group: 'Your studio', label: 'Business basics', essential: true, render: () => <BasicsPhase initialData={setupStatus?.phases?.basics?.data} onComplete={goNext} /> },
     { key: 'domain', group: 'Infrastructure', label: 'Domain & URLs', render: () => <DomainStep onComplete={goNext} onBack={goBack} /> },
     { key: 'email', group: 'Infrastructure', label: 'Email', render: () => <EmailStep onComplete={goNext} onBack={goBack} /> },

@@ -242,6 +242,27 @@ export function extractTitleAndLinks(
     while ((m = hrefRe.exec(html))) urls.add(m[1]);
     while ((m = linkCssRe.exec(html))) out.assets.push(m[1]);
     while ((m = srcRe.exec(html))) out.assets.push(m[1]);
+
+    // Lazy-loaded and responsive images.
+    //
+    // Only a bare src= was captured, and on a modern photography site that is often the
+    // least interesting attribute on the tag: a lazy-loading theme puts a transparent
+    // placeholder in src and the real photograph in data-src, and a responsive one lists
+    // every size in srcset. A studio whose site does either had their own work recorded as
+    // a handful of 1x1 spacers.
+    //
+    // srcset entries are "url 800w, url 1600w" — take the URL, drop the descriptor, and let
+    // the consumer decide which size it wants.
+    const lazyRe = /<img\s+[^>]*?data-(?:src|original|lazy-src)=["']([^"']+)["'][^>]*>/gi;
+    while ((m = lazyRe.exec(html))) out.assets.push(m[1]);
+
+    const srcsetRe = /<(?:img|source)\s+[^>]*?(?:data-)?srcset=["']([^"']+)["'][^>]*>/gi;
+    while ((m = srcsetRe.exec(html))) {
+      for (const part of m[1].split(',')) {
+        const url = part.trim().split(/\s+/)[0];
+        if (url) out.assets.push(url);
+      }
+    }
     const resolved: string[] = [];
     urls.forEach((raw) => {
       try { resolved.push(new URL(raw, baseUrl).toString()); } catch {}
