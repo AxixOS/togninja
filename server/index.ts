@@ -1298,6 +1298,12 @@ app.use((req, res, next) => {
   try {
     const { startBlogScheduler } = await import('./jobs/blogScheduler');
     startBlogScheduler();
+
+    // Catches payments Stripe took that the studio never heard about, because the webhook
+    // needs STRIPE_WEBHOOK_SECRET and an invoice is otherwise only marked paid when the
+    // buyer browser comes back from checkout.
+    const { startPaymentReconciler } = await import('./jobs/paymentReconciler');
+    startPaymentReconciler();
     console.log('📝 Blog auto-publish scheduler started (hourly + boot catch-up)');
   } catch (err: any) {
     console.warn('⚠️ Failed to start blog auto-publish scheduler:', err?.message || err);
