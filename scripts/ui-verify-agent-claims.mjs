@@ -34,10 +34,29 @@ const guards = fs.readFileSync('agent/v2/core/Guardrails.ts', 'utf8');
 const app = fs.readFileSync('client/src/App.tsx', 'utf8');
 
 // ── The true tool count, read from the registry ──────────────────────────────
+// COUNTED FROM WHAT INDEX.TS IMPORTS, not from what is on disk.
+//
+// This read the directory, and the directory is not the registry: three tool files import
+// workflowTemplates/workflowInstances, which do not exist in shared/schema at all, so they
+// never register. One of the three is not even imported. Counting files therefore reported
+// 55 where the runtime has 52 — and this check was trusted enough that the page was edited
+// to match the wrong number.
 const dir = 'agent/v2/tools';
+const indexSrc = fs.readFileSync(path.join(dir, 'index.ts'), 'utf8');
+const importedFiles = new Set(
+  [...indexSrc.matchAll(/import\s+["']\.\/([a-zA-Z0-9._-]+)["']/g)].map((m) => m[1] + '.ts'),
+);
+const schemaSrc = fs.readFileSync('shared/schema.ts', 'utf8');
 const tools = [];
 for (const f of fs.readdirSync(dir)) {
   if (!f.endsWith('.ts') || f === 'index.ts') continue;
+  // Not imported means not registered, however complete the file looks.
+  if (!importedFiles.has(f)) continue;
+  // An import of a symbol the schema does not export never reaches its registerTool call.
+  const raw = fs.readFileSync(path.join(dir, f), 'utf8');
+  const aliased = [...raw.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"]@shared\/schema['"]/g)]
+    .flatMap((m) => m[1].split(',').map((x) => x.trim()).filter(Boolean));
+  if (aliased.some((sym) => !new RegExp('\\b' + sym + '\\b').test(schemaSrc))) continue;
   const s = fs.readFileSync(path.join(dir, f), 'utf8');
   if (!/registerTool/.test(s)) continue;
   // The FIRST name: after the `const def` marker — a name: inside a describe() example
