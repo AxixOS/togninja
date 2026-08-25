@@ -35,6 +35,7 @@ import studioBrandingRoutes from './routes/studio-branding';
 import contractRoutes from './routes/contracts';
 import capabilityRoutes from './routes/capabilities';
 import migrationRoutes from './routes/migration';
+import agentHistoryRoutes from './routes/agent-history';
 
 // Import and configure session middleware
 import { sessionConfig, requireAuth } from './auth';
@@ -257,6 +258,8 @@ app.use('/api/capabilities', capabilityRoutes);
 // Where the old site pages should point once the domain moves here. Authenticated: this
 // decides what every visitor and every crawler sees.
 app.use('/api/migration', requireAuth, migrationRoutes);
+// What the assistant has been asked. Written since it shipped, read by nobody until now.
+app.use('/api/agent-history', requireAuth, agentHistoryRoutes);
 console.log('[CONTRACTS] Routes registered at /api/contracts');
 console.log('[STUDIO-BRANDING] Routes registered at /api/studio/branding');
 

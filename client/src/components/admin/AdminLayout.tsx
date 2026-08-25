@@ -162,6 +162,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   // when it changes, so twenty-seven flat rows read as six short lists.
 
     { section: 'Assistant', icon: Bot, label: 'AI Assistant', path: '/admin/agent-v2', badge: 'NEW' },
+    // Directly under the assistant: it is about the assistant, and nowhere else would
+    // anybody look for it.
+    { icon: MessageSquare, label: 'Assistant history', path: '/admin/agent-history' },
     { section: 'Work', icon: LayoutDashboard, label: t('nav.dashboard'), path: '/admin/dashboard' },
     { icon: Plus, label: 'Create', path: '/admin/create' },
     { icon: UserPlus, label: t('nav.newLeads'), path: '/admin/leads', badge: newLeadsCount },
