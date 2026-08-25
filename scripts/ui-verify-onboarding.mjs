@@ -12,6 +12,7 @@ const check = (label, ok, detail = '') => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? '  — ' + detail : ''}`);
 };
 
+const read = (p) => fs.readFileSync(p, 'utf8');
 const wiz = fs.readFileSync('client/src/pages/setup/UnifiedSetupWizard.tsx', 'utf8');
 const caps = fs.readFileSync('server/lib/capabilities.ts', 'utf8');
 
@@ -42,6 +43,24 @@ check('the essential steps are the expected ones',
 // A step placed first must be skippable, or it is a gate rather than an invitation.
 check('the first step can be skipped',
   /Skip for now/.test(fs.readFileSync('client/src/pages/setup/phases/LookPhase.tsx', 'utf8')));
+// The last step must END setup, not sit there.
+//
+// goNext() clamped to the final index, so on the last step it scrolled to the top and did
+// nothing. Only the drafts step called finish() directly, and drafts is not in the
+// essentials path — so for every studio taking the short route, which is the DEFAULT, the
+// final button in onboarding was dead. They finished the scan, pressed Continue, and the
+// page moved half an inch.
+const scanning = read('client/src/pages/setup/phases/ScanningPhase.tsx');
+
+check('finishing the last step finishes setup',
+  wiz.includes('if (safeIndex >= VISIBLE.length - 1) {')
+  && wiz.includes('void finish();'));
+
+// And it must say so. The scan step promised to continue to a Fix-first step that the
+// essentials path never shows.
+check('the last step does not promise a step that is not there',
+  scanning.includes("isLast ? 'Finish setup'"));
+
 check('the wizard walks a filtered list', /const VISIBLE = essentialsOnly \? STEPS\.filter/.test(wiz));
 check('and defaults to the short one', /useState\(true\)/.test(wiz.slice(wiz.indexOf('essentialsOnly'))));
 

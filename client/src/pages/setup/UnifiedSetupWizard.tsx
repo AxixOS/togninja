@@ -89,6 +89,12 @@ export default function UnifiedSetupWizard() {
 
   const goNext = () => {
     refresh();
+    // Finishing the last step means finishing setup. Clamping meant the essentials path —
+    // the default one — ended on a button that did nothing.
+    if (safeIndex >= VISIBLE.length - 1) {
+      void finish();
+      return;
+    }
     setIndex((i) => Math.min(i + 1, VISIBLE.length - 1));
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -124,7 +130,10 @@ export default function UnifiedSetupWizard() {
     // CRM (blog posts, gallery images, products, clients) — on a new studio that is
     // empty and finishes instantly, which looked like a broken website scan. The
     // website analysis is a separate, earlier step; it is what produces the homepage.
-    { key: 'scanning', group: 'Content', label: 'Review CRM data', essential: true, render: () => <ScanningPhase onComplete={goNext} /> },
+    // isLast so the button can say what it will actually do. In the essentials path this
+    // IS the last step, and it was promising to continue to a Fix-first step that path
+    // never shows.
+    { key: 'scanning', group: 'Content', label: 'Review CRM data', essential: true, render: () => <ScanningPhase onComplete={goNext} isLast={safeIndex >= VISIBLE.length - 1} /> },
     // Images come AFTER scanning because that step triggers the website crawl, and half
     // the slots are per-service — unknowable until the Authority Map exists. It is also
     // after Storage, without which there is nowhere to put an upload.

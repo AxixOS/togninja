@@ -32,6 +32,8 @@ import {
 
 interface ScanningPhaseProps {
   onComplete: () => void;
+  /** True when nothing follows this step, so the button can say so. */
+  isLast?: boolean;
 }
 
 interface ScanResult {
@@ -53,7 +55,7 @@ interface ScanResult {
   error?: string;
 }
 
-export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
+export default function ScanningPhase({ onComplete, isLast = false }: ScanningPhaseProps) {
   const [scanState, setScanState] = useState<ScanResult>({
     scanId: '',
     status: 'idle',
@@ -484,7 +486,7 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
                 </>
               ) : (
                 <>
-                  Continue to Fix First
+                  {isLast ? 'Finish setup' : 'Continue to Fix First'}
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
