@@ -214,13 +214,30 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
       );
       const n = attempted[0]?.n ?? 0;
       const failed = attempted[0]?.failed ?? 0;
+      // What the pages that DID come back actually were. A host that refuses crawlers
+      // returns a real HTTP response containing a refusal, so "we read a page" and "we read
+      // their page" are not the same thing, and the studio deserves to be told which.
+      const { rows: refusals } = await pool.query(
+        `SELECT count(*)::int AS blocked FROM website_pages
+          WHERE crawl_job_id = $1
+            AND (http_status IN (401, 403, 406, 429, 503)
+                 OR lower(coalesce(title, '')) ~ '(403|forbidden|access denied|attention required|just a moment)')`,
+        [jobId],
+      ).catch(() => ({ rows: [{ blocked: 0 }] }));
+      const blocked = refusals[0]?.blocked ?? 0;
       state.status = 'error';
       state.stage = 'error';
       state.error = n === 0
         ? `Could not read ${website} — no pages were retrieved. Check the URL is correct and publicly reachable.`
         : failed === n
           ? `Could not read ${website} — all ${n} page(s) failed to fetch. The site may be blocking automated requests.`
-          : `Read ${n} page(s) from ${website} but found only ${usableChars} characters of text — too little to write from. If the site renders with JavaScript, the crawler may need a browser it could not launch.`;
+          : blocked > 0
+            // Named separately because the advice is completely different, and the wrong
+            // advice cost a real onboarding: a studio whose site was blocking us was told it
+            // "may render with JavaScript" and went looking for a problem with their site.
+            // There was none — 4,503 characters of it were sitting there behind a bot filter.
+            ? `${website} is turning our reader away — ${blocked} of ${n} page(s) came back as a refusal rather than the page. This is your host blocking automated readers, not a problem with your site. Try again in a moment, or paste your About text and we will write from that.`
+            : `Read ${n} page(s) from ${website} but found only ${usableChars} characters of text. If your pages are built by JavaScript in the browser, there may be nothing for us to read in the page itself.`;
       await writeGenState(state);
       await pool.query(
         `UPDATE crawl_jobs SET status = 'failed', error = $2 WHERE id = $1`,

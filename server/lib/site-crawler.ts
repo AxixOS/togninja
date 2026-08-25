@@ -154,14 +154,74 @@ const CRAWL_HEADERS: Record<string, string> = {
   'accept-language': 'en,de;q=0.8,*;q=0.5',
 };
 
-export async function fetchWithTimeout(u: string, ms = 12000): Promise<Response> {
+/**
+ * The second attempt, for hosts that refuse to serve a crawler at all.
+ *
+ * Naming ourselves honestly is the right default and it is what most hosts want. It is
+ * also, on some of them, exactly what gets us nothing. Measured against
+ * davidmollisonphotography.com — a real studio site a buyer tried to onboard with:
+ *
+ *     TogNinjaBot user-agent  ->  403 Forbidden, 105 characters, title "403 - Forbidden"
+ *     browser user-agent      ->  200 OK, 4,503 characters, title "Edinburgh Photographer"
+ *
+ * The studio was told their site "may render with JavaScript" and the onboarding stopped
+ * there. Their site was fine. We were the ones being turned away.
+ *
+ * So: ask politely first, every time. Only when that yields nothing usable do we ask again
+ * as a browser — which is what the person who owns the site would see, and what they are
+ * asking us to read on their behalf.
+ */
+const BROWSER_HEADERS: Record<string, string> = {
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'accept-language': 'en,de;q=0.8,*;q=0.5',
+  'upgrade-insecure-requests': '1',
+  'sec-fetch-dest': 'document',
+  'sec-fetch-mode': 'navigate',
+  'sec-fetch-site': 'none',
+};
+
+export async function fetchWithTimeout(u: string, ms = 12000, headers = CRAWL_HEADERS): Promise<Response> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), ms);
   try {
-    return await fetch(u, { signal: ac.signal, redirect: 'follow', headers: CRAWL_HEADERS });
+    return await fetch(u, { signal: ac.signal, redirect: 'follow', headers });
   } finally {
     clearTimeout(t);
   }
+}
+
+/** How much text has to come back before we accept the answer as the real page. */
+const USABLE_TEXT = 400;
+
+/**
+ * Fetch a page, and if what comes back is a refusal or an empty shell, ask once more as a
+ * browser. Returns whichever attempt actually produced a page.
+ */
+export async function fetchPageHtml(
+  u: string,
+  ms = 12000,
+): Promise<{ resp: Response; html: string; usedBrowserUA: boolean }> {
+  const resp = await fetchWithTimeout(u, ms);
+  const ct = String(resp.headers.get('content-type') || '');
+  const html = ct.includes('text/html') ? await resp.text() : '';
+
+  const refused = resp.status < 200 || resp.status >= 400;
+  const empty = !html || htmlToText(html).length < USABLE_TEXT;
+  if (!refused && !empty) return { resp, html, usedBrowserUA: false };
+
+  try {
+    const retry = await fetchWithTimeout(u, ms, BROWSER_HEADERS);
+    const rct = String(retry.headers.get('content-type') || '');
+    const rhtml = rct.includes('text/html') ? await retry.text() : '';
+    // Only take the retry if it is genuinely better. A second refusal is not an answer.
+    if (retry.status >= 200 && retry.status < 400 && htmlToText(rhtml).length > htmlToText(html).length) {
+      console.log(`[site-crawler] ${u}: polite UA gave ${resp.status}/${htmlToText(html).length} chars, browser UA gave ${retry.status}/${htmlToText(rhtml).length}`);
+      return { resp: retry, html: rhtml, usedBrowserUA: true };
+    }
+  } catch { /* the first answer stands */ }
+
+  return { resp, html, usedBrowserUA: false };
 }
 
 export function extractTitleAndLinks(
@@ -342,11 +402,11 @@ export async function crawlSite(
     if (!current || visited.has(current)) continue;
     visited.add(current);
     try {
-      const resp = await fetchWithTimeout(current, 12000);
+      const fetched = await fetchPageHtml(current, 12000);
+      const resp = fetched.resp;
       const ct = String(resp.headers.get('content-type') || '');
       const http_status = resp.status;
-      let html = '';
-      if (ct.includes('text/html')) html = await resp.text();
+      let html = fetched.html;
       // A shell with no text and no links is a site whose content is built by
       // JavaScript. Render it rather than importing its <title> and calling that
       // the studio's website. Returns null when no browser exists, in which case

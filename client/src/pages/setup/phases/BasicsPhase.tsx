@@ -105,13 +105,67 @@ const TIMEZONES = (() => {
   return [{ value: detectedTimezone, label: `${detectedTimezone.split('/').pop()?.replace(/_/g, ' ')} (detected)` }, ...BASE_TIMEZONES];
 })();
 
-const CURRENCIES = [
+// What currency this studio bills in.
+//
+// The field defaulted to EUR while the timezone beside it was detected — so a studio in
+// Brighton filling this in got "Bangkok (detected)" and "Euro", and every price, invoice
+// and Stripe charge downstream inherited euros unless they noticed the one field that had
+// not been guessed for them. EUR was never a neutral default: it is the origin studio's
+// currency, and this product is sold to people who do not use it.
+//
+// The region of the browser locale is the same class of signal as the timezone, and it is
+// labelled the same way so it reads as a guess rather than a decision.
+const CURRENCY_BY_REGION: Record<string, string> = {
+  AT: 'EUR', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR', NL: 'EUR', BE: 'EUR',
+  IE: 'EUR', PT: 'EUR', FI: 'EUR', GR: 'EUR', SK: 'EUR', SI: 'EUR', LU: 'EUR',
+  GB: 'GBP', US: 'USD', CA: 'CAD', AU: 'AUD', NZ: 'NZD', CH: 'CHF',
+  SE: 'SEK', NO: 'NOK', DK: 'DKK', PL: 'PLN', CZ: 'CZK', HU: 'HUF',
+  RO: 'RON', BG: 'BGN', JP: 'JPY', SG: 'SGD', HK: 'HKD', ZA: 'ZAR', AE: 'AED',
+};
+
+const detectedCurrency = (() => {
+  try {
+    const loc = new Intl.Locale(navigator.language);
+    // maximize() fills in the likely region for a bare language tag, so "en" resolves
+    // rather than yielding nothing. Guarded because Safari added it late.
+    const region = (typeof (loc as any).maximize === 'function' ? (loc as any).maximize().region : loc.region) || '';
+    return CURRENCY_BY_REGION[String(region).toUpperCase()] || '';
+  } catch {
+    return '';
+  }
+})();
+
+const BASE_CURRENCIES = [
   { value: 'EUR', label: '€ Euro (EUR)' },
   { value: 'USD', label: '$ US Dollar (USD)' },
   { value: 'GBP', label: '£ British Pound (GBP)' },
   { value: 'CHF', label: 'Fr Swiss Franc (CHF)' },
-  { value: 'AUD', label: '$ Australian Dollar (AUD)' }
+  { value: 'AUD', label: '$ Australian Dollar (AUD)' },
+  { value: 'CAD', label: '$ Canadian Dollar (CAD)' },
+  { value: 'NZD', label: '$ New Zealand Dollar (NZD)' },
+  { value: 'SEK', label: 'kr Swedish Krona (SEK)' },
+  { value: 'NOK', label: 'kr Norwegian Krone (NOK)' },
+  { value: 'DKK', label: 'kr Danish Krone (DKK)' },
+  { value: 'PLN', label: 'zł Polish Złoty (PLN)' },
+  { value: 'CZK', label: 'Kč Czech Koruna (CZK)' },
+  { value: 'HUF', label: 'Ft Hungarian Forint (HUF)' },
+  { value: 'RON', label: 'lei Romanian Leu (RON)' },
+  { value: 'BGN', label: 'лв Bulgarian Lev (BGN)' },
+  { value: 'JPY', label: '¥ Japanese Yen (JPY)' },
+  { value: 'SGD', label: '$ Singapore Dollar (SGD)' },
+  { value: 'HKD', label: '$ Hong Kong Dollar (HKD)' },
+  { value: 'ZAR', label: 'R South African Rand (ZAR)' },
+  { value: 'AED', label: 'د.إ UAE Dirham (AED)' },
 ];
+
+// The list was five long while the server settles twenty (server/lib/studio-currency.ts).
+// A Swedish or Canadian studio had nothing to pick.
+const CURRENCIES = (() => {
+  if (!detectedCurrency) return BASE_CURRENCIES;
+  const known = BASE_CURRENCIES.find((c) => c.value === detectedCurrency);
+  if (!known) return BASE_CURRENCIES;
+  return [{ ...known, label: `${known.label} — detected` }, ...BASE_CURRENCIES.filter((c) => c !== known)];
+})();
 
 // Must stay in step with SUPPORTED_SITE_LANGUAGES in server/lib/site-language.ts —
 // the server normalises to these codes and rejects anything else.
@@ -127,7 +181,9 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
   const [formData, setFormData] = useState({
     businessName: initialData?.businessName || '',
     businessType: initialData?.businessType || '',
-    timezone: initialData?.timezone || detectedTimezone || 'Europe/Vienna',
+    // UTC, not Vienna. Detection almost always wins, but when it does not, the fallback
+    // should be a neutral zone rather than one particular studio's.
+    timezone: initialData?.timezone || detectedTimezone || 'UTC',
     // Deliberately UNSET, not defaulted. Browser detection was tried and was worse —
     // the buyer's OS locale is not their WEBSITE's language. But defaulting to English
     // was worse still in a way that was invisible: the field is required and the studio
@@ -138,7 +194,7 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
     // it has. Empty means unanswered, the select shows its placeholder, and validate()
     // makes the studio answer.
     siteLanguage: initialData?.siteLanguage || '',
-    currency: initialData?.currency || 'EUR',
+    currency: initialData?.currency || detectedCurrency || 'EUR',
     vatNumber: initialData?.vatNumber || '',
     dateFormat: (initialData?.dateFormat as DateFormatPreset) || getDateFormatPreset(),
     tagline: initialData?.tagline || '',
