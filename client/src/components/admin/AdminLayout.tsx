@@ -9,6 +9,7 @@ import AgentChatWidget from './AgentChatWidget';
 import LicenseBanner from './LicenseBanner';
 import {
   LayoutDashboard,
+  Plus,
   UserPlus,
   ShoppingCart,
   Users,
@@ -150,6 +151,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
   const sidebarItems = [
     { icon: LayoutDashboard, label: t('nav.dashboard'), path: '/admin/dashboard' },
+    // Second, right under Dashboard. Creating things is the most common reason a
+    // photographer opens this product, and the queued sidebar reorder puts the daily
+    // workflow at the top — this is the first item of it.
+    { icon: Plus, label: 'Create', path: '/admin/create' },
     { icon: UserPlus, label: t('nav.newLeads'), path: '/admin/leads', badge: newLeadsCount },
     { icon: ShoppingCart, label: t('nav.onlineVoucherSales'), path: '/admin/voucher-sales' },
     { icon: Users, label: t('nav.clients'), path: '/admin/clients' },

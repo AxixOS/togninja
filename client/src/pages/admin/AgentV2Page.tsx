@@ -111,6 +111,28 @@ const AgentV2Page: React.FC = () => {
     setMessages([]);
   }, []);
 
+  /**
+   * An intent handed over from the Create hub.
+   *
+   * The tiles open the agent already knowing what you came to do, which is the whole
+   * point of a Create surface — otherwise a tile is a link to an empty chat box and the
+   * studio types the intent it just clicked on.
+   *
+   * PRE-FILLED, NOT AUTO-SENT. The text lands in the input and the person presses send.
+   * Firing a request because somebody clicked a tile means a misclick starts the agent
+   * doing something, and the agent writes to their business.
+   */
+  useEffect(() => {
+    const ask = new URLSearchParams(window.location.search).get('ask');
+    if (!ask) return;
+    setShowChat(true);
+    setMessage(ask);
+    // Drop it from the URL so a refresh does not re-fill a box the studio has cleared.
+    const url = new URL(window.location.href);
+    url.searchParams.delete('ask');
+    window.history.replaceState({}, '', url.toString());
+  }, []);
+
   const handleSendMessage = async (retryMessage?: string) => {
     const userMessage = retryMessage || message.trim();
     if (!userMessage || isLoading) return;
