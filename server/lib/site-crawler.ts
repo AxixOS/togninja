@@ -195,6 +195,20 @@ export async function fetchWithTimeout(u: string, ms = 12000, headers = CRAWL_HE
 const USABLE_TEXT = 400;
 
 /**
+ * How many pages are worth asking the partner crawler for, and how long to wait.
+ *
+ * A host that refuses our address refuses it for every page, so trying all ten costs ten
+ * times the wait for the same answer. The first version of this shipped with the price
+ * wizard's 90-second timeout and no cap, which on a ten-page crawl is fifteen minutes of a
+ * studio watching a spinner during their onboarding. It was.
+ *
+ * Three pages is enough: the homepage generator needs four hundred characters and one
+ * rescued page of a photography site carries several thousand.
+ */
+const PARTNER_MAX_PAGES = 3;
+const PARTNER_TIMEOUT_MS = 25_000;
+
+/**
  * Did this response actually contain the page, or a bot-management challenge?
  *
  * Measured against a real studio site a buyer tried to onboard. From a residential IP that
@@ -435,13 +449,28 @@ export function htmlToText(html: string): string {
  * Synchronous per page; the caller should run it off the request path (background).
  */
 export async function crawlSite(
-  { jobId, startUrl, maxPages }: { jobId: string; startUrl: string; maxPages: number },
+  { jobId, startUrl, maxPages, onProgress }: {
+    jobId: string;
+    startUrl: string;
+    maxPages: number;
+    /**
+     * Something worth telling the person watching. Optional, and every call is wrapped,
+     * because a crawl must never fail because a progress message did.
+     */
+    onProgress?: (kind: 'found' | 'problem', text: string) => void | Promise<void>;
+  },
 ): Promise<{ crawled: number; discovered: number }> {
+  const say = async (kind: 'found' | 'problem', text: string) => {
+    try { await onProgress?.(kind, text); } catch { /* never the crawl's problem */ }
+  };
   const cap = Math.min(25, Math.max(1, Number(maxPages || 10)));
   await pool.query(`UPDATE crawl_jobs SET status = 'running', started_at = now(), error = NULL WHERE id = $1`, [jobId]);
 
   const queue: string[] = [normalizeUrl(startUrl)];
   const visited = new Set<string>();
+  // Attempts, not successes: three refusals from the partner is also an answer, and
+  // asking a fourth time will not change it.
+  let partnerAttempts = 0;
   let crawled = 0;
   let discovered = 1;
   const origin = new URL(startUrl).toString();
@@ -475,23 +504,33 @@ export async function crawlSite(
       // back becomes the page TEXT — there is no markup to store and no links to follow, and
       // that is fine: one readable page beats twelve refusals.
       let viaPartner = false;
-      if (challenged) {
+      if (challenged && partnerAttempts < PARTNER_MAX_PAGES) {
+        partnerAttempts++;
         console.warn(`[site-crawler] ${current}: HTTP ${http_status} with ${(html || '').length} bytes and no text — this host is refusing our address, not serving an empty page`);
+        await say(
+          'problem',
+          'Your host is refusing our reader — trying another way in',
+        );
         try {
           const { AxixosSearchService } = await import('../services/AxixosSearchService');
           const partner = new AxixosSearchService();
           if (partner.isConfigured()) {
-            const text = await partner.searchCompetitorPricing(current, '');
+            // Its own timeout, not the price wizard's: that path runs in the background of a
+            // research job, this one runs while somebody watches an onboarding screen.
+            const text = await partner.readPageText(current, PARTNER_TIMEOUT_MS);
             if (text && text.trim().length >= USABLE_TEXT) {
               partnerText = text.trim();
               viaPartner = true;
               challenged = false;
               console.log(`[site-crawler] ${current}: read ${partnerText.length} characters through AxixOS instead`);
+              await say('found', 'Got in — reading your site now');
             }
           }
         } catch (e: any) {
           console.warn('[site-crawler] partner read failed:', e?.message || e);
         }
+      } else if (challenged) {
+        console.warn(`[site-crawler] ${current}: refused, and the partner budget is spent — not asking again`);
       }
       // A shell with no text and no links is a site whose content is built by
       // JavaScript. Render it rather than importing its <title> and calling that

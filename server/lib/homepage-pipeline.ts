@@ -249,7 +249,14 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     );
     const jobId = job.rows[0].id;
 
-    const { crawled } = await crawlSite({ jobId, startUrl: website, maxPages: 10 });
+    const { crawled } = await crawlSite({
+      jobId,
+      startUrl: website,
+      maxPages: 10,
+      // The crawl can spend half a minute getting past a host that blocks datacentre
+      // addresses. That is worth saying out loud rather than leaving on "Working...".
+      onProgress: (kind, text) => note(state, kind, text),
+    });
     await pool.query(`UPDATE onboarding_sessions SET crawl_status = 'completed', updated_at = now() WHERE id = $1`, [sessionId]);
     state.pagesCrawled = crawled;
     state.stage = 'distilling';

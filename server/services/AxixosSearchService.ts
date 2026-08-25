@@ -171,6 +171,24 @@ export class AxixosSearchService {
    * the full page text (title + meta + body) for the OpenAI extractor, or '' so
    * the pipeline can fall back to a direct scrape.
    */
+  /**
+   * Read one page as plain text, with a caller-chosen deadline.
+   *
+   * searchCompetitorPricing() hardcodes 90 seconds, which is right for a research job
+   * running in the background and wrong for the onboarding crawl, where somebody is
+   * watching the screen. Same endpoint, same shape, the wait is the caller's to choose.
+   */
+  async readPageText(url: string, timeoutMs = 30000): Promise<string> {
+    if (!url) return '';
+    try {
+      const data = await this.post('/v1/crawl/page', { url }, timeoutMs);
+      return [data?.title, data?.metaDescription, data?.h1, data?.text].filter(Boolean).join('\n\n');
+    } catch (error: any) {
+      console.warn(`  AxixOS page read failed for ${url}:`, error?.message);
+      return '';
+    }
+  }
+
   async searchCompetitorPricing(websiteUrl: string, businessName: string): Promise<string> {
     if (!websiteUrl) return '';
     try {
