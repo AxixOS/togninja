@@ -97,12 +97,26 @@ const setupImageUpload = multer({
   limits: { fileSize: 12 * 1024 * 1024 },
 });
 
+router.post('/upload-image', setupImageUpload.single('file'), (req: any, res: Response) => storeSectionImage(req, res));
+
 // Slots the wizard is allowed to write. An allow-list, so a mistyped or hostile section
 // cannot create arbitrary rows in a table the public site renders from. Pillar slots are
 // validated separately against the studio's own map.
 const FIXED_IMAGE_SECTIONS = new Set(['hero', 'content-1', 'content-2']);
 
-router.post('/upload-image', setupImageUpload.single('file'), async (req: any, res: Response) => {
+/**
+ * Store one image against one slot.
+ *
+ * Named and shared rather than inlined, because there are now two ways an image arrives —
+ * the studio uploads a file, or they pick one of their own photographs off the site they
+ * already have — and everything after the bytes is identical: the S3 write, the vision alt
+ * text, the IPTC embedding, the homepage_images row and the landing-page hero. Writing that
+ * twice is how the two paths end up disagreeing about which of them populates
+ * landing_pages.hero_image_url.
+ *
+ * Expects req.file in multer shape: { buffer, mimetype, originalname }.
+ */
+async function storeSectionImage(req: any, res: Response) {
   try {
     const section = String(req.body?.section || '').trim();
     if (!section) return res.status(400).json({ error: 'Missing section' });
@@ -277,7 +291,7 @@ router.post('/upload-image', setupImageUpload.single('file'), async (req: any, r
       error: `Image upload failed (${reason}). Check your File storage keys, bucket and endpoint in setup.${detail ? ' — ' + detail : ''}`,
     });
   }
-});
+}
 
 /**
  * What the wizard should ask for, and what is already filled.
@@ -778,6 +792,85 @@ router.post('/homepage/starter', async (req: Request, res: Response) => {
  * Both ids are narrowed by their resolvers before they reach the database, so an unknown
  * value cannot be stored and then render as nothing.
  */
+/**
+ * Photographs already on the studio's own website.
+ *
+ * The crawler has recorded every image URL it met since it shipped and nothing has read
+ * them back. Offering them here is what lets a new site look finished without shipping
+ * stock — which this product must not do, because placeholder photography is exactly how
+ * the origin studio's pictures ended up on every buyer's homepage.
+ */
+router.get('/crawled-images', async (_req: Request, res: Response) => {
+  try {
+    const { crawledImages } = await import('./lib/crawledImages');
+    const images = await crawledImages(40);
+    return res.json({ images });
+  } catch (e: any) {
+    // A studio with no crawl yet is the normal case at this point, not an error.
+    console.warn('[setup] crawled images unavailable:', e?.message || e);
+    return res.json({ images: [] });
+  }
+});
+
+/**
+ * Use one of those photographs for a slot.
+ *
+ * The bytes are FETCHED and stored in the studio's own bucket rather than the URL being
+ * pointed at. Hotlinking their old site would mean a new site that breaks the day they take
+ * the old one down — which, having just bought this, is a thing they are about to do — and
+ * it would skip the alt text and IPTC work the upload path does.
+ *
+ * SSRF: the URL is checked against the list the crawl produced, which is itself restricted
+ * to the studio's own host. Both halves matter. Without the list check this is an open
+ * "fetch any URL you like" endpoint on an unauthenticated mount; without the host
+ * restriction in crawledImages() the list could name anywhere a crawled page linked to.
+ */
+router.post('/use-crawled-image', async (req: any, res: Response) => {
+  try {
+    const url = String(req.body?.url || '').trim();
+    const section = String(req.body?.section || '').trim();
+    if (!url || !section) return res.status(400).json({ error: 'url and section are required' });
+
+    const { isCrawledImage, crawledImages } = await import('./lib/crawledImages');
+    if (!(await isCrawledImage(url))) {
+      return res.status(400).json({ error: 'That image is not one we found on your website.' });
+    }
+
+    const r = await fetch(url, {
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; TogNinjaBot/1.0; +https://togninja.com/bot)' },
+      redirect: 'follow',
+    });
+    if (!r.ok) {
+      return res.status(502).json({ error: `Could not download that image (${r.status}).` });
+    }
+
+    const mime = String(r.headers.get('content-type') || '').split(';')[0].trim();
+    if (!/^image\/(png|jpe?g|webp|avif)$/.test(mime)) {
+      // The extension said it was a photograph and the server disagreed. Believe the server.
+      return res.status(400).json({ error: `That URL returned ${mime || 'no image type'}.` });
+    }
+
+    const buffer = Buffer.from(await r.arrayBuffer());
+    // Same ceiling as the upload path, applied after download because a remote server does
+    // not have to tell the truth in content-length.
+    if (buffer.length > 12 * 1024 * 1024) {
+      return res.status(400).json({ error: 'That image is larger than 12 MB.' });
+    }
+
+    const found = (await crawledImages(500)).find((i) => i.url === url);
+    const originalname = (() => { try { return new URL(url).pathname.split('/').pop() || 'image.jpg'; } catch { return 'image.jpg'; } })();
+
+    // Straight into the shared handler, so this path gets the identical S3 write, vision alt
+    // text, IPTC embedding, homepage_images row and landing-page hero as a manual upload.
+    req.file = { buffer, mimetype: mime, originalname };
+    req.body = { section, alt: req.body?.alt || found?.label || '' };
+    return storeSectionImage(req, res);
+  } catch (e: any) {
+    console.error('[setup] use-crawled-image failed:', e?.message || e);
+    return res.status(500).json({ error: 'Could not use that image.' });
+  }
+});
+
 router.post('/site-look', async (req: Request, res: Response) => {
   const out: { layout?: string; theme?: string; problems: string[] } = { problems: [] };
 

@@ -36,7 +36,102 @@ interface SiteImages {
   total: number;
 }
 
-function SlotCard({ slot, onUploaded }: { slot: Slot; onUploaded: () => void }) {
+interface CrawledImage {
+  url: string;
+  label: string;
+  fromPage: string;
+}
+
+/**
+ * The studio's own photographs, offered for a slot.
+ *
+ * The crawler has recorded every image on their existing site since it shipped and nothing
+ * read them back, so this step asked a photographer to hunt down and re-upload nine images
+ * they had already published. The obvious shortcut is stock, and this product must not take
+ * it — placeholder photography is how the origin studio's pictures ended up on every
+ * buyer's homepage. Their own work is a better answer than any stock library anyway.
+ */
+function OwnPhotographs({
+  slot,
+  images,
+  onUsed,
+}: {
+  slot: Slot;
+  images: CrawledImage[];
+  onUsed: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!images.length) return null;
+
+  const use = async (img: CrawledImage) => {
+    setBusy(img.url);
+    setError(null);
+    try {
+      const res = await fetch('/api/setup/use-crawled-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ section: slot.section, url: img.url, alt: img.label || slot.label }),
+      });
+      if (!res.ok) {
+        throw new Error((await res.json().catch(() => ({}))).error || 'Could not use that image');
+      }
+      setOpen(false);
+      onUsed();
+    } catch (e: any) {
+      setError(e?.message || 'Could not use that image');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full text-xs text-violet-700 dark:text-violet-300 hover:underline"
+      >
+        {open ? 'Hide your photographs' : `Use one of your ${images.length} photographs`}
+      </button>
+
+      {open && (
+        <div className="mt-2">
+          <div className="grid grid-cols-3 gap-1.5 max-h-44 overflow-y-auto">
+            {images.map((img) => (
+              <button
+                key={img.url}
+                type="button"
+                onClick={() => use(img)}
+                disabled={!!busy}
+                title={img.label || img.url}
+                className="relative aspect-square rounded overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-violet-500 disabled:opacity-50"
+              >
+                {/* Loaded straight from their own site for the preview. Only the one they
+                    choose gets downloaded and stored in their bucket. */}
+                <img src={img.url} alt={img.label} loading="lazy" className="w-full h-full object-cover" />
+                {busy === img.url && (
+                  <span className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <p className="text-[0.7rem] text-slate-500 mt-1.5">
+            Found on your website. We copy it into your own storage, so it keeps working
+            after your old site goes.
+          </p>
+          {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SlotCard({ slot, onUploaded, ownImages }: { slot: Slot; onUploaded: () => void; ownImages: CrawledImage[] }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,6 +196,7 @@ function SlotCard({ slot, onUploaded }: { slot: Slot; onUploaded: () => void }) 
         >
           {slot.filled ? 'Replace' : 'Add image'}
         </Button>
+        <OwnPhotographs slot={slot} images={ownImages} onUsed={onUploaded} />
       </div>
     </div>
   );
@@ -116,6 +212,15 @@ export default function SiteImagesPhase({ onComplete }: { onComplete: () => void
   // read "we'll ask once we've finished reading your website", and was never asked — the
   // one part of this step that cannot be done later without knowing the slot names.
   // Stops polling the moment the pillars arrive.
+  // Their own photographs, from the crawl. Fetched once for the step rather than per slot —
+  // there are up to nine slots and the answer is the same for all of them.
+  const { data: own } = useQuery<{ images: CrawledImage[] }>({
+    queryKey: ['setup-crawled-images'],
+    queryFn: () => fetch('/api/setup/crawled-images').then((r) => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const ownImages = own?.images || [];
+
   const { data, isLoading } = useQuery<SiteImages>({
     queryKey: ['setup-site-images'],
     queryFn: () => fetch('/api/setup/site-images').then((r) => r.json()),
@@ -153,7 +258,7 @@ export default function SiteImagesPhase({ onComplete }: { onComplete: () => void
             Your site
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {site.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} />)}
+            {site.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} />)}
           </div>
         </section>
 
@@ -168,7 +273,7 @@ export default function SiteImagesPhase({ onComplete }: { onComplete: () => void
                 appears on the service card and at the top of that page.
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {pillars.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} />)}
+                {pillars.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} />)}
               </div>
             </>
           ) : (
