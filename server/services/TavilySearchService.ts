@@ -1,4 +1,5 @@
 import { searchLocale } from './AxixosSearchService';
+import { ownDomains, isIrrelevantSite } from '../lib/competitorFilter';
 /**
  * Tavily Search Service
  * 
@@ -63,6 +64,9 @@ export class TavilySearchService {
     const searchQueries = this.buildSearchQueries(location, services, locale.language);
     const allResults: CompetitorSearchResult[] = [];
     const seenDomains = new Set<string>();
+    // The studio's own hostnames. This path never excluded them, so the wizard could find
+    // the studio's own website and report its current prices back as the market.
+    const own = await ownDomains();
     const errors: string[] = [];
 
     for (const query of searchQueries) {
@@ -76,7 +80,10 @@ export class TavilySearchService {
           
           // Skip duplicates and irrelevant sites
           if (seenDomains.has(domain)) continue;
-          if (this.isIrrelevantSite(domain)) continue;
+          // `own` is resolved once per search below. Passing it is the whole point of the
+          // shared helper: this path had no own-domain exclusion, so the studio scraped its
+          // own price list and the wizard reported it back as the market.
+          if (isIrrelevantSite(domain, own)) continue;
           
           seenDomains.add(domain);
           allResults.push({
@@ -294,19 +301,8 @@ export class TavilySearchService {
     }
   }
 
-  /**
-   * Check if site is irrelevant (directories, social media, etc.)
-   */
-  private isIrrelevantSite(domain: string): boolean {
-    const irrelevant = [
-      'facebook.com', 'instagram.com', 'pinterest.com', 'youtube.com',
-      'linkedin.com', 'twitter.com', 'tiktok.com', 'yelp.com',
-      'tripadvisor.com', 'wikipedia.org', 'amazon.', 'ebay.',
-      'herold.at', 'gelbeseiten.', 'wko.at', 'firmenabc.at',
-      'kununu.com', 'karriere.at', 'willhaben.at'
-    ];
-    return irrelevant.some(site => domain.includes(site));
-  }
+  // The blocklist that used to sit here was a stale copy of the AxixOS one. See
+  // ../lib/competitorFilter.
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));

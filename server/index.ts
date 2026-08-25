@@ -605,6 +605,11 @@ app.use((req, res, next) => {
         // Why a Price Wizard run failed. Without it "failed" is undiagnosable by anyone,
         // including whoever is trying to help.
         await db.execute(sql`ALTER TABLE price_wizard_sessions ADD COLUMN IF NOT EXISTS error_message TEXT`);
+        // How many prices a suggestion was computed from. Without it the UI stated market
+        // position with the same confidence for a median drawn from one quote as from
+        // twenty-three — and divided by a zero range, printing "higher than Infinity% of
+        // competitors".
+        await db.execute(sql`ALTER TABLE price_list_suggestions ADD COLUMN IF NOT EXISTS sample_size INTEGER`);
         // The studio-level document design defaults: header image, the cover-image library,
         // and whether to prefer the client own gallery. Per-document overrides use the same
         // shape, so one merge covers both (see server/lib/documentHeader.ts).

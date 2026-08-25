@@ -139,6 +139,7 @@ const DB_FIELD_MAP: Record<string, { table: 'studio_configs' | 'studio_integrati
   // in German against an Austrian index.
   site_language: { table: 'studio_configs', column: 'siteLanguage' },
   studio_country: { table: 'studio_configs', column: 'country' },
+  studio_city: { table: 'studio_configs', column: 'city' },
   business_name: { table: 'studio_configs', column: 'businessName' },
   app_url: { table: 'studio_configs', column: 'appUrl' },
   frontend_url: { table: 'studio_configs', column: 'frontendUrl' },

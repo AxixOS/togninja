@@ -12,6 +12,8 @@ import { pool } from '../db.js';
 import { PriceScraperService } from '../services/PriceScraperService.js';
 import { CompetitorDiscoveryService } from '../services/CompetitorDiscoveryService.js';
 import { PriceResearchService } from '../services/PriceResearchService.js';
+import { searchLocale } from '../services/AxixosSearchService';
+import { studioMoneyContext } from '../lib/money';
 
 const router = Router();
 const scraper = new PriceScraperService();
@@ -288,11 +290,19 @@ router.get('/diagnostics', async (_req, res) => {
   } else {
     try {
       const base = picked.baseUrl || '';
+      const probeLocale = await searchLocale();
       const h = await fetch(`${base}/health`).catch(() => null);
       const s = await fetch(`${base}/v1/search/web`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-axixos-api-key': picked.apiKey },
-        body: JSON.stringify({ query: 'Fotograf Wien Preise', limit: 2, country: 'AT', language: 'de' }),
+        // Same locale the real search uses, so a green diagnostic means the studio's own
+        // market is reachable — not that Austria is.
+        body: JSON.stringify({
+          query: `photographer prices ${probeLocale.city || ''}`.trim(),
+          limit: 2,
+          ...(probeLocale.country ? { country: probeLocale.country } : {}),
+          language: probeLocale.language,
+        }),
       });
       const sj: any = await s.json().catch(() => ({}));
       out.axixos = { ok: s.ok, health: h?.status || null, searchStatus: s.status, searchResults: (sj.results || []).length };
@@ -389,6 +399,10 @@ router.post('/analyze', async (req, res) => {
 
     // Generate suggestions for each service type
     const suggestions = [];
+
+    // The reasoning text below is stored and read by the studio; it printed a euro sign
+    // whatever currency the numbers beside it were actually in.
+    const { currency: cur } = await studioMoneyContext();
     
     for (const [serviceType, amounts] of serviceStats.entries()) {
       amounts.sort((a, b) => a - b);
@@ -396,23 +410,27 @@ router.post('/analyze', async (req, res) => {
       const min = amounts[0];
       const max = amounts[amounts.length - 1];
       const median = amounts[Math.floor(amounts.length / 2)];
+      // How many observed prices are behind these three numbers. One price makes min,
+      // median and max identical, which is what produced "higher than Infinity% of
+      // competitors" on screen.
+      const sampleSize = amounts.length;
       
       // Three-tier pricing strategy
       const tiers = [
         {
           tier: 'basic',
           suggestedPrice: Math.round(min * 1.1), // 10% above min
-          reasoning: `Competitive entry-level pricing. Market minimum: €${min}`,
+          reasoning: `Competitive entry-level pricing. Market minimum: ${cur} ${min}`,
         },
         {
           tier: 'standard',
           suggestedPrice: Math.round(median),
-          reasoning: `Market median pricing. Balanced value proposition. Median: €${median}`,
+          reasoning: `Market median pricing. Balanced value proposition. Median: ${cur} ${median}`,
         },
         {
           tier: 'premium',
           suggestedPrice: Math.round(max * 0.9), // 10% below max
-          reasoning: `Premium positioning below market leader. Market maximum: €${max}`,
+          reasoning: `Premium positioning below market leader. Market maximum: ${cur} ${max}`,
         },
       ];
 
@@ -420,8 +438,8 @@ router.post('/analyze', async (req, res) => {
         const result = await pool.query(`
           INSERT INTO price_list_suggestions (
             session_id, service_type, tier, suggested_price, 
-            market_min, market_median, market_max, reasoning, status
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending_review')
+            market_min, market_median, market_max, sample_size, reasoning, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending_review')
           RETURNING id
         `, [
           sessionId,
@@ -431,6 +449,7 @@ router.post('/analyze', async (req, res) => {
           min,
           median,
           max,
+          sampleSize,
           tier.reasoning,
         ]);
 

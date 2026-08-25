@@ -14,6 +14,7 @@ import { OpenAIPriceExtractor } from './OpenAIPriceExtractor.js';
 import { CompetitorDiscoveryService } from './CompetitorDiscoveryService.js';
 import { PriceScraperService } from './PriceScraperService.js';
 import { pool } from '../db.js';
+import { studioMoneyContext } from '../lib/money';
 
 interface ResearchConfig {
   sessionId: string;
@@ -77,6 +78,9 @@ export class PriceResearchService {
    * Run full price research for a session
    */
   async runResearch(config: ResearchConfig): Promise<ResearchProgress> {
+    // The studio's own currency. Every price fed to the model was labelled with a euro
+    // sign regardless of where the studio trades.
+    const money = await studioMoneyContext();
     await this.ensureProvider();
     const { sessionId, location, services, maxCompetitors = 12 } = config;
     
@@ -197,7 +201,7 @@ export class PriceResearchService {
                 const meta = scrapeResult.metadata as any;
                 parts.push([meta.title || '', meta.description || '', meta.textContent || ''].filter(Boolean).join('\n\n'));
                 if (scrapeResult.prices && scrapeResult.prices.length > 0) {
-                  parts.push('Directly found prices:\n' + scrapeResult.prices.map((p: any) => `${p.serviceType}: €${p.amount}`).join('\n'));
+                  parts.push('Directly found prices:\n' + scrapeResult.prices.map((p: any) => `${p.serviceType}: ${money.currency} ${p.amount}`).join('\n'));
                 }
               }
             } catch { /* ignore */ }
@@ -287,8 +291,8 @@ export class PriceResearchService {
               await pool.query(`
                 INSERT INTO price_list_suggestions (
                   session_id, service_type, tier, suggested_price,
-                  market_min, market_median, market_max, reasoning, status
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending_review')
+                  market_min, market_median, market_max, sample_size, reasoning, status
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending_review')
               `, [
                 sessionId,
                 service,
@@ -297,10 +301,14 @@ export class PriceResearchService {
                 analysis.priceStats.min,
                 analysis.priceStats.median,
                 analysis.priceStats.max,
+                // How many observed prices are behind those three numbers. Null-safe: an
+                // older analysis object without it stores NULL, which the UI reads as
+                // "unknown" and declines to state a market position from.
+                analysis.priceStats.sampleSize ?? null,
                 `${rec.reasoning}\n\nWhat's included: ${rec.whatsIncluded || ''}\n\nCompetitive advantage: ${rec.competitiveAdvantage}\n\nMarket insight: ${analysis.marketInsights}`,
               ]);
               suggestionsCount++;
-              console.log(`     ✓ Inserted ${rec.tier} tier: €${rec.suggestedPrice}`);
+              console.log(`     ✓ Inserted ${rec.tier} tier: ${money.currency} ${rec.suggestedPrice}`);
             } catch (insertError: any) {
               console.error(`     ✗ Failed to insert ${rec.tier} tier:`, insertError.message);
             }
@@ -453,6 +461,9 @@ export class PriceResearchService {
    * not the old no-op that marked everything failed.
    */
   async rescrapeSession(sessionId: string): Promise<ResearchProgress> {
+    // The studio's own currency. Every price fed to the model was labelled with a euro
+    // sign regardless of where the studio trades.
+    const money = await studioMoneyContext();
     await this.ensureProvider();
     const sessionRes = await pool.query(
       `SELECT location, services FROM price_wizard_sessions WHERE id = $1`, [sessionId]);
@@ -489,7 +500,7 @@ export class PriceResearchService {
             fullContent = [meta.title || '', meta.description || '', meta.textContent || ''].filter(Boolean).join('\n\n');
             if (scrapeResult.prices && scrapeResult.prices.length > 0) {
               fullContent += '\n\nDirectly found prices:\n' +
-                scrapeResult.prices.map((p: any) => `${p.serviceType}: €${p.amount}`).join('\n');
+                scrapeResult.prices.map((p: any) => `${p.serviceType}: ${money.currency} ${p.amount}`).join('\n');
             }
           }
         }
@@ -562,10 +573,11 @@ export class PriceResearchService {
             await pool.query(`
               INSERT INTO price_list_suggestions (
                 session_id, service_type, tier, suggested_price,
-                market_min, market_median, market_max, reasoning, status
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending_review')`,
+                market_min, market_median, market_max, sample_size, reasoning, status
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending_review')`,
               [sessionId, service, rec.tier, rec.suggestedPrice,
                analysis.priceStats.min, analysis.priceStats.median, analysis.priceStats.max,
+               analysis.priceStats.sampleSize ?? null,
                `${rec.reasoning}\n\nWhat's included: ${rec.whatsIncluded || ''}\n\nCompetitive advantage: ${rec.competitiveAdvantage}\n\nMarket insight: ${analysis.marketInsights}`]);
             suggestionsCount++;
           } catch (insertError: any) {

@@ -80,6 +80,12 @@ interface Suggestion {
   market_min: number;
   market_median: number;
   market_max: number;
+  /**
+   * How many observed competitor prices those three numbers were computed from.
+   * Undefined on rows written before the column existed, which is treated as unknown
+   * rather than as zero or as plenty.
+   */
+  sample_size?: number | null;
   reasoning: string;
   status: 'pending_review' | 'activated' | 'rejected';
   activated_product_id?: string;
@@ -1084,8 +1090,16 @@ const AdminPriceWizardPage: React.FC = () => {
                         };
                         
                         const reasoningParts = parseReasoning(suggestion.reasoning || '');
-                        const percentilePosition = suggestion.market_median > 0 
-                          ? Math.round(((suggestion.suggested_price - suggestion.market_min) / (suggestion.market_max - suggestion.market_min)) * 100)
+                        const spread = suggestion.market_max - suggestion.market_min;
+                        const sampleSize = Number(suggestion.sample_size ?? 0);
+                        // A market needs more than one observation before a position in it
+                        // means anything, and a zero spread has no position to report.
+                        const canPlace = suggestion.market_median > 0 && spread > 0 && sampleSize >= 2;
+                        // Only ever used to place the marker on the bar, never quoted as a
+                        // share of competitors. Falls back to the midpoint so the dot has
+                        // somewhere to sit while the text says the range is too narrow.
+                        const rangePosition = canPlace
+                          ? Math.min(100, Math.max(0, Math.round(((suggestion.suggested_price - suggestion.market_min) / spread) * 100)))
                           : 50;
                         
                         return (
@@ -1110,8 +1124,18 @@ const AdminPriceWizardPage: React.FC = () => {
 
                             {/* Market Position Bar — Where your suggested price sits */}
                             <div className="mb-4 bg-gray-50 rounded-lg p-4">
-                              <div className="text-xs font-semibold text-gray-700 mb-3">
-                                Where this price sits compared to competitors in your area:
+                              <div className="flex items-baseline justify-between gap-2 mb-3">
+                                <span className="text-xs font-semibold text-gray-700">
+                                  Where this price sits against the prices we found:
+                                </span>
+                                {/* How much evidence is behind the chart. Without it, a range
+                                    drawn from one price is indistinguishable from one drawn
+                                    from twenty. */}
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                  {sampleSize > 0
+                                    ? `${sampleSize} price${sampleSize === 1 ? '' : 's'} found`
+                                    : 'no prices found'}
+                                </span>
                               </div>
                               <div className="flex justify-between text-xs text-gray-500 mb-1">
                                 <span>Cheapest: {formatPrice(suggestion.market_min)}</span>
@@ -1120,12 +1144,12 @@ const AdminPriceWizardPage: React.FC = () => {
                               </div>
                               <div className="relative h-3 bg-gray-200 rounded-full">
                                 <div 
-                                  className="absolute h-3 bg-gradient-to-r from-green-400 via-yellow-400 to-red-400 rounded-full"
+                                  className={`absolute h-3 rounded-full ${canPlace ? 'bg-gradient-to-r from-green-400 via-yellow-400 to-red-400' : 'bg-gray-300'}`}
                                   style={{ width: '100%' }}
                                 />
                                 <div 
                                   className="absolute w-4 h-4 bg-purple-600 rounded-full border-2 border-white shadow-md transform -translate-y-0.5"
-                                  style={{ left: `${Math.min(Math.max(percentilePosition, 0), 100)}%`, marginLeft: '-8px' }}
+                                  style={{ left: `${rangePosition}%`, marginLeft: '-8px' }}
                                   title={`Suggested price: ${formatPrice(suggestion.suggested_price)}`}
                                 />
                               </div>
@@ -1135,28 +1159,47 @@ const AdminPriceWizardPage: React.FC = () => {
                               </div>
                               <div className="mt-3 bg-purple-50 border border-purple-200 rounded-md px-3 py-2">
                                 <p className="text-sm text-purple-900">
-                                  {percentilePosition <= 25 ? (
+                                  {/*
+                                    This used to state "your price is higher than N% of
+                                    competitors". That figure could not be computed from the three
+                                    numbers stored, and when only one price had been found it
+                                    printed Infinity. What is claimed now is only the comparison the
+                                    data actually supports: this price against the observed average,
+                                    with the number of observations shown so the studio can weigh it.
+                                  */}
+                                  {!canPlace ? (
                                     <>
-                                      <strong>Below average</strong> — This price is lower than what most competitors charge.
+                                      <strong>Not enough market data</strong> —{' '}
+                                      {sampleSize <= 1
+                                        ? `Only ${sampleSize === 1 ? 'one price was' : 'no prices were'} found for this service, so there is no market range to place you in.`
+                                        : 'Every price found for this service was the same, so there is no range to place you in.'}{' '}
+                                      Add competitors or re-run the research for a fuller picture.
+                                    </>
+                                  ) : suggestion.suggested_price < suggestion.market_median ? (
+                                    <>
+                                      <strong>Below the market average</strong> — This price is under the{' '}
+                                      {formatPrice(suggestion.market_median)} average of the {sampleSize} prices found.
                                       You would be one of the more affordable options in your area.
                                     </>
-                                  ) : percentilePosition <= 50 ? (
+                                  ) : suggestion.suggested_price === suggestion.market_median ? (
                                     <>
-                                      <strong>Around average</strong> — This price is close to what most competitors charge.
-                                      A solid middle-ground that balances value and earnings.
+                                      <strong>At the market average</strong> — This price matches the{' '}
+                                      {formatPrice(suggestion.market_median)} average of the {sampleSize} prices found.
+                                      A middle-ground that balances value and earnings.
                                     </>
-                                  ) : percentilePosition <= 75 ? (
+                                  ) : rangePosition >= 75 ? (
                                     <>
-                                      <strong>Above average</strong> — This price is higher than what most competitors charge.
-                                      Your price is higher than {percentilePosition}% of competitors — good if your work quality and experience justify it.
+                                      <strong>Near the top of the range</strong> — This price is close to the{' '}
+                                      {formatPrice(suggestion.market_max)} highest of the {sampleSize} prices found.
+                                      Suited to a strong reputation and portfolio.
                                     </>
                                   ) : (
                                     <>
-                                      <strong>Premium range</strong> — This price is among the highest in your area.
-                                      Your price is higher than {percentilePosition}% of competitors — suited for photographers with a strong reputation and portfolio.
+                                      <strong>Above the market average</strong> — This price is over the{' '}
+                                      {formatPrice(suggestion.market_median)} average of the {sampleSize} prices found.
+                                      Good if your work and experience justify it.
                                     </>
-                                  )}
-                                </p>
+                                  )}                                </p>
                               </div>
                             </div>
 

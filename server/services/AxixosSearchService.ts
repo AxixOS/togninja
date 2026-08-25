@@ -1,4 +1,5 @@
 import { config } from '../config-reader';
+import { ownDomains, isIrrelevantSite } from '../lib/competitorFilter';
 /**
  * AxixOS Intelligence Search Service
  *
@@ -48,6 +49,8 @@ export interface SearchLocale {
   language: 'de' | 'en';
   /** ISO-3166 alpha-2, or null when it is not known — in which case no filter is sent. */
   country: string | null;
+  /** The studio's own city, for probes and prompts that need a real place name. */
+  city: string;
 }
 
 export async function searchLocale(): Promise<SearchLocale> {
@@ -56,6 +59,7 @@ export async function searchLocale(): Promise<SearchLocale> {
   return {
     language: lang === 'de' ? 'de' : 'en',
     country: ISO_BY_COUNTRY[countryName] || null,
+    city: String((await config.get('studio_city')) || '').trim(),
   };
 }
 
@@ -118,7 +122,7 @@ export class AxixosSearchService {
     // The studio own site is not a competitor. Resolved per tenant rather than hardcoded:
     // the exclusion list named the ORIGIN studio's domain, so every studio built from this
     // image hid that one site and none of them hid their own.
-    const ownDomains = await this.ownDomains();
+    const own = await ownDomains();
     const all: CompetitorSearchResult[] = [];
     const seenDomains = new Set<string>();
     const errors: string[] = [];
@@ -138,7 +142,7 @@ export class AxixosSearchService {
           const website = r.url || r.link || '';
           if (!website) continue;
           const domain = this.extractDomain(website);
-          if (seenDomains.has(domain) || this.isIrrelevantSite(domain, ownDomains)) continue;
+          if (seenDomains.has(domain) || isIrrelevantSite(domain, own)) continue;
           seenDomains.add(domain);
           all.push({
             name: this.deriveBusinessName(r.title || r.name || '', website),
@@ -240,40 +244,8 @@ export class AxixosSearchService {
   }
 
   /** This studio own domains — never its own competitor. */
-  private async ownDomains(): Promise<string[]> {
-    const out: string[] = [];
-    for (const key of ['public_site_base_url', 'domain', 'app_url']) {
-      try {
-        const v = await config.get(key);
-        if (!v) continue;
-        const host = String(v).replace(/^https?:\/\//i, '').split('/')[0].replace(/^www\./i, '');
-        if (host) out.push(host.toLowerCase());
-      } catch { /* a missing key is not a reason to abandon the search */ }
-    }
-    return out;
-  }
-
-  private isIrrelevantSite(domain: string, ownDomains: string[] = []): boolean {
-    // Directories, socials and marketplaces — never a photographer own pricing page.
-    const irrelevant = [
-      'facebook.com', 'instagram.com', 'pinterest.com', 'youtube.com', 'linkedin.com',
-      'twitter.com', 'tiktok.com', 'yelp.com', 'tripadvisor.com', 'wikipedia.org',
-      'amazon.', 'ebay.', 'google.com', 'maps.google.', 'bing.com',
-      // German-speaking directories
-      'herold.at', 'gelbeseiten.', 'wko.at', 'firmenabc.at', 'kununu.com',
-      'karriere.at', 'willhaben.at',
-      // English-speaking equivalents, which were missing entirely — so a US or UK studio
-      // had its results filled with directory pages that carry no real pricing.
-      'thumbtack.com', 'theknot.com', 'weddingwire.com', 'bark.com', 'yell.com',
-      'gigsalad.com', 'thebash.com', 'angi.com', 'houzz.com', 'checkatrade.com',
-      'reddit.com', 'quora.com', 'medium.com',
-    ];
-    if (irrelevant.some((x) => domain.includes(x))) return true;
-    // The studio own site. This used to name the ORIGIN studio domain in the constant
-    // above, which hid one particular business from every tenant and hid no tenant from
-    // itself — the studio would find its own prices and treat them as the market.
-    return ownDomains.some((d) => d && domain.includes(d));
-  }
+  // ownDomains() and isIrrelevantSite() now live in ../lib/competitorFilter so the Tavily
+  // path cannot drift from this one again — it already had, in two ways that mattered.
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
