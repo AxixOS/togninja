@@ -335,6 +335,24 @@ router.get('/site-images', async (_req: Request, res: Response) => {
     const cfg = (cfgRows ?? [])[0] || {};
     const pillars = (cfg.authority_map?.pillars || []) as any[];
 
+    // Whether an upload can succeed at all.
+    //
+    // This payload said nothing about it, so the step rendered an enabled "Add image"
+    // button for every slot and a "use one of your own photographs" link beside them, and a
+    // studio on an instance without storage credentials found out by picking a file and
+    // getting a 503 — once per slot. That was survivable while this step was optional and
+    // last. It is not now: the step is essential and third, and its whole job is to make
+    // the crawl wait feel productive.
+    //
+    // Resolved through getS3Config() rather than by re-reading the three keys here, because
+    // the button must be enabled exactly when the upload will work — and the upload's own
+    // guard is that function. Two opinions about the same question is how they diverge.
+    let storageReady = false;
+    try {
+      const { getS3Config } = await import('./services/s3-storage');
+      storageReady = !!getS3Config().isConfigured;
+    } catch { /* treated as not ready, which is the safe direction */ }
+
     const { rows: imgRows } = await db.execute(sql`SELECT section, url, alt FROM homepage_images WHERE is_active`) as any;
     const have = new Map<string, any>(((imgRows ?? []) as any[]).map((r) => [r.section, r]));
 
@@ -360,6 +378,8 @@ router.get('/site-images', async (_req: Request, res: Response) => {
     return res.json({
       logoUrl: cfg.logo_url || null,
       pillarsReady: pillars.length > 0,
+      // So the step can refuse honestly up front instead of after a file picker.
+      storageReady,
       slots,
       filled: slots.filter((s) => s.filled).length,
       total: slots.length,

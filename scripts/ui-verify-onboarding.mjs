@@ -100,6 +100,29 @@ check('the service slots still wait for the crawl',
 
 // One component in two modes. A second copy would have drifted from this one within a week,
 // which is a thing this codebase has already paid for several times.
+// An upload that cannot succeed must say so BEFORE the file picker.
+//
+// The payload carried no storage state, so every slot rendered an enabled Add image button
+// and a "use one of your own photographs" link, and a studio on an instance without storage
+// credentials found out by choosing a file and getting a 503 — once per slot. Survivable
+// while the step was optional and last; not now that it is essential and third, on the screen
+// whose job is to make the crawl wait feel productive.
+check('the step is told whether uploads can succeed',
+  setupRoutes.includes('storageReady,') && setupRoutes.includes('getS3Config().isConfigured'));
+
+check('and refuses up front rather than after a file picker',
+  images.includes('disabled={upload.isPending || !storageReady}')
+  && images.includes('We cannot store photographs yet'));
+
+// The picker uses the same upload path, so it must be subject to the same answer.
+check('the own-photograph picker is gated with it',
+  images.includes('{storageReady && <OwnPhotographs'));
+
+// Defaulting to true matters: a client running against a server that has not redeployed
+// yet must behave exactly as before, not lock every studio out of uploading.
+check('an older server does not lock uploads out',
+  images.includes('data?.storageReady !== false'));
+
 check('the two halves are one component',
   !fs.existsSync('client/src/pages/setup/phases/SitePhotographsPhase.tsx'));
 

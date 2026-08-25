@@ -35,6 +35,8 @@ interface SiteImages {
   slots: Slot[];
   filled: number;
   total: number;
+  /** False when no upload on this instance can succeed. Optional: an older server omits it. */
+  storageReady?: boolean;
 }
 
 interface CrawledImage {
@@ -132,7 +134,17 @@ function OwnPhotographs({
   );
 }
 
-function SlotCard({ slot, onUploaded, ownImages }: { slot: Slot; onUploaded: () => void; ownImages: CrawledImage[] }) {
+function SlotCard({
+  slot,
+  onUploaded,
+  ownImages,
+  storageReady = true,
+}: {
+  slot: Slot;
+  onUploaded: () => void;
+  ownImages: CrawledImage[];
+  storageReady?: boolean;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -193,11 +205,14 @@ function SlotCard({ slot, onUploaded, ownImages }: { slot: Slot; onUploaded: () 
           size="sm"
           className="mt-3 w-full"
           onClick={() => inputRef.current?.click()}
-          disabled={upload.isPending}
+          disabled={upload.isPending || !storageReady}
         >
           {slot.filled ? 'Replace' : 'Add image'}
         </Button>
-        <OwnPhotographs slot={slot} images={ownImages} onUsed={onUploaded} />
+        {/* The picker goes through the same upload path, so it is subject to the same
+            answer — offering it while uploads cannot succeed shows a studio their own
+            photographs and then refuses to give them one. */}
+        {storageReady && <OwnPhotographs slot={slot} images={ownImages} onUsed={onUploaded} />}
       </div>
     </div>
   );
@@ -291,6 +306,9 @@ export default function SiteImagesPhase({
 
   // Counted over what this instance actually shows, so "0 of 3 added" does not become
   // "0 of 9" on a step that is only asking for three.
+  // Defaults to true so a server that has not been redeployed yet behaves exactly as
+  // before rather than locking every studio out of uploading.
+  const storageReady = data?.storageReady !== false;
   const shown = [...site, ...pillars];
   const shownFilled = shown.filter((s) => s.filled).length;
 
@@ -324,6 +342,27 @@ export default function SiteImagesPhase({
         </div>
       )}
 
+      {/* Said once, at the top, instead of discovered once per slot after a file picker. */}
+      {!storageReady && (
+        <div className="px-6 pb-2">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-medium">We cannot store photographs yet</p>
+            <p className="mt-1">
+              Your file storage details have not been set, so there is nowhere to put an
+              upload. Everything else works &mdash; the CRM, invoicing and your calendar are
+              unaffected, and you can add photographs any time from Website Studio once
+              storage is connected.
+            </p>
+            <a
+              href="/admin/settings/technical-setup"
+              className="mt-2 inline-block underline underline-offset-2 font-medium"
+            >
+              Connect file storage
+            </a>
+          </div>
+        </div>
+      )}
+
       <CardContent className="space-y-8 max-h-[58vh] overflow-y-auto">
         {only !== 'pillar' && (
         <section>
@@ -331,7 +370,7 @@ export default function SiteImagesPhase({
             Your site
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {site.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} />)}
+            {site.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} storageReady={storageReady} />)}
           </div>
         </section>
         )}
@@ -348,7 +387,7 @@ export default function SiteImagesPhase({
                 appears on the service card and at the top of that page.
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {pillars.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} />)}
+                {pillars.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} storageReady={storageReady} />)}
               </div>
             </>
           ) : (
