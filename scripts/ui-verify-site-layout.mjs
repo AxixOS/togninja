@@ -73,6 +73,48 @@ check('every theme variable a section uses is actually emitted',
     ? phantom.map((v) => `${v} (in ${[...consumed.get(v)].join(', ')})`).join('; ')
     : `${emitted.size} emitted, ${consumed.size} consumed`);
 
+// ── Brand classes that ignore the theme ─────────────────────────────────────
+//
+// This is most of why eight distinct palettes produced eight pages that looked like the
+// same page. The hero band, the final CTA and the section wrapper all used
+//
+//     bg-gradient-to-br from-purple-700 via-purple-600 to-pink-600
+//
+// and of those three stops only to-pink-600 was in the override map. from-purple-700 was
+// never listed (500 and 600 were) and there was no via-* rule at all — so the largest colour
+// surface on every landing page rendered literal violet on all eight presets. Atelier is
+// bone and ember; its hero was violet.
+//
+// A class like this is invisible in review: it is a perfectly ordinary Tailwind utility, it
+// compiles, and it looks deliberate. Only comparing the two lists finds it.
+const mapped = new Set(
+  [...themeScope.matchAll(/\.((?:from|via|to|text|bg|border|ring)-[a-z]+-?[0-9]*)/g)].map((m) => m[1]),
+);
+
+const BRAND = /\b((?:from|via|to|text|bg|border|ring)-(?:purple|pink|violet|fuchsia|indigo)-[0-9]{2,3})\b/g;
+const unthemed = new Map();
+if (existsSync(SECTION_DIR)) {
+  for (const f of readdirSync(SECTION_DIR).filter((n) => n.endsWith('.tsx'))) {
+    for (const m of read(`${SECTION_DIR}/${f}`).matchAll(BRAND)) {
+      if (mapped.has(m[1])) continue;
+      if (!unthemed.has(m[1])) unthemed.set(m[1], new Set());
+      unthemed.get(m[1]).add(f);
+    }
+  }
+}
+
+check('every brand colour in every section follows the theme',
+  unthemed.size === 0,
+  unthemed.size
+    ? [...unthemed.entries()].map(([c, fs2]) => `${c} in ${[...fs2].join(', ')}`).join('; ')
+    : `${mapped.size} classes mapped`);
+
+// The three stops of the gradient that matters most, named individually so a partial
+// regression cannot hide behind the aggregate check above.
+for (const stop of ['from-purple-700', 'via-purple-600', 'to-pink-600']) {
+  check(`${stop} is themed`, mapped.has(stop));
+}
+
 // ── The editorial variants stay honest ──────────────────────────────────────
 const hero = read(`${SECTION_DIR}/PublicLandingPageHero.tsx`);
 

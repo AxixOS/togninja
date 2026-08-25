@@ -120,6 +120,39 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
    apart, so a CTA reads as one confident colour rather than a two-colour ramp. */
 .tn-theme .from-purple-500,.tn-theme .from-purple-600,.tn-theme .from-pink-500,.tn-theme .from-pink-600{--tw-gradient-from:var(--tn-primary)!important;}
 .tn-theme .to-purple-600,.tn-theme .to-pink-500,.tn-theme .to-pink-600{--tw-gradient-to:var(--tn-accent)!important;}
+
+/* THE REASON EVERY PRESET LOOKED THE SAME.
+
+   The hero band, the final CTA and the section wrapper all use
+
+       bg-gradient-to-br from-purple-700 via-purple-600 to-pink-600
+
+   and of those three stops only to-pink-600 was in this map. from-purple-700 was never
+   listed (500 and 600 were), and there was no via-* rule at all. So the single largest
+   colour surface on every landing page rendered literal violet -> literal violet -> theme
+   accent, on all eight presets. Atelier is bone and ember; its hero was violet. Choosing a
+   palette changed the small print and left the biggest thing on the page alone, which is
+   most of why eight genuinely different colour schemes produced eight pages that looked
+   like the same page.
+
+   A middle stop is a real design decision, so it resolves to the primary-dark shade rather
+   than repeating the from-stop: a two-stop gradient with a duplicate middle is a flat band. */
+.tn-theme .from-purple-700,.tn-theme .from-purple-800,.tn-theme .from-pink-700{--tw-gradient-from:var(--tn-primary)!important;}
+.tn-theme .via-purple-500,.tn-theme .via-purple-600,.tn-theme .via-purple-700,.tn-theme .via-pink-500,.tn-theme .via-pink-600{--tw-gradient-stops:var(--tw-gradient-from),var(--tn-primary-d),var(--tw-gradient-to)!important;}
+
+/* Light tints of the brand, used for text ON a filled brand ground (an eyebrow over the
+   hero, a quotation mark on a testimonial). Mapped to a translucent white rather than to a
+   theme colour: they only ever appear on a primary fill, and --tn-on-primary is what the
+   preset says is legible there. A theme tint would be the same hue as the ground behind it. */
+.tn-theme .text-purple-100,.tn-theme .text-purple-200,.tn-theme .text-purple-300{color:color-mix(in srgb, var(--tn-on-primary) 78%, transparent)!important;}
+
+/* Mid-weight brand text on a NEUTRAL ground — icons and accents inside cards. These belong
+   with the other text-purple-* weights; 500 was simply missed. */
+.tn-theme .text-purple-400,.tn-theme .text-purple-500{color:var(--tn-accent)!important;}
+
+/* Hairlines tinted with the brand. Uses the theme border token so it stays a hairline on
+   either ground rather than becoming a violet rule on a warm one. */
+.tn-theme .border-purple-100,.tn-theme .border-purple-200,.tn-theme .border-pink-100{border-color:var(--tn-border)!important;}
 .tn-theme .hover\\:from-pink-600:hover,.tn-theme .hover\\:from-purple-600:hover{--tw-gradient-from:var(--tn-primary-d)!important;}
 .tn-theme .hover\\:to-purple-700:hover,.tn-theme .hover\\:to-pink-600:hover{--tw-gradient-to:var(--tn-primary)!important;}
 /* Label on a primary fill takes the palette's own paper white, not pure #fff, so it
