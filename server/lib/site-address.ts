@@ -20,9 +20,20 @@ export interface StudioAddress {
   street: string;
   city: string;
   postalCode: string;
+  /**
+   * The studio's uploaded logo, which becomes their browser tab icon.
+   *
+   * siteIdentity.renderIndexHtml() swaps the whole favicon block for the studio's own
+   * mark when it has a logo — and it reads that logo from THIS object. The field simply
+   * did not exist, and the SELECT below did not fetch the column, so `studioAddress.logo`
+   * was always undefined, the resolver fell through to the LOGO_URL env var (which is
+   * never set, because logo_url has no ENV_MAP entry in config-reader), and every studio
+   * kept the shipped product icon in its tab.
+   */
+  logo: string;
 }
 
-const EMPTY: StudioAddress = { name: '', street: '', city: '', postalCode: '' };
+const EMPTY: StudioAddress = { name: '', street: '', city: '', postalCode: '', logo: '' };
 const TTL = 60_000;
 
 let cached: { value: StudioAddress; at: number } | null = null;
@@ -49,7 +60,7 @@ async function load(): Promise<StudioAddress> {
   let next: StudioAddress = EMPTY;
   try {
     const { rows } = await pool.query(
-      `SELECT business_name, studio_name, address, city FROM studio_configs LIMIT 1`,
+      `SELECT business_name, studio_name, address, city, logo_url FROM studio_configs LIMIT 1`,
     );
     const row = rows?.[0];
     if (row) {
@@ -62,6 +73,9 @@ async function load(): Promise<StudioAddress> {
         street: clean(row.address),
         city: localityOf(row.city),
         postalCode: '',
+        // The tab icon. Same reasoning as the name directly above: a studio that
+        // completed onboarding should not still be wearing the product's own mark.
+        logo: clean(row.logo_url),
       };
     }
   } catch {
