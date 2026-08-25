@@ -29,6 +29,12 @@ interface StudioConfig {
   logoUrl?: string;
   primaryColor: string;
   secondaryColor: string;
+  /** The header image every client-facing document falls back to. */
+  documentDesign: {
+    headerImageUrl: string | null;
+    headerLibrary: string[];
+    preferClientGallery: boolean;
+  };
   businessName: string;
   address: string;
   city: string;
@@ -52,6 +58,7 @@ const StudioCustomization: React.FC = () => {
     businessName: SITE.name,
     address: '',
     city: '',
+    documentDesign: { headerImageUrl: null, headerLibrary: [], preferClientGallery: true },
     state: '',
     country: '',
     phone: SITE.phone,
@@ -112,6 +119,7 @@ const StudioCustomization: React.FC = () => {
             businessName: data.businessName || prev.businessName,
             address: data.address || prev.address,
             city: data.city || prev.city,
+            documentDesign: data.documentDesign || prev.documentDesign,
             state: data.state || prev.state,
             country: data.country || prev.country,
             phone: data.phone || prev.phone,
@@ -182,6 +190,45 @@ const StudioCustomization: React.FC = () => {
       setStatusMsg({ type: 'error', text: error?.message || 'Could not save. Please try again.' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // A cover image for documents. Deliberately the SAME endpoint the logo uses rather
+  // than a second uploader — /api/upload/image already stores through the configured
+  // provider, and eight other places in this repo went their own way and drifted.
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingCover(true);
+    setStatusMsg(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/upload/image', { method: 'POST', body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Upload failed (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      const url = data.url || data.imageUrl;
+      if (!url) throw new Error('Upload succeeded but no URL was returned.');
+      const next = {
+        ...config.documentDesign,
+        headerImageUrl: url,
+        headerLibrary: [url, ...(config.documentDesign.headerLibrary || []).filter((u) => u !== url)].slice(0, 24),
+      };
+      setConfig((prev) => ({ ...prev, documentDesign: next }));
+      // Saved straight away, like the logo: this IS the action they just took.
+      await persistBranding({ documentDesign: next } as any);
+      setStatusMsg({ type: 'success', text: 'Cover image saved. Documents for clients without a gallery will use it.' });
+    } catch (error: any) {
+      setStatusMsg({ type: 'error', text: error?.message || 'Cover upload failed.' });
+    } finally {
+      setUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = '';
     }
   };
 
@@ -574,6 +621,105 @@ const StudioCustomization: React.FC = () => {
                         Used on contracts and invoices, and to work out the tax codes on your
                         accounting export — so it needs to be where the business is registered.
                       </p>
+                    </div>
+
+                    {/* Document cover image.
+
+                        The header on a client-facing document prefers a photograph from
+                        THAT CLIENT'S own gallery. This is what is used when they have
+                        none — and on this instance that is 63 clients out of 64, so it is
+                        the common case rather than the exception. The copy says so plainly
+                        instead of describing it as a fallback nobody will hit. */}
+                    <div className="pt-2 border-t border-gray-200">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Document cover image
+                      </label>
+                      <div className="flex items-start gap-4">
+                        <div className="w-32 h-20 rounded-md border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
+                          {config.documentDesign?.headerImageUrl ? (
+                            <img
+                              src={config.documentDesign.headerImageUrl}
+                              alt="Document cover"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-xs text-gray-400 px-2 text-center">No cover yet</span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <input
+                            ref={coverInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleCoverFile}
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => coverInputRef.current?.click()}
+                            disabled={uploadingCover}
+                            className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm hover:bg-gray-800 disabled:opacity-50"
+                          >
+                            {uploadingCover ? 'Uploading…' : (config.documentDesign?.headerImageUrl ? 'Replace cover' : 'Upload a cover')}
+                          </button>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Invoices and contracts carry a photograph at the top. When the
+                            client has a gallery of their own, one of their pictures is used.
+                            This is what everyone else gets — which right now is most of your
+                            clients, so it is worth picking a good one.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* The library: every cover uploaded so far, so a studio can switch
+                          back without re-uploading. Only shown once there is a choice to
+                          make — a one-item gallery is noise. */}
+                      {(config.documentDesign?.headerLibrary?.length || 0) > 1 && (
+                        <div className="mt-3">
+                          <p className="text-xs text-gray-500 mb-2">Previously uploaded</p>
+                          <div className="flex flex-wrap gap-2">
+                            {config.documentDesign.headerLibrary.map((url) => (
+                              <button
+                                key={url}
+                                type="button"
+                                onClick={() => {
+                                  const next = { ...config.documentDesign, headerImageUrl: url };
+                                  setConfig((prev) => ({ ...prev, documentDesign: next }));
+                                  persistBranding({ documentDesign: next } as any).catch(() => {});
+                                }}
+                                className={`w-16 h-12 rounded border overflow-hidden ${
+                                  config.documentDesign.headerImageUrl === url
+                                    ? 'border-purple-500 ring-2 ring-purple-200'
+                                    : 'border-gray-200 hover:border-gray-400'
+                                }`}
+                                title="Use this cover"
+                              >
+                                <img src={url} alt="" className="w-full h-full object-cover" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={config.documentDesign?.preferClientGallery !== false}
+                          onChange={(e) => {
+                            const next = { ...config.documentDesign, preferClientGallery: e.target.checked };
+                            setConfig((prev) => ({ ...prev, documentDesign: next }));
+                            persistBranding({ documentDesign: next } as any).catch(() => {});
+                          }}
+                        />
+                        <span>
+                          Use the client's own photographs when they have a gallery
+                          <span className="block text-xs text-gray-500">
+                            Turn this off to put the cover above on every document, whoever
+                            it is for.
+                          </span>
+                        </span>
+                      </label>
                     </div>
                   </CardContent>
                 </Card>

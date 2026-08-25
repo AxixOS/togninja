@@ -59,6 +59,15 @@ router.get('/branding', requireAuth, async (_req, res) => {
       // counts '   ' as missing, and the form should not show a value the sender will not.
       email: resolveStudioEmail(sc),
       logoUrl: sc?.logoUrl || null,
+      // Document design defaults — the header image every client-facing document falls
+      // back to. Normalised here so the form never has to guard a half-written object.
+      documentDesign: {
+        headerImageUrl: (sc as any)?.documentDesign?.headerImageUrl || null,
+        headerLibrary: Array.isArray((sc as any)?.documentDesign?.headerLibrary)
+          ? (sc as any).documentDesign.headerLibrary
+          : [],
+        preferClientGallery: (sc as any)?.documentDesign?.preferClientGallery !== false,
+      },
       primaryColor: sc?.primaryColor || '#7C3AED',
       secondaryColor: sc?.secondaryColor || '#F59E0B',
       activeTemplate: sc?.activeTemplate || 'template-01-modern-minimal',
@@ -120,6 +129,7 @@ router.put('/branding', requireAuth, async (req, res) => {
       phone,
       email,
       logoUrl,
+      documentDesign,
       primaryColor,
       secondaryColor,
       activeTemplate,
@@ -148,6 +158,21 @@ router.put('/branding', requireAuth, async (req, res) => {
     if (phone !== undefined) set.phone = phone;
     if (email !== undefined) set.email = email;
     if (logoUrl !== undefined) set.logoUrl = logoUrl;
+
+    // Validated before it is stored, not trusted. This object is read by every
+    // client-facing document renderer, and a headerImageUrl that is not a string is a
+    // fetch() that throws inside a PDF generator rather than a field that looks wrong.
+    if (documentDesign !== undefined) {
+      const d = documentDesign && typeof documentDesign === 'object' ? documentDesign : {};
+      const url = typeof d.headerImageUrl === 'string' ? d.headerImageUrl.trim() : '';
+      set.documentDesign = {
+        headerImageUrl: url || null,
+        headerLibrary: Array.isArray(d.headerLibrary)
+          ? d.headerLibrary.filter((u: any) => typeof u === 'string' && u.trim()).slice(0, 24)
+          : [],
+        preferClientGallery: d.preferClientGallery !== false,
+      };
+    }
     if (primaryColor !== undefined) set.primaryColor = primaryColor;
     if (secondaryColor !== undefined) set.secondaryColor = secondaryColor;
     if (activeTemplate !== undefined) set.activeTemplate = activeTemplate;
@@ -189,6 +214,15 @@ router.put('/branding', requireAuth, async (req, res) => {
     // The served JSON-LD is built once per process and memoised, so a saved address or
     // city reaches visitors only if this fires.
     { const { invalidateStudioAddress } = await import('../lib/site-address'); invalidateStudioAddress(); }
+
+    // Every client-facing DOCUMENT resolves the studio through documentBrand(), which
+    // caches for a minute. Without this a studio changes its logo, name or header image,
+    // generates an invoice to check, and sees the old one — then changes it again.
+    { const { invalidateDocumentBrand } = await import('../lib/documentBrand'); invalidateDocumentBrand(); }
+
+    // money.ts caches currency and locale separately, and a currency change has to reach
+    // the same documents.
+    { const { invalidateStudioMoney } = await import('../lib/money'); invalidateStudioMoney(); }
 
     // Page visibility, the sitemap and the public URLs read the language per request.
     if (languageChanged) {
