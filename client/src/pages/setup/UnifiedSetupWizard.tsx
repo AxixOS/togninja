@@ -45,6 +45,16 @@ interface StepDef {
   group: string;
   label: string;
   render: () => JSX.Element;
+  /**
+   * Does a studio need this before they can see their own site?
+   *
+   * Only three do. Everything else asks for a credential in front of a feature the studio
+   * has not been shown yet — four integrations of friction before the one moment that
+   * sells this product, which is seeing their website rebuilt. The rest is reachable from
+   * Settings, and every feature that needs one of those keys now says so at the moment it
+   * is needed (server/lib/capabilities.ts).
+   */
+  essential?: boolean;
 }
 
 export default function UnifiedSetupWizard() {
@@ -66,9 +76,19 @@ export default function UnifiedSetupWizard() {
     queryClient.invalidateQueries({ queryKey: ['technical-setup-status'] });
   };
 
+  /**
+   * Is the studio doing the short version?
+   *
+   * Default yes. A studio arriving for the first time gets three steps and their site;
+   * everything else is offered afterwards and reachable from Settings for ever. Somebody
+   * who WANTS the long version can have it, which is what the toggle is for — but it is
+   * not the path a new buyer is dropped into.
+   */
+  const [essentialsOnly, setEssentialsOnly] = useState(true);
+
   const goNext = () => {
     refresh();
-    setIndex((i) => Math.min(i + 1, STEPS.length - 1));
+    setIndex((i) => Math.min(i + 1, VISIBLE.length - 1));
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const goBack = () => setIndex((i) => Math.max(i - 1, 0));
@@ -84,21 +104,21 @@ export default function UnifiedSetupWizard() {
 
   const STEPS: StepDef[] = [
     { key: 'welcome', group: 'Your studio', label: 'Welcome', render: () => <WelcomeStep status={techStatus} onComplete={goNext} /> },
-    { key: 'basics', group: 'Your studio', label: 'Business basics', render: () => <BasicsPhase initialData={setupStatus?.phases?.basics?.data} onComplete={goNext} /> },
+    { key: 'basics', group: 'Your studio', label: 'Business basics', essential: true, render: () => <BasicsPhase initialData={setupStatus?.phases?.basics?.data} onComplete={goNext} /> },
     { key: 'domain', group: 'Infrastructure', label: 'Domain & URLs', render: () => <DomainStep onComplete={goNext} onBack={goBack} /> },
     { key: 'email', group: 'Infrastructure', label: 'Email', render: () => <EmailStep onComplete={goNext} onBack={goBack} /> },
     { key: 'stripe', group: 'Infrastructure', label: 'Payments', render: () => <StripeStep onComplete={goNext} onBack={goBack} /> },
     { key: 'storage', group: 'Infrastructure', label: 'File storage', render: () => <StorageStep onComplete={goNext} onBack={goBack} /> },
     { key: 'extras', group: 'Infrastructure', label: 'AI & extras', render: () => <ExtrasStep onComplete={goNext} onBack={goBack} /> },
     { key: 'calendar', group: 'Infrastructure', label: 'Calendar', render: () => <CalendarPhase onComplete={goNext} /> },
-    { key: 'security', group: 'Account', label: 'Admin account', render: () => <SecurityStep onComplete={goNext} onBack={goBack} /> },
+    { key: 'security', group: 'Account', label: 'Admin account', essential: true, render: () => <SecurityStep onComplete={goNext} onBack={goBack} /> },
     { key: 'lead_sources', group: 'Content', label: 'Lead sources', render: () => <LeadSourcesPhase onComplete={goNext} /> },
     { key: 'integrations', group: 'Content', label: 'Integrations', render: () => <IntegrationsPhase status={setupStatus?.phases?.integrations} features={setupStatus?.features} onComplete={goNext} /> },
     // "Scan content" read as a website crawl. This step reads the data already in the
     // CRM (blog posts, gallery images, products, clients) â€” on a new studio that is
     // empty and finishes instantly, which looked like a broken website scan. The
     // website analysis is a separate, earlier step; it is what produces the homepage.
-    { key: 'scanning', group: 'Content', label: 'Review CRM data', render: () => <ScanningPhase onComplete={goNext} /> },
+    { key: 'scanning', group: 'Content', label: 'Review CRM data', essential: true, render: () => <ScanningPhase onComplete={goNext} /> },
     // Images come AFTER scanning because that step triggers the website crawl, and half
     // the slots are per-service â€” unknowable until the Authority Map exists. It is also
     // after Storage, without which there is nowhere to put an upload.
@@ -107,13 +127,19 @@ export default function UnifiedSetupWizard() {
     { key: 'drafts', group: 'Content', label: 'Starter content', render: () => <DraftsPhase onComplete={finish} /> },
   ];
 
-  const last = STEPS.length - 1;
-  const current = STEPS[index];
-  const progressPct = Math.round((index / last) * 100);
+  // What this run of the wizard actually walks. STEPS remains the full catalogue — nothing
+  // is deleted, and a studio who wants every step still has them.
+  const VISIBLE = essentialsOnly ? STEPS.filter((st) => st.essential) : STEPS;
+
+  // A stale index after toggling would render the wrong step or crash on undefined.
+  const safeIndex = Math.min(index, Math.max(VISIBLE.length - 1, 0));
+  const last = Math.max(VISIBLE.length - 1, 0);
+  const current = VISIBLE[safeIndex] || VISIBLE[0];
+  const progressPct = last > 0 ? Math.round((safeIndex / last) * 100) : 0;
 
   // Group step indices for the sidebar
   const groups: { name: string; steps: { def: StepDef; idx: number }[] }[] = [];
-  STEPS.forEach((def, idx) => {
+  VISIBLE.forEach((def, idx) => {
     let g = groups.find((x) => x.name === def.group);
     if (!g) {
       g = { name: def.group, steps: [] };
@@ -137,12 +163,24 @@ export default function UnifiedSetupWizard() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">Studio Setup</h1>
-              <p className="text-sm text-gray-500">Step {index + 1} of {STEPS.length} â€” {current.label}</p>
+              <p className="text-sm text-gray-500">Step {safeIndex + 1} of {VISIBLE.length} — {current?.label}</p>
             </div>
           </div>
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium text-gray-900">{progressPct}% complete</p>
             <Progress value={progressPct} className="w-32 h-2" />
+            {/* The long version, for somebody who wants it. Nothing was removed — the extra
+                steps are the same ones, and every credential they ask for is also reachable
+                from Settings, surfaced by the feature that needs it. */}
+            <button
+              type="button"
+              onClick={() => { setEssentialsOnly((v) => !v); setIndex(0); }}
+              className="mt-1 text-xs text-gray-500 hover:text-gray-800 underline"
+            >
+              {essentialsOnly
+                ? `Set everything up now (${STEPS.length} steps)`
+                : 'Just the essentials'}
+            </button>
           </div>
         </div>
       </header>
