@@ -924,7 +924,7 @@ const translations = {
     
   // Admin sidebar navigation additions
   'nav.dashboard': 'Dashboard',
-  'nav.newLeads': 'New Leads',
+  'nav.newLeads': 'Leads',
   'nav.onlineVoucherSales': 'Online Voucher Sales',
   'nav.clients': 'Clients',
   'nav.topClients': 'Top Clients',
@@ -2131,7 +2131,7 @@ const translations = {
     
   // Admin sidebar navigation additions
   'nav.dashboard': 'Dashboard',
-  'nav.newLeads': 'Neue Leads',
+  'nav.newLeads': 'Leads',
   'nav.onlineVoucherSales': 'Online Gutschein-Verkäufe',
   'nav.clients': 'Kunden',
   'nav.topClients': 'Top Kunden',

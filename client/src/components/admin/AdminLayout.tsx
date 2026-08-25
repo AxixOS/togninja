@@ -150,51 +150,49 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   }, []);
 
   const sidebarItems = [
-    { icon: LayoutDashboard, label: t('nav.dashboard'), path: '/admin/dashboard' },
-    // Second, right under Dashboard. Creating things is the most common reason a
-    // photographer opens this product, and the queued sidebar reorder puts the daily
-    // workflow at the top — this is the first item of it.
+  // Ordered by WHEN A PHOTOGRAPHER NEEDS A THING, not by when it was built.
+  //
+  // The previous order was build order: Inbox sat at 21 with unread mail in it and
+  // Calendar at 13, so the two things used most often were the two hardest to reach,
+  // while Accounting Export landed at 11 between Contracts and the Price Wizard —
+  // neither workflow nor setup.
+  //
+  // The shape is the working day: lead -> reply -> book -> manage -> deliver ->
+  // invoice -> nurture -> analyse -> configure. `section` is rendered as a heading
+  // when it changes, so twenty-seven flat rows read as six short lists.
+
+    { section: 'Work', icon: LayoutDashboard, label: t('nav.dashboard'), path: '/admin/dashboard' },
     { icon: Plus, label: 'Create', path: '/admin/create' },
     { icon: UserPlus, label: t('nav.newLeads'), path: '/admin/leads', badge: newLeadsCount },
-    { icon: ShoppingCart, label: t('nav.onlineVoucherSales'), path: '/admin/voucher-sales' },
-    { icon: Users, label: t('nav.clients'), path: '/admin/clients' },
-    { icon: Crown, label: t('nav.topClients'), path: '/admin/high-value-clients' },
-    { icon: Tags, label: 'Lead Sources', path: '/admin/lead-sources' },
-    { icon: Image, label: t('nav.galleriesAdmin'), path: '/admin/galleries' },
-    // Directly under Galleries because that is where a client orders a print from, so the
-    // two are read together — and because this list was previously reachable only from
-    // the bottom of a settings page about API keys, which is not where anyone looks for
-    // the things they sell. Printer is already this product's print glyph (the Prodigi
-    // settings tile and page both use it) and nothing else in the sidebar claims it.
-    { icon: Printer, label: 'Print Products', path: '/admin/print-products' },
-    { icon: FileText, label: t('nav.invoices'), path: '/admin/invoices' },
-    // Next to Invoices: both are the paperwork one booking generates, and a studio
-    // reaches for them in the same moment. ScrollText rather than a fourth FileText,
-    // which is already Invoices and Landing Pages and is unreadable at sidebar size
-    // once three rows share it.
-    { icon: ScrollText, label: t('nav.contracts'), path: '/admin/contracts' },
-    { icon: Calculator, label: 'Accounting Export', path: '/admin/accounting' },
-    { icon: TrendingUp, label: 'Price List Wizard', path: '/admin/price-wizard', badge: 'AI' },
+    { icon: Inbox, label: t('nav.inbox'), path: '/admin/inbox', badge: unreadEmailsCount },
     { icon: Calendar, label: t('nav.calendar'), path: '/admin/calendar' },
+    { icon: Users, label: t('nav.clients'), path: '/admin/clients' },
+    { icon: Image, label: t('nav.galleriesAdmin'), path: '/admin/galleries' },
+    { icon: FileText, label: t('nav.invoices'), path: '/admin/invoices' },
+
+    { section: 'Sell & deliver', icon: ShoppingCart, label: t('nav.onlineVoucherSales'), path: '/admin/voucher-sales' },
+    { icon: Printer, label: 'Print Products', path: '/admin/print-products' },
+    { icon: ScrollText, label: t('nav.contracts'), path: '/admin/contracts' },
+    { icon: ClipboardList, label: t('nav.questionnaires'), path: '/admin/questionnaires' },
     { icon: CalendarCheck2, label: 'Schedulers', path: '/admin/schedulers' },
-    // Beside Schedulers on purpose: this is the connection the scheduler checks before
-    // it accepts a /book/* booking, so the two are read together. RefreshCw rather than a
-    // third calendar glyph, which would be indistinguishable from the two rows above at
-    // sidebar size (and lucide-react 0.323 has no CalendarSync export).
-    { icon: RefreshCw, label: t('nav.calendarSync'), path: '/admin/calendar-sync' },
-    { icon: FolderOpen, label: t('nav.digitalFiles'), path: '/admin/digital-files' },
-    { icon: PenTool, label: t('nav.blogAdmin'), path: '/admin/blog' },
+
+    { section: 'Reach out', icon: MessageSquare, label: t('nav.communications'), path: '/admin/communications' },
     { icon: Mail, label: t('nav.emailCampaigns'), path: '/admin/campaigns' },
     { icon: Zap, label: t('nav.automations'), path: '/admin/automations' },
-    { icon: MessageSquare, label: t('nav.communications'), path: '/admin/communications' },
-    { icon: Inbox, label: t('nav.inbox'), path: '/admin/inbox', badge: unreadEmailsCount },
-    { icon: ClipboardList, label: t('nav.questionnaires'), path: '/admin/questionnaires' },
+
+    { section: 'Grow', icon: Tags, label: 'Lead Sources', path: '/admin/lead-sources' },
+    { icon: Crown, label: t('nav.topClients'), path: '/admin/high-value-clients' },
     { icon: BarChart3, label: t('nav.reports'), path: '/admin/reports' },
+    { icon: PenTool, label: t('nav.blogAdmin'), path: '/admin/blog' },
     { icon: FileText, label: 'Landing Pages', path: '/admin/landing-pages', badge: 'AI' },
-    { icon: Bot, label: 'Agent V2 (Enhanced)', path: '/admin/agent-v2', badge: 'NEW' },
-    // ONE settings menu (was two: "Customization" + "Settings"). The former
-    // Customization sub-items and the Agent Console live here now; the
-    // Settings hub page mirrors the same structure as tiles.
+
+    { section: 'Business', icon: Calculator, label: 'Accounting Export', path: '/admin/accounting' },
+    { icon: TrendingUp, label: 'Price List Wizard', path: '/admin/price-wizard', badge: 'AI' },
+    { icon: FolderOpen, label: t('nav.digitalFiles'), path: '/admin/digital-files' },
+    { icon: RefreshCw, label: t('nav.calendarSync'), path: '/admin/calendar-sync' },
+
+    { section: 'Assistant & setup', icon: Bot, label: 'AI Assistant', path: '/admin/agent-v2', badge: 'NEW' },
+
     {
       icon: Settings,
       label: t('nav.settings'),
@@ -384,8 +382,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         {/* Navigation - Fixed scrolling */}
         <nav className="flex-1 py-4 overflow-y-auto max-h-full sidebar-scrollbar">
           <div className="space-y-1 pb-4">
-            {sidebarItems.map((item) => {
+            {sidebarItems.map((item, idx) => {
               const Icon = item.icon;
+              // The heading is drawn by the item that CARRIES the section, so a row added
+              // later cannot orphan one. Hidden when the sidebar is collapsed to icons,
+              // where a text heading would be a stray word beside a column of glyphs.
+              const sectionLabel = (item as any).section as string | undefined;
               const isActive = location.pathname === item.path || 
                               (item.path === '/admin/blog' && location.pathname.startsWith('/admin/blog/'));
               const isExpanded = expandedItems.has(item.path);
@@ -396,6 +398,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
               return (
                 <div key={item.path}>
+                  {sectionLabel && !sidebarCollapsed && (
+                    <p className={`px-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 ${idx === 0 ? 'pt-1' : 'pt-4'}`}>
+                      {sectionLabel}
+                    </p>
+                  )}
                   {/* Main item */}
                   {item.subItems ? (
                     <button
