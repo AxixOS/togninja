@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Bot, Send, X, Loader2, RefreshCw, Wifi, WifiOff, Minimize2, Maximize2 } from 'lucide-react';
+import DraftApproveCard from './DraftApproveCard';
 import { clampToViewport, isDrag, widgetSize } from '../../lib/widgetPosition';
 
 type ConnectionStatus = 'connected' | 'checking' | 'disconnected' | 'reconnecting';
@@ -296,9 +297,15 @@ const AgentChatWidget: React.FC = () => {
   };
 
   /** Run the tool the agent asked for. __confirm is added server-side, on this request. */
-  const approvePending = async () => {
+  /**
+   * @param editedArgs what the studio actually approved, which may differ from what the
+   *   agent proposed. Sent as-is: the server re-validates every argument through the
+   *   tool's own Zod schema and scope checks, so an edit cannot widen what the tool may
+   *   do — it can only change the values it does it with.
+   */
+  const approvePending = async (editedArgs?: Record<string, any>) => {
     if (!pending) return;
-    const toRun = pending;
+    const toRun = { ...pending, args: editedArgs ?? pending.args };
     setPending(null);
     setIsLoading(true);
     try {
@@ -515,33 +522,14 @@ const AgentChatWidget: React.FC = () => {
                   a person takes responsibility for something the agent is about to do to
                   their business — send an email, create an invoice, write to the CRM. */}
               {pending && (
-                <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
-                  <p className="text-sm font-medium text-amber-900">
-                    Run <span className="font-mono">{pending.tool.replace(/_/g, ' ')}</span>?
-                  </p>
-                  {pending.reason && (
-                    <p className="mt-1 text-xs text-amber-800">{pending.reason}</p>
-                  )}
-                  {pending.args && Object.keys(pending.args).length > 0 && (
-                    <pre className="mt-2 max-h-32 overflow-auto rounded bg-white/70 p-2 text-[11px] text-amber-900">
-                      {JSON.stringify(pending.args, null, 2)}
-                    </pre>
-                  )}
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={approvePending}
-                      className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
-                    >
-                      Yes, do it
-                    </button>
-                    <button
-                      onClick={declinePending}
-                      className="rounded-lg border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
-                    >
-                      No
-                    </button>
-                  </div>
-                </div>
+                <DraftApproveCard
+                  tool={pending.tool}
+                  args={pending.args}
+                  reason={pending.reason}
+                  onApprove={approvePending}
+                  onDecline={declinePending}
+                  busy={isLoading}
+                />
               )}
 
               <div className="flex items-center gap-2">
