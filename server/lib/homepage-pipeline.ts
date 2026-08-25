@@ -294,7 +294,14 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
       const { rows: refusals } = await pool.query(
         `SELECT count(*)::int AS blocked FROM website_pages
           WHERE crawl_job_id = $1
-            AND (http_status IN (401, 403, 406, 429, 503)
+            -- Only pages we never recovered. A page the partner crawler rescued carries the
+            -- refusing http_status but status = ok, and reporting it as blocked would tell a
+            -- studio their host turned us away on a page we actually read.
+            AND status <> 'ok'
+            -- 202 belongs here even though it is a success code. A bot manager returns it
+            -- with a near-empty body while it decides about the caller, and counting it as a
+            -- page we read is what told a studio their own site had no text in it.
+            AND (http_status IN (202, 401, 403, 406, 429, 503)
                  OR lower(coalesce(title, '')) ~ '(403|forbidden|access denied|attention required|just a moment)')`,
         [jobId],
       ).catch(() => ({ rows: [{ blocked: 0 }] }));

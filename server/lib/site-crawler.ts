@@ -195,6 +195,34 @@ export async function fetchWithTimeout(u: string, ms = 12000, headers = CRAWL_HE
 const USABLE_TEXT = 400;
 
 /**
+ * Did this response actually contain the page, or a bot-management challenge?
+ *
+ * Measured against a real studio site a buyer tried to onboard. From a residential IP that
+ * host answers a crawler user-agent with 403 and a browser one with 200 and 4,503 characters.
+ * From the datacentre it answers BOTH with:
+ *
+ *     HTTP 202, 168 bytes of HTML, no title, no text
+ *
+ * 202 sits inside 200-399, so it was stored as status='ok' and the studio was told "we read
+ * 1 page of your site but found no text" — which sent them looking for a JavaScript problem
+ * on a site that serves 4.5 KB of plain HTML to a browser. We were not reading their page at
+ * all; we were reading a challenge that says nothing.
+ *
+ * A success code with essentially no body is not a page. Saying so is the difference between
+ * a studio debugging their own website and a studio being told their host will not talk to
+ * us.
+ */
+export function looksLikeChallenge(status: number, html: string): boolean {
+  if (status < 200 || status >= 400) return false;      // already a plain failure
+  const text = htmlToText(html || '');
+  if (text.length >= USABLE_TEXT) return false;         // it said something; not a challenge
+  // 202 Accepted for a GET of a web page is not a normal answer — it is what a bot manager
+  // returns while it decides about you. Anything under a kilobyte with no readable text is
+  // the same story whatever the code.
+  return status === 202 || (html || '').length < 1024;
+}
+
+/**
  * Fetch a page, and if what comes back is a refusal or an empty shell, ask once more as a
  * browser. Returns whichever attempt actually produced a page.
  */
@@ -428,6 +456,43 @@ export async function crawlSite(
       const ct = String(resp.headers.get('content-type') || '');
       const http_status = resp.status;
       let html = fetched.html;
+      // Set only when a partner read rescued a page our own fetch could not reach.
+      let partnerText = '';
+
+      // Recorded before anything else looks at it, so a challenge cannot be counted as a
+      // page we read. See looksLikeChallenge().
+      let challenged = looksLikeChallenge(http_status, html);
+
+      // ── Somebody else fetches it ──────────────────────────────────────────
+      //
+      // Changing the user-agent cannot help here. The block is on the ADDRESS: measured
+      // against a real studio site, a residential IP gets 403 for a crawler UA and 200 with
+      // 4,503 characters for a browser one, while this service's datacentre IP gets HTTP 202
+      // and 168 bytes for both. No header rewrites where the request came from.
+      //
+      // AxixOS already reads pages for the price wizard, from its own address, so the
+      // capability and the contract exist. It returns fields rather than HTML, so what comes
+      // back becomes the page TEXT — there is no markup to store and no links to follow, and
+      // that is fine: one readable page beats twelve refusals.
+      let viaPartner = false;
+      if (challenged) {
+        console.warn(`[site-crawler] ${current}: HTTP ${http_status} with ${(html || '').length} bytes and no text — this host is refusing our address, not serving an empty page`);
+        try {
+          const { AxixosSearchService } = await import('../services/AxixosSearchService');
+          const partner = new AxixosSearchService();
+          if (partner.isConfigured()) {
+            const text = await partner.searchCompetitorPricing(current, '');
+            if (text && text.trim().length >= USABLE_TEXT) {
+              partnerText = text.trim();
+              viaPartner = true;
+              challenged = false;
+              console.log(`[site-crawler] ${current}: read ${partnerText.length} characters through AxixOS instead`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[site-crawler] partner read failed:', e?.message || e);
+        }
+      }
       // A shell with no text and no links is a site whose content is built by
       // JavaScript. Render it rather than importing its <title> and calling that
       // the studio's website. Returns null when no browser exists, in which case
@@ -445,9 +510,15 @@ export async function crawlSite(
       // column and stops after a couple of thousand characters, so anything the studio
       // stated machine-readably has to lead — otherwise it is truthful data that never
       // reaches the model.
-      const facts = html ? extractStructuredFacts(html) : '';
-      const prose = html ? htmlToText(html) : '';
-      const text_content = html ? `${facts ? `${facts}\n\n` : ''}${prose}`.slice(0, 20000) : null;
+      // Structured facts come out of markup; a partner read has none, so this is skipped
+      // rather than run against an empty string.
+      const facts = (!viaPartner && html) ? extractStructuredFacts(html) : '';
+      // A partner read returns text, not markup, so it replaces the prose rather than being
+      // merged with it — there is no HTML to extract from.
+      const prose = partnerText || (html ? htmlToText(html) : '');
+      const text_content = (html || partnerText)
+        ? `${facts ? `${facts}\n\n` : ''}${prose}`.slice(0, 20000)
+        : null;
       const trimmedHtml = html ? html.slice(0, 200000) : null;
       await pool.query(
         `INSERT INTO website_pages(crawl_job_id, url, status, http_status, content_type, title, html, text_content, links, assets, meta)
@@ -455,7 +526,10 @@ export async function crawlSite(
         [
           jobId,
           current,
-          http_status >= 200 && http_status < 400 ? 'ok' : 'error',
+          // A challenge is an error even though it arrived with a success code. Storing it
+          // as ok is what produced "we read 1 page and found no text" for a site that serves
+          // 4.5 KB of plain HTML to a browser.
+          challenged ? 'error' : (http_status >= 200 && http_status < 400 ? 'ok' : 'error'),
           http_status,
           ct,
           title,
