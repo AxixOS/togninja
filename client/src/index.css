@@ -460,3 +460,59 @@ textarea,
 .animate-spin-slow {
   animation: spin-slow 3s linear infinite;
 }
+/* ── Setup wizard motion ──────────────────────────────────────────────────────
+   The wizard does a minute or more of real work behind one card — crawling a site,
+   reading what the studio shoots, writing their homepage — and showed a static box
+   while it happened. These are the two cues that make that work visible: a border
+   that travels while the step is live, and each finding arriving rather than
+   appearing.
+
+   Both are decorative. Everything they signal is also stated in words, so a reader
+   who has motion switched off loses nothing — see the reduced-motion block. */
+
+@keyframes setup-border-travel {
+  to { background-position: 200% 0; }
+}
+
+.setup-card-active {
+  position: relative;
+  background-clip: padding-box;
+}
+
+/* The travelling edge is drawn on a pseudo-element so it can sit under the card's own
+   background without the card needing a transparent border. */
+.setup-card-active::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    90deg,
+    rgb(37 99 235 / 0) 0%,
+    rgb(37 99 235 / 0.55) 25%,
+    rgb(139 92 246 / 0.55) 50%,
+    rgb(37 99 235 / 0) 75%
+  );
+  background-size: 200% 100%;
+  animation: setup-border-travel 2.6s linear infinite;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+@keyframes setup-finding-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.setup-finding {
+  animation: setup-finding-in 260ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-card-active::before { animation: none; background: rgb(37 99 235 / 0.35); }
+  .setup-finding { animation: none; }
+}

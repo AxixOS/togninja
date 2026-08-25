@@ -780,6 +780,10 @@ router.get('/homepage/status', async (_req: Request, res: Response) => {
       draftId: st.draftId,
       slug: st.slug,
       error: st.error || null,
+      // What the pipeline has actually established so far. The wizard shows a spinner and a
+      // stage word for a minute or more of real work — crawling a site, pulling out what the
+      // studio shoots, writing their homepage — and a spinner that long reads as a hang.
+      findings: Array.isArray(st.findings) ? st.findings : [],
     });
   } catch (error: any) {
     console.error('Homepage status error:', error?.message || error);

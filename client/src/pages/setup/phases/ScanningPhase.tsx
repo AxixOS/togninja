@@ -15,6 +15,7 @@ import { CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from 
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import SetupNarrator from '@/components/setup/SetupNarrator';
 import { 
   Loader2, 
   ArrowRight, 
@@ -207,26 +208,38 @@ export default function ScanningPhase({ onComplete }: ScanningPhaseProps) {
       
       <CardContent className="space-y-6">
         {/* AI homepage generation from the studio's existing website */}
+        {/*
+          The stage word and the spinner stay, but they are no longer the whole story.
+
+          This box used to show "Building your new homepage" and a spinner for a minute or
+          more while a real crawl ran, real subjects were pulled out of the studio's own page
+          titles, and a real homepage was written. A studio watching that assumes it has hung
+          — and the one whose screenshot prompted this stopped here.
+        */}
         {hpInProgress && (
-          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6">
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 space-y-4">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
+              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
                 <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
                   <Globe className="w-4 h-4 text-indigo-600" />
                   Building your new homepage
                 </h3>
                 <p className="text-sm text-gray-600">{hpStageLabel(hp?.stage)}</p>
-                {typeof hp?.pagesCrawled === 'number' && hp.pagesCrawled > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">Read {hp.pagesCrawled} page{hp.pagesCrawled === 1 ? '' : 's'} from your site</p>
-                )}
               </div>
             </div>
+
+            <SetupNarrator findings={hp?.findings || []} busy />
           </div>
         )}
 
+        {/* The feed is worth keeping on screen after it finishes — it is the receipt for
+            what was read and where the page came from. */}
+        {hp?.status === 'ready' && Array.isArray(hp?.findings) && hp.findings.length > 0 && (
+          <SetupNarrator findings={hp.findings} busy={false} />
+        )}
         {hp?.status === 'ready' && hp?.previewUrl && (
           <div className="border border-indigo-200 rounded-2xl overflow-hidden">
             <div className="bg-indigo-50 px-5 py-3 flex items-center gap-2">

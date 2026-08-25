@@ -19,16 +19,43 @@ const neonDb = require('../../database.js');
 export type HomepageGenStatus = 'idle' | 'running' | 'ready' | 'error' | 'skipped';
 export type HomepageGenStage = 'crawling' | 'distilling' | 'writing' | 'ready' | 'error' | 'skipped';
 
+/**
+ * Something true that just happened, for the person watching the screen.
+ *
+ * The setup wizard showed a spinner and a stage word while this pipeline crawled a whole
+ * website, pulled the studio's services out of it and wrote them a homepage — a minute or
+ * more of real work, presented as though nothing was going on. A studio watching a spinner
+ * assumes it has hung; a studio reading "Read 12 pages — found weddings, newborn,
+ * headshots" knows exactly what it bought.
+ *
+ * Every entry is a fact this pipeline actually established. Nothing here is padding or a
+ * fake tick — if the crawl found four galleries it says four, and if it found none it does
+ * not mention galleries.
+ */
+export interface GenFinding {
+  at: string;
+  text: string;
+  kind: 'reading' | 'found' | 'writing' | 'done' | 'problem';
+}
+
 export interface HomepageGenState {
   status: HomepageGenStatus;
   stage: HomepageGenStage | null;
   pagesCrawled: number;
+  /** Append-only. The client renders these in order as they arrive. */
+  findings: GenFinding[];
   draftId: string | null;
   slug: string | null;
   previewToken: string | null;
   error: string | null;
   startedAt: string | null;
   website: string | null;
+}
+
+/** Append a finding and flush, so the client sees it on its next poll. */
+async function note(state: HomepageGenState, kind: GenFinding['kind'], text: string): Promise<void> {
+  state.findings = [...(state.findings || []), { at: new Date().toISOString(), kind, text }].slice(-40);
+  await writeGenState(state);
 }
 
 async function writeGenState(state: HomepageGenState): Promise<void> {
@@ -39,6 +66,50 @@ async function writeGenState(state: HomepageGenState): Promise<void> {
   );
 }
 
+const GENERIC_PAGE = /^(home|homepage|about|about us|contact|contact us|blog|news|privacy|privacy policy|terms|cookies|imprint|impressum|faq|search|shop|cart|checkout|login|account|sitemap)$/i;
+
+/**
+ * Subjects this studio has pages about, in their own words.
+ *
+ * Titles are cleaned of the site-name suffix every CMS appends ("Weddings | Jane Doe",
+ * "Headshots - Studio"), and the boilerplate pages every site has are dropped, because
+ * \"found: Home, About, Contact\" tells a photographer nothing they did not know.
+ */
+function subjectsFromPages(rows: Array<{ url: string; title: string | null }>): string[] {
+  const titleCase = (v: string) => v
+    .split(' ')
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+
+  const out = new Set<string>();
+  for (const r of rows) {
+    // The homepage title is the SITE NAME, not something they shoot. Left in, the line read
+    // "You shoot Edinburgh Photographer, Weddings, Headshots" — the first item being the
+    // studio itself.
+    try { const p = new URL(r.url).pathname; if (p === '/' || p === '') continue; } catch {}
+
+    let t = String(r.title || '').trim();
+
+    // Drop the site-name suffix every CMS appends: "Weddings | Jane Doe" -> "Weddings".
+    for (const sep of [' | ', ' - ', ' – ', ' — ']) {
+      const at = t.indexOf(sep);
+      if (at > 0) t = t.slice(0, at).trim();
+    }
+
+    if (!t) {
+      // No title: the slug is still the studio's own word for the page.
+      try {
+        const last = new URL(r.url).pathname.split('/').filter(Boolean).pop() || '';
+        t = decodeURIComponent(last).split('-').join(' ').split('_').join(' ').trim();
+      } catch { /* not a URL we can parse; skip this row */ }
+    }
+
+    if (!t || t.length > 40 || GENERIC_PAGE.test(t)) continue;
+    out.add(titleCase(t));
+    if (out.size >= 6) break;
+  }
+  return [...out];
+}
 /** Best-effort city from a free-text address ("1050 Wien, Austria" -> "Wien"). */
 function deriveCity(address: string): string | undefined {
   if (!address) return undefined;
@@ -147,7 +218,7 @@ async function uniqueSlug(base: string): Promise<string> {
 export async function runHomepagePipeline(config: any, opts: { force?: boolean } = {}): Promise<void> {
   const website = normalizeWebsiteUrl(config?.website || config?.frontendUrl || '');
   const state: HomepageGenState = {
-    status: 'running', stage: 'crawling', pagesCrawled: 0,
+    status: 'running', stage: 'crawling', pagesCrawled: 0, findings: [],
     draftId: null, slug: null, previewToken: null, error: null,
     startedAt: new Date().toISOString(), website: website || null,
   };
@@ -161,6 +232,9 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
 
     await writeGenState(state);
     await ensureOnboardingSchema();
+    // The hostname, not the raw URL — nobody needs to read https:// on a progress line.
+    const host = (() => { try { return new URL(website).host; } catch { return website; } })();
+    await note(state, 'reading', `Opening ${host}`);
 
     // Create a crawl session + job, then crawl in-process.
     const sess = await pool.query(
@@ -179,7 +253,7 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     await pool.query(`UPDATE onboarding_sessions SET crawl_status = 'completed', updated_at = now() WHERE id = $1`, [sessionId]);
     state.pagesCrawled = crawled;
     state.stage = 'distilling';
-    await writeGenState(state);
+    await note(state, 'found', `Read ${crawled} page${crawled === 1 ? '' : 's'} from your site`);
 
     // Aggregate crawled text -> generator context.
     const pages = await pool.query(
@@ -227,6 +301,8 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
       const blocked = refusals[0]?.blocked ?? 0;
       state.status = 'error';
       state.stage = 'error';
+      state.findings = [...(state.findings || []),
+        { at: new Date().toISOString(), kind: 'problem' as const, text: 'Could not read your site' }];
       state.error = n === 0
         ? `Could not read ${website} — no pages were retrieved. Check the URL is correct and publicly reachable.`
         : failed === n
@@ -247,11 +323,16 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
       return;
     }
 
+    const subjects = subjectsFromPages(pages.rows as any[]);
+    if (subjects.length) {
+      await note(state, 'found', `You shoot ${subjects.slice(0, 4).join(', ')}${subjects.length > 4 ? ` and ${subjects.length - 4} more` : ''}`);
+    }
+
     const context = buildContext(config, pages.rows);
 
     // Generate.
     state.stage = 'writing';
-    await writeGenState(state);
+    await note(state, 'writing', 'Writing your homepage in your own words');
     let content: any;
     try {
       const gen = await generateLandingContent(context);
@@ -335,6 +416,7 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
       preview_token_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     });
 
+    await note(state, 'done', 'Your homepage is ready to look at');
     state.status = 'ready'; state.stage = 'ready';
     state.draftId = page.id; state.slug = page.slug; state.previewToken = previewToken;
     await writeGenState(state);
