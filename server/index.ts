@@ -611,6 +611,23 @@ app.use((req, res, next) => {
         // Which payment reminders have gone out for an invoice, so a stage is never sent
         // twice. [{ stage, at, demo }].
         await db.execute(sql`ALTER TABLE crm_invoices ADD COLUMN IF NOT EXISTS reminders_sent JSONB`);
+        // Where an OLD url from the studio previous site should now point.
+        //
+        // Without this, pointing a domain at this product orphans every page we did not
+        // rebuild — and server/vite.ts answers an unmatched path with the homepage at HTTP
+        // 200, so ninety dead URLs become ninety copies of one page rather than ninety
+        // honest 404s. Duplicate content at that scale can suppress a whole domain.
+        await db.execute(sql`CREATE TABLE IF NOT EXISTS site_redirects (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          from_path text NOT NULL UNIQUE,
+          to_path text NOT NULL,
+          status integer NOT NULL DEFAULT 301,
+          reason text,
+          confidence text,
+          approved boolean NOT NULL DEFAULT false,
+          created_at timestamptz DEFAULT now()
+        )`);
+        await db.execute(sql`CREATE INDEX IF NOT EXISTS site_redirects_from ON site_redirects(from_path)`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_api_key_encrypted TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_place_id TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS pulse_api_key_encrypted TEXT`);
@@ -1171,6 +1188,38 @@ app.use((req, res, next) => {
     // SEO 301 redirects for pruned thin blog posts — MUST run before serveStatic's
     // SPA catch-all so /blog/<slug> redirects instead of serving the app shell.
     app.use(seoRedirects);
+
+    // MIGRATION REDIRECTS — the studio's OLD site, after they point their domain here.
+    //
+    // Must run before serveStatic for the same reason as the line above, but the stakes are
+    // higher: without this an orphaned URL falls through to the SPA catch-all, which answers
+    // HTTP 200 with the prerendered homepage. Eighty dead pages then read to Google as
+    // eighty copies of one page rather than eighty pages that have gone — duplication at a
+    // scale that can suppress the whole domain.
+    //
+    // Only APPROVED rows are served. A saved plan changes nothing a visitor sees until a
+    // human has looked at it.
+    {
+      let cache: Map<string, { to: string; status: number }> | null = null;
+      let cachedAt = 0;
+      app.use(async (req, res, next) => {
+        // Never intercept the API or an asset — a redirect over /api would break the app.
+        const p = (req.path || '').toLowerCase();
+        if (req.method !== 'GET' || p.startsWith('/api/') || p.includes('.')) return next();
+        try {
+          if (!cache || Date.now() - cachedAt > 60_000) {
+            const { activeRedirects } = await import('./lib/migrationPlan');
+            cache = await activeRedirects();
+            cachedAt = Date.now();
+          }
+          const key = p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p;
+          const hit = cache.get(key);
+          // A redirect onto the same path is a loop served to a crawler.
+          if (hit && hit.to !== key) return res.redirect(hit.status || 301, hit.to);
+        } catch { /* a redirect lookup that fails must not take the page down */ }
+        next();
+      });
+    }
 
     // Keep the admin app out of search results. robots.txt disallows /admin/
     // but doesn't DEindex already-crawled URLs; X-Robots-Tag does. The SPA
