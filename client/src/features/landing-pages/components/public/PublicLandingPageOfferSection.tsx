@@ -5,6 +5,7 @@ import { PublicLandingPageSectionWrapper } from './PublicLandingPageSectionWrapp
 import { PublicLandingPageCtaButton } from './PublicLandingPageCtaButton';
 import { alignText, alignBlock, alignJustify, type SectionAlign } from '../../utils/sectionAlignment';
 import { useStudioCurrency } from '@/hooks/useStudioCurrency';
+import { useIsEditorial } from '@/components/public/SiteLayoutContext';
 
 // Show the price in the currency the studio sells in, not the one this product was born
 // in — the offer card is the screen the customer buys from, so a euro sign written into
@@ -51,8 +52,88 @@ export function PublicLandingPageOfferSection({
   pageSlug,
   isPreview,
 }: PublicLandingPageOfferSectionProps) {
+  const editorial = useIsEditorial();
   const { format: money } = useStudioCurrency();
   const inclusions = (data.inclusions ?? []).filter(Boolean);
+
+  // ── Editorial ──────────────────────────────────────────────────────────────
+  //
+  // The classic offer is a white card with a heavy shadow floating on a tinted band, the
+  // price set in extrabold brand colour at 5xl, green ticks down the inclusions and the
+  // urgency line in red. It is a pricing table from a software site, and it is the section
+  // most likely to make a photographer look cheap — a wedding at four thousand pounds does
+  // not want to be sold the way a subscription tier is.
+  //
+  // Here the card is dissolved and the offer is set as a statement. The price is large but
+  // light and in the reading colour rather than the brand colour, because a price in an
+  // accent hue reads as a discount sticker. The inclusions become a ruled list with no
+  // ticks. The urgency line keeps its emphasis but takes it from weight and letterspacing
+  // instead of from red, which was the only red on the page and answered to no theme.
+  if (editorial) {
+    return (
+      <PublicLandingPageSectionWrapper bg="white">
+        <div className={`max-w-3xl ${alignBlock(align)}`}>
+          <div className={alignText(align)}>
+            {data.headline && (
+              <h2 className="tracking-tight" style={{ color: 'var(--tn-heading)' }}>
+                {data.headline}
+              </h2>
+            )}
+            {data.description && (
+              <p className="mt-5 leading-relaxed" style={{ color: 'var(--tn-text)' }}>
+                {data.description}
+              </p>
+            )}
+
+            {data.price && (
+              <p
+                className="mt-10 text-5xl sm:text-6xl font-light leading-none tracking-tight"
+                style={{ color: 'var(--tn-heading)' }}
+              >
+                {formatPrice(data.price, money)}
+              </p>
+            )}
+          </div>
+
+          {inclusions.length > 0 && (
+            <ul className="mt-10 border-t" style={{ borderColor: 'var(--tn-border)' }}>
+              {inclusions.map((inc, i) => (
+                <li
+                  key={i}
+                  className="py-3.5 border-b text-left leading-relaxed"
+                  style={{ borderColor: 'var(--tn-border)', color: 'var(--tn-text)' }}
+                >
+                  {inc}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {data.urgency && (
+            <p
+              className={`mt-8 text-xs uppercase tracking-[0.16em] font-medium ${alignText(align)}`}
+              style={{ color: 'var(--tn-muted)' }}
+            >
+              {data.urgency}
+            </p>
+          )}
+
+          <div className={`mt-9 flex ${alignJustify(align)}`}>
+            <PublicLandingPageCtaButton
+              href={ctaHref}
+              label={ctaText}
+              pageId={pageId}
+              pageSlug={pageSlug}
+              placement="offer"
+              isPreview={isPreview}
+            />
+          </div>
+        </div>
+      </PublicLandingPageSectionWrapper>
+    );
+  }
+
+  // ── Classic ────────────────────────────────────────────────────────────────
   return (
     <PublicLandingPageSectionWrapper bg="purple">
       <div className={`max-w-2xl ${alignBlock(align)}`}>

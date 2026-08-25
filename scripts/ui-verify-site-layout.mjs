@@ -154,6 +154,55 @@ check('the labels come from one map keyed by language',
   existsSync('client/src/features/landing-pages/utils/publicLabels.ts')
   && /LABELS\[key\] \|\| LABELS\.en/.test(read('client/src/features/landing-pages/utils/publicLabels.ts')));
 
+// ── Coverage ────────────────────────────────────────────────────────────────
+//
+// A layout is only a layout if every section honours it. One section left on the classic
+// bones while everything around it changed is worse than not offering the choice — it reads
+// as a rendering bug rather than as a design.
+//
+// Named individually rather than counted, so adding a section forces a decision here rather
+// than silently lowering the bar.
+const MUST_RESPOND = [
+  'PublicLandingPageHero',
+  'PublicLandingPageTrustBar',
+  'PublicLandingPageProblemSection',
+  'PublicLandingPageBenefitsSection',
+  'PublicLandingPageOfferSection',
+  'PublicLandingPageInclusionsSection',
+  'PublicLandingPageWhyChooseUsSection',
+  'PublicLandingPageTestimonialsSection',
+  'PublicLandingPageFaqSection',
+  'PublicLandingPageVideoSection',
+  'PublicLandingPageFinalCta',
+  'PublicLandingPageSectionWrapper',
+];
+
+const notResponding = MUST_RESPOND.filter((name) => {
+  const p = `${SECTION_DIR}/${name}.tsx`;
+  if (!existsSync(p)) return true;
+  return !/useIsEditorial\(\)/.test(read(p));
+});
+
+check('every section responds to the layout',
+  notResponding.length === 0,
+  notResponding.length ? notResponding.join(', ') : `${MUST_RESPOND.length} sections`);
+
+// Each variant must keep the classic one intact beside it — the choice is additive, and a
+// studio on the default must see exactly what they saw yesterday.
+const missingClassic = MUST_RESPOND.filter((name) => {
+  const p = `${SECTION_DIR}/${name}.tsx`;
+  if (!existsSync(p)) return false;
+  const src = read(p);
+  // The wrapper branches on a lookup table rather than on markup, so it is exempt from the
+  // two-branch shape while still being required to consult the layout above.
+  if (name === 'PublicLandingPageSectionWrapper') return false;
+  return !/Classic/.test(src);
+});
+
+check('every variant keeps the classic arrangement beside it',
+  missingClassic.length === 0,
+  missingClassic.length ? missingClassic.join(', ') : 'all branch both ways');
+
 // ── The editorial variants stay honest ──────────────────────────────────────
 const hero = read(`${SECTION_DIR}/PublicLandingPageHero.tsx`);
 

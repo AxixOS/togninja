@@ -3,6 +3,7 @@
 import { Shield } from 'lucide-react';
 import { PublicLandingPageSectionWrapper } from './PublicLandingPageSectionWrapper';
 import { alignText, type SectionAlign } from '../../utils/sectionAlignment';
+import { useIsEditorial } from '@/components/public/SiteLayoutContext';
 
 interface PublicLandingPageWhyChooseUsSectionProps {
   data: {
@@ -15,9 +16,54 @@ interface PublicLandingPageWhyChooseUsSectionProps {
 }
 
 export function PublicLandingPageWhyChooseUsSection({ data, align = 'center' }: PublicLandingPageWhyChooseUsSectionProps) {
+  const editorial = useIsEditorial();
   const reasons = (data.reasons ?? [])
     .map(r => (typeof r === 'string' ? { title: r, description: '' } : { title: r?.title ?? '', description: r?.description ?? '' }))
     .filter(r => r.title || r.description);
+
+  // ── Editorial ────────────────────────────────────────────────────────────────
+  //
+  // Every reason in the classic version gets the same shield icon — the same glyph repeated
+  // down the page, which carries no information and reads as a placeholder somebody never got
+  // round to replacing. Editorial drops it entirely rather than finding a different icon: a
+  // reason to choose a photographer is a sentence, and a sentence does not need a pictogram.
+  //
+  // The rows become a ruled list on the page's own ground, with the reason's title carrying
+  // the weight. Where a reason is a bare string — which is what the editor saves — it renders
+  // as a single line with nothing missing, rather than as a card with an empty body.
+  if (editorial) {
+    return (
+      <PublicLandingPageSectionWrapper bg="gray">
+        <div className="max-w-4xl mx-auto">
+          {data.headline && (
+            <h2 className={`${alignText(align)} mb-12 tracking-tight`} style={{ color: 'var(--tn-heading)' }}>
+              {data.headline}
+            </h2>
+          )}
+          {reasons.length > 0 && (
+            <ul className="divide-y" style={{ borderColor: 'var(--tn-border)' }}>
+              {reasons.map((r, i) => (
+                <li key={i} className="py-6 first:pt-0 last:pb-0" style={{ borderColor: 'var(--tn-border)' }}>
+                  {r.title && (
+                    <h3 className="text-lg font-medium" style={{ color: 'var(--tn-heading)' }}>
+                      {r.title}
+                    </h3>
+                  )}
+                  {r.description && (
+                    <p className="mt-2 leading-relaxed max-w-prose" style={{ color: 'var(--tn-text)' }}>
+                      {r.description}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </PublicLandingPageSectionWrapper>
+    );
+  }
+
+  // ── Classic ──────────────────────────────────────────────────────────────────
   return (
     <PublicLandingPageSectionWrapper bg="gray">
       <div className="max-w-3xl mx-auto">

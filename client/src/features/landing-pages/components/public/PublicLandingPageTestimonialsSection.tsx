@@ -3,6 +3,7 @@
 import { Quote, ExternalLink } from 'lucide-react';
 import { PublicLandingPageSectionWrapper } from './PublicLandingPageSectionWrapper';
 import { alignText, alignJustify, type SectionAlign } from '../../utils/sectionAlignment';
+import { useIsEditorial } from '@/components/public/SiteLayoutContext';
 import { usePublicLabels } from '../../utils/publicLabels';
 import { useLanguage } from '../../../../context/LanguageContext';
 
@@ -23,6 +24,7 @@ interface PublicLandingPageTestimonialsSectionProps {
 
 export function PublicLandingPageTestimonialsSection({ data, align = 'center' }: PublicLandingPageTestimonialsSectionProps) {
   // Was the literal German string, shown on every studio site regardless of language.
+  const editorial = useIsEditorial();
   const labels = usePublicLabels();
   const { t } = useLanguage();
   const reviewsUrl = (() => {
@@ -31,6 +33,70 @@ export function PublicLandingPageTestimonialsSection({ data, align = 'center' }:
   })();
   if (!data || data.length === 0) return null;
 
+  const heading =
+    t('reviews.whatClientsSay') !== 'reviews.whatClientsSay'
+      ? t('reviews.whatClientsSay')
+      : 'What our clients say';
+
+  // ── Editorial ──────────────────────────────────────────────────────────────
+  //
+  // The classic version puts each quote in a white card with a rounded border, a shadow
+  // that deepens on hover, and a large pale quotation mark in the corner. That is the
+  // arrangement of a review widget, and it makes three sentences from three clients look
+  // like a product testimonial carousel.
+  //
+  // Set as pull quotes instead: no card, no shadow, no glyph. A hairline above each quote
+  // does the separating, the quote itself is set larger and lighter than body copy, and the
+  // attribution sits quietly beneath in the muted tone. What a magazine does with the same
+  // material.
+  //
+  // The honesty decisions from the classic version are carried over exactly: no stars, and
+  // no claim that these came from Google. Nothing in the data carries a rating, and the
+  // generator was once instructed to invent these outright.
+  if (editorial) {
+    return (
+      <PublicLandingPageSectionWrapper bg="gray">
+        <div className="max-w-5xl mx-auto">
+          <h2 className={`${alignText(align)} mb-14 tracking-tight`} style={{ color: 'var(--tn-heading)' }}>
+            {heading}
+          </h2>
+
+          <div className="grid gap-x-14 gap-y-12 sm:grid-cols-2">
+            {data.map((q, i) => (
+              <figure key={i} className="pt-7 border-t" style={{ borderColor: 'var(--tn-border)' }}>
+                <blockquote
+                  className="text-lg sm:text-xl font-light leading-relaxed"
+                  style={{ color: 'var(--tn-heading)' }}
+                >
+                  {/* Typographic quotation marks, not a decorative glyph in the corner. */}
+                  &ldquo;{q.quote}&rdquo;
+                </blockquote>
+                <figcaption className="mt-5 text-sm" style={{ color: 'var(--tn-muted)' }}>
+                  <span className="font-medium">{q.author}</span>
+                  {(q.role || q.source) && <span> &middot; {q.role || q.source}</span>}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+
+          <div className={`${alignText(align)} mt-14`}>
+            <a
+              href={reviewsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm underline underline-offset-4"
+              style={{ color: 'var(--tn-muted)' }}
+            >
+              {labels.allReviews}
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+      </PublicLandingPageSectionWrapper>
+    );
+  }
+
+  // ── Classic ────────────────────────────────────────────────────────────────
   return (
     <PublicLandingPageSectionWrapper bg="gray">
       <div className="max-w-4xl mx-auto">
@@ -42,9 +108,7 @@ export function PublicLandingPageTestimonialsSection({ data, align = 'center' }:
             When these genuinely come from the Places API they are rendered by
             GoogleReviews, which sources and attributes them properly. */}
         <h2 className={`text-3xl md:text-4xl font-bold text-gray-900 ${alignText(align)} mb-10`}>
-          {t('reviews.whatClientsSay') !== 'reviews.whatClientsSay'
-            ? t('reviews.whatClientsSay')
-            : 'What our clients say'}
+          {heading}
         </h2>
         {/* Flex-wrap + justify-center so any number of testimonials sits
             centred as a block under the heading (1→centred, 2→pair, 3→row,
