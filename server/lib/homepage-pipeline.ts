@@ -421,6 +421,21 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
 
     // Persist a DRAFT with a preview token (30 days — onboarding->login gap).
     const payload = mapGeneratedToLandingPage(content, context, { userId: null });
+
+    // A hero the studio uploaded BEFORE this finished. The photographs step now runs while
+    // this pipeline does, so by the time a draft is written there may already be a picture
+    // waiting for it — and a generated homepage that ignores an image the studio has
+    // already given us is the same empty preview by a different route.
+    try {
+      const hero = await pool.query(
+        `SELECT url FROM homepage_images WHERE section = 'hero' AND is_active = true ORDER BY sort_order LIMIT 1`,
+      );
+      const heroUrl = hero.rows[0]?.url;
+      if (heroUrl) {
+        (payload as any).hero_image_url = heroUrl;
+        await note(state, 'found', 'Using the photograph you uploaded');
+      }
+    } catch { /* the draft is worth more than the picture */ }
     payload.slug = await uniqueSlug(payload.slug);
     const page = await neonDb.createLandingPage(payload);
 

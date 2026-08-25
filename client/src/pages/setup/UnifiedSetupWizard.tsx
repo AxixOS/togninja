@@ -123,6 +123,21 @@ export default function UnifiedSetupWizard() {
     { key: 'storage', group: 'Infrastructure', label: 'File storage', render: () => <StorageStep onComplete={goNext} onBack={goBack} /> },
     { key: 'extras', group: 'Infrastructure', label: 'AI & extras', render: () => <ExtrasStep onComplete={goNext} onBack={goBack} /> },
     { key: 'calendar', group: 'Infrastructure', label: 'Calendar', render: () => <CalendarPhase onComplete={goNext} /> },
+    // Photographs BEFORE the account step, and marked essential.
+    //
+    // Two reasons, and the second is the one that matters. First: every studio finished
+    // onboarding with no images at all, because the images step was not essential and the
+    // essentials path is the default — homepage_images had zero rows and every landing page
+    // had a null hero, which is why a finished draft still looked like a template.
+    //
+    // Second: it starts the website read and then gets out of its way. The crawl, the
+    // partner fallback and the generation take up to a few minutes, and the studio's own
+    // hands are free for all of it. Two useful things at once, rather than one of them
+    // being watched.
+    //
+    // Only the site-wide slots. The service slots cannot be NAMED before the Authority Map
+    // exists, so they stay behind the crawl in the later step.
+    { key: 'photographs', group: 'Your studio', label: 'Your photographs', essential: true, render: () => <SiteImagesPhase only="site" startScan onComplete={goNext} /> },
     { key: 'security', group: 'Account', label: 'Admin account', essential: true, render: () => <SecurityStep onComplete={goNext} onBack={goBack} /> },
     { key: 'lead_sources', group: 'Content', label: 'Lead sources', render: () => <LeadSourcesPhase onComplete={goNext} /> },
     { key: 'integrations', group: 'Content', label: 'Integrations', render: () => <IntegrationsPhase status={setupStatus?.phases?.integrations} features={setupStatus?.features} onComplete={goNext} /> },
@@ -137,7 +152,9 @@ export default function UnifiedSetupWizard() {
     // Images come AFTER scanning because that step triggers the website crawl, and half
     // the slots are per-service — unknowable until the Authority Map exists. It is also
     // after Storage, without which there is nowhere to put an upload.
-    { key: 'site_images', group: 'Content', label: 'Your photographs', render: () => <SiteImagesPhase onComplete={goNext} /> },
+    // The half that needed the crawl. Its site-wide slots were asked for at the
+    // photographs step above, so this one shows the services.
+    { key: 'site_images', group: 'Content', label: 'Service photographs', render: () => <SiteImagesPhase only="pillar" onComplete={goNext} /> },
     { key: 'fix_first', group: 'Content', label: 'Fix-first', render: () => <FixFirstPhase onComplete={goNext} /> },
     { key: 'drafts', group: 'Content', label: 'Starter content', render: () => <DraftsPhase onComplete={finish} /> },
   ];

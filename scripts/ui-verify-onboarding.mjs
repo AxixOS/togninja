@@ -33,7 +33,7 @@ check('the essential path stays short', essentials >= 3 && essentials <= 5, esse
 
 // Named, so adding a fifth is a decision someone makes here rather than a number quietly
 // creeping up.
-const ESSENTIAL_KEYS = ['look', 'basics', 'security', 'scanning'];
+const ESSENTIAL_KEYS = ['look', 'basics', 'photographs', 'security', 'scanning'];
 const markedEssential = [...wiz.matchAll(/\{ key: '([a-z_]+)'[^}]*essential: true/g)].map((m) => m[1]);
 check('the essential steps are the expected ones',
   ESSENTIAL_KEYS.length === markedEssential.length
@@ -60,6 +60,48 @@ check('finishing the last step finishes setup',
 // essentials path never shows.
 check('the last step does not promise a step that is not there',
   scanning.includes("isLast ? 'Finish setup'"));
+
+// ── The photographs actually reach the page ─────────────────────────────────
+//
+// Every studio finished onboarding with no images: homepage_images had zero rows and every
+// landing page had a null hero, because the images step was not essential and the essentials
+// path is the default.
+//
+// Worse, fixing that alone would not have helped. The renderer reads
+// landing_pages.hero_image_url; the pipeline never set it, and the upload handler set it only
+// for PILLAR sections. So the 'hero' slot — the single most important photograph on the site
+// — wrote a row the generated homepage does not read, and the preview stayed empty no matter
+// what was uploaded.
+const setupRoutes = read('server/setup-routes.ts');
+const pipeline = read('server/lib/homepage-pipeline.ts');
+const images = read('client/src/pages/setup/phases/SiteImagesPhase.tsx');
+
+check('a hero uploaded after generation reaches the draft',
+  setupRoutes.includes("if (section === 'hero') {")
+  && setupRoutes.includes('UPDATE landing_pages SET hero_image_url'));
+
+check('a hero uploaded before generation reaches the draft',
+  pipeline.includes("SELECT url FROM homepage_images WHERE section = 'hero'")
+  && pipeline.includes('hero_image_url'));
+
+// The two together are what make the concurrent step safe: the studio can finish uploading
+// before or after the draft is written, and either way the picture is on it.
+
+// ── The upload runs while the site is read ──────────────────────────────────
+check('the photographs step starts the website read',
+  images.includes('if (!startScan) return;')
+  && images.includes("fetch('/api/setup/homepage/generate'"));
+
+check('it asks only for the slots that need no crawl',
+  wiz.includes('only="site"') && wiz.includes('only="pillar"'));
+
+check('the service slots still wait for the crawl',
+  images.includes("only === 'site' ? [] : slots.filter"));
+
+// One component in two modes. A second copy would have drifted from this one within a week,
+// which is a thing this codebase has already paid for several times.
+check('the two halves are one component',
+  !fs.existsSync('client/src/pages/setup/phases/SitePhotographsPhase.tsx'));
 
 check('the wizard walks a filtered list', /const VISIBLE = essentialsOnly \? STEPS\.filter/.test(wiz));
 check('and defaults to the short one', /useState\(true\)/.test(wiz.slice(wiz.indexOf('essentialsOnly'))));

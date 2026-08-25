@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
+import SetupNarrator from '@/components/setup/SetupNarrator';
 import { Loader2, ImagePlus, Check, ArrowRight, AlertCircle } from 'lucide-react';
 
 /**
@@ -202,7 +203,32 @@ function SlotCard({ slot, onUploaded, ownImages }: { slot: Slot; onUploaded: () 
   );
 }
 
-export default function SiteImagesPhase({ onComplete }: { onComplete: () => void }) {
+/**
+ * `only` splits this step in two without splitting the component.
+ *
+ * The site-wide slots — hero and two content images — are named up front and need nothing
+ * from the crawl. The service slots cannot even be LISTED until the Authority Map exists,
+ * because you cannot ask a photographer for "an image for your Drone Photography page"
+ * before the crawl has told you they fly drones.
+ *
+ * So the site slots move to the front of onboarding, where they run while the crawl works,
+ * and the service slots stay behind it. A second component would have been the obvious way
+ * to do that and the wrong one: both halves share the slot card, the upload path, the
+ * crawled-photograph picker and the refresh, and this codebase has spent the week paying
+ * for copies of things that drifted.
+ */
+export type ImageSlotGroup = 'site' | 'pillar' | 'all';
+
+export default function SiteImagesPhase({
+  onComplete,
+  only = 'all',
+  startScan = false,
+}: {
+  onComplete: () => void;
+  only?: ImageSlotGroup;
+  /** Kick the website read off as this step opens, so it runs behind the uploading. */
+  startScan?: boolean;
+}) {
   const qc = useQueryClient();
   // Poll while the pillars are still missing.
   //
@@ -229,6 +255,28 @@ export default function SiteImagesPhase({ onComplete }: { onComplete: () => void
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['setup-site-images'] });
 
+  // The whole point of moving this step forward: the website read starts HERE and runs
+  // while the studio picks photographs, so two useful things happen at once instead of one
+  // of them being watched. The endpoint refuses to double-fire a running job, so the scan
+  // step calling it again later is harmless, and skipping this step changes nothing.
+  useEffect(() => {
+    if (!startScan) return;
+    fetch('/api/setup/homepage/generate', { method: 'POST' }).catch(() => {
+      /* The scan step will try again. Never block the upload on this. */
+    });
+  }, [startScan]);
+
+  // What the read is finding, while they choose photographs. The same feed the scan step
+  // shows — not a second progress display with its own idea of what is happening.
+  const { data: gen } = useQuery<any>({
+    queryKey: ['homepage-gen-status'],
+    queryFn: () => fetch('/api/setup/homepage/status').then((r) => r.json()),
+    refetchInterval: startScan ? 2500 : false,
+    enabled: startScan,
+  });
+  const readRunning = gen?.status === 'running';
+  const readFindings = Array.isArray(gen?.findings) ? gen.findings : [];
+
   if (isLoading) {
     return (
       <Card className="w-full max-w-4xl mx-auto">
@@ -238,8 +286,13 @@ export default function SiteImagesPhase({ onComplete }: { onComplete: () => void
   }
 
   const slots = data?.slots || [];
-  const site = slots.filter((s) => s.group === 'site');
-  const pillars = slots.filter((s) => s.group === 'pillar');
+  const site = only === 'pillar' ? [] : slots.filter((s) => s.group === 'site');
+  const pillars = only === 'site' ? [] : slots.filter((s) => s.group === 'pillar');
+
+  // Counted over what this instance actually shows, so "0 of 3 added" does not become
+  // "0 of 9" on a step that is only asking for three.
+  const shown = [...site, ...pillars];
+  const shownFilled = shown.filter((s) => s.filled).length;
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -249,10 +302,30 @@ export default function SiteImagesPhase({ onComplete }: { onComplete: () => void
           Your own work, in the places visitors look first. Every one is optional — anything
           you skip simply won't show a picture, and you can add them later from Website
           Studio. We never substitute stock or someone else's photography.
+          {startScan && (
+            <>
+              {' '}
+              We are reading your existing website while you do this, so it is ready when
+              you are.
+            </>
+          )}
         </CardDescription>
       </CardHeader>
 
+      {/* Deliberately ABOVE the slots and deliberately small. The work is genuinely
+          happening and worth seeing, but the studio's job on this screen is the
+          photographs — this is the thing running behind them, not the subject. */}
+      {startScan && (readRunning || readFindings.length > 0) && (
+        <div className="px-6 pb-2">
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">
+            {readRunning ? 'Meanwhile, we are reading your website' : 'We finished reading your website'}
+          </p>
+          <SetupNarrator findings={readFindings} busy={readRunning} />
+        </div>
+      )}
+
       <CardContent className="space-y-8 max-h-[58vh] overflow-y-auto">
+        {only !== 'pillar' && (
         <section>
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-3">
             Your site
@@ -261,7 +334,9 @@ export default function SiteImagesPhase({ onComplete }: { onComplete: () => void
             {site.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} />)}
           </div>
         </section>
+        )}
 
+        {only !== 'site' && (
         <section>
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
             Your services
@@ -290,14 +365,15 @@ export default function SiteImagesPhase({ onComplete }: { onComplete: () => void
             </div>
           )}
         </section>
+        )}
       </CardContent>
 
       <CardFooter className="flex items-center justify-between pt-4">
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          {data?.filled ?? 0} of {data?.total ?? 0} added
+          {shownFilled} of {shown.length} added
         </p>
         <Button onClick={onComplete}>
-          {(data?.filled ?? 0) === 0 ? 'Skip for now' : 'Continue'}
+          {shownFilled === 0 ? 'Skip for now' : 'Continue'}
           <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </CardFooter>

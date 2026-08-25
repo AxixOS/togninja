@@ -259,6 +259,33 @@ async function storeSectionImage(req: any, res: Response) {
     // with slugify() from landing-mapping, which additionally trims dashes and caps at 60
     // characters. Deriving it any other way silently matches no row on a long href, so it
     // is imported and reused rather than reimplemented.
+    // THE HERO GOES TO THE HOMEPAGE DRAFT. It did not, and that is why a studio could
+    // upload their best photograph and watch the preview stay empty.
+    //
+    // The renderer reads landing_pages.hero_image_url (PublicLandingPageRenderer.tsx:194).
+    // The pipeline never set that column, and this handler only set it for PILLAR sections
+    // — so the 'hero' slot wrote a homepage_images row that the generated homepage does not
+    // read, and every draft rendered with no picture no matter what was uploaded.
+    //
+    // Doing it here is also what makes the ORDER not matter, which the new photographs step
+    // depends on: it runs while the crawl and generation are still going, so the upload can
+    // finish before or after the draft exists. This branch covers "after"; the pipeline
+    // covers "before".
+    if (section === 'hero') {
+      try {
+        const { rows } = await db.execute(sql`SELECT homepage_gen_state AS s FROM studio_configs LIMIT 1`) as any;
+        const draftId = (rows ?? [])[0]?.s?.draftId;
+        if (draftId) {
+          await db.execute(sql`UPDATE landing_pages SET hero_image_url = ${url} WHERE id = ${draftId}`);
+          console.log(`[setup] hero image attached to homepage draft ${draftId}`);
+        }
+      } catch (e: any) {
+        // Never fail the upload over this — the image is stored and the studio can set it
+        // from Website Studio.
+        console.warn('[setup] could not attach hero to the draft:', e?.message || e);
+      }
+    }
+
     let pillarPage: string | null = null;
     if (!FIXED_IMAGE_SECTIONS.has(section)) {
       try {
