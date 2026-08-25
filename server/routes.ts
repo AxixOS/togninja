@@ -7724,6 +7724,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Public-site layout — how the page is composed, separately from how it is coloured.
+  //
+  // Its own endpoint rather than a field on the theme one, because they are independent
+  // choices: a studio changing palette must not have their composition reset, and vice
+  // versa. See shared/siteLayouts.ts.
+  app.put("/api/admin/site-layout", authenticateUser, async (req: Request, res: Response) => {
+    try {
+      const id = String(req.body?.layout || req.body?.id || '').trim();
+      if (!id) return res.status(400).json({ error: 'layout id is required' });
+      const { saveSiteLayout } = await import('./lib/site-layout');
+      const layout = await saveSiteLayout(id);
+      res.json({ ok: true, layout });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to save layout' });
+    }
+  });
+
   // Phase 2: build a landing page for each pillar in the Authority Map.
   //
   // Drafts by default — adding a page to an established site should be reviewed first.
@@ -7906,6 +7923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       studioConfig.pricingEmbedUrl = dbConfig?.pricingEmbedUrl || null;
       // Public-site theme preset (tokens) — the client applies it to landing pages.
       try { const { getSiteTheme } = await import('./lib/site-theme'); studioConfig.siteTheme = await getSiteTheme(); } catch { /* default */ }
+      try { const { getSiteLayoutForStudio } = await import('./lib/site-layout'); studioConfig.siteLayout = await getSiteLayoutForStudio(); } catch { /* default */ }
     } catch (error) {
       console.warn('Could not fetch studio config from database, using defaults:', (error as any)?.message);
       // Continue with defaults

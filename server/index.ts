@@ -734,6 +734,10 @@ app.use((req, res, next) => {
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS authority_map JSONB`);
         // Site theme preset (token-based) for the public site / generated homepage.
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS site_theme_preset TEXT`);
+        // How the public site is COMPOSED, separately from how it is coloured. Eight distinct
+        // palettes still produced eight pages with the same bones, because the preset could
+        // only ever re-skin one arrangement.
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS site_layout TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS site_theme_tokens JSONB`);
         // Studio tax settings (Studio Customization → Settings): the studio's country tax/VAT
         // rate + label, applied to invoices so a UK studio charges 20% VAT, a DE studio 19% USt.

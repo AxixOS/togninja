@@ -1,6 +1,7 @@
 // PublicLandingPageHero — Phase 4
 
 import { PublicLandingPageCtaButton } from './PublicLandingPageCtaButton';
+import { useIsEditorial } from '@/components/public/SiteLayoutContext';
 
 interface PublicLandingPageHeroProps {
   data: {
@@ -71,6 +72,135 @@ export function PublicLandingPageHero({
   const bgVideo = videoAsBackground ? videoUrl : null;
   const hasMedia = !!(imageUrl || bgVideo);
   const pos = parseHeroPosition(imagePosition);
+  const editorial = useIsEditorial();
+
+  // ── Editorial ──────────────────────────────────────────────────────────────
+  //
+  // The classic hero centres everything over a flat dark wash: eyebrow, headline, sub and
+  // button stacked down the middle. It is legible, and it is what every template does.
+  //
+  // This one gives the photograph the viewport and sets the type against the bottom left,
+  // where a magazine would put it, so the first thing the page says is the picture and the
+  // words arrive second. The scrim becomes a gradient weighted to the bottom rather than a
+  // flat 55% over the whole frame — that wash is what was flattening every studio image.
+  //
+  // WITH NO PHOTOGRAPH it does not pretend. It drops to a shorter, quiet type-only panel on
+  // the theme surface, in the theme heading colour. The light text is only ever used when
+  // there is media behind it, so this cannot render white on white — which is the failure
+  // mode that matters, because studios onboard with empty sites.
+  if (editorial) {
+    return (
+      <section
+        className={[
+          'relative overflow-hidden flex items-end',
+          hasMedia ? 'min-h-[78vh] md:min-h-[86vh]' : 'min-h-[52vh]',
+        ].join(' ')}
+        style={hasMedia ? undefined : { background: 'var(--tn-surface)' }}
+      >
+        {bgVideo ? (
+          (() => {
+            const embed = getVideoEmbedUrl(bgVideo);
+            return embed ? (
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <iframe
+                  className="absolute inset-0 w-full h-full"
+                  src={embed}
+                  title=""
+                  allow="autoplay; encrypted-media; picture-in-picture"
+                  loading="lazy"
+                />
+              </div>
+            ) : (
+              <video
+                className="absolute inset-0 w-full h-full object-cover"
+                src={bgVideo}
+                autoPlay
+                muted
+                loop
+                playsInline
+              />
+            );
+          })()
+        ) : imageUrl ? (
+          <img
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{
+              objectPosition: `${pos.x}% ${pos.y}%`,
+              transform: pos.zoom > 1 ? `scale(${pos.zoom})` : undefined,
+              transformOrigin: `${pos.x}% ${pos.y}%`,
+            }}
+            src={imageUrl}
+            alt=""
+          />
+        ) : null}
+
+        {/* Weighted to the bottom, where the type is, so the top two thirds of the
+            photograph are left alone. Contrast where the words actually sit is equivalent
+            to the flat scrim this replaces. */}
+        {hasMedia && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/5" />
+        )}
+
+        <div className="relative w-full max-w-6xl mx-auto px-6 sm:px-8 pt-24 pb-14 md:pb-20">
+          <div className="max-w-2xl">
+            {data.eyebrow && (
+              <p
+                className="text-xs uppercase tracking-[0.2em] font-medium mb-5"
+                style={{ color: hasMedia ? 'rgba(255,255,255,0.85)' : 'var(--tn-muted)' }}
+              >
+                {data.eyebrow}
+              </p>
+            )}
+
+            {/* Larger and lighter than the classic hero. An editorial headline is set, not
+                shouted; extrabold at this size reads as an advertisement. */}
+            <h1
+              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.05] tracking-tight"
+              // No fontFamily here: .tn-theme h1 already carries the preset heading face.
+              style={{
+                color: hasMedia ? '#ffffff' : 'var(--tn-heading)',
+                textWrap: 'balance',
+              }}
+            >
+              {data.headline}
+            </h1>
+
+            {data.subheadline && (
+              <p
+                className="mt-6 max-w-xl text-base md:text-lg leading-relaxed"
+                style={{ color: hasMedia ? 'rgba(255,255,255,0.9)' : 'var(--tn-text)' }}
+              >
+                {data.subheadline}
+              </p>
+            )}
+
+            <div className="mt-9">
+              <PublicLandingPageCtaButton
+                href={ctaHref}
+                label={data.ctaText || ctaText}
+                pageId={pageId}
+                pageSlug={pageSlug}
+                placement="hero"
+                isPreview={isPreview}
+                variant={hasMedia ? 'primaryInverted' : 'primary'}
+              />
+            </div>
+
+            {data.badgeText && (
+              <p
+                className="mt-5 text-sm"
+                style={{ color: hasMedia ? 'rgba(255,255,255,0.7)' : 'var(--tn-muted)' }}
+              >
+                {data.badgeText}
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // ── Classic ────────────────────────────────────────────────────────────────
   return (
     <section className="relative bg-gradient-to-br from-purple-700 via-purple-600 to-pink-600 text-white overflow-hidden">
       {/* Optional background media (video preferred over image), with a dark

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getThemePreset, type ThemePreset } from '../../../../shared/themePresets';
+import { SiteLayoutProvider } from './SiteLayoutContext';
 
 /**
  * Applies the studio's token theme to public landing pages. Injects the theme's colours/
@@ -14,13 +15,18 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
     queryFn: async () => {
       const r = await fetch('/api/studio-config');
       const d = await r.json();
-      return d?.siteTheme || null;
+      // Both axes come off the same request. Colour and composition are chosen
+      // separately, so the layout is not part of the preset.
+      return { theme: d?.siteTheme || null, layout: d?.siteLayout?.id || null };
     },
     staleTime: 5 * 60 * 1000,
     enabled: !preset,
   });
 
-  const theme = preset || getThemePreset(data?.id);
+  const theme = preset || getThemePreset((data as any)?.theme?.id);
+  // An explicit preset means an admin preview of one particular theme; the layout still
+  // comes from what the studio has actually chosen.
+  const layoutId = (data as any)?.layout || null;
   const c = theme.colors;
   const f = theme.fonts;
 
@@ -36,7 +42,7 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
 `;
 
   const css = `${globalFont}
-.tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-bg:${c.bg};--tn-surface:${c.surface};--tn-heading:${c.heading};--tn-muted:${c.muted};--tn-raised:${c.raised || `color-mix(in srgb, ${c.bg} 88%, white)`};--tn-border:${c.border || `color-mix(in srgb, ${c.heading} 14%, transparent)`};--tn-on-primary:${c.onPrimary || '#ffffff'};background:${c.bg};color:${c.text};font-family:${f.body};}
+.tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-bg:${c.bg};--tn-surface:${c.surface};--tn-heading:${c.heading};--tn-muted:${c.muted};--tn-raised:${c.raised || `color-mix(in srgb, ${c.bg} 88%, white)`};--tn-border:${c.border || `color-mix(in srgb, ${c.heading} 14%, transparent)`};--tn-on-primary:${c.onPrimary || '#ffffff'};--tn-text:${c.text};background:${c.bg};color:${c.text};font-family:${f.body};}
 .tn-theme h1,.tn-theme h2,.tn-theme h3,.tn-theme h4,.tn-theme h5,.tn-theme h6{font-family:${f.heading};color:${c.heading};}
 
 /* ── Type scale ──────────────────────────────────────────────────────────────
@@ -123,9 +129,11 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
 `;
 
   return (
-    <div className="tn-theme">
+    // data-layout is on the wrapper so CSS can reach it too. The context below is what
+    // sections read when the change is structural rather than cosmetic — most of them are.
+    <div className="tn-theme" data-layout={layoutId || undefined}>
       <style dangerouslySetInnerHTML={{ __html: css }} />
-      {children}
+      <SiteLayoutProvider layout={layoutId}>{children}</SiteLayoutProvider>
     </div>
   );
 };
