@@ -9071,6 +9071,22 @@ ${getBizName()} Team`;
 
       const amountInCents = Math.round(balanceDue * 100);
 
+      // THE TIP, chosen by the client at checkout.
+      //
+      // Deliberately not a line the studio adds to the invoice: an amount the studio puts
+      // on the bill itself is a surcharge, not a tip. This comes from the payment page,
+      // so the person paying decides.
+      //
+      // Validated hard, because it arrives from a PUBLIC endpoint — this route has no
+      // auth, by design, so a client can pay without an account. A negative tip would
+      // reduce what Stripe collects below the balance due.
+      const rawTip = (req.body as any)?.tip;
+      const tipAmount = Number.isFinite(Number(rawTip)) ? Math.max(0, Number(rawTip)) : 0;
+      // Capped at the invoice total. A tip larger than the work is far more likely a
+      // mistyped amount than generosity, and taking it silently is not a favour.
+      const tipCapped = Math.min(tipAmount, totalAmount);
+      const tipInCents = Math.round(tipCapped * 100);
+
       // Determine base URL for redirect
       const baseUrl = process.env.BASE_URL || process.env.FRONTEND_URL || req.get('origin') || 'https://workingnewage-2eecd723a444.herokuapp.com';
 
@@ -9090,12 +9106,28 @@ ${getBizName()} Team`;
             },
             quantity: 1,
           },
+          // A SEPARATE line, not folded into the invoice amount. The client sees exactly
+          // what they are adding on the Stripe page, and the studio can tell fee income
+          // from work income afterwards — which the accounting export needs, since a tip
+          // is not taxed like a photography service in most places.
+          ...(tipInCents > 0 ? [{
+            price_data: {
+              currency: String(invoice.currency || 'usd').toLowerCase(),
+              product_data: { name: 'Tip' },
+              unit_amount: tipInCents,
+            },
+            quantity: 1,
+          }] : []),
         ],
         mode: 'payment',
         success_url: `${baseUrl}/invoice/${invoiceId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${baseUrl}/invoice/${invoiceId}?payment=cancelled`,
         metadata: {
           invoiceId: invoiceId,
+          // So the payment record can say how much of what Stripe collected was a tip.
+          // Reading it back off the session beats recomputing it: the session is what
+          // actually charged the card.
+          tipAmount: String(tipCapped),
           invoiceNumber: invoice.invoiceNumber || '',
           clientId: invoice.clientId || '',
         },
@@ -9162,13 +9194,20 @@ ${getBizName()} Team`;
           });
 
           // Record payment
+          // Separate the tip from the work. Stripe collected one figure; the invoice is
+          // only settled by the part that pays the invoice, and a tip recorded as invoice
+          // revenue would overstate what the studio billed and be taxed as if it were a
+          // photography service.
+          const tipPaid = parseFloat(String(session.metadata?.tipAmount || '0')) || 0;
           await storage.createCrmInvoicePayment({
             invoiceId: invoiceId,
             amount: totalAmount.toString(),
             paymentMethod: 'stripe',
             paymentReference: session.payment_intent as string,
             paymentDate: new Date().toISOString(),
-            notes: `Stripe payment - Session: ${sessionId}`,
+            notes: tipPaid > 0
+              ? `Stripe payment - Session: ${sessionId} - plus a tip of ${tipPaid.toFixed(2)}`
+              : `Stripe payment - Session: ${sessionId}`,
           });
 
           return res.json({

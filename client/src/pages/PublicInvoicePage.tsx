@@ -151,6 +151,14 @@ const PublicInvoicePage: React.FC = () => {
     }
   }, [invoiceId]);
 
+  // An optional thank-you, chosen by the person paying.
+  //
+  // Offered here rather than as a line the studio adds to the invoice: an amount the
+  // studio puts on the bill is a surcharge, not a tip. Zero by default and never
+  // pre-selected — a tip that has to be actively removed is a dark pattern, and a
+  // photographer who wants to keep the client is worse off for it.
+  const [tipAmount, setTipAmount] = useState<number>(0);
+
   const handlePayNow = async () => {
     if (!invoice || isProcessingPayment) return;
     
@@ -162,6 +170,9 @@ const PublicInvoicePage: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        // The tip the CLIENT chose. Sent as a number the server re-validates and caps —
+        // this endpoint is public by design, so nothing arriving from here is trusted.
+        body: JSON.stringify({ tip: tipAmount > 0 ? tipAmount : undefined }),
       });
       
       const data = await response.json();
@@ -386,6 +397,73 @@ const PublicInvoicePage: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* An optional thank-you.
+
+          Only shown when there is something to pay and online payment is on — offering to
+          tip on a settled invoice is noise. Nothing is preselected: a tip that has to be
+          actively removed is a dark pattern, and a photographer who wants the client back
+          next year is worse off for it. */}
+      {!invoice.disable_online_payment && String(invoice.status).toLowerCase() !== 'paid' && (
+        <div className="max-w-4xl mx-auto px-4 pb-8 no-print">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+            <p className="text-sm font-medium text-gray-900">
+              {language === 'en' ? 'Add a tip?' : 'Trinkgeld hinzufügen?'}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              {language === 'en'
+                ? 'Entirely optional, and it goes to the photographer.'
+                : 'Völlig freiwillig und geht direkt an den Fotografen.'}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {[0, 5, 10, 15].map((pct) => {
+                const amount = pct === 0
+                  ? 0
+                  : Math.round(((parseFloat(String(invoice.total_amount ?? 0)) || 0) * pct) / 100 * 100) / 100;
+                const active = Math.abs(tipAmount - amount) < 0.005;
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => setTipAmount(amount)}
+                    className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                      active
+                        ? 'bg-gray-900 text-white border-gray-900'
+                        : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    {pct === 0 ? (language === 'en' ? 'No thanks' : 'Nein danke') : `${pct}%`}
+                  </button>
+                );
+              })}
+              <div className="flex items-center gap-2 ml-1">
+                <span className="text-sm text-gray-500">
+                  {language === 'en' ? 'or' : 'oder'}
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={tipAmount > 0 ? String(tipAmount) : ''}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    setTipAmount(Number.isFinite(v) && v > 0 ? v : 0);
+                  }}
+                  placeholder={language === 'en' ? 'amount' : 'Betrag'}
+                  className="w-28 px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+            </div>
+            {tipAmount > 0 && (
+              <p className="mt-3 text-sm text-gray-700">
+                {language === 'en'
+                  ? `You'll be charged the invoice plus a ${tipAmount.toFixed(2)} tip.`
+                  : `Ihnen wird die Rechnung zuzüglich ${tipAmount.toFixed(2)} Trinkgeld berechnet.`}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="bg-white border-t no-print">
