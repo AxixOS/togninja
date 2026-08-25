@@ -161,6 +161,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   // invoice -> nurture -> analyse -> configure. `section` is rendered as a heading
   // when it changes, so twenty-seven flat rows read as six short lists.
 
+    { section: 'Assistant', icon: Bot, label: 'AI Assistant', path: '/admin/agent-v2', badge: 'NEW' },
     { section: 'Work', icon: LayoutDashboard, label: t('nav.dashboard'), path: '/admin/dashboard' },
     { icon: Plus, label: 'Create', path: '/admin/create' },
     { icon: UserPlus, label: t('nav.newLeads'), path: '/admin/leads', badge: newLeadsCount },
@@ -194,9 +195,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     // moving a domain is a deliberate act, not a daily one.
     { icon: Globe, label: 'Move my website', path: '/admin/site-migration' },
 
-    { section: 'Assistant & setup', icon: Bot, label: 'AI Assistant', path: '/admin/agent-v2', badge: 'NEW' },
 
     {
+      section: 'Setup',
       icon: Settings,
       label: t('nav.settings'),
       path: '/admin/settings',

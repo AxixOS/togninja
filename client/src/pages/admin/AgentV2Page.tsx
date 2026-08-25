@@ -306,10 +306,11 @@ const AgentV2Page: React.FC = () => {
             </div>
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
-                Agent V2 - Enhanced CRM Assistant
+                Your assistant
               </h1>
               <p className="text-gray-600 mt-1">
-                Powered by ToolBus Architecture with Advanced Safety Features
+                Ask for something and watch it work. Nothing reaches a client, or your
+                books, without you seeing it first.
               </p>
             </div>
           </div>
@@ -322,10 +323,11 @@ const AgentV2Page: React.FC = () => {
               <div className="bg-violet-100 p-2 rounded-lg">
                 <Shield className="w-6 h-6 text-violet-600" />
               </div>
-              <h3 className="font-semibold text-lg">Enhanced Safety</h3>
+              <h3 className="font-semibold text-lg">It asks before it acts</h3>
             </div>
             <p className="text-gray-600 text-sm">
-              Built-in guardrails with scope-based authorization and confirmation gates for all risky operations.
+              Anything that changes a record, sends a message or touches money stops and
+              shows you exactly what it is about to do. You can change it, then approve it.
             </p>
           </div>
 
@@ -334,11 +336,12 @@ const AgentV2Page: React.FC = () => {
               <div className="bg-purple-100 p-2 rounded-lg">
                 <Zap className="w-6 h-6 text-purple-600" />
               </div>
-              <h3 className="font-semibold text-lg">Smart Tool Execution</h3>
+              <h3 className="font-semibold text-lg">It can do 52 things</h3>
             </div>
             <p className="text-gray-600 text-sm">
-              52 registered tools, every one with a Zod parameter schema: search, reporting,
-              create, update, email, calendar, invoices, workflows and the price wizard.
+              Find a client, chase an invoice, draft an email, book a session, build a
+              gallery, or research what photographers near you charge. 52 registered tools;
+              37 of them only ever read.
             </p>
           </div>
 
@@ -347,17 +350,18 @@ const AgentV2Page: React.FC = () => {
               <div className="bg-pink-100 p-2 rounded-lg">
                 <Sparkles className="w-6 h-6 text-pink-600" />
               </div>
-              <h3 className="font-semibold text-lg">Full Audit Trail</h3>
+              <h3 className="font-semibold text-lg">It remembers the conversation</h3>
             </div>
             <p className="text-gray-600 text-sm">
-              Complete session logging with tool calls, arguments, results, and performance metrics.
+              Every message is kept, so you can pick up where you left off and it still
+              knows what you were talking about.
             </p>
           </div>
         </div>
 
         {/* Safety Modes Info */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-200">
-          <h3 className="font-semibold text-lg mb-4">Safety Modes</h3>
+          <h3 className="font-semibold text-lg mb-4">What it will and will not do on its own</h3>
           <div className="grid md:grid-cols-3 gap-4">
             <div className="border-l-4 border-green-500 pl-4">
               <h4 className="font-semibold text-green-700 mb-1">Read-Only Mode</h4>

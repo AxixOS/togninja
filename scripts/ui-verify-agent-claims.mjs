@@ -86,7 +86,21 @@ console.log('\n=== every tool really does validate its parameters ===');
 const noZod = tools.filter((t) => !t.zod);
 check('all registered tools carry a Zod schema', noZod.length === 0,
   noZod.length ? noZod.map((t) => t.name).join(', ') : `${tools.length}/${tools.length}`);
-check('the page claims exactly that', /Zod/.test(page));
+// The page does NOT have to say "Zod". It used to, and this check required it — which
+// meant the guard was forcing a library name onto a page a photographer reads. Removing a
+// true-but-jargon claim is not a regression; making a FALSE claim is. So what is asserted
+// now is the honest property: whatever the page says about checking, it must not promise
+// more than the code does.
+const claimsValidation = /Zod|validat|parameter schema/i.test(page);
+check('any validation claim on the page is true', !claimsValidation || noZod.length === 0,
+  claimsValidation ? 'page claims it, code does it' : 'page makes no such claim');
+
+// THE CLAIM THAT WAS ACTUALLY FALSE. agent_audit, agent_action_log and agent_audit_diff
+// all hold zero rows — nothing writes them — so a page advertising a "full audit trail"
+// with "tool calls, arguments, results and performance metrics" was describing a feature
+// this product does not have. What it DOES keep is the conversation, in agent_message.
+check('the page does not advertise an audit trail we do not write',
+  !/full audit trail/i.test(page) && !/performance metrics/i.test(page));
 
 console.log('\n=== the mode descriptions match Guardrails ===');
 // The claim that mattered.
