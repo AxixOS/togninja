@@ -75,6 +75,7 @@ const AdminBlogPostsPage = lazyWithRetry(() => import('./pages/admin/AdminBlogPo
 const AdminBlogNewPage = lazyWithRetry(() => import('./pages/admin/AdminBlogNewPage'));
 const AdminBlogEditPage = lazyWithRetry(() => import('./pages/admin/AdminBlogEditPage'));
 const KnowledgeBasePage = lazyWithRetry(() => import('./pages/admin/KnowledgeBasePage'));
+const SiteMigrationPage = lazyWithRetry(() => import('./pages/admin/SiteMigrationPage'));
 const CreateHubPage = lazyWithRetry(() => import('./pages/admin/CreateHubPage'));
 const AgentV2Page = lazyWithRetry(() => import('./pages/admin/AgentV2Page'));
 const AgentConsolePage = lazyWithRetry(() => import('./pages/admin/AgentConsolePage'));
@@ -746,6 +747,14 @@ function App() {
                 <Route
                   path="/admin/crm-assistant"
                   element={<Navigate to="/admin/dashboard" replace />}
+                />
+                <Route
+                  path="/admin/site-migration"
+                  element={
+                    <NeonProtectedRoute>
+                      <SiteMigrationPage />
+                    </NeonProtectedRoute>
+                  }
                 />
                 <Route
                   path="/admin/create"

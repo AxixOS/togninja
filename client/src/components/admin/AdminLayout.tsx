@@ -190,6 +190,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { icon: TrendingUp, label: 'Price List Wizard', path: '/admin/price-wizard', badge: 'AI' },
     { icon: FolderOpen, label: t('nav.digitalFiles'), path: '/admin/digital-files' },
     { icon: RefreshCw, label: t('nav.calendarSync'), path: '/admin/calendar-sync' },
+    // Under Business, beside the other things you do once and rarely revisit. Not in Work:
+    // moving a domain is a deliberate act, not a daily one.
+    { icon: Globe, label: 'Move my website', path: '/admin/site-migration' },
 
     { section: 'Assistant & setup', icon: Bot, label: 'AI Assistant', path: '/admin/agent-v2', badge: 'NEW' },
 
