@@ -13,6 +13,7 @@
 import { readFileSync, readdirSync, existsSync } from 'fs';
 
 const read = (p) => readFileSync(p, 'utf8');
+const eolOf = (src) => (src.includes('\r\n') ? '\r\n' : '\n');
 const SECTION_DIR = 'client/src/features/landing-pages/components/public';
 
 const themeScope = read('client/src/components/public/ThemeScope.tsx');
@@ -114,6 +115,44 @@ check('every brand colour in every section follows the theme',
 for (const stop of ['from-purple-700', 'via-purple-600', 'to-pink-600']) {
   check(`${stop} is themed`, mapped.has(stop));
 }
+
+// ── Words the page supplies itself ──────────────────────────────────────────
+//
+// Almost everything on a landing page is the studio's own copy. Four strings were not, and
+// all four were German, shipped to every studio on every instance:
+//
+//     "Häufige Fragen"                       the FAQ heading
+//     "Jetzt buchen"                         the DEFAULT call to action
+//     "Alle Bewertungen auf Google ansehen"  the reviews link
+//
+// The CTA one was the worst: being the fallback, it appeared precisely when a studio had
+// not customised the page — which is every page on the day they launch. So a Brighton
+// photographer's main button said "Jetzt buchen".
+//
+// Assert the property rather than the three phrases: no section may carry a hardcoded
+// string in a language, whichever language it happens to be.
+const GERMAN = /[ÄÖÜäöüß]|\b(Jetzt|Häufige|Alle|Bewertungen|Fragen|Leistungen|Angebot|Unsere|Über)\b/;
+const germanIn = [];
+if (existsSync(SECTION_DIR)) {
+  for (const f of readdirSync(SECTION_DIR).filter((n) => n.endsWith('.tsx'))) {
+    const src = read(`${SECTION_DIR}/${f}`);
+    // Comments are allowed to quote the strings — that is how the bug gets documented, and
+    // this file is full of quoted German for exactly that reason. Line-prefix filtering was
+    // not enough: it missed the CONTINUATION lines of a block comment, which is where a
+    // quoted string usually sits. Strip the comments as comments.
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')   // block comments, including JSX {/* ... */}
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1'); // line comments, without eating a URL's //
+    if (GERMAN.test(code)) germanIn.push(f);
+  }
+}
+check('no section hardcodes copy in one language',
+  germanIn.length === 0,
+  germanIn.length ? germanIn.join(', ') : `${readdirSync(SECTION_DIR).length} files scanned`);
+
+check('the labels come from one map keyed by language',
+  existsSync('client/src/features/landing-pages/utils/publicLabels.ts')
+  && /LABELS\[key\] \|\| LABELS\.en/.test(read('client/src/features/landing-pages/utils/publicLabels.ts')));
 
 // ── The editorial variants stay honest ──────────────────────────────────────
 const hero = read(`${SECTION_DIR}/PublicLandingPageHero.tsx`);

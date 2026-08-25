@@ -11,6 +11,7 @@ import { trackPageView } from '../../utils/trackLandingPageEvent';
 import type { LandingPageSectionKey } from '../../types/landingPageEditor.types';
 import { SITE } from '@/config/site';
 import { PublicLandingPageHero } from './PublicLandingPageHero';
+import { usePublicLabels, type PublicLabels } from '../../utils/publicLabels';
 import { PublicLandingPageVideoSection } from './PublicLandingPageVideoSection';
 import { PublicLandingPageTrustBar } from './PublicLandingPageTrustBar';
 import { PublicLandingPageProblemSection } from './PublicLandingPageProblemSection';
@@ -43,7 +44,11 @@ interface PublicLandingPageRendererProps {
   previewExpiresAt?: string | null;
 }
 
-function getCtaHref(page: any): string {
+// `labels` is a parameter rather than a hook call because this is a plain function, not a
+// component. The two strings it builds are the ones a member of the public then SENDS to
+// the studio, so they were the most damaging of the hardcoded German: a visitor to a
+// Brighton photographer's page pressed enquire and composed them a German message.
+function getCtaHref(page: any, labels: PublicLabels): string {
   const amount = Number(page.cta_voucher_amount) || 0;
   const voucherSlug = page.cta_voucher_slug;
   const ctaAction = page.cta_action || 'enquire';
@@ -53,12 +58,12 @@ function getCtaHref(page: any): string {
   // below is skipped and the browser opens the mail/WhatsApp app directly.
   if (ctaAction === 'email') {
     const to = String(page.cta_email || SITE.email || '').trim();
-    const subject = `Anfrage: ${page.title || 'Landing Page'}`;
+    const subject = labels.enquirySubject(page.title || 'Landing Page');
     return to ? `mailto:${to}?subject=${encodeURIComponent(subject)}` : '/kontakt';
   }
   if (ctaAction === 'whatsapp') {
     const num = String(page.cta_whatsapp || SITE.phone || '').replace(/[^\d]/g, '');
-    const text = `Hallo, ich interessiere mich für: ${page.title || ''}`.trim();
+    const text = labels.enquiryMessage(page.title || '').trim();
     return num ? `https://wa.me/${num}?text=${encodeURIComponent(text)}` : '/kontakt';
   }
 
@@ -114,10 +119,14 @@ export function PublicLandingPageRenderer({
   isPreview = false,
   previewExpiresAt = null,
 }: PublicLandingPageRendererProps) {
+  const labels = usePublicLabels();
   const content = page.content_json || {};
   const ctaAction = page.cta_action || 'enquire';
-  const ctaHref = getCtaHref(page);
-  const ctaText = content.hero?.ctaText || page.cta_text || 'Jetzt buchen';
+  const ctaHref = getCtaHref(page, labels);
+  // The last-resort label on the page's main button. It was the German "Jetzt buchen",
+  // and being the FALLBACK it appeared exactly when a studio had not customised the page —
+  // which is every page on the day they launch.
+  const ctaText = content.hero?.ctaText || page.cta_text || labels.ctaDefault;
 
   // content_json exists in TWO vocabularies: AI generation writes raw arrays
   // (benefits: [...], faq: [...]) while an editor save writes normalized

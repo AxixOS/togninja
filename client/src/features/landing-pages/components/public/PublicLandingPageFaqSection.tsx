@@ -3,6 +3,8 @@
 import { HelpCircle } from 'lucide-react';
 import { PublicLandingPageSectionWrapper } from './PublicLandingPageSectionWrapper';
 import { alignText, type SectionAlign } from '../../utils/sectionAlignment';
+import { usePublicLabels } from '../../utils/publicLabels';
+import { useIsEditorial } from '@/components/public/SiteLayoutContext';
 
 interface PublicLandingPageFaqSectionProps {
   data: Array<{
@@ -13,13 +15,59 @@ interface PublicLandingPageFaqSectionProps {
 }
 
 export function PublicLandingPageFaqSection({ data, align = 'center' }: PublicLandingPageFaqSectionProps) {
+  const editorial = useIsEditorial();
+  // Was the literal string "Häufige Fragen", shipped to every studio on every instance.
+  const labels = usePublicLabels();
   if (!data || data.length === 0) return null;
 
+  // ── Editorial ────────────────────────────────────────────────────────────────
+  //
+  // A ruled index rather than a stack of floating white cards. The questions are separated by
+  // hairlines, the marker is a rotating rule instead of an icon in brand colour, and the
+  // answer is indented to the measure rather than boxed. Same <details>/<summary>, so the
+  // keyboard behaviour and the open/closed semantics are unchanged.
+  if (editorial) {
+    return (
+      <PublicLandingPageSectionWrapper bg="gray">
+        <div className="max-w-3xl mx-auto">
+          <h2 className={`${alignText(align)} mb-12 tracking-tight`} style={{ color: 'var(--tn-heading)' }}>
+            {labels.faqHeading}
+          </h2>
+          <div className="border-t" style={{ borderColor: 'var(--tn-border)' }}>
+            {data.map((f, i) => (
+              <details key={i} className="group border-b" style={{ borderColor: 'var(--tn-border)' }}>
+                <summary
+                  className="py-6 cursor-pointer flex items-start gap-6 list-none text-base sm:text-lg font-medium"
+                  style={{ color: 'var(--tn-heading)' }}
+                >
+                  <span className="flex-1">{f.question}</span>
+                  {/* A plus that becomes a minus. Rotation is a transform on a decorative
+                      span, so it costs nothing to a reader with motion reduced. */}
+                  <span
+                    aria-hidden="true"
+                    className="mt-1 shrink-0 text-xl font-light leading-none transition-transform duration-200 group-open:rotate-45 motion-reduce:transition-none"
+                    style={{ color: 'var(--tn-muted)' }}
+                  >
+                    +
+                  </span>
+                </summary>
+                <div className="pb-7 pr-10 leading-relaxed max-w-prose" style={{ color: 'var(--tn-text)' }}>
+                  {f.answer}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </PublicLandingPageSectionWrapper>
+    );
+  }
+
+  // ── Classic ──────────────────────────────────────────────────────────────────
   return (
     <PublicLandingPageSectionWrapper bg="gray">
       <div className="max-w-3xl mx-auto">
         <h2 className={`text-3xl md:text-4xl font-bold text-gray-900 ${alignText(align)} mb-10`}>
-          Häufige Fragen
+          {labels.faqHeading}
         </h2>
         <div className="space-y-4">
           {data.map((f, i) => (

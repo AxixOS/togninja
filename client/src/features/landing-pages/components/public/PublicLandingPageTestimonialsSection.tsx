@@ -3,6 +3,7 @@
 import { Quote, ExternalLink } from 'lucide-react';
 import { PublicLandingPageSectionWrapper } from './PublicLandingPageSectionWrapper';
 import { alignText, alignJustify, type SectionAlign } from '../../utils/sectionAlignment';
+import { usePublicLabels } from '../../utils/publicLabels';
 import { useLanguage } from '../../../../context/LanguageContext';
 
 // Fallback review page if none is configured in Settings → Manual Website
@@ -21,6 +22,8 @@ interface PublicLandingPageTestimonialsSectionProps {
 }
 
 export function PublicLandingPageTestimonialsSection({ data, align = 'center' }: PublicLandingPageTestimonialsSectionProps) {
+  // Was the literal German string, shown on every studio site regardless of language.
+  const labels = usePublicLabels();
   const { t } = useLanguage();
   const reviewsUrl = (() => {
     const v = t('reviews.googleUrl');
@@ -74,7 +77,7 @@ export function PublicLandingPageTestimonialsSection({ data, align = 'center' }:
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-purple-700 hover:text-purple-900 font-medium text-sm underline underline-offset-2"
           >
-            Alle Bewertungen auf Google ansehen
+            {labels.allReviews}
             <ExternalLink className="h-4 w-4" />
           </a>
         </div>
