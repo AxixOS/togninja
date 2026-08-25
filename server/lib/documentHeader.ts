@@ -25,7 +25,7 @@
 import sharp from 'sharp';
 import { pool } from '../db';
 
-export type HeaderSource = 'client-gallery' | 'studio-default' | 'none';
+export type HeaderSource = 'document' | 'client-gallery' | 'studio-default' | 'none';
 
 export interface DocumentHeader {
   url: string | null;
@@ -107,7 +107,10 @@ export async function resolveDocumentHeader(
 ): Promise<DocumentHeader> {
   const chosen = typeof override === 'string' ? override.trim() : '';
   if (chosen) {
-    return { url: chosen, source: 'studio-default', reason: 'Chosen for this document.' };
+    // Its own source, not studio-default. A settings screen that says "your default cover"
+    // about a picture somebody chose for THIS document is telling the studio the opposite
+    // of what happened.
+    return { url: chosen, source: 'document', reason: 'Chosen for this document.' };
   }
 
   const design = await studioDocumentDesign();

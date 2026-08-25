@@ -1029,8 +1029,13 @@ async function generateModernInvoicePDF(invoice: any, client: any): Promise<Buff
 
   // The client's own photograph, when they have a gallery. On this tenant 1 client in 64
   // does, so the studio default and the no-image case are the paths that actually run.
+  // The per-document override beats the client gallery and the studio default. Read off
+  // the invoice row, same shape as the studio-level object, so the whole chain is one
+  // spread rather than three special cases.
+  const invoiceDesign = (invoice as any).documentDesign || (invoice as any).document_design || null;
   const headerPick = await resolveDocumentHeader(
     (invoice as any).clientId || (invoice as any).client_id || (client as any)?.id,
+    invoiceDesign?.headerImageUrl || null,
   );
   const headerPhoto = toDataUri(await fetchHeaderImage(headerPick.url));
 

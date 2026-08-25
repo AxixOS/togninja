@@ -598,6 +598,12 @@ app.use((req, res, next) => {
         // and whether to prefer the client own gallery. Per-document overrides use the same
         // shape, so one merge covers both (see server/lib/documentHeader.ts).
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS document_design JSONB`);
+        // The per-document override. SAME shape as the studio default above, so the merge
+        // is a spread: { ...studioDefaults, ...(document.documentDesign || {}) } — exactly
+        // what GalleryPage already does with cover_template, which works, so it is copied
+        // rather than reinvented.
+        await db.execute(sql`ALTER TABLE crm_invoices ADD COLUMN IF NOT EXISTS document_design JSONB`);
+        await db.execute(sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS document_design JSONB`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_api_key_encrypted TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS google_places_place_id TEXT`);
         await db.execute(sql`ALTER TABLE studio_integrations ADD COLUMN IF NOT EXISTS pulse_api_key_encrypted TEXT`);

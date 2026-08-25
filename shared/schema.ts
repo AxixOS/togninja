@@ -280,6 +280,10 @@ export const crmLeads = pgTable("crm_leads", {
 export const crmInvoices = pgTable("crm_invoices", {
   id: uuid("id").primaryKey().defaultRandom(),
   invoiceNumber: text("invoice_number").unique().notNull(),
+  // Per-document design override, same shape as studio_configs.document_design. Declared
+  // here as well as the boot DDL because Drizzle drops undeclared keys on .set() without
+  // error, and a picker that reports success and saves nothing is worse than no picker.
+  documentDesign: jsonb("document_design"),
   clientId: uuid("client_id").references(() => crmClients.id).notNull(),
   issueDate: date("issue_date").notNull(),
   dueDate: date("due_date").notNull(),
@@ -1226,6 +1230,10 @@ export const contractTemplates = pgTable("contract_templates", {
 export const contracts = pgTable("contracts", {
   id: uuid("id").primaryKey().defaultRandom(),
   templateId: uuid("template_id").references(() => contractTemplates.id),
+  // Per-document design override, same shape as studio_configs.document_design. Declared
+  // here as well as the boot DDL because Drizzle drops undeclared keys on .set() without
+  // error, and a picker that reports success and saves nothing is worse than no picker.
+  documentDesign: jsonb("document_design"),
   clientId: uuid("client_id").references(() => crmClients.id),
   title: text("title").notNull(),
   // The merged text as sent. Never re-rendered from the template afterwards.
