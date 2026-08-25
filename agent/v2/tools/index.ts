@@ -75,5 +75,9 @@ import "./invoices.mark_paid";
 // client or a gallery — the two most common things a photographer does in this product.
 import "./clients.create";
 import "./galleries.create";
+import "./questionnaires.create";
+import "./schedulers.create";
+// Tier 3, deliberately: what comes out is something a client will be asked to sign.
+import "./contracts.create";
 
 console.log("[ToolBus] All tools registered successfully");

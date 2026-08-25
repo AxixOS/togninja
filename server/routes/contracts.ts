@@ -56,7 +56,10 @@ function sendPdf(res: Response, pdf: Buffer, filename: string): void {
 }
 
 /** Studio-side values available to every contract, read once per request. */
-async function studioValues(): Promise<Record<string, string>> {
+// Exported so the agent create-tool merges with the SAME studio values this route does.
+// A second resolver would be a fifth answer to "what is the studio called" — the exact
+// drift v1.9.90 spent its time collapsing.
+export async function studioValues(): Promise<Record<string, string>> {
   // owner_email is selected because it is where a fresh instance's only address lives:
   // studio_configs.email is nullable and empty until the Studio Customization form is
   // saved, while owner_email is NOT NULL and written by the bootstrap insert.

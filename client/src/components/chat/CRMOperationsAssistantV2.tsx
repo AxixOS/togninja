@@ -131,9 +131,17 @@ const CRMOperationsAssistantV2: React.FC<CRMOperationsAssistantV2Props> = ({
             message,
             sessionId,
             mode: 'auto_safe', // Use safe mode by default
-            ...(confirmed && confirmData?.args && {
-              // Re-send with confirmation flag
-              confirmedArgs: { ...confirmData.args, __confirm: true }
+            // THE SHAPE THE SERVER ACTUALLY READS.
+            //
+            // This sent `confirmedArgs`, and nothing on the server has ever read that key —
+            // the only mention of it in the whole repo is a comment in agent-v2.ts saying so.
+            // Approving a risky action here was a silent no-op: the tool never ran, and the
+            // reply came back as though the request had simply been a message.
+            //
+            // __confirm is NOT sent from here on purpose. The server injects it after
+            // matching the named tool, which is what stops the model approving itself.
+            ...(confirmed && confirmData?.tool && {
+              confirm: { tool: confirmData.tool, args: confirmData.args || {} }
             })
           })
         });
