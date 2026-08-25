@@ -315,7 +315,7 @@ const AgentV2Page: React.FC = () => {
               <h3 className="font-semibold text-lg">Smart Tool Execution</h3>
             </div>
             <p className="text-gray-600 text-sm">
-              50 registered tools, every one with a Zod parameter schema: search, reporting,
+              52 registered tools, every one with a Zod parameter schema: search, reporting,
               create, update, email, calendar, invoices, workflows and the price wizard.
             </p>
           </div>
@@ -362,7 +362,7 @@ const AgentV2Page: React.FC = () => {
         {/* Available Tools */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-200">
           <h3 className="font-semibold text-lg mb-4">
-            Available Tools <span className="font-normal text-gray-500 text-base">(50 registered — a representative selection below)</span>
+            Available Tools <span className="font-normal text-gray-500 text-base">(52 registered — a representative selection below)</span>
           </h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div>

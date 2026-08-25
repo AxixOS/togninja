@@ -71,4 +71,9 @@ import "./email.send";
 import "./invoices.send";
 import "./invoices.mark_paid";
 
+// Tier 2: the create tools. Ten of the registered tools wrote and none of them could add a
+// client or a gallery — the two most common things a photographer does in this product.
+import "./clients.create";
+import "./galleries.create";
+
 console.log("[ToolBus] All tools registered successfully");

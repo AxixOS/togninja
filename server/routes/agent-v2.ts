@@ -518,7 +518,11 @@ function getUserScopes(role: string): string[] {
       return [
         ...allReadScopes,
         "CRM_WRITE", "INV_WRITE", "EMAIL_SEND", "CALENDAR_WRITE",
-        "SESSION_WRITE", "PRICE_WRITE", "ADMIN"
+        // GALLERY_WRITE: galleries_create writes them, so it asks for a scope that says so
+        // rather than borrowing CRM_WRITE. listOpenAITools requires a user to hold EVERY
+        // scope a tool declares, so a tool naming a scope nobody is granted is not merely
+        // restricted — it is invisible, silently, to everyone including the owner.
+        "SESSION_WRITE", "PRICE_WRITE", "GALLERY_WRITE", "ADMIN"
       ];
     
     case "photographer":
