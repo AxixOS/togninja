@@ -27,6 +27,25 @@ export interface ImageExif {
   iso?: number;
   focalLength?: number;
   gps?: { lat: number; lng: number } | null;
+
+  /**
+   * What the PHOTOGRAPHER already wrote about this picture.
+   *
+   * A ShootCleaner or Lightroom export arrives carrying keywords, a title, a caption and
+   * a star rating — the studio has already told us what the photograph is and which frames
+   * are the good ones. Idea Mode read none of it and asked Vision to describe the picture
+   * from scratch, which spends an API call to produce a worse answer than the one sitting
+   * in the file.
+   *
+   * Note these are XMP and IPTC, NOT Exif. Windows Explorer shows them as Tags, Title and
+   * Rating, which is why a file can look richly tagged and still report "no camera data".
+   */
+  keywords?: string[];
+  title?: string;
+  caption?: string;
+  /** 0-5, as the photographer starred it. The best frame usually leads the article. */
+  rating?: number;
+  creator?: string;
 }
 
 export interface VisionResult {
@@ -72,13 +91,52 @@ function openai(): OpenAI {
 }
 
 /** Read the camera/EXIF fields we care about from an image buffer. Never throws. */
+/**
+ * Pull the human-written fields out, whichever standard they arrived in.
+ *
+ * XMP and IPTC name the same ideas differently and a file often carries both, so each
+ * field takes the first source that actually has something. Everything is defensive:
+ * exifr returns strings where arrays are expected and vice versa depending on the writer,
+ * and a malformed tag block must not cost the upload.
+ */
+function descriptive(d: any): Partial<ImageExif> {
+  const asArray = (v: any): string[] => {
+    if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+    if (typeof v === 'string') return v.split(/[;,]/).map((x) => x.trim()).filter(Boolean);
+    return [];
+  };
+  const asText = (v: any): string | undefined => {
+    // XMP language-alternative fields arrive as { value } or { en: … }.
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const first = (v as any).value ?? Object.values(v)[0];
+      return first ? String(first).trim() || undefined : undefined;
+    }
+    const t = v == null ? '' : String(v).trim();
+    return t || undefined;
+  };
+
+  const keywords = [...new Set([...asArray(d.subject), ...asArray(d.Keywords)])];
+  const ratingRaw = Number(d.Rating);
+
+  return {
+    keywords: keywords.length ? keywords.slice(0, 40) : undefined,
+    title: asText(d.title) || asText(d.ObjectName) || asText(d.Headline),
+    caption: asText(d.description) || asText(d['Caption-Abstract']),
+    // Only a real 0-5. Some writers put -1 in here to mean "rejected".
+    rating: Number.isFinite(ratingRaw) && ratingRaw >= 0 && ratingRaw <= 5 ? ratingRaw : undefined,
+    creator: asText(d.creator) || asText(d['By-line']),
+  };
+}
+
 export async function extractExif(buffer: Buffer): Promise<ImageExif> {
   try {
+    // NO `pick` whitelist. It is tempting — this only needs a dozen fields — but pick does
+    // not reach the XMP and IPTC segments, so naming subject/Keywords/Rating there returns
+    // nothing while the same file parsed without it yields all three. Verified against a
+    // real ShootCleaner export: with pick, zero descriptive fields; without it, the
+    // keywords, title, caption and star rating the photographer wrote.
     const d: any = await exifr.parse(buffer, {
-      tiff: true, exif: true, gps: true,
-      pick: ['Make', 'Model', 'LensModel', 'DateTimeOriginal', 'FNumber',
-             'ExposureTime', 'ISO', 'ISOSpeedRatings', 'FocalLength',
-             'latitude', 'longitude'],
+      tiff: true, exif: true, gps: true, xmp: true, iptc: true, icc: false,
     }) || {};
     const lat = typeof d.latitude === 'number' ? d.latitude : undefined;
     const lng = typeof d.longitude === 'number' ? d.longitude : undefined;
@@ -92,6 +150,7 @@ export async function extractExif(buffer: Buffer): Promise<ImageExif> {
       iso: d.ISO ?? d.ISOSpeedRatings,
       focalLength: typeof d.FocalLength === 'number' ? d.FocalLength : undefined,
       gps: lat != null && lng != null ? { lat, lng } : null,
+      ...descriptive(d),
     };
   } catch {
     return { gps: null };

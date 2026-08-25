@@ -10,7 +10,14 @@ import { useLanguage } from '../../context/LanguageContext';
 
 interface IdeaImage {
   url?: string;
-  exif?: { make?: string; model?: string; lensModel?: string; fNumber?: number; iso?: number; focalLength?: number } | null;
+  // keywords/title/caption/rating are what the PHOTOGRAPHER wrote, read off the file by
+  // extractExif. Deliberately distinct from iptcWritten, which is the IPTC WE embed on
+  // export — a file can be richly tagged by the studio and still show "no IPTC" here.
+  exif?: {
+    make?: string; model?: string; lensModel?: string;
+    fNumber?: number; iso?: number; focalLength?: number;
+    keywords?: string[]; title?: string; caption?: string; rating?: number;
+  } | null;
   vision?: { description?: string; altText?: string; sceneKeywords?: string[]; mood?: string } | null;
   altText?: string;
   iptcWritten?: boolean;
@@ -41,6 +48,8 @@ const STRINGS = {
     notAnalyzed: 'nicht analysiert',
     iptcSet: 'IPTC gesetzt',
     noIptc: 'kein IPTC',
+    yourTags: 'Ihre Stichwörter',
+    stars: 'Sterne',
     contextHeading: '2. Kontext (Fakten – das Wichtigste für gute Texte)',
     location: 'Ort',
     locationPh: 'z.B. Tageslichtstudio Wien-Margareten',
@@ -80,6 +89,8 @@ const STRINGS = {
     notAnalyzed: 'not analyzed',
     iptcSet: 'IPTC set',
     noIptc: 'no IPTC',
+    yourTags: 'your keywords',
+    stars: 'stars',
     contextHeading: '2. Context (facts — the key to good copy)',
     location: 'Location',
     locationPh: 'e.g. daylight studio Vienna-Margareten',
@@ -270,6 +281,22 @@ const IdeaModePanel: React.FC<Props> = ({ postId, title, pillar, initialIdea, on
                   <div className="flex items-center gap-1 text-gray-600"><Camera size={12} />{img.exif?.model || img.exif?.make || L.noCameraData}</div>
                   <div className={`flex items-center gap-1 ${img.vision ? 'text-green-600' : 'text-gray-400'}`}><Eye size={12} />{img.vision ? L.analyzed : L.notAnalyzed}</div>
                   <div className={`flex items-center gap-1 ${img.iptcWritten ? 'text-green-600' : 'text-gray-400'}`}><Tag size={12} />{img.iptcWritten ? L.iptcSet : L.noIptc}</div>
+                  {/* What the photographer already wrote. Shown because it is the answer
+                      to "why did it describe my photo that way" — these words are handed
+                      to the model, and the star rating decides which frame leads. */}
+                  {(img.exif?.keywords?.length || img.exif?.rating != null) && (
+                    <div className="flex items-center gap-1 text-purple-700" title={img.exif?.keywords?.join(", ")}>
+                      <Tag size={12} />
+                      <span className="truncate">
+                        {img.exif?.keywords?.length ? `${img.exif.keywords.length} ${L.yourTags}` : null}
+                        {img.exif?.keywords?.length && img.exif?.rating != null ? " · " : null}
+                        {img.exif?.rating != null ? `${img.exif.rating} ${L.stars}` : null}
+                      </span>
+                    </div>
+                  )}
+                  {img.exif?.title && (
+                    <div className="text-gray-500 truncate" title={img.exif.title}>„{img.exif.title}"</div>
+                  )}
                   {img.altText && <div className="text-gray-500 truncate" title={img.altText}>„{img.altText}"</div>}
                 </div>
               </div>

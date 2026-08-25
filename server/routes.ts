@@ -3460,6 +3460,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = idea.context || {};
       const hint = post.seoTitle || post.title;
 
+      // LEAD WITH THE BEST FRAME. The photographer has already starred these in
+      // ShootCleaner or Lightroom, so the article does not need to guess which picture
+      // opens it. Stable sort: images with no rating keep the order they were uploaded
+      // in, rather than being shuffled by a comparator that treats absent as zero.
+      images.sort((a: any, b: any) => (b?.exif?.rating ?? -1) - (a?.exif?.rating ?? -1));
+
       const { getImageIdentity } = await import('./lib/studioImageIdentity.js');
       const identity = await getImageIdentity();
 
@@ -3473,7 +3479,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // analyzeVision was OUTSIDE this try. One failure on the third image threw out
           // of the loop, so idea.images was never persisted and the two that had already
           // been analysed were discarded — paid for, then thrown away.
-          const vision = img.vision || await analyzeVision(img.url, hint);
+          // WHAT THE PHOTOGRAPHER ALREADY WROTE, handed to Vision as part of the hint.
+          //
+          // A ShootCleaner or Lightroom export carries keywords, a title and a caption,
+          // and Idea Mode used to ignore all of it and ask the model to describe the
+          // picture cold. The studio knows what the photograph is; the model is guessing.
+          // Telling it what the studio wrote produces a description that agrees with the
+          // photographer instead of competing with them.
+          const own = [
+            img.exif?.title ? `The photographer titled this "${img.exif.title}".` : null,
+            img.exif?.caption ? `They described it: ${img.exif.caption}` : null,
+            img.exif?.keywords?.length
+              ? `They tagged it: ${img.exif.keywords.slice(0, 12).join(", ")}.`
+              : null,
+          ].filter(Boolean).join(" ");
+          const perImageHint = own ? `${hint}. ${own}` : hint;
+
+          const vision = img.vision || await analyzeVision(img.url, perImageHint);
           img.vision = vision;
           img.altText = deriveAltText(vision, ctx);
 
