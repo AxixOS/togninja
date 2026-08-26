@@ -6,6 +6,19 @@ import SetupNarrator from '@/components/setup/SetupNarrator';
 import { Loader2, ImagePlus, Check, ArrowRight, AlertCircle } from 'lucide-react';
 
 /**
+ * The homepage-generation states that mean the run has STOPPED.
+ *
+ * Mirrors HomepageGenStatus in server/lib/homepage-pipeline.ts, minus 'idle' and 'running'.
+ * Two components poll that run — this one and ScanningPhase — and both have to agree on when
+ * to stop asking, or one of them polls a finished job for as long as the studio leaves the tab
+ * open while telling them work is still happening.
+ *
+ * scripts/ui-verify-onboarding.mjs reads the states out of the pipeline and checks this list
+ * against them, so a state added there fails the check rather than silently never arriving.
+ */
+const GEN_TERMINAL = ['ready', 'error', 'skipped', 'quota_exceeded'];
+
+/**
  * Collect the photographs the site is built around.
  *
  * Placed AFTER the crawl, deliberately. Half of these slots cannot be named until the
@@ -286,11 +299,17 @@ export default function SiteImagesPhase({
   const { data: gen } = useQuery<any>({
     queryKey: ['homepage-gen-status'],
     queryFn: () => fetch('/api/setup/homepage/status').then((r) => r.json()),
-    refetchInterval: startScan ? 2500 : false,
+    // Stops when the run stops. This was a flat `startScan ? 2500 : false`, so the poll kept
+    // firing every 2.5 seconds for as long as the step was mounted — long after the run had
+    // ended in error, skipped or quota_exceeded — and the copy below went on saying "Still
+    // reading your website" under an animated spinner, for ever, over a run that was finished.
+    refetchInterval: (q) => (startScan && !GEN_TERMINAL.includes(q.state.data?.status) ? 2500 : false),
     enabled: startScan,
   });
   const readRunning = gen?.status === 'running';
   const readFindings = Array.isArray(gen?.findings) ? gen.findings : [];
+  /** The run ended without producing service slots. Not "still reading". */
+  const readStopped = GEN_TERMINAL.includes(gen?.status) && gen?.status !== 'ready';
 
   if (isLoading) {
     return (
@@ -393,7 +412,19 @@ export default function SiteImagesPhase({
           ) : (
             /* Honest about WHY the list is empty, and actively waiting rather than
                inviting the studio to move on — this is the one part of the step that
-               cannot be done later, because the slot names come from the crawl. */
+               cannot be done later, because the slot names come from the crawl.
+
+               "Actively waiting" has to stop when the waiting does. The spinner and the words
+               "Still reading" were shown whenever the list was empty, with no reference to
+               whether the run was still going — so a run that ended in a refusal left a studio
+               watching an animation describing work that had already stopped. */
+            readStopped ? (
+              <div className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4">
+                We couldn't read your services from your website this time, so there are no
+                per-service slots to fill here. Nothing is lost — you can add images to any
+                page from Website Studio once setup is done.
+              </div>
+            ) : (
             <div className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4 flex items-start gap-3">
               <Loader2 className="w-4 h-4 mt-0.5 animate-spin flex-shrink-0" />
               <span>
@@ -402,6 +433,7 @@ export default function SiteImagesPhase({
                 won't be any — you can add images from Website Studio later.
               </span>
             </div>
+            )
           )}
         </section>
         )}

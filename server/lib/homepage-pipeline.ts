@@ -378,9 +378,26 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
         await writeGenState(state);
         return;
       }
-      // Every other platform refusal is OURS — an unfunded key, a revoked key, a metering
-      // outage we fail closed on. The studio can act on none of them, so they all land on the
-      // same "not available yet" panel rather than being spelled out as separate faults.
+      // "Not right now" is not "not switched on".
+      //
+      // upstream_timeout, metering_unavailable and some upstream_errors are transient, and the
+      // gateway says so in a `retryable` flag we were parsing and then throwing away. Every one
+      // of them landed on the 'skipped' panel — which says the platform is not configured and
+      // deliberately offers no Try again, because for a missing credential a retry is theatre.
+      // For a timeout it is the entire fix, and we were telling the studio something false and
+      // stranding a run that would have succeeded on the next click.
+      //
+      // 'error' is the right home: that panel already exists, already says "this won't hold up
+      // your setup", and already has the button.
+      if (e?.name === 'PlatformAIRefusal' && e?.retryable === true) {
+        state.status = 'error'; state.stage = 'error';
+        state.error = e?.message || 'Generation could not finish just now — please try again.';
+        await writeGenState(state);
+        return;
+      }
+      // Every remaining platform refusal is OURS and is NOT transient — an unfunded key, a
+      // revoked key. The studio can act on none of them, so they land on the same "not
+      // available yet" panel rather than being spelled out as separate faults.
       if (e instanceof NoOpenAIError || e?.name === 'NoOpenAIError' || e?.name === 'PlatformAIRefusal') {
         state.status = 'skipped'; state.stage = 'skipped';
         state.error = e?.message || 'AI is not configured on this instance';

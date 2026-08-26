@@ -246,6 +246,30 @@ check('a refused regenerate is shown to the studio',
   scanning.includes('setHpNotice') && scanning.includes('{hpNotice &&'),
   'the 429 carries a reason; it has to reach the screen');
 
+// ── Both pollers agree on when the run has stopped ──────────────────────────
+//
+// TWO components poll the same generation: ScanningPhase and SiteImagesPhase. SiteImagesPhase
+// polled on a flat `startScan ? 2500 : false` with no terminal check at all, so it kept asking
+// every 2.5s for as long as the step was mounted — and went on rendering "Still reading your
+// website" under an animated spinner over a run that had ended in a refusal.
+//
+// Its GEN_TERMINAL list is checked against the pipeline rather than against a copy written
+// here, so a fifth state added server-side fails this instead of silently never arriving.
+// `images` is already read near the top of this file — reusing it rather than declaring a
+// second binding for the same component, which is the third name collision this script has
+// produced by not checking what it already has in scope.
+const declared = (images.match(/const GEN_TERMINAL = \[([^\]]*)\]/) || [, ''])[1]
+  .split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean);
+const missingFromList = terminal.filter((s) => !declared.includes(s));
+
+check('the photographs step knows every terminal state',
+  declared.length > 0 && missingFromList.length === 0,
+  missingFromList.length ? `not in GEN_TERMINAL: ${missingFromList.join(', ')}` : declared.join(', '));
+
+check('and stops polling when the run stops',
+  images.includes('GEN_TERMINAL.includes(q.state.data?.status)'),
+  'a flat interval polls a finished job for as long as the tab is open');
+
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');
