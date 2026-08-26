@@ -232,7 +232,7 @@ export async function platformComplete(
 
   // ── Direct, with the registry's parameters so both paths agree ──
   const openai = await platformOpenAI(purpose);
-  if (!openai) throw new NoPlatformAIError();
+  if (!openai) throw new NoOpenAIError();
   const completion = await openai.chat.completions.create({
     model: spec.model,
     messages: messages as any,
@@ -249,11 +249,25 @@ export async function platformComplete(
   };
 }
 
-/** No gateway and no platform key. The platform cannot generate; the studio cannot fix it. */
-export class NoPlatformAIError extends Error {
+/**
+ * The platform cannot generate right now. Never the studio's fault, and never their fix.
+ *
+ * Defined HERE, next to the code that throws it, and re-exported from landing-generator so
+ * every existing importer keeps working.
+ *
+ * It was briefly a second class that set `this.name = 'NoOpenAIError'` so the name-based
+ * branches in routes.ts would keep matching. That worked for those, and silently broke the two
+ * `instanceof NoOpenAIError` checks — including authority-scaffold's, which aborts a per-pillar
+ * loop precisely so that N pillars do not each make a doomed call. A class lying about its name
+ * satisfies whichever half of your codebase asks the question the way you happened to test.
+ *
+ * The default message names no environment variable. That string is echoed to the browser by
+ * two routes, and OPENAI_API_KEY means nothing to a photographer with no shell on the host.
+ */
+export class NoOpenAIError extends Error {
   constructor(message = 'Site generation is not available on this instance yet') {
     super(message);
-    this.name = 'NoOpenAIError'; // the name three routes and the pipeline already branch on
+    this.name = 'NoOpenAIError';
   }
 }
 

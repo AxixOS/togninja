@@ -1,4 +1,4 @@
-import { platformAiConfigured, platformComplete, parseModelJson } from './openaiClient';
+import { platformAiConfigured, platformComplete, parseModelJson, NoOpenAIError } from './openaiClient';
 // Shared landing-page copy generator.
 //
 // The prompt-building + OpenAI call used to live inline in the admin route
@@ -7,20 +7,13 @@ import { platformAiConfigured, platformComplete, parseModelJson } from './openai
 // /api/setup surface) can produce the same structured page JSON from one context.
 
 /**
- * The platform cannot generate right now. Never the studio's fault, and never their fix.
+ * Re-exported, not redefined. It lives in openaiClient.ts next to the code that throws it.
  *
- * The default message named OPENAI_API_KEY. That string is echoed to the browser by at least
- * two endpoints, so a photographer was being shown the name of an environment variable on a
- * host they have no shell on — the same unactionable leak searchProvider's copy was rewritten
- * to remove. What a studio can act on is nothing; what they need to know is that it is being
- * handled and that it has not damaged their setup.
+ * Six files import it from here, so the re-export keeps them working — but there must be
+ * exactly ONE class, because `instanceof` is how two of those files ask the question and a
+ * second class with the same `name` answers only the ones that ask by string.
  */
-export class NoOpenAIError extends Error {
-  constructor(message = 'Site generation is not available on this instance yet') {
-    super(message);
-    this.name = 'NoOpenAIError';
-  }
-}
+export { NoOpenAIError } from './openaiClient';
 
 /**
  * Can the platform generate? Delegates rather than deciding.

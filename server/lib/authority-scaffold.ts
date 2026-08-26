@@ -205,7 +205,11 @@ export async function scaffoldPillarPages(
       });
       created++;
     } catch (e: any) {
-      if (e instanceof NoOpenAIError) throw e; // surface to the endpoint as a 400
+      // Abort the whole run, not this pillar. If the platform cannot generate, pillars 2..N
+      // will fail identically, and each attempt is a real cost: the gateway counts FAILED
+      // attempts against the studio's cap, so grinding through six doomed pillars burns six
+      // attempts to produce nothing and returns ok:true with a list of six errors.
+      if (e instanceof NoOpenAIError || e?.name === 'PlatformAIRefusal') throw e;
       results.push({ pillar: pillar.label, slug, status: 'error', error: String(e?.message || e).slice(0, 200) });
     }
   }
