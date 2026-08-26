@@ -41,14 +41,14 @@ databases:
   #
   # The schema installs itself: server/index.ts runs its DDL on every boot, so an empty
   # database becomes a working one on the first request with no migration step.
-  - name: togninja-db
+  - name: togninja-studio-db
     databaseName: togninja
     plan: free          # upgrade to "basic" for backups and no 90-day expiry
     region: oregon
 
 services:
   - type: web
-    name: togninja
+    name: togninja-studio
     runtime: docker
     dockerfilePath: ./Dockerfile
     region: oregon      # must match the database region, or every query crosses a continent
@@ -72,7 +72,7 @@ services:
       # ── Database — wired from the block above, not typed by hand ─────────
       - key: DATABASE_URL
         fromDatabase:
-          name: togninja-db
+          name: togninja-studio-db
           property: connectionString
 
       # ── Secrets Render generates, so nobody ever sees or handles them ────

@@ -13,6 +13,10 @@ import { readFileSync } from 'fs';
 
 const y = readFileSync('render.yaml', 'utf8');
 
+// Split on newlines without naming one: every line is trimmed anyway, so a trailing
+// carriage return goes with it and CRLF needs no special case.
+const lines = y.split(/\r?\n/).map((l) => l.trim());
+
 let failed = 0;
 const check = (label, ok, detail = '') => {
   console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${label}${detail ? '  — ' + detail : ''}`);
@@ -77,6 +81,24 @@ for (const key of ['OPENAI_API_KEY', 'AWS_SECRET_ACCESS_KEY']) {
   check(`${key} is the studio's to provide`,
     new RegExp(`key: ${key}[\\s\\S]{0,60}sync: false`).test(y));
 }
+
+// ── It must not adopt something already running ─────────────────────────────
+//
+// Render matches Blueprint services to existing ones BY NAME. Named exactly "togninja",
+// applying this in the AxixOS workspace would not have created a tenant — it would have
+// reconfigured the LIVE demo service, and because DATABASE_URL is wired fromDatabase it
+// would have repointed that instance at a brand-new empty Postgres. Every client, invoice
+// and gallery would have appeared to vanish while sitting untouched in a database nothing
+// was connected to any more.
+// Plain string work, no regex. The first draft of this line was /^s+name:/ — the backslash
+// lost in transit — which matches nothing, so the check went green while asserting nothing.
+// That is a worse outcome than having no check, and it is the fourth time this session.
+const serviceNames = lines
+  .filter((l) => l.startsWith('name: ') || l.startsWith('- name: '))
+  .map((l) => l.replace('- ', '').slice(6).trim());
+check('no service or database is named after the live instance',
+  !serviceNames.includes('togninja'),
+  serviceNames.join(', '));
 
 // ── The trap that cost a real onboarding ────────────────────────────────────
 check('the storage endpoint note names the S3-compatible host',
