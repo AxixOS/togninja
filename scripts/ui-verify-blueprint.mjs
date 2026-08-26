@@ -166,6 +166,19 @@ check('and a boot-DDL-only database still provisions',
   ensure.includes('if (coreSchemaPresent) {')
   && ensure.includes('booted before it was provisioned'));
 
+// drizzle-kit push:pg prompts when it sees tables that are not in shared/schema.ts, and most
+// of the boot DDL tables are not — landing_pages, homepage_images, print_products and the
+// rest are raw SQL. A container has no TTY, so the prompt is never answered and the only
+// thing that ends it is the 4-minute timeout. Without clearing them first, the provisioner
+// would try, hang, and report failure.
+check('the push can run unattended',
+  ensure.includes('DROP TABLE IF EXISTS') && ensure.includes('unattended'));
+
+// And that clearing is confined to the case where nothing can be lost.
+check('clearing only happens when setup never completed',
+  ensure.indexOf('DROP TABLE IF EXISTS') > ensure.indexOf('if (coreSchemaPresent) {'),
+  'the drop sits inside the studio_configs-is-absent branch');
+
 check('a real instance is still never touched',
   ensure.includes('already exists'));
 

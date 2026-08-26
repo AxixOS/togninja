@@ -92,6 +92,43 @@ async function run() {
       `[ensure-schema] ${tableCount} table(s) present but studio_configs is missing — ` +
       'this instance booted before it was provisioned. Creating the core schema.'
     );
+
+    // CLEAR THEM FIRST, or the push cannot run unattended.
+    //
+    // Those tables are the ones server/index.ts creates at boot, and most of them are not
+    // declared in shared/schema.ts — landing_pages, homepage_images, print_products,
+    // workflow_templates and the rest are raw DDL. drizzle-kit push:pg therefore sees tables
+    // it does not know, decides they should be dropped, and ASKS. There is no TTY in a
+    // container, so the prompt never gets an answer and the 4-minute timeout is the only
+    // thing that ends it — the provisioner would try, hang, and report failure.
+    //
+    // Dropping them is safe HERE and nowhere else, because of the condition we are already
+    // inside: studio_configs does not exist. An instance without it has never completed
+    // setup, has no studio, no clients and no galleries, and these tables are empty
+    // artefacts of a container start. Every one of them is recreated by that same boot DDL
+    // a few seconds later.
+    try {
+      const c2 = new pg.Client({
+        connectionString: url,
+        ssl: /localhost|127\.0\.0\.1/.test(host) ? undefined : { rejectUnauthorized: false },
+      });
+      await c2.connect();
+      const { rows: existing } = await c2.query(
+        `SELECT tablename FROM pg_tables WHERE schemaname = 'public'`
+      );
+      for (const r of existing) {
+        // Quoted, and one statement each: a failure on one table must not abandon the rest.
+        try {
+          await c2.query(`DROP TABLE IF EXISTS "${String(r.tablename).replace(/"/g, '')}" CASCADE`);
+        } catch (dropErr) {
+          console.warn('[ensure-schema] could not drop', r.tablename, '-', dropErr?.message || dropErr);
+        }
+      }
+      await c2.end();
+      console.log(`[ensure-schema] cleared ${existing.length} boot-created table(s) so the push can run unattended.`);
+    } catch (e) {
+      console.warn('[ensure-schema] could not clear boot tables:', e?.message || e);
+    }
   }
 
   console.log(`[ensure-schema] EMPTY database on ${host} — creating schema + baseline…`);
