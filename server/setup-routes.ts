@@ -1351,7 +1351,8 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // Wrong-in-both-directions is worse than absent: this is the line an operator reads right
     // before running the onboarding they are about to be surprised by.
     const { platformAiConfigured } = await import('./lib/openaiClient');
-    if (!platformAiConfigured()) {
+    const aiReady = platformAiConfigured();
+    if (!aiReady) {
       console.warn(
         '[reset-demo] NO PLATFORM AI KEY — the next onboarding will crawl the site and then generate nothing.\n'
         + '             Set PLATFORM_OPENAI_API_KEY on this service and redeploy. A key in\n'
