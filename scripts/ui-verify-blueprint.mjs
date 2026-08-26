@@ -67,9 +67,32 @@ check('it is a branch name, not remote/branch shorthand',
 check('demo mode is off',
   /key: DEMO_MODE[\s\S]{0,200}?value: "false"/.test(y));
 
-check('and nothing else in the file turns it on',
-  !/value: "true"/.test(y),
-  'a stray "true" on any key is worth looking at here');
+// Assert the PROPERTY, not a proxy for it. This banned any `value: "true"` anywhere in the
+// file, which worked only while DEMO_MODE was the sole boolean — then AUTO_INIT_SCHEMA had to
+// be set to "true" for a legitimate and necessary reason and the check went red on correct
+// code. What matters is that DEMO_MODE specifically is not on; other keys being true is none
+// of its business.
+const demoIdx = lines.findIndex((l) => l === '- key: DEMO_MODE');
+const demoValue = demoIdx >= 0 ? (lines[demoIdx + 1] || '') : '';
+check('demo mode is off, specifically',
+  demoIdx >= 0 && demoValue.includes('"false"'),
+  demoIdx >= 0 ? demoValue : 'DEMO_MODE not declared at all');
+
+// ── The database gets TABLES ────────────────────────────────────────────────
+//
+// A provisioned database is empty, and the core tables are not created by the boot DDL:
+// server/index.ts runs 32 CREATE TABLE IF NOT EXISTS statements and studio_configs is not one
+// of them, nor crm_clients, admin_users or galleries. Those come from scripts/ensure-schema.mjs,
+// which the Dockerfile runs before npm start and which does nothing unless AUTO_INIT_SCHEMA is
+// set. Without it the container starts, every query fails on a missing table, and nothing says
+// a step was skipped.
+//
+// Safe to set here and nowhere else: that script refuses to act on a database with any tables
+// in it, which is the condition a fresh tenant is in and no live instance ever is.
+const autoIdx = lines.findIndex((l) => l === '- key: AUTO_INIT_SCHEMA');
+check('the schema is installed on first boot',
+  autoIdx >= 0 && (lines[autoIdx + 1] || '').includes('"true"'),
+  autoIdx >= 0 ? (lines[autoIdx + 1] || '') : 'AUTO_INIT_SCHEMA not declared');
 
 // ── The studio gets a database without going anywhere else ──────────────────
 check('a database is provisioned in the same click',

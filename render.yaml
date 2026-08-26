@@ -39,8 +39,14 @@ databases:
   # a Supabase project would be an extra account, an extra vendor and an extra OAuth
   # integration buying nothing. Render provisions it in the same click as the web service.
   #
-  # The schema installs itself: server/index.ts runs its DDL on every boot, so an empty
-  # database becomes a working one on the first request with no migration step.
+  # The schema installs itself — but ONLY because AUTO_INIT_SCHEMA is set below.
+  #
+  # This comment used to say the boot DDL handled it. It does not. server/index.ts runs 32
+  # CREATE TABLE IF NOT EXISTS statements and studio_configs is not among them, nor
+  # crm_clients, admin_users or galleries — the core tables come from scripts/ensure-schema.mjs,
+  # which the Dockerfile runs before npm start and which does nothing at all unless
+  # AUTO_INIT_SCHEMA is truthy. Provisioned without it, a tenant boots against an empty
+  # database and every query fails on a missing table.
   - name: togninja-studio-db
     databaseName: togninja
     plan: free          # upgrade to "basic" for backups and no 90-day expiry
@@ -70,6 +76,19 @@ services:
       # unauthenticated endpoint that empties the CRM.
       - key: DEMO_MODE
         value: "false"
+
+      # Install the schema on first boot.
+      #
+      # scripts/ensure-schema.mjs is opt-in and refuses to act unless the database has ZERO
+      # tables, so it cannot touch a populated one — which is precisely the condition a
+      # freshly provisioned tenant is in and no other instance ever is. Without it the
+      # container starts, every query fails on a missing table, and the studio sees a broken
+      # product with no indication that a step was skipped.
+      #
+      # It is also best-effort: any failure logs loudly and exits 0, so it can never stop the
+      # container from starting.
+      - key: AUTO_INIT_SCHEMA
+        value: "true"
 
       # Render injects PORT automatically and health-checks it — do not set it.
 
