@@ -126,6 +126,21 @@ check('an older server does not lock uploads out',
 check('the two halves are one component',
   !fs.existsSync('client/src/pages/setup/phases/SitePhotographsPhase.tsx'));
 
+// ── Your place survives a reload ────────────────────────────────────────────
+//
+// The step was useState(0) and /setup was declared as TWO routes rendering the same
+// component. React Router treats those as different matches, so moving between /setup and
+// /setup/ unmounted the wizard and mounted a fresh one — back to step 1, with every answer
+// still saved on the server and no way for the studio to tell. Any refresh did the same.
+const app = read('client/src/App.tsx');
+check('setup is one route, not two',
+  (app.split('element={<UnifiedSetupWizard />}').length - 1) === 1,
+  'two entries for one component remount it whenever the match changes');
+
+check('the current step is remembered',
+  wiz.includes('sessionStorage.getItem(STEP_KEY)')
+  && wiz.includes('sessionStorage.setItem(STEP_KEY'));
+
 check('the wizard walks a filtered list', /const VISIBLE = essentialsOnly \? STEPS\.filter/.test(wiz));
 check('and defaults to the short one', /useState\(true\)/.test(wiz.slice(wiz.indexOf('essentialsOnly'))));
 

@@ -1037,7 +1037,15 @@ function App() {
                 {/* Onboarding — ONE unified wizard at /setup (old /setup/technical redirects in) */}
                 <Route path="/setup/technical" element={<Navigate to="/setup" replace />} />
                 <Route path="/setup/technical/*" element={<Navigate to="/setup" replace />} />
-                <Route path="/setup" element={<UnifiedSetupWizard />} />
+                {/*
+                  ONE route, not two.
+
+                  These were separate entries rendering the same component, which React
+                  Router treats as different matches — so moving between /setup and /setup/
+                  unmounted the wizard and mounted a fresh one. Every bit of its state went
+                  with it, including which step the studio was on, and they landed back at
+                  step 1 having filled in three.
+                */}
                 <Route path="/setup/*" element={<UnifiedSetupWizard />} />
                 <Route
                   path="/"

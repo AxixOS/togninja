@@ -14,7 +14,7 @@
  * calls; this container just sequences them and tracks progress.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
@@ -61,7 +61,25 @@ interface StepDef {
 export default function UnifiedSetupWizard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [index, setIndex] = useState(0);
+  // Which step they are on, kept across a reload.
+  //
+  // This was useState(0), so anything that remounted the component — a route rematch, a
+  // refresh, a crashed tab restored — sent a studio back to step 1 with every answer they
+  // had typed still saved on the server and no way to tell. Onboarding is the one screen
+  // where losing your place is most expensive, because it reads as "none of that worked".
+  //
+  // sessionStorage rather than the URL: the step is not a thing to link to or go back
+  // through, and it belongs to this sitting rather than to the machine.
+  const STEP_KEY = 'setupStepIndex';
+  const [index, setIndex] = useState<number>(() => {
+    try {
+      const raw = sessionStorage.getItem(STEP_KEY);
+      const n = raw === null ? 0 : Number(raw);
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    } catch {
+      return 0;
+    }
+  });
 
   const { data: setupStatus } = useQuery<any>({
     queryKey: ['setup-status'],
@@ -71,6 +89,12 @@ export default function UnifiedSetupWizard() {
     queryKey: ['technical-setup-status'],
     queryFn: () => fetch('/api/setup/technical/status').then((r) => r.json()),
   });
+
+  // Written on every move so a reload resumes where they were. Clamped on read rather than
+  // here, because VISIBLE changes length when the studio switches to the long path.
+  useEffect(() => {
+    try { sessionStorage.setItem(STEP_KEY, String(index)); } catch {}
+  }, [index]);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['setup-status'] });
