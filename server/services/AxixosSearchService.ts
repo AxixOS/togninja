@@ -15,6 +15,30 @@ import { ownDomains, isIrrelevantSite } from '../lib/competitorFilter';
  *                → { text, title, metaDescription, h1, ... }
  */
 
+/**
+ * WHICH BUDGET THIS CALL SPENDS.
+ *
+ * The gateway decides the payer from the purpose named in the request, NOT from the key that
+ * presented it — one tenant key is used for both platform-funded and studio-funded work. So
+ * the purpose is the billing decision, and it is made here, at the call site, by whoever knows
+ * what the call is for.
+ *
+ * That is why `purpose` is a required argument on readPageText rather than a defaulted one.
+ * The same method reads a page for onboarding (the PLATFORM pays, because the studio has not
+ * agreed to anything yet) and for competitor research (the STUDIO pays, because they asked for
+ * it). A default would silently bill one of those to the wrong side, which is the exact
+ * inversion server/lib/openaiClient.ts exists to prevent — and it would do it invisibly, since
+ * both calls succeed either way.
+ */
+export type CrawlPurpose =
+  /** Reading the studio's own site during onboarding. Platform-funded: 25 pages, lifetime. */
+  | 'crawl.onboarding'
+  /** Reading a competitor's pricing page. Studio-funded: uncapped, 300 per 24h. */
+  | 'crawl.competitor';
+
+/** Competitor discovery. Studio-funded: uncapped, 1000 queries per 24h. */
+const SEARCH_COMPETITOR = 'search.competitor';
+
 interface CompetitorSearchResult {
   name: string;
   website: string;
@@ -133,6 +157,8 @@ export class AxixosSearchService {
         const data = await this.post('/v1/search/web', {
           query,
           limit: perQuery,
+          // The studio asked for this research, so the studio's budget funds it.
+          purpose: SEARCH_COMPETITOR,
           // Omitted entirely when the studio country is not known. See searchLocale().
           ...(locale.country ? { country: locale.country } : {}),
           language: locale.language,
@@ -178,10 +204,10 @@ export class AxixosSearchService {
    * running in the background and wrong for the onboarding crawl, where somebody is
    * watching the screen. Same endpoint, same shape, the wait is the caller's to choose.
    */
-  async readPageText(url: string, timeoutMs = 30000): Promise<string> {
+  async readPageText(url: string, purpose: CrawlPurpose, timeoutMs = 30000): Promise<string> {
     if (!url) return '';
     try {
-      const data = await this.post('/v1/crawl/page', { url }, timeoutMs);
+      const data = await this.post('/v1/crawl/page', { url, purpose }, timeoutMs);
       return [data?.title, data?.metaDescription, data?.h1, data?.text].filter(Boolean).join('\n\n');
     } catch (error: any) {
       console.warn(`  AxixOS page read failed for ${url}:`, error?.message);
@@ -192,7 +218,8 @@ export class AxixosSearchService {
   async searchCompetitorPricing(websiteUrl: string, businessName: string): Promise<string> {
     if (!websiteUrl) return '';
     try {
-      const data = await this.post('/v1/crawl/page', { url: websiteUrl }, 90000);
+      // A competitor's page, read because the studio asked for price research. Theirs to fund.
+      const data = await this.post('/v1/crawl/page', { url: websiteUrl, purpose: 'crawl.competitor' }, 90000);
       const parts = [data?.title, data?.metaDescription, data?.h1, data?.text].filter(Boolean);
       return parts.join('\n\n');
     } catch (error: any) {

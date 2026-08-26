@@ -531,7 +531,9 @@ export async function crawlSite(
           if (partner.isConfigured()) {
             // Its own timeout, not the price wizard's: that path runs in the background of a
             // research job, this one runs while somebody watches an onboarding screen.
-            const text = await partner.readPageText(current, PARTNER_TIMEOUT_MS);
+            // PLATFORM-funded: this is the studio's own site, read before they have agreed to
+            // anything. Charging them for the sales pitch would invert the model.
+            const text = await partner.readPageText(current, 'crawl.onboarding', PARTNER_TIMEOUT_MS);
             if (text && text.trim().length >= USABLE_TEXT) {
               partnerText = text.trim();
               viaPartner = true;

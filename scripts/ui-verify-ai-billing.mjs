@@ -126,6 +126,32 @@ check('the onboarding generators are not billed to the studio',
   wrongSide.length === 0,
   wrongSide.join(', ') || `${PLATFORM_PAID.length} generators`);
 
+// ── Who pays for a crawl ────────────────────────────────────────────────────
+//
+// The gateway reads the payer from the `purpose` in the request body, NOT from the key that
+// presented it — one tenant key funds both sides. So the purpose is the billing decision.
+//
+// The trap this guards: ONE method, TWO payers. readPageText() reads the studio's own site
+// during onboarding, which the platform funds because nobody has agreed to anything yet, and
+// it reads a competitor's price page, which the studio funds because they asked for it. Both
+// calls succeed whichever purpose is sent, so getting it wrong is invisible until an invoice.
+const crawler = read('server/lib/site-crawler.ts');
+const axixos = read('server/services/AxixosSearchService.ts');
+
+check('the onboarding crawl is funded by the platform',
+  crawler.includes("'crawl.onboarding'") && !crawler.includes("'crawl.competitor'"),
+  'reading a studio own site before they have agreed to anything');
+
+check('competitor research is funded by the studio',
+  axixos.includes("purpose: 'crawl.competitor'") && axixos.includes('SEARCH_COMPETITOR'),
+  'they asked for it, so they fund it');
+
+// Required positional argument, so omission is TS2554 and a non-crawl purpose is TS2345 —
+// the compiler enforces the payer, not this file. This only checks the shape stays that way.
+check('the crawl payer cannot be defaulted',
+  axixos.includes('readPageText(url: string, purpose: CrawlPurpose'),
+  'purpose is required, so it cannot be got wrong by omission');
+
 // ── The gateway seam ────────────────────────────────────────────────────────
 //
 // AxixOS smarthub exposes POST /v1/ai/complete with a server-side purpose registry, a
