@@ -125,7 +125,25 @@ export async function platformOpenAI(label: string, options: ClientOptions = {})
  *
  * The live process.env.OPENAI_API_KEY is never read here again.
  */
-const PLATFORM_KEY_AT_BOOT = (process.env.OPENAI_API_KEY || '').trim();
+let PLATFORM_KEY_AT_BOOT = (process.env.OPENAI_API_KEY || '').trim();
+
+/**
+ * Capture the platform's key, explicitly, before anything can overwrite the slot.
+ *
+ * The value above is taken at module load, which is *usually* early enough — but "usually"
+ * rested on this module happening to be imported before boot reached hydrateEnvFromDb, and a
+ * guarantee that depends on import order is not a guarantee. server/index.ts calls this
+ * immediately before hydration, so the ordering is stated rather than assumed.
+ *
+ * Idempotent, and never downgrades: calling it after the slot has been overwritten keeps the
+ * value already sealed, so a late call cannot poison it with a studio's key.
+ *
+ * Returns whether the platform can fund generation at all, so boot can say so out loud.
+ */
+export function sealPlatformKey(): boolean {
+  if (!PLATFORM_KEY_AT_BOOT) PLATFORM_KEY_AT_BOOT = (process.env.OPENAI_API_KEY || '').trim();
+  return !!platformKey();
+}
 
 function platformKey(): string | null {
   const explicit = (process.env.PLATFORM_OPENAI_API_KEY || '').trim();

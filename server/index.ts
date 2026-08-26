@@ -392,6 +392,31 @@ app.use((req, res, next) => {
     // directly (Stripe voucher checkout, OpenAI, Google OAuth, IMAP, Brevo, …)
     // picks up wizard-entered config. Env always wins → an env-configured
     // deployment is untouched. Best-effort; never blocks boot.
+    // SEAL THE PLATFORM KEY FIRST, and say plainly whether there is one.
+    //
+    // platformOpenAI must never resolve a key a tenant can write, and hydrateEnvFromDb below
+    // writes the STUDIO's stored OpenAI key into OPENAI_API_KEY whenever that slot is empty —
+    // which is exactly the shape of a provisioned tenant. So the platform's key is whatever was
+    // in the environment BEFORE this line, and it is captured here rather than relying on the
+    // module happening to be imported before boot reached this point.
+    //
+    // The log matters as much as the seal. If a deployment has no platform key, site generation
+    // refuses, and the studio-facing message is deliberately vague ("not switched on for this
+    // instance yet") because there is nothing they can do about it. Whoever runs the instance
+    // needs the specific reason, at boot, not a support ticket about a blank homepage.
+    try {
+      const { sealPlatformKey } = await import('./lib/openaiClient');
+      const sealed = sealPlatformKey();
+      console.log(sealed
+        ? '🔑 Platform AI key sealed — site generation is funded'
+        : '⚠️ NO PLATFORM AI KEY. Onboarding will crawl a site and then generate nothing.\n'
+          + '   Set PLATFORM_OPENAI_API_KEY on this service (or OPENAI_API_KEY in its environment,\n'
+          + '   not only in the database) and redeploy. A key stored only in studio_integrations is\n'
+          + '   the STUDIO\'s and must not fund platform work.');
+    } catch (e: any) {
+      console.warn('⚠️ Could not seal the platform AI key (non-fatal):', e?.message || e);
+    }
+
     try {
       const { config } = await import('./config-reader');
       const filled = await config.hydrateEnvFromDb();

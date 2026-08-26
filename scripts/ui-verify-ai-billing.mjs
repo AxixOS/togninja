@@ -186,8 +186,20 @@ check('the platform path does not read the shared env slot',
 
 check('the platform key is captured before a tenant can overwrite it',
   resolverCode.includes('PLATFORM_OPENAI_API_KEY')
-  && /const PLATFORM_KEY_AT_BOOT\s*=/.test(resolverCode),
-  'an explicit platform slot, and a boot snapshot for deployments that have not set one');
+  && /PLATFORM_KEY_AT_BOOT\s*=/.test(resolverCode)
+  && resolverCode.includes('export function sealPlatformKey'),
+  'an explicit platform slot, and a snapshot sealed before hydration');
+
+// And the ORDER is stated, not assumed. hydrateEnvFromDb writes the studio's stored key into
+// OPENAI_API_KEY whenever that slot is empty — the shape of every provisioned tenant — so the
+// seal has to happen first. Relying on this module being imported before boot reached hydration
+// is not a guarantee, it is a coincidence that held.
+const bootSrc = read('server/index.ts');
+const sealAt = bootSrc.indexOf('sealPlatformKey()');
+const hydrateAt = bootSrc.indexOf('hydrateEnvFromDb()');
+check('and it is sealed before the database can write that slot',
+  sealAt > 0 && hydrateAt > 0 && sealAt < hydrateAt,
+  sealAt < 0 ? 'boot never seals it' : hydrateAt < 0 ? 'hydration not found' : 'seal precedes hydration');
 
 check('and it says so when the platform is paying for ongoing work',
   resolver.includes('bills to the PLATFORM key'));
