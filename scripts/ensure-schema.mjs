@@ -42,6 +42,8 @@ async function run() {
     ssl: /localhost|127\.0\.0\.1/.test(host) ? undefined : { rejectUnauthorized: false },
   });
   let tableCount = -1;
+  // True when studio_configs exists, i.e. this instance has been provisioned before.
+  let coreSchemaPresent = false;
   try {
     await client.connect();
     const { rows } = await client.query(
@@ -49,6 +51,15 @@ async function run() {
         WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`
     );
     tableCount = rows[0]?.n ?? 0;
+
+    // Is the CORE schema here, as opposed to any schema at all?
+    //
+    // studio_configs is the sentinel: every instance that has ever been provisioned has it,
+    // and it is not one of the tables server/index.ts creates at boot.
+    const { rows: core } = await client.query(
+      `SELECT to_regclass('public.studio_configs') IS NOT NULL AS present`
+    );
+    coreSchemaPresent = core[0]?.present === true;
     await client.end();
   } catch (e) {
     try { await client.end(); } catch {}
@@ -56,7 +67,32 @@ async function run() {
     done(`could not inspect the database (${e?.message || e}) — skipping.`);
   }
 
-  if (tableCount > 0) done(`database already has ${tableCount} table(s) — nothing to do.`);
+  // THE WINDOW THIS USED TO NEED WAS ALREADY CLOSED BY THE TIME IT LOOKED.
+  //
+  // The test was `tableCount > 0`, which is a fair reading of "never touch a populated
+  // database" and was wrong for the only case that matters. server/index.ts creates 32
+  // tables of its own on every boot, so a database is empty exactly once — before the very
+  // first start — and that moment has passed before anyone can set AUTO_INIT_SCHEMA.
+  //
+  // Observed on a Blueprint-provisioned tenant: first deploy skipped (the flag was not set
+  // yet), the server booted and created its 32 tables, and every deploy after that reported
+  // "database already has 32 table(s) — nothing to do". The instance sat permanently half
+  // provisioned: studio_configs did not exist, /api/setup/status returned 500, and
+  // /api/studio-config returned 200 because it degrades to neutral defaults — which made it
+  // look fine from outside.
+  //
+  // The question is whether the CORE schema is present, not whether anything is. Safety is
+  // unchanged and arguably stronger: a real instance always has studio_configs, so this
+  // still cannot touch one.
+  if (coreSchemaPresent) {
+    done(`studio_configs already exists (${tableCount} table(s) present) — nothing to do.`);
+  }
+  if (tableCount > 0) {
+    console.log(
+      `[ensure-schema] ${tableCount} table(s) present but studio_configs is missing — ` +
+      'this instance booted before it was provisioned. Creating the core schema.'
+    );
+  }
 
   console.log(`[ensure-schema] EMPTY database on ${host} — creating schema + baseline…`);
   const env = { ...process.env, DB_TARGET_CONFIRMED: '1' };

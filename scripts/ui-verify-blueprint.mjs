@@ -149,6 +149,26 @@ check('no service or database is named after the live instance',
   !serviceNames.includes('togninja'),
   serviceNames.join(', '));
 
+// ── The provisioner has to be able to fire ──────────────────────────────────
+//
+// Its guard was `tableCount > 0` — never touch a populated database. Fair reading, wrong
+// for the only case that matters: server/index.ts creates 32 tables of its own on every
+// boot, so a database is empty exactly once, before the very first start, and that moment
+// passes before anyone can set AUTO_INIT_SCHEMA. Observed on a Blueprint-provisioned tenant:
+// studio_configs never existed, /api/setup/status returned 500, and /api/studio-config
+// returned 200 because it degrades to neutral defaults — so it looked fine from outside.
+const ensure = readFileSync('scripts/ensure-schema.mjs', 'utf8');
+
+check('the provisioner asks whether the CORE schema exists',
+  ensure.includes("to_regclass('public.studio_configs')"));
+
+check('and a boot-DDL-only database still provisions',
+  ensure.includes('if (coreSchemaPresent) {')
+  && ensure.includes('booted before it was provisioned'));
+
+check('a real instance is still never touched',
+  ensure.includes('already exists'));
+
 // ── The trap that cost a real onboarding ────────────────────────────────────
 check('the storage endpoint note names the S3-compatible host',
   y.includes('s3.<region>.backblazeb2.com') && y.includes('api.backblazeb2.com'),
