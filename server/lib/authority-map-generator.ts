@@ -1,7 +1,7 @@
 // Generate a per-studio Authority Map (topical clusters + internal-link graph) from the
 // studio's niche. Mirrors the OpenAI usage in landing-generator.ts. The result is reviewed
 // and saved by the studio (POST .../generate returns it; PUT /api/authority-map persists it).
-import { hasOpenAI, NoOpenAIError } from './landing-generator.js';
+import { NoOpenAIError } from './landing-generator.js';
 import { normalizeAuthorityMap, type AuthorityMap } from '../../shared/authorityMap.js';
 import { complete, parseModelJson, type Payer } from './openaiClient';
 
@@ -30,7 +30,8 @@ const SHAPE = `{
 }`;
 
 export async function generateAuthorityMap(input: AuthorityMapInput, payer: Payer): Promise<AuthorityMap> {
-  if (!hasOpenAI()) throw new NoOpenAIError();
+  // Same removal, same reason as generateLandingContent: hasOpenAI() answers "can the PLATFORM
+  // pay", and this function now serves both payers. complete() refuses correctly for each.
 
   const system = `You are an SEO information-architecture strategist. You design topical-authority site structures: a small set of pillar (money/service) pages, each supported by cluster (informational blog) articles, all tied together with an internal-link graph. You output STRICT JSON only — no prose, no code fences.`;
 

@@ -382,6 +382,22 @@ check('the crawl payer cannot be defaulted',
   /purpose\s*:\s*CrawlPurpose\s*(,|$)/.test(readPageSig.trim()),
   readPageSig.includes('purpose') ? `signature: ${readPageSig.trim()}` : 'no purpose parameter at all');
 
+// ── A pre-flight gate must answer the same question as the call ─────────────
+//
+// generateLandingContent and generateAuthorityMap both opened with `if (!hasOpenAI())`, and
+// hasOpenAI() is platformAiConfigured() — purely whether the PLATFORM can pay. The moment those
+// functions grew a `payer`, the gate started refusing studio-funded calls on the platform's key
+// state: an admin generating a page on their own key was told AI was unavailable whenever the
+// platform had none, though complete('studio', …) would have used their key and succeeded.
+//
+// A gate that disagrees with the call it guards is worse than no gate, and this is the second
+// time that exact sentence has had to be written in this file.
+for (const f of ['server/lib/landing-generator.ts', 'server/lib/authority-map-generator.ts']) {
+  check(`${f.split('/').pop()} does not gate a payer-aware call on platform funding`,
+    !/if \(!hasOpenAI\(\)\)/.test(stripComments(read(f))),
+    'complete() refuses correctly for each payer; a platform-only pre-check cannot');
+}
+
 // ── Onboarding is the platform's; the admin screens are the studio's ────────
 //
 // The same three generators serve both. Onboarding shows a studio the product before they have

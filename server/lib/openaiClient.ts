@@ -432,7 +432,10 @@ export async function tenantOpenAIKey(label: string): Promise<string | null> {
  */
 export async function requireTenantOpenAI(label: string, options: ClientOptions = {}) {
   const c = await tenantOpenAI(label, options);
-  if (!c) throw new Error('No OpenAI key is configured. Add one in Settings to use this feature.');
+  // NoOpenAIError, not a bare Error: routes.ts and homepage-pipeline both classify by that name
+  // to choose a status code and a panel. A plain Error here came back as a 500 with internal
+  // wording, which is the same misclassification authority-map-generator had.
+  if (!c) throw new NoOpenAIError('No OpenAI key is configured. Add one in Settings to use this feature.');
   return c;
 }
 

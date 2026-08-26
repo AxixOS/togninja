@@ -206,7 +206,18 @@ export async function generateLandingContent(
    */
   payer: Payer,
 ): Promise<{ content: any; usage: any; model: string }> {
-  if (!hasOpenAI()) throw new NoOpenAIError();
+  // No pre-flight gate here any more, because there is no longer one answer to gate on.
+  //
+  // This read `if (!hasOpenAI())`, and hasOpenAI() is platformAiConfigured() — purely whether
+  // the PLATFORM can pay. Once this function grew a `payer`, that gate started refusing
+  // studio-funded calls on the platform's key state: an admin generating a page on their own
+  // key was told AI was unavailable whenever the platform had none, though complete('studio')
+  // would have used their key and succeeded. The gate and the call it guards disagreed, which
+  // is precisely what hasOpenAI() was rewritten to stop doing.
+  //
+  // complete() already refuses correctly for each side — platformOpenAI for one,
+  // requireTenantOpenAI for the other — and both raise NoOpenAIError, so every caller's
+  // existing handling is unchanged.
   const { systemPrompt, userPrompt } = buildLandingPrompts(context);
 
   // Platform-funded: this is the site a studio sees before they have configured or paid for
