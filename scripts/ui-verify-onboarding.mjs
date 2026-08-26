@@ -336,6 +336,36 @@ check('a gateway refusal is classified, not returned as a crash',
   refusalHandlers >= 2 && routesSrc.includes("e.code === 'quota_exceeded' ? 429 : 503"),
   `${refusalHandlers} admin route(s) classify it`);
 
+// ── The wizard never sends a studio somewhere they cannot go ────────────────
+//
+// The admin account is created at step FOUR, so for the first three steps there is no session.
+// Any link into /admin bounces off authenticateUser and lands back on setup — which looks
+// exactly like the page refreshing itself, and was reported as the page crashing.
+//
+// The photographs step offered "Connect file storage" pointing at
+// /admin/settings/technical-setup, from step three, on an instance with no storage configured:
+// the one screen where a studio is most likely to click it.
+const setupDir = 'client/src/pages/setup';
+const wizardFiles = [];
+const walkSetup = (d) => {
+  for (const n of fs.readdirSync(d)) {
+    const p = `${d}/${n}`;
+    if (fs.statSync(p).isDirectory()) walkSetup(p);
+    else if (n.endsWith('.tsx')) wizardFiles.push(p);
+  }
+};
+walkSetup(setupDir);
+const deadLinks = wizardFiles.filter((f) => /href="\/admin/.test(read(f)));
+check('no setup screen links into the authenticated admin area',
+  deadLinks.length === 0,
+  deadLinks.length ? deadLinks.map((f) => f.split('/').pop()).join(', ') : 'no session exists until step four');
+
+// A run that stopped has to say so on the screen the studio is ACTUALLY looking at. The panels
+// live in ScanningPhase, which is step five; generation runs during step three.
+check('the photographs step says so when generation stopped',
+  images.includes('readStopped &&') && images.includes('could not finish writing your homepage'),
+  'otherwise the findings list ends mid-sentence and reads as a hang');
+
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');

@@ -358,6 +358,25 @@ export default function SiteImagesPhase({
             {readRunning ? 'Meanwhile, we are reading your website' : 'We finished reading your website'}
           </p>
           <SetupNarrator findings={readFindings} busy={readRunning} />
+
+          {/*
+            The list is a record of what HAPPENED, and it stops at whatever the run was doing
+            when it failed. Its last entry is "Writing your homepage in your own words", so a
+            failed run leaves that sentence sitting there as the final word — with the heading
+            above it saying the reading finished, and nothing anywhere saying the writing did
+            not. Observed live: a tenant with no platform AI key showed exactly this, read as a
+            hang, and was reported as the page crashing.
+
+            The panel in ScanningPhase covers the same states, but that is step FIVE. This is
+            step three, and the studio is looking at this screen while it happens.
+          */}
+          {readStopped && (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+              We could not finish writing your homepage this time. Nothing on this screen is
+              affected, your setup is not held up, and you can create one from Website Studio
+              once setup is done.
+            </p>
+          )}
         </div>
       )}
 
@@ -372,12 +391,22 @@ export default function SiteImagesPhase({
               unaffected, and you can add photographs any time from Website Studio once
               storage is connected.
             </p>
-            <a
-              href="/admin/settings/technical-setup"
-              className="mt-2 inline-block underline underline-offset-2 font-medium"
-            >
-              Connect file storage
-            </a>
+            {/*
+              This was a "Connect file storage" anchor pointing at the admin technical-setup
+              route, and it could not work from here. That route is behind authenticateUser,
+              and the admin
+              account is created at step FOUR — so at this point in the wizard there is no
+              session to authenticate. Clicking it navigated away, bounced off the guard, and
+              landed back on setup, which reads exactly like the page refreshing itself. It was
+              reported as the page crashing.
+
+              Storage is a real step in the full setup, so the honest instruction is the one
+              that reaches it: the toggle at the top of this screen, which is already on screen.
+            */}
+            <p className="mt-2 font-medium">
+              Storage is one of the steps in <span className="underline underline-offset-2">Set everything up now</span>,
+              at the top of this page — or connect it after setup from Technical Setup.
+            </p>
           </div>
         </div>
       )}
