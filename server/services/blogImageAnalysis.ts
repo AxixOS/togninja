@@ -85,11 +85,13 @@ export interface IptcInput {
 // server/lib/studioImageIdentity.ts. Nothing replaces them here: a missing field must
 // produce a missing tag, because a wrong stamp travels with the file for ever.
 
-let _openai: OpenAI | null = null;
 async function openai(): Promise<OpenAI | null> {
   // Alt text and IPTC for a studio's own photographs — theirs to fund.
-  if (!_openai) _openai = await tenantOpenAI('image-analysis');
-  return _openai;
+  //
+  // Not memoised, for the reason spelled out in blogIdeaWriter: caching the resolved client
+  // pins whichever key was current when the process started, so a studio who adds their own
+  // key keeps billing the platform until a redeploy. The key is re-resolved per call.
+  return tenantOpenAI('image-analysis');
 }
 
 /** Read the camera/EXIF fields we care about from an image buffer. Never throws. */

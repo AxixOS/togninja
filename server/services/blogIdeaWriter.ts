@@ -48,13 +48,19 @@ export interface WriterOutput {
 // suggestion was a 404, and the model was being actively instructed to produce them.
 const UNIVERSAL_LINKS = ['/vouchers', '/kontakt', '/contact', '/warteliste', '/waitlist'];
 
-let _openai: OpenAI | null = null;
 async function openai(): Promise<OpenAI | null> {
   // Blog writing is ongoing work a studio asked for, so it is theirs to fund. The
   // 'sk-not-configured' placeholder also produced an OpenAI auth error rather than an
   // honest "no key" — indistinguishable, in a log, from a key that had been revoked.
-  if (!_openai) _openai = await tenantOpenAI('blog-ideas');
-  return _openai;
+  //
+  // NOT memoised. This held the resolved CLIENT in a module-level variable, which pinned the
+  // payer for the life of the process: a studio whose first blog ran on the platform's
+  // fallback key kept billing the platform after entering their own, until someone redeployed.
+  // That is the precise bug — "a studio who entered their own key had no way to take over
+  // their own spend" — that the whole billing split exists to remove, reintroduced one layer
+  // down by a cache. Resolving per call costs nothing: config.get caches for 60s and the SDK
+  // constructor is cached inside openaiClient.
+  return tenantOpenAI('blog-ideas');
 }
 
 function cameraSummary(exif?: ImageExif): string {

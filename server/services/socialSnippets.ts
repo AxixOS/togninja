@@ -43,16 +43,15 @@ export interface PreparedSocialPack {
   pinterestLink: string;
 }
 
-let _o: OpenAI | null = null;
 // maxRetries: the SDK retries transient 429/5xx with backoff; timeout bounds a
 // hung request. A studio admin clicking "Social Pack" should never wait forever.
 // Social copy for a studio's own posts — theirs to fund. Async now, because resolving
 // their key means reading the database. The retry and timeout options are preserved for
 // the reason given above them.
-const openai = async () => {
-  if (!_o) _o = await tenantOpenAI('social-snippets', { maxRetries: 3, timeout: 30_000 });
-  return _o;
-};
+// Not memoised: caching the resolved client pins the payer for the life of the process, so a
+// studio who enters their own key keeps billing the platform until a redeploy. Re-resolved per
+// call — config.get caches for 60s, so the cost is an object construction.
+const openai = async () => tenantOpenAI('social-snippets', { maxRetries: 3, timeout: 30_000 });
 
 const stripHtml = (s = '') => s.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 

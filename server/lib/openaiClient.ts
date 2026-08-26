@@ -335,6 +335,38 @@ export function parseModelJson(raw: string, label: string): any {
 }
 
 /**
+ * The resolved KEY rather than a client, for callers that speak HTTP directly.
+ *
+ * Not every call site uses the SDK. Large parts of this server call api.openai.com with a bare
+ * fetch and an `Authorization: Bearer ...` header — the Assistants API flows in autoblog and
+ * routes, mostly, because the SDK's assistants surface kept changing. v1.9.153 swept for
+ * `new OpenAI({ apiKey: process.env.OPENAI_API_KEY })` and declared the server clean; it never
+ * looked for those, and a Bearer header is exactly as much a billing decision as a constructor.
+ *
+ * Same order as tenantOpenAI: the studio's stored key first, the platform's only as a fallback,
+ * and it says which one paid. Returns null when neither exists, so a caller can refuse honestly
+ * instead of sending the string "Bearer undefined" — which is what a provisioned tenant, having
+ * deliberately no OPENAI_API_KEY, sends today.
+ */
+export async function tenantOpenAIKey(label: string): Promise<string | null> {
+  let key: string | undefined;
+  try {
+    const { config } = await import('../config-reader');
+    key = (await config.get('openai_api_key')) as string;
+  } catch {
+    // A missing column or an unreachable database is "not configured", not a crash.
+  }
+  if (key) return key;
+
+  const platform = process.env.OPENAI_API_KEY;
+  if (platform) {
+    console.warn(`[${label}] no tenant OpenAI key — this call bills to the PLATFORM key`);
+    return platform;
+  }
+  return null;
+}
+
+/**
  * The same resolution, but throwing instead of returning null.
  *
  * For call sites that cannot sensibly carry on without a client and sit inside a handler

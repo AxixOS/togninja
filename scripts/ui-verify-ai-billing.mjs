@@ -150,9 +150,26 @@ check('the studio path reads the tenant key first',
   resolverCode.indexOf("config.get('openai_api_key')") < resolverCode.indexOf('process.env.OPENAI_API_KEY'),
   'env first means env always wins');
 
+// The body of platformOpenAI, extracted once and asserted against three times below.
+const platformBody = (() => {
+  const start = resolverCode.indexOf('export async function platformOpenAI');
+  if (start < 0) return '';
+  const end = resolverCode.indexOf('\n}', start);
+  return end < 0 ? resolverCode.slice(start) : resolverCode.slice(start, end);
+})();
+
 // A platform call falling back to a tenant key would charge the studio for the sales pitch.
+//
+// Scoped to the FUNCTION. This was `!/platformOpenAI[\s\S]*?config\.get/` — a scan for the
+// literal `config.get` anywhere after the first mention of the name — which is wrong in both
+// directions. It passed while platformOpenAI did the forbidden thing by another route entirely
+// (reading a tenant-writable env slot), and then failed the moment an unrelated tenant-side
+// helper was added BELOW it in the same file. Text order is not scope.
 check('the platform path never falls back to a tenant key',
-  !/platformOpenAI[\s\S]*?config\.get/.test(resolver));
+  platformBody.length > 0
+  && !platformBody.includes('config.get')
+  && !/\b(require)?[tT]enantOpenAI/.test(platformBody),
+  'the studio must never fund the sales pitch');
 
 // ── The platform's key comes from a slot no tenant can write ────────────────
 //
@@ -164,13 +181,6 @@ check('the platform path never falls back to a tenant key',
 // AxixOS-provisioned tenant. So the studio funded their own sales pitch, and this file said ok.
 //
 // Bound to the function BODY, because "somewhere in the file" is how the original passed.
-const platformBody = (() => {
-  const start = resolverCode.indexOf('export async function platformOpenAI');
-  if (start < 0) return '';
-  const end = resolverCode.indexOf('\n}', start);
-  return end < 0 ? resolverCode.slice(start) : resolverCode.slice(start, end);
-})();
-
 check('the platform path does not read the shared env slot',
   platformBody.length > 0 && !platformBody.includes('process.env.OPENAI_API_KEY'),
   'that variable is tenant-writable; a studio saving a key would fund their own onboarding');
@@ -249,6 +259,78 @@ const wrongSide = PLATFORM_PAID.filter((f) => read(f).includes('tenantOpenAI('))
 check('the onboarding generators are not billed to the studio',
   wrongSide.length === 0,
   wrongSide.join(', ') || `${PLATFORM_PAID.length} generators`);
+
+// ── Using the resolver means USING it ───────────────────────────────────────
+//
+// Two ways a converted file kept the old behaviour while looking converted.
+//
+// ONE: gate on the env var first. translate.ts read `!process.env.OPENAI_API_KEY` and returned
+// the source text before tenantOpenAI was ever called. On an AxixOS-provisioned tenant that
+// variable is deliberately unset and the studio's key is in the database — so translation
+// silently returned untranslated German and the tenant wiring below it was unreachable code.
+// The file imported the resolver, called the resolver, and never reached it.
+const gatedOnEnv = [];
+// TWO: memoise the resolved CLIENT at module scope. That pins the payer for the life of the
+// process: a studio whose first call fell back to the platform's key keeps billing the platform
+// after entering their own, until somebody redeploys. It is the exact bug the split exists to
+// remove, reintroduced one layer down by a cache. Caching is also pointless here — config.get
+// already caches for 60s and the SDK constructor is cached inside the resolver.
+const cachedClients = [];
+// THREE, and the one v1.9.153 never looked for: authenticate a raw fetch with the env var.
+//
+// That commit swept for `new OpenAI({ apiKey: process.env.OPENAI_API_KEY })` and reported the
+// server clean. A raw `fetch('https://api.openai.com/...', { Authorization: Bearer ${...} })` is
+// every bit as much a call site and every bit as much a billing decision, and it was invisible
+// to the sweep. So the split was reported complete while a large part of the server still paid
+// out of the platform's pocket — and on a provisioned tenant, which has no OPENAI_API_KEY at
+// all, these send the literal string "Bearer undefined".
+const rawHttp = [];
+
+// validateEnv reports what the ENVIRONMENT contains at boot. Reading the variable is its whole
+// job, and it makes no AI call, so it is not a billing decision.
+const ENV_READERS_OK = new Set(['server/lib/validateEnv.ts']);
+
+for (const f of walk('server')) {
+  if (f === RESOLVER.replace(/\\/g, '/') || ENV_READERS_OK.has(f)) continue;
+  const code = stripComments(read(f));
+  // Bound to GATING, not to mention. Reporting whether the platform key is set is legitimate —
+  // capabilities.ts ORs it with the studio's stored key, and a diagnostics readout should say
+  // what it sees. What is never legitimate is REFUSING on it, or authenticating with it, before
+  // the resolver has been asked. Those are the two shapes below.
+  const gates = [
+    /if\s*\(\s*!\s*process\.env\.OPENAI_API_KEY\s*\)/, // if (!KEY) return ...
+    /!\s*process\.env\.OPENAI_API_KEY\s*\)\s*(return|throw)/,
+    /\|\|\s*!\s*process\.env\.OPENAI_API_KEY/, // ... || !KEY) return src
+    /if\s*\(\s*process\.env\.OPENAI_API_KEY\s*&&/, // if (KEY && x) do-the-work
+  ];
+  if (gates.some((re) => re.test(code))) {
+    gatedOnEnv.push(f.replace('server/', ''));
+  }
+
+  // Counted separately, because it is a different defect with a different fix.
+  const bearer = code.match(/Bearer\s*\$\{\s*process\.env\.OPENAI_API_KEY/g);
+  if (bearer) rawHttp.push([f.replace('server/', ''), bearer.length]);
+  // A module-scope `let x: OpenAI | null = null` is the memoisation idiom. Column 0 matters:
+  // the same declaration inside a function is a local and pins nothing.
+  if (/^(let|var)\s+\w+\s*:\s*OpenAI\s*\|\s*null/m.test(code) && /await\s+(require)?[tT]enantOpenAI\(/.test(code)) {
+    cachedClients.push(f.replace('server/', ''));
+  }
+}
+
+check('no converted file still gates on the environment variable',
+  gatedOnEnv.length === 0,
+  gatedOnEnv.length ? gatedOnEnv.join(', ') : 'the resolver decides, not a variable it ignores');
+
+check('the resolved client is not cached for the life of the process',
+  cachedClients.length === 0,
+  cachedClients.length ? cachedClients.join(', ') : 'a studio can take over their own spend without a redeploy');
+
+const rawTotal = rawHttp.reduce((n, [, c]) => n + c, 0);
+check('raw HTTP calls authenticate through the resolver too',
+  rawTotal === 0,
+  rawTotal
+    ? `${rawTotal} Bearer header(s) read the env var directly — ${rawHttp.map(([f, c]) => `${f} x${c}`).join(', ')}`
+    : 'no call site bypasses the split by using fetch instead of the SDK');
 
 // ── Who pays for a crawl ────────────────────────────────────────────────────
 //

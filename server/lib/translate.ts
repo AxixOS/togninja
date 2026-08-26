@@ -3,8 +3,12 @@
 // German is the studio's authoring language; when a visitor selects another
 // language we translate on the fly and cache the result in memory, keyed by a
 // hash of the source text, so each unique string is translated at most once per
-// process (cheap + fast after the first hit). If OPENAI_API_KEY is unset or the
-// call fails we return the original text — translation must never break content.
+// process (cheap + fast after the first hit). If no key resolves for this studio, or the
+// call fails, we return the original text — translation must never break content.
+//
+// "No key resolves" means tenantOpenAI came back empty: the studio's own key first, the
+// platform's only as a fallback. It deliberately does NOT mean OPENAI_API_KEY is unset, which
+// is what this used to check and which is false on every provisioned tenant.
 
 import crypto from 'crypto';
 import { tenantOpenAI } from './openaiClient';
@@ -26,20 +30,27 @@ export async function translateText(
   target = 'en'
 ): Promise<string> {
   const src = (text ?? '').toString();
-  if (!src.trim() || !process.env.OPENAI_API_KEY) return src;
+  if (!src.trim()) return src;
 
   const key = `${target}:${crypto.createHash('sha1').update(src).digest('hex')}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
 
   try {
-    const OpenAI = (await import('openai')).default;
+    // Resolved, not assumed.
+    //
+    // This read `!process.env.OPENAI_API_KEY` and returned the source text before tenantOpenAI
+    // was ever reached. On an AxixOS-provisioned tenant that variable is deliberately unset and
+    // the studio's key lives in the database, so every translation silently returned the
+    // untranslated German source and the tenant wiring below was unreachable code. A studio
+    // would have watched their own site refuse to speak English, with nothing in any log.
     const client = await tenantOpenAI('translate');
-  if (!client) {
-    // Translation is optional: the caller falls back to the untranslated string.
-    console.warn('[translate] no OpenAI key available — returning the source text');
-    return null;
-  }
+    if (!client) {
+      // Optional by design: the caller renders the source rather than an error. Returning the
+      // SOURCE, not null — the signature promises Promise<string> and translateDeep assigns
+      // the result straight into the object it is walking.
+      return src;
+    }
     const langName = LANG_NAME[target] || target;
     const r = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
@@ -79,7 +90,9 @@ const HAS_LETTER = /[A-Za-zÀ-ÿ]/;
  * the same page are cheap. Returns `value` unchanged for German / no API key.
  */
 export async function translateDeep<T>(value: T, target = 'en'): Promise<T> {
-  if (target === 'de' || !process.env.OPENAI_API_KEY) return value;
+  // Same correction as translateText: ask whether a client resolves, not whether one particular
+  // environment variable is set. config.get caches for 60s, so this costs nothing per call.
+  if (target === 'de' || !(await tenantOpenAI('translate'))) return value;
   const walk = async (node: any, key?: string): Promise<any> => {
     if (typeof node === 'string') {
       if (!node.trim() || !HAS_LETTER.test(node)) return node;
@@ -109,7 +122,7 @@ export async function translateFields<T extends Record<string, any>>(
   fields: (keyof T)[],
   target = 'en'
 ): Promise<T> {
-  if (target === 'de' || !process.env.OPENAI_API_KEY) return obj;
+  if (target === 'de' || !(await tenantOpenAI('translate'))) return obj;
   const out: any = { ...obj };
   await Promise.all(
     fields.map(async (f) => {

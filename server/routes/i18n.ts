@@ -164,9 +164,11 @@ router.post('/admin/i18n/generate', requireAuth, async (req: Request, res: Respo
     if (!(SUPPORTED_LANGUAGES as readonly string[]).includes(language) || language === 'en') {
       return res.status(400).json({ error: 'Unsupported target language' });
     }
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(503).json({ error: 'OpenAI key not configured — add it in Settings → AI & API Keys first.' });
-    }
+    // The env pre-flight that used to sit here is gone. It refused before the resolver twenty
+    // lines below was ever reached — and that resolver reads the studio's own key from the
+    // database first. On an AxixOS-provisioned tenant, which deliberately has no
+    // OPENAI_API_KEY, this returned 503 "add it in Settings" to a studio who had already added
+    // it in Settings. The correct check is `if (!openai)`, and it was already written.
     const sourceKeys = Object.keys(source).filter((k) => typeof source[k] === 'string' && source[k].trim());
     let todo = sourceKeys;
     if (!force) {
@@ -176,7 +178,6 @@ router.post('/admin/i18n/generate', requireAuth, async (req: Request, res: Respo
     }
     if (todo.length === 0) return res.json({ language, translated: 0, total: sourceKeys.length, cached: sourceKeys.length });
 
-    const OpenAI = (await import('openai')).default;
     const openai = await tenantOpenAI('i18n');
     if (!openai) {
       return res.status(503).json({ error: 'not_configured', message: 'Add an OpenAI key to translate your site.' });
