@@ -16,6 +16,10 @@ router.get('/', async (_req: Request, res: Response) => {
         key: c.key,
         label: c.label,
         available: c.available,
+        // The state, not just the verdict. A studio mid-Stripe-verification is neither
+        // "ready" nor "not set up", and a boolean has to call it one of those.
+        status: c.status,
+        statusDetail: c.statusDetail ?? null,
         owner: c.owner,
         // Only for the studio's own keys. A link to a settings page that cannot fix a
         // platform credential is worse than no link.

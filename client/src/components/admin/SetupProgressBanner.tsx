@@ -39,6 +39,12 @@ export default function SetupProgressBanner() {
   const mine = all.filter((c) => c.owner === 'studio');
   const missing = mine.filter((c) => !c.available);
 
+  // Half-configured is worth calling out separately, because it is the state that looks
+  // finished and is not — a bucket with no key, an SMTP host with no password. A studio
+  // reading "4 things left to connect" assumes they have not started those four; if one of
+  // them is half-done they will not look at it again.
+  const halfDone = missing.filter((c) => c.status === 'incomplete');
+
   if (missing.length === 0) return null;
 
   const dismiss = () => {
@@ -63,6 +69,12 @@ export default function SetupProgressBanner() {
             {missing.length > 3 ? ` and ${missing.length - 3} more` : ''}
           </span>
           .{' '}
+          {halfDone.length > 0 && (
+            <span className="text-amber-800">
+              {halfDone.length === 1 ? 'One of those is' : `${halfDone.length} of those are`}{' '}
+              part-filled, which will not work until finished.{' '}
+            </span>
+          )}
           <span className="text-amber-800">Everything else works in the meantime.</span>
         </p>
 

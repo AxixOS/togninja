@@ -158,8 +158,16 @@ check('every capability states what still works',
   entries.length + ' capabilities');
 check('a platform-owned key offers the studio no link',
   /settingsPath: state\.owner === 'studio' \? state\.settingsPath : null/.test(caps));
+// Asserts the BEHAVIOUR, not the formatting. The first version matched the literal string
+// "available: true, missing: []", so reformatting that object into a multi-line literal —
+// which is exactly what adding a status field required — turned it red on code that still
+// does the right thing. A check that breaks when you reindent is one people learn to edit
+// rather than heed.
 check('a rotated encryption key does not padlock everything',
-  /encryptionHealthy/.test(caps) && /available: true, missing: \[\]/.test(caps));
+  caps.includes('encryptionHealthy')
+  && caps.includes('available: true,')
+  && caps.includes("status: 'unreadable' as const"),
+  'doors stay open; the status carries the truth');
 
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`

@@ -12,6 +12,14 @@ export interface CapabilityInfo {
   key: string;
   label: string;
   available: boolean;
+  /**
+   * Where this actually stands. `available` is true only for 'ready' — except when the
+   * instance cannot decrypt its own credentials, where the status is 'unreadable' and the
+   * doors are deliberately left open. Optional so an older server that does not send it
+   * still works.
+   */
+  status?: 'ready' | 'not_configured' | 'incomplete' | 'pending' | 'action_required' | 'unreadable';
+  statusDetail?: string | null;
   owner: 'studio' | 'platform';
   /** Null when the credential is the platform's — there is nothing for the studio to click. */
   settingsPath: string | null;

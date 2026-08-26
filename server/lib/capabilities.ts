@@ -148,10 +148,154 @@ export const CAPABILITIES: Capability[] = [
   },
 ];
 
+/**
+ * Where a capability actually stands.
+ *
+ * `available` is a boolean and some of these are not. Stripe is the clear case: a studio
+ * finishes Connect onboarding, the keys are stored and readable, and they still cannot take
+ * a payment because Stripe has not finished verifying them — which routinely takes hours
+ * and sometimes days. Boolean-only, that reads as "ready", so the product would offer
+ * card payment and the first customer to try it would fail.
+ *
+ * The states, and what each one means to the person reading it:
+ *
+ *   ready            it works now
+ *   not_configured   nothing has been entered; the studio's move
+ *   incomplete       some of it is entered and some is not — worse than nothing, because
+ *                    half-configured looks configured (Rule 2 exists for this)
+ *   pending          entered and accepted, waiting on somebody else — Stripe's
+ *                    verification, a DNS record, a provider review. Nobody need do
+ *                    anything except wait
+ *   action_required  the provider has asked the studio for something specific
+ *   unreadable       stored but undecryptable, i.e. the encryption key changed. Not the
+ *                    studio's fault and not fixable by re-entering anything
+ */
+export type CapabilityStatus =
+  | 'ready'
+  | 'not_configured'
+  | 'incomplete'
+  | 'pending'
+  | 'action_required'
+  | 'unreadable';
+
 export interface CapabilityState extends Capability {
+  /**
+   * True only for `ready`. Kept because every existing caller reads it, and a rename
+   * across the gate, the banner, the endpoints and the tests would be a large diff whose
+   * only purpose is to stop using a word — while any caller missed would silently invert.
+   *
+   * NOT simply status === 'ready'. The two answer different questions:
+   *
+   *   available  will this feature work if the studio uses it right now?
+   *   status     what situation is it in?
+   *
+   * They usually agree and twice they deliberately do not. A Stripe account with charges
+   * enabled but payouts not yet released CAN take a customer's money — blocking the sale
+   * to warn about a bank transfer would cost the studio revenue to prevent nothing. And an
+   * instance that cannot decrypt its own credentials leaves every door open, because
+   * padlocking the product is the wrong answer to a rotated environment variable.
+   *
+   * Anything that needs to know "is it perfect" should read status. Anything deciding
+   * whether to show a button should read this.
+   */
   available: boolean;
+  status: CapabilityStatus;
   /** Which required keys are missing. Empty when available. */
   missing: string[];
+  /**
+   * What the studio should understand right now. Distinct from blockedMessage, which is
+   * fixed text about the capability; this reflects the state it is actually in.
+   */
+  statusDetail?: string;
+}
+
+/**
+ * Which state a set of missing keys puts a capability in.
+ *
+ * Nothing entered and something entered are different situations and the studio should be
+ * told different things: one is "your move", the other is "you started this and it is not
+ * finished", which is the state that produces a feature that looks live and is not.
+ */
+/**
+ * Whether Stripe will actually process a charge, as opposed to whether we hold a key.
+ *
+ * A studio finishes Connect onboarding, the secret key is stored and valid, and Stripe
+ * still has not verified them — routinely for hours, sometimes days, and occasionally it
+ * stops to ask for a document. Every one of those states holds a working key and refuses
+ * every charge, so "we have the key" is not the same question as "can they be paid", and
+ * only the second one matters to a photographer about to publish a booking page.
+ *
+ * CACHED, because the setup banner calls capabilityStates() on every admin page load and
+ * a Stripe round trip per page is not acceptable. Sixty seconds matches the other
+ * resolvers in this codebase, and verification does not complete inside a minute.
+ *
+ * Never throws. A Stripe outage must not padlock a CRM.
+ */
+/**
+ * `chargesEnabled` is carried separately from `status` because it is the one fact that
+ * decides whether a checkout button should exist, and no single status value expresses it:
+ * a pending account may or may not be able to charge.
+ */
+type StripeReadiness = { status: CapabilityStatus; detail?: string; chargesEnabled?: boolean };
+let _stripeCache: { value: StripeReadiness; at: number } | null = null;
+const STRIPE_TTL_MS = 60_000;
+
+export function invalidateStripeReadiness(): void { _stripeCache = null; }
+
+async function stripeReadiness(secretKey: string): Promise<StripeReadiness> {
+  if (_stripeCache && Date.now() - _stripeCache.at < STRIPE_TTL_MS) return _stripeCache.value;
+
+  let value: StripeReadiness = { status: 'ready' };
+  try {
+    const Stripe = (await import('stripe')).default;
+    const stripe = new Stripe(secretKey, { apiVersion: '2025-08-27.basil' as any });
+    const account = await stripe.accounts.retrieve();
+
+    const due = account.requirements?.currently_due || [];
+    const disabledReason = account.requirements?.disabled_reason || null;
+
+    if (account.charges_enabled && account.payouts_enabled) {
+      value = { status: 'ready', chargesEnabled: true };
+    } else if (due.length > 0 || disabledReason) {
+      // Stripe is waiting on the STUDIO for something specific. That is a different
+      // message from "still checking" and it is the one that needs acting on.
+      value = {
+        status: 'action_required',
+        chargesEnabled: account.charges_enabled === true,
+        detail: 'Stripe needs more information before you can take payments. '
+          + 'Open your Stripe dashboard to see what is outstanding.',
+      };
+    } else if (account.charges_enabled && !account.payouts_enabled) {
+      // Money can be taken and not yet paid out. The feature WORKS — the studio can sell
+      // today — so this must not padlock anything; it is a thing to tell them, not a thing
+      // to stop them doing. Handled at the call site, which keeps available true for this
+      // one status.
+      value = {
+        status: 'pending',
+        chargesEnabled: true,
+        detail: 'You can take payments now. Stripe has not released payouts to your bank '
+          + 'yet, so money will sit in Stripe until it does.',
+      };
+    } else {
+      value = {
+        status: 'pending',
+        detail: 'Stripe is still verifying your account. Nothing to do — payments switch on '
+          + 'by themselves when it finishes.',
+      };
+    }
+  } catch {
+    // Cannot ask. Do not invent a verdict, and do not padlock: leave it as configured and
+    // let a real charge fail with a real Stripe error if something is genuinely wrong.
+    value = { status: 'ready' };
+  }
+
+  _stripeCache = { value, at: Date.now() };
+  return value;
+}
+
+function statusFromMissing(cap: Capability, missing: string[], anyPresent: boolean): CapabilityStatus {
+  if (missing.length === 0) return 'ready';
+  return anyPresent ? 'incomplete' : 'not_configured';
 }
 
 /**
@@ -229,7 +373,21 @@ export async function capabilityStates(): Promise<CapabilityState[]> {
       + 'ENCRYPTION_KEY or SESSION_SECRET has probably changed. Not padlocking: the studio '
       + 'configured these correctly and re-entering them will not fix it.',
     );
-    return CAPABILITIES.map((c) => ({ ...c, available: true, missing: [] }));
+    // available:true with status:'unreadable' — the ONE place these two disagree, and it
+    // is deliberate. `unreadable` is what is true; `available: true` is the policy, because
+    // padlocking here would tell a studio to re-enter nine keys when the actual fix is to
+    // restore one environment variable. The status carries the truth for anything that wants
+    // to explain the situation, and the boolean keeps the doors open so each feature fails
+    // where the real problem is.
+    return CAPABILITIES.map((c) => ({
+      ...c,
+      available: true,
+      status: 'unreadable' as const,
+      missing: [],
+      statusDetail:
+        'Your saved credentials cannot be read. This is not something you can fix by '
+        + 're-entering them — the instance encryption key has changed.',
+    }));
   }
 
   for (const cap of CAPABILITIES) {
@@ -252,7 +410,46 @@ export async function capabilityStates(): Promise<CapabilityState[]> {
       }
     }
 
-    out.push({ ...cap, available: missing.length === 0, missing });
+    // Did they enter SOME of it? Half-configured is its own state, and the one most worth
+    // naming — a bucket with no key looks configured from every angle except the one that
+    // matters.
+    let anyPresent = false;
+    for (const key of cap.requires) {
+      if (!missing.includes(key) && (await has(key))) { anyPresent = true; break; }
+    }
+
+    let status = statusFromMissing(cap, missing, anyPresent);
+    let statusDetail: string | undefined =
+      status === 'incomplete'
+        ? 'Some of this is set up and some of it is not, so it will not work yet.'
+        : undefined;
+
+    // Holding a valid key is not the same as being able to charge a card. Only asked when
+    // the key is actually there — there is nothing to ask about otherwise.
+    let chargesWorkAnyway = false;
+    if (cap.key === 'online_payments' && status === 'ready') {
+      const secret = String((await config.get('stripe_secret_key')) || '');
+      if (secret) {
+        const readiness = await stripeReadiness(secret);
+        status = readiness.status;
+        statusDetail = readiness.detail;
+        chargesWorkAnyway = readiness.chargesEnabled === true;
+      }
+    }
+
+    out.push({
+      ...cap,
+      status,
+      // action_required and a not-yet-charging pending are NOT available: a booking page
+      // that takes a card Stripe will refuse is worse than one saying payments are not on.
+      //
+      // But charges-enabled-without-payouts IS available. That studio can sell today, and
+      // the payout delay is Stripe holding their money for a few days, not a broken
+      // checkout. See the note on `available` in the interface.
+      available: status === 'ready' || chargesWorkAnyway,
+      missing,
+      statusDetail,
+    });
   }
 
   return out;

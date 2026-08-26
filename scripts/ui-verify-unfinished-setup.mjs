@@ -58,6 +58,37 @@ check('a real failure still interrupts',
   inbox.includes("alert(reason || 'Failed to refresh emails. Please try again.')"),
   'an IMAP password that stopped working IS a failure');
 
+// ── A key is not the same as a working payment ──────────────────────────────
+//
+// available was a boolean derived from whether credentials existed, so a Stripe account
+// that had finished Connect onboarding and was still being verified read as ready. Three of
+// the five real account states refuse every charge while holding a perfectly valid key, so
+// the product would have shown a checkout button that failed on the first customer.
+const caps = read('server/lib/capabilities.ts');
+
+check('capabilities carry a state, not just a verdict',
+  caps.includes('export type CapabilityStatus'));
+
+check('Stripe is asked whether it will actually charge',
+  caps.includes('account.charges_enabled') && caps.includes('account.payouts_enabled'));
+
+check('a studio waiting on Stripe is told so, and told to do nothing',
+  caps.includes('by themselves when it finishes'));
+
+check('and one Stripe is waiting on is told what to do',
+  caps.includes('currently_due') && caps.includes('action_required'));
+
+// The distinction that costs money if it is got wrong in either direction.
+check('charges-enabled-without-payouts can still sell',
+  caps.includes('chargesWorkAnyway'));
+
+// The banner calls capabilityStates() on every admin page load.
+check('the Stripe read is cached',
+  caps.includes('STRIPE_TTL_MS'));
+
+check('and a Stripe outage cannot padlock the CRM',
+  caps.includes('Do not invent a verdict'));
+
 // ── The homepage is actually the generated one ──────────────────────────────
 //
 // homepage_landing_slug was NULL, so "/" fell through to the built-in HomePage — which is not
