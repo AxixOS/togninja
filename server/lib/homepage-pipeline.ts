@@ -365,7 +365,7 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     await note(state, 'writing', 'Writing your homepage in your own words');
     let content: any;
     try {
-      const gen = await generateLandingContent(context);
+      const gen = await generateLandingContent(context, 'platform');
       content = gen.content;
     } catch (e: any) {
       // The fourth state, and the only one that needed new words. A spent allowance is not a
@@ -431,7 +431,7 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
         // The SAME city and language the homepage was written from, so the pillar pages
         // cannot describe a different place or arrive in a different language than the
         // page linking to them.
-        const r = await scaffoldPillarPages({
+        const r = await scaffoldPillarPages('platform', {
           city: context.city,
           language: context.language,
           publish: true,

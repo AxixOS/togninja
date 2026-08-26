@@ -20,7 +20,29 @@ import { join } from 'path';
 const read = (p) => readFileSync(p, 'utf8');
 
 /**
- * Blank out comments, WITHOUT deleting code that merely looks like one.
+ * Blank whole-line comments. Line-based, and deliberately conservative.
+ *
+ * THIS IS THE SECOND ATTEMPT, and the first one is the reason it is this shape.
+ *
+ * The original was two regexes, and it treated `//` inside `'https://x'` as a line comment and
+ * `/*` inside any string as opening a block that ran to the next close anywhere in the file. It
+ * deleted 108,533 characters of server code before any check ran.
+ *
+ * The replacement was a character-by-character walker tracking strings, templates and regex
+ * literals. It was better — and still wrong. Its regex-literal heuristic mis-fired on real code
+ * and blanked 3,694 further code lines in routes.ts alone, which is how the payer check below
+ * came to fail on a call site that was correctly written. The test that was supposed to catch
+ * this asserted that offsets were preserved, which blanking preserves BY CONSTRUCTION, so it
+ * could not have failed.
+ *
+ * Deciding whether a `/` opens a regex or divides requires parsing JavaScript, and a verifier
+ * has no business doing that. So this one cannot remove code at all: it only blanks lines whose
+ * TRIMMED form begins a comment. A trailing `// note` after code survives — which costs a
+ * theoretical false positive, if someone writes a forbidden string in a trailing comment, and
+ * buys the guarantee that nothing this script checks was thrown away before it looked.
+ *
+ * Every case that motivated stripping in the first place — docblocks quoting the very patterns
+ * these checks forbid — is a whole-line comment.
  *
  * This was `src.replace(/\/\*[\s\S]*?\*\//g, ' ')` plus a line-comment regex, and it was
  * catastrophically wrong on real source. `'https://x'` contains `//`, so everything after it on
@@ -36,48 +58,25 @@ const read = (p) => readFileSync(p, 'utf8');
  * up with the original.
  */
 function stripComments(src) {
-  const out = Array.from(src);
-  let i = 0;
-  const n = src.length;
-  let state = 'code'; // code | line | block | sq | dq | tpl | re
-  // Whether a `/` here starts a regex or is a division operator. Regex literals matter because
-  // one can contain // or /* — e.g. /https:\/\//g.
-  const regexAllowedAfter = /[=(,:[!&|?{};+\-*%~^<>]|return|typeof|case|in|of|new|delete|void|instanceof$/;
-  while (i < n) {
-    const c = src[i];
-    const c2 = src[i + 1];
-    if (state === 'code') {
-      if (c === '/' && c2 === '/') { state = 'line'; out[i] = ' '; out[i + 1] = ' '; i += 2; continue; }
-      if (c === '/' && c2 === '*') { state = 'block'; out[i] = ' '; out[i + 1] = ' '; i += 2; continue; }
-      if (c === "'") { state = 'sq'; i++; continue; }
-      if (c === '"') { state = 'dq'; i++; continue; }
-      if (c === '`') { state = 'tpl'; i++; continue; }
-      if (c === '/') {
-        const before = src.slice(Math.max(0, i - 12), i).trimEnd();
-        if (before === '' || regexAllowedAfter.test(before)) { state = 're'; i++; continue; }
-      }
-      i++; continue;
+  const lines = src.split('\n');
+  let inBlock = false;
+  const out = lines.map((line) => {
+    const t = line.trim();
+    const blank = ' '.repeat(line.length);
+
+    if (inBlock) {
+      // The close may sit mid-line, but a block comment that OPENED on its own line is a
+      // docblock, and code after its close on the same line is vanishingly rare. Blank the line.
+      if (t.includes('*/')) inBlock = false;
+      return blank;
     }
-    if (state === 'line') {
-      if (c === '\n') { state = 'code'; i++; continue; }
-      out[i] = ' '; i++; continue;
-    }
-    if (state === 'block') {
-      if (c === '*' && c2 === '/') { state = 'code'; out[i] = ' '; out[i + 1] = ' '; i += 2; continue; }
-      if (c !== '\n') out[i] = ' ';
-      i++; continue;
-    }
-    // Inside a string / template / regex: copy verbatim, honour escapes, find the terminator.
-    if (c === '\\') { i += 2; continue; }
-    if (state === 'sq' && c === "'") { state = 'code'; i++; continue; }
-    if (state === 'dq' && c === '"') { state = 'code'; i++; continue; }
-    if (state === 'tpl' && c === '`') { state = 'code'; i++; continue; }
-    if (state === 're' && c === '/') { state = 'code'; i++; continue; }
-    // An unterminated string cannot span a newline in valid JS; recover rather than eat the file.
-    if ((state === 'sq' || state === 'dq' || state === 're') && c === '\n') { state = 'code'; i++; continue; }
-    i++;
-  }
-  return out.join('');
+    // A block comment that begins a line and does not close on it.
+    if (t.startsWith('/*') && !t.includes('*/')) { inBlock = true; return blank; }
+    // A whole-line comment, in either syntax, including a `*` docblock continuation.
+    if (t.startsWith('//') || t.startsWith('*') || (t.startsWith('/*') && t.includes('*/'))) return blank;
+    return line;
+  });
+  return out.join('\n');
 }
 
 /**
@@ -370,6 +369,43 @@ const readPageSig = (stripComments(axixos).match(/readPageText\(([^)]*)\)/) || [
 check('the crawl payer cannot be defaulted',
   /purpose\s*:\s*CrawlPurpose\s*(,|$)/.test(readPageSig.trim()),
   readPageSig.includes('purpose') ? `signature: ${readPageSig.trim()}` : 'no purpose parameter at all');
+
+// ── Onboarding is the platform's; the admin screens are the studio's ────────
+//
+// The same three generators serve both. Onboarding shows a studio the product before they have
+// agreed to anything, which the platform funds; the admin "generate this page" and "build
+// pillar pages" buttons are ongoing use, which the studio funds.
+//
+// Getting this wrong is not a rounding error. One wizard run already costs seven to ten
+// ai.landing calls — a homepage plus one per pillar — against a lifetime allowance of ten. An
+// admin generator drawing on the same budget would exhaust a studio's onboarding allowance
+// permanently, and the studio would discover it as quota_exceeded on a site they already own.
+const payerSites = [
+  ['server/lib/homepage-pipeline.ts', "generateLandingContent(context, 'platform')", 'onboarding homepage'],
+  ['server/lib/homepage-pipeline.ts', "scaffoldPillarPages('platform'", 'onboarding pillar pages'],
+  ['server/lib/authority-from-crawl.ts', "}, 'platform')", 'onboarding authority map'],
+  ['server/lib/authority-from-crawl.ts', "complete('platform', 'ai.authority_from_crawl'", 'onboarding profile distil'],
+  ['server/routes.ts', "generateLandingContent(req.body || {}, 'studio')", 'admin page generator'],
+  ['server/routes.ts', "}, 'studio')", 'admin authority map'],
+  ['server/routes.ts', "scaffoldPillarPages('studio'", 'admin pillar pages'],
+];
+const wrongPayer = payerSites.filter(([f, needle]) => !stripComments(read(f)).includes(needle));
+check('onboarding bills the platform and the admin screens bill the studio',
+  wrongPayer.length === 0,
+  wrongPayer.length ? wrongPayer.map(([, , what]) => what).join(', ') : `${payerSites.length} call sites declared`);
+
+// The studio path must NOT go through the gateway: its ai.* purposes are platform-budgeted, so
+// spending them on studio work is the same misbilling by another route.
+const completeBody = (() => {
+  const start = resolverCode.indexOf('export async function complete(');
+  if (start < 0) return '';
+  const end = resolverCode.indexOf('\n}', start);
+  return end < 0 ? resolverCode.slice(start) : resolverCode.slice(start, end);
+})();
+const studioBranch = completeBody.slice(completeBody.indexOf("payer === 'studio'"), completeBody.indexOf('const key = gatewayKey()'));
+check('the studio path does not spend the platform budget',
+  studioBranch.length > 0 && !studioBranch.includes('/v1/ai/complete') && studioBranch.includes('requireTenantOpenAI'),
+  'gateway ai.* purposes are platform-budgeted, so studio work must not reach them');
 
 // ── Every AxixOS call names a purpose ───────────────────────────────────────
 //

@@ -1,4 +1,4 @@
-import { platformAiConfigured, platformComplete, parseModelJson, NoOpenAIError } from './openaiClient';
+import { platformAiConfigured, complete, parseModelJson, NoOpenAIError, type Payer } from './openaiClient';
 // Shared landing-page copy generator.
 //
 // The prompt-building + OpenAI call used to live inline in the admin route
@@ -198,19 +198,26 @@ ${context.extras || ''}`;
  */
 export async function generateLandingContent(
   context: LandingContext,
+  /**
+   * WHO PAYS. Required, with no default, because this one function serves both sides:
+   * onboarding, where the platform pays to show a studio their rebuilt site before they have
+   * agreed to anything, and the admin generator, where the studio pays because they asked.
+   * Both succeed either way, so a default would misbill in silence.
+   */
+  payer: Payer,
 ): Promise<{ content: any; usage: any; model: string }> {
   if (!hasOpenAI()) throw new NoOpenAIError();
   const { systemPrompt, userPrompt } = buildLandingPrompts(context);
 
   // Platform-funded: this is the site a studio sees before they have configured or paid for
-  // anything. Never their key. platformComplete() routes it through the AxixOS gateway when
+  // anything — UNLESS an admin asked for this page after setup, which is theirs. complete()
   // one is configured and falls back to a direct OpenAI call when it is not.
   //
   // Model, token ceiling and temperature are no longer sent from here. The gateway pins every
   // parameter that costs money — sending them is a validation error, not an ignored field —
   // and the direct path applies the same pins so the two produce the same page. That makes
   // OPENAI_LANDING_MAX_TOKENS dead; it was the knob for the truncation bug the 8000 pin fixed.
-  const out = await platformComplete('ai.landing', [
+  const out = await complete(payer, 'ai.landing', [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
   ]);

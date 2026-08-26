@@ -5,6 +5,7 @@
 // editor. Idempotent: a pillar whose slug already has a page is skipped.
 import crypto from 'crypto';
 import { generateLandingContent, NoOpenAIError, type LandingContext } from './landing-generator';
+import type { Payer } from './openaiClient';
 import { mapGeneratedToLandingPage, slugify } from './landing-mapping';
 import { getAuthorityMap } from './authority-map';
 import { pool } from '../db';
@@ -99,6 +100,13 @@ export interface ScaffoldResult {
 }
 
 export async function scaffoldPillarPages(
+  /**
+   * WHO PAYS. Required and undefaulted, because this runs from BOTH sides: the onboarding
+   * pipeline builds the pillar pages behind a studio's new nav (platform), and the admin
+   * "Build pillar pages" button rebuilds them later (studio). One landing generation per
+   * pillar, up to six, so getting this wrong is not a rounding error.
+   */
+  payer: Payer,
   opts: { city?: string; limit?: number; publish?: boolean; language?: string } = {},
 ): Promise<{ results: ScaffoldResult[]; created: number; published: number; skipped: number; remaining: number }> {
   const map = await getAuthorityMap();
@@ -178,7 +186,7 @@ export async function scaffoldPillarPages(
             ].join('\n')
           : undefined,
       };
-      const gen = await generateLandingContent(context);
+      const gen = await generateLandingContent(context, payer);
       const payload = mapGeneratedToLandingPage(gen.content, context, { userId: null });
       payload.slug = slug; // pin to the pillar slug (confirmed available above)
       payload.page_type = 'landing';

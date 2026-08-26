@@ -7694,7 +7694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const b = req.body || {};
       const map = await generateAuthorityMap({
         businessName: b.businessName, niche: b.niche, services: b.services, city: b.city, language: b.language,
-      });
+      }, 'studio');
       res.json({ ok: true, map });
     } catch (e: any) {
       // 503, not 400. Nothing was wrong with the request — the platform has not funded
@@ -7764,7 +7764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // German or Spanish studio — the same bug the onboarding pipeline had.
       const { getSiteLanguage } = await import('./lib/site-language');
       const { rows: cfg } = await pool.query(`SELECT city, address FROM studio_configs LIMIT 1`).catch(() => ({ rows: [] as any[] }));
-      const out = await scaffoldPillarPages({
+      const out = await scaffoldPillarPages('studio', {
         city: req.body?.city || cfg?.[0]?.city || undefined,
         limit: req.body?.limit,
         language: await getSiteLanguage(),
@@ -20983,7 +20983,7 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
     try {
       // Prompt-building + OpenAI call now live in server/lib/landing-generator.ts so
       // the onboarding homepage pipeline can reuse the exact same generation.
-      const result = await generateLandingContent(req.body || {});
+      const result = await generateLandingContent(req.body || {}, 'studio');
       res.json(result);
     } catch (error: any) {
       console.error('Error generating landing page:', error?.message);

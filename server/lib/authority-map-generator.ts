@@ -3,7 +3,7 @@
 // and saved by the studio (POST .../generate returns it; PUT /api/authority-map persists it).
 import { hasOpenAI, NoOpenAIError } from './landing-generator.js';
 import { normalizeAuthorityMap, type AuthorityMap } from '../../shared/authorityMap.js';
-import { platformComplete, parseModelJson } from './openaiClient';
+import { complete, parseModelJson, type Payer } from './openaiClient';
 
 export interface AuthorityMapInput {
   businessName?: string;
@@ -29,7 +29,7 @@ const SHAPE = `{
   "conversionLinks": [ { "href": "/preise/", "label": "Prices" }, { "href": "/kontakt", "label": "Contact" } ]
 }`;
 
-export async function generateAuthorityMap(input: AuthorityMapInput): Promise<AuthorityMap> {
+export async function generateAuthorityMap(input: AuthorityMapInput, payer: Payer): Promise<AuthorityMap> {
   if (!hasOpenAI()) throw new NoOpenAIError();
 
   const system = `You are an SEO information-architecture strategist. You design topical-authority site structures: a small set of pillar (money/service) pages, each supported by cluster (informational blog) articles, all tied together with an internal-link graph. You output STRICT JSON only — no prose, no code fences.`;
@@ -61,7 +61,7 @@ ${SHAPE}`;
   // registry pins 0.7 and 4000. The map has almost twice the room it had, which matters because
   // it decides the studio's whole page structure and internal-link graph — the more consequential
   // of the two calls, and the one that was quietly the tighter-capped.
-  const out = await platformComplete('ai.authority_map', [
+  const out = await complete(payer, 'ai.authority_map', [
     { role: 'system', content: system },
     { role: 'user', content: user },
   ]);

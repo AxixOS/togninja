@@ -2,7 +2,7 @@ import { pool } from '../db';
 import { generateAuthorityMap } from './authority-map-generator.js';
 import { hasOpenAI } from './landing-generator.js';
 import { saveAuthorityMap } from './authority-map.js';
-import { platformComplete, parseModelJson } from './openaiClient';
+import { complete, parseModelJson, type Payer } from './openaiClient';
 
 /**
  * P2a — connect the onboarding site-analysis to the Authority Map.
@@ -52,7 +52,7 @@ export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void
     // fallback that behaves differently from the gateway is a difference nothing reports.
     let profile: any = {};
     try {
-      const distil = await platformComplete('ai.authority_from_crawl', [
+      const distil = await complete('platform', 'ai.authority_from_crawl', [
         { role: 'system', content: 'You extract a concise business profile from website text. Output STRICT JSON only — no prose, no code fences.' },
         {
           role: 'user',
@@ -75,13 +75,14 @@ export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void
     }
 
     // 2) Generate the Authority Map from the studio's own profile.
+    // Onboarding: the platform funds the map, same as the profile it was distilled from.
     const map = await generateAuthorityMap({
       businessName: profile.businessName || undefined,
       niche: profile.niche || undefined,
       services: profile.services || undefined,
       city: profile.city || undefined,
       language: profile.language || undefined,
-    });
+    }, 'platform');
 
     // 3) Persist to the studio's config, THROUGH saveAuthorityMap so the read cache is
     //    invalidated. Writing with a raw UPDATE left getAuthorityMap()'s 60-second cache

@@ -207,7 +207,13 @@ export interface PlatformCompletion {
 }
 
 /**
- * Run one platform-funded generation, through the gateway when it is there.
+ * Run one generation, on whichever budget the CALLER names.
+ *
+ * `payer` is a required argument and deliberately has no default. The same three generators
+ * serve onboarding, where the platform pays to show a studio the product, and the admin screens,
+ * where the studio pays because they asked for it. A default would silently bill one of them
+ * wrong — and both succeed either way, so nothing would report it. Same trap, same shape, as
+ * the crawl purpose in AxixosSearchService.
  *
  * THE SEAM. Every platform-funded call comes through here, which is what makes the gateway a
  * change to one function rather than to three generators.
@@ -222,11 +228,43 @@ export interface PlatformCompletion {
  * does, and says so once in the log. When they merge, the same code starts using the gateway
  * with no deploy on our side.
  */
-export async function platformComplete(
+export type Payer = 'platform' | 'studio';
+
+export async function complete(
+  payer: Payer,
   purpose: PlatformPurpose,
   messages: Array<{ role: string; content: string }>,
 ): Promise<PlatformCompletion> {
   const spec = REGISTRY[purpose];
+
+  // THE STUDIO PAYS: ongoing use, so their key, and never the gateway.
+  //
+  // The gateway's ai.* purposes are PLATFORM-budgeted — ten lifetime each. Routing an admin's
+  // "generate this page" through them would spend the platform's onboarding allowance on
+  // ongoing work, and exhaust it: a wizard run already costs seven to ten ai.landing calls
+  // (one homepage plus one per pillar), so a studio using the admin generator a few times
+  // would permanently consume a budget meant to show them the product once.
+  //
+  // Same registry parameters, so the page a studio generates from the admin screen is the same
+  // page onboarding would have written. Only the payer differs, which is the whole point.
+  if (payer === 'studio') {
+    const openai = await requireTenantOpenAI(purpose);
+    const completion = await openai.chat.completions.create({
+      model: spec.model,
+      messages: messages as any,
+      temperature: spec.temperature,
+      max_tokens: spec.maxTokens,
+      response_format: { type: 'json_object' },
+    });
+    return {
+      content: completion.choices[0]?.message?.content || '',
+      model: completion.model,
+      usage: completion.usage,
+      quota: null,
+      via: 'openai',
+    };
+  }
+
   const key = gatewayKey();
 
   if (key) {
