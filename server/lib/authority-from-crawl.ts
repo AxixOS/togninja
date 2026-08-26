@@ -1,8 +1,8 @@
 import { pool } from '../db';
 import { generateAuthorityMap } from './authority-map-generator.js';
-import { hasOpenAI, landingModel } from './landing-generator.js';
+import { hasOpenAI } from './landing-generator.js';
 import { saveAuthorityMap } from './authority-map.js';
-import { platformOpenAI } from './openaiClient';
+import { platformComplete, parseModelJson } from './openaiClient';
 
 /**
  * P2a — connect the onboarding site-analysis to the Authority Map.
@@ -41,19 +41,18 @@ export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void
       .slice(0, 12000);
 
     // 1) Distil a concise business profile from the crawled content.
-    const openai = await platformOpenAI('authority-from-crawl');
-    if (!openai) {
-      // Platform-funded. No key means the platform has not funded this, which is our
-      // problem to fix and never 'your site could not be read'.
-      console.warn('[authority-from-crawl] platform AI unavailable — skipping map generation');
-      return null as any;
-    }
-    // Shared with the site copy and the Authority Map — this call distils the business
-    // profile those two are built from, so a weaker model here degrades everything after it.
-    const model = landingModel();
-    const distil = await openai.chat.completions.create({
-      model,
-      messages: [
+    //
+    // Platform-funded, through the gateway when configured. This call distils the profile the
+    // site copy and the Authority Map are both built from, so anything weaker here degrades
+    // everything after it — which is why it runs on the same pinned model as the other two.
+    //
+    // The parameters moved: this sent temperature 0.2 and max_tokens 300, and the registry
+    // pins 0.7 and 4000. 0.7 is a creative-writing temperature on what is a field-extraction
+    // job, and it is worth asking AxixOS to lower. Matching the pin anyway is deliberate: a
+    // fallback that behaves differently from the gateway is a difference nothing reports.
+    let profile: any = {};
+    try {
+      const distil = await platformComplete('ai.authority_from_crawl', [
         { role: 'system', content: 'You extract a concise business profile from website text. Output STRICT JSON only — no prose, no code fences.' },
         {
           role: 'user',
@@ -65,14 +64,15 @@ export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void
             `Content:\n${corpus}\n\n` +
             `Return ONLY: {"businessName":"","niche":"","services":"","city":"","language":""}`,
         },
-      ],
-      temperature: 0.2,
-      max_tokens: 300,
-      response_format: { type: 'json_object' },
-    });
-
-    let profile: any = {};
-    try { profile = JSON.parse(distil.choices[0]?.message?.content || '{}'); } catch { profile = {}; }
+      ]);
+      profile = parseModelJson(distil.content, 'Business profile extraction');
+    } catch (e: any) {
+      // Fire-and-forget by contract: this function must never throw into its caller. An
+      // unfunded platform, a spent allowance and a malformed reply all mean the same thing
+      // here — no map this time, and never 'your site could not be read'.
+      console.warn(`[authority-from-crawl] profile extraction unavailable (${e?.code || e?.message}) — skipping map generation`);
+      return null as any;
+    }
 
     // 2) Generate the Authority Map from the studio's own profile.
     const map = await generateAuthorityMap({

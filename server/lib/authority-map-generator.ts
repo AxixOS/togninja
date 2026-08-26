@@ -1,9 +1,9 @@
 // Generate a per-studio Authority Map (topical clusters + internal-link graph) from the
 // studio's niche. Mirrors the OpenAI usage in landing-generator.ts. The result is reviewed
 // and saved by the studio (POST .../generate returns it; PUT /api/authority-map persists it).
-import { hasOpenAI, NoOpenAIError, landingModel } from './landing-generator.js';
+import { hasOpenAI, NoOpenAIError } from './landing-generator.js';
 import { normalizeAuthorityMap, type AuthorityMap } from '../../shared/authorityMap.js';
-import { platformOpenAI } from './openaiClient';
+import { platformComplete, parseModelJson } from './openaiClient';
 
 export interface AuthorityMapInput {
   businessName?: string;
@@ -31,12 +31,6 @@ const SHAPE = `{
 
 export async function generateAuthorityMap(input: AuthorityMapInput): Promise<AuthorityMap> {
   if (!hasOpenAI()) throw new NoOpenAIError();
-  // Platform-funded, same reason as the landing copy it is generated alongside.
-  const openai = await platformOpenAI('authority-map');
-  // NoOpenAIError, not a bare Error. routes.ts branches on e?.name === 'NoOpenAIError' to pick
-  // a status code, so a plain Error here was classified as an unexpected server fault: the
-  // studio got a 500 and the literal words 'Platform AI is not configured' echoed back at them.
-  if (!openai) throw new NoOpenAIError();
 
   const system = `You are an SEO information-architecture strategist. You design topical-authority site structures: a small set of pillar (money/service) pages, each supported by cluster (informational blog) articles, all tied together with an internal-link graph. You output STRICT JSON only — no prose, no code fences.`;
 
@@ -60,21 +54,19 @@ Requirements:
 Return ONLY a JSON object exactly matching this shape:
 ${SHAPE}`;
 
-  const completion = await openai.chat.completions.create({
-    // Same model as the site copy, from the same accessor. The Authority Map decides the
-    // studio's whole page structure and internal-link graph, so it is if anything the more
-    // consequential of the two calls — it should never be the cheaper one by accident.
-    model: landingModel(),
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-    temperature: 0.6,
-    max_tokens: 2200,
-    response_format: { type: 'json_object' },
-  });
+  // Platform-funded, same reason as the landing copy it is generated alongside. Through the
+  // gateway when configured, direct otherwise — and either way on the registry's parameters.
+  //
+  // Those parameters CHANGED here: this call sent temperature 0.6 and max_tokens 2200, and the
+  // registry pins 0.7 and 4000. The map has almost twice the room it had, which matters because
+  // it decides the studio's whole page structure and internal-link graph — the more consequential
+  // of the two calls, and the one that was quietly the tighter-capped.
+  const out = await platformComplete('ai.authority_map', [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ]);
 
-  const parsed = JSON.parse(completion.choices[0]?.message?.content || '{}');
+  const parsed = parseModelJson(out.content, 'Authority map generation');
   const map = normalizeAuthorityMap(parsed);
   if (!map) throw new Error('Generation returned an invalid authority map');
   return map;

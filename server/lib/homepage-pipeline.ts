@@ -16,8 +16,11 @@ import { ensureOnboardingSchema } from '../routes/onboarding';
 
 const neonDb = require('../../database.js');
 
-export type HomepageGenStatus = 'idle' | 'running' | 'ready' | 'error' | 'skipped';
-export type HomepageGenStage = 'crawling' | 'distilling' | 'writing' | 'ready' | 'error' | 'skipped';
+// 'skipped' is "the platform cannot generate" — ours to fix, nothing the studio can do.
+// 'quota_exceeded' is "the studio has had what was included" — a different sentence entirely,
+// and the one state here that is neither a fault nor a failure.
+export type HomepageGenStatus = 'idle' | 'running' | 'ready' | 'error' | 'skipped' | 'quota_exceeded';
+export type HomepageGenStage = 'crawling' | 'distilling' | 'writing' | 'ready' | 'error' | 'skipped' | 'quota_exceeded';
 
 /**
  * Something true that just happened, for the person watching the screen.
@@ -351,9 +354,23 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     try {
       const gen = await generateLandingContent(context);
       content = gen.content;
-    } catch (e) {
-      if (e instanceof NoOpenAIError) {
-        state.status = 'skipped'; state.stage = 'skipped'; state.error = 'AI is not configured on this instance';
+    } catch (e: any) {
+      // The fourth state, and the only one that needed new words. A spent allowance is not a
+      // fault: the platform works, the studio has used what was included. Calling it "not
+      // configured" would be false, and calling it a failure would be worse — they got the
+      // sites they were given.
+      if (e?.name === 'PlatformAIRefusal' && e?.code === 'quota_exceeded') {
+        state.status = 'quota_exceeded'; state.stage = 'quota_exceeded';
+        state.error = e?.message || 'This studio has used its included site generations';
+        await writeGenState(state);
+        return;
+      }
+      // Every other platform refusal is OURS — an unfunded key, a revoked key, a metering
+      // outage we fail closed on. The studio can act on none of them, so they all land on the
+      // same "not available yet" panel rather than being spelled out as separate faults.
+      if (e instanceof NoOpenAIError || e?.name === 'NoOpenAIError' || e?.name === 'PlatformAIRefusal') {
+        state.status = 'skipped'; state.stage = 'skipped';
+        state.error = e?.message || 'AI is not configured on this instance';
         await writeGenState(state);
         return;
       }

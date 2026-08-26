@@ -132,7 +132,7 @@ export default function ScanningPhase({ onComplete, isLast = false }: ScanningPh
       setHpKicked(true);
       fetch('/api/setup/homepage/generate', { method: 'POST' }).catch(() => {});
     }
-    if (hp.status === 'ready' || hp.status === 'error' || hp.status === 'skipped') {
+    if (hp.status === 'ready' || hp.status === 'error' || hp.status === 'skipped' || hp.status === 'quota_exceeded') {
       setHpPolling(false);
     }
     if (hp.status === 'idle' && hp.hasWebsite === false) {
@@ -149,6 +149,7 @@ export default function ScanningPhase({ onComplete, isLast = false }: ScanningPh
       // Without this, a skipped run sat under "Preparing…" forever while polling had already
       // stopped — a progress line describing work that was never going to happen.
       case 'skipped': return 'Homepage writing is unavailable right now';
+      case 'quota_exceeded': return 'No site generations left on this plan';
       default: return 'Preparing…';
     }
   };
@@ -303,6 +304,26 @@ export default function ScanningPhase({ onComplete, isLast = false }: ScanningPh
             Automatic homepage writing isn't switched on for this instance yet — that's on us,
             not your website. Nothing about your setup is affected, and you can write a homepage
             any time from your dashboard.
+          </div>
+        )}
+
+        {/*
+          The allowance is spent. NOT an error and NOT "not configured" — the platform works
+          and the studio has had what was included.
+
+          The second sentence is load-bearing. AxixOS caps attempts at 3x the allowance and
+          counts failures against it, so a studio can arrive here having produced zero finished
+          sites. Copy that said "you have used your 10 generations" would be a flat lie in that
+          case, and the studio would reasonably believe they had ten sites somewhere.
+        */}
+        {hp?.status === 'quota_exceeded' && (
+          <div className="rounded-xl bg-indigo-50 border border-indigo-200 px-4 py-3 text-sm text-indigo-900">
+            You've used the automatic site generations included with this plan. Attempts that
+            didn't finish count towards the total too, so this can arrive sooner than expected.
+            <span className="block mt-1">
+              Nothing about your setup is affected — your site is still yours to edit, and you
+              can write or change any page from your dashboard. Get in touch if you need more.
+            </span>
           </div>
         )}
 

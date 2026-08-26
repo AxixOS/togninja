@@ -1,4 +1,4 @@
-import { platformOpenAI, platformAiConfigured } from './openaiClient';
+import { platformAiConfigured, platformComplete, parseModelJson } from './openaiClient';
 // Shared landing-page copy generator.
 //
 // The prompt-building + OpenAI call used to live inline in the admin route
@@ -207,27 +207,23 @@ export async function generateLandingContent(
   context: LandingContext,
 ): Promise<{ content: any; usage: any; model: string }> {
   if (!hasOpenAI()) throw new NoOpenAIError();
-  // Platform-funded: this is the site a studio sees before they have configured or paid
-  // for anything. Never their key. See server/lib/openaiClient.ts.
-  const openai = await platformOpenAI('landing-generator');
-  if (!openai) throw new NoOpenAIError();
   const { systemPrompt, userPrompt } = buildLandingPrompts(context);
 
-  const completion = await openai.chat.completions.create({
-    model: landingModel(),
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    temperature: 0.8,
-    // 3000 was sized against a model writing from almost no context. The crawler now
-    // supplies real material and the page has more sections to fill than the old cap
-    // allowed, so a long site was being truncated mid-JSON and losing whole blocks.
-    max_tokens: Number(process.env.OPENAI_LANDING_MAX_TOKENS || 8000),
-    response_format: { type: 'json_object' },
-  });
+  // Platform-funded: this is the site a studio sees before they have configured or paid for
+  // anything. Never their key. platformComplete() routes it through the AxixOS gateway when
+  // one is configured and falls back to a direct OpenAI call when it is not.
+  //
+  // Model, token ceiling and temperature are no longer sent from here. The gateway pins every
+  // parameter that costs money — sending them is a validation error, not an ignored field —
+  // and the direct path applies the same pins so the two produce the same page. That makes
+  // OPENAI_LANDING_MAX_TOKENS dead; it was the knob for the truncation bug the 8000 pin fixed.
+  const out = await platformComplete('ai.landing', [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ]);
 
-  const responseText = completion.choices[0]?.message?.content || '{}';
-  const content = JSON.parse(responseText);
-  return { content, usage: completion.usage, model: completion.model };
+  // Guarded. This was a bare JSON.parse that survived only because response_format was set on
+  // the call; the gateway's published registry does not list response_format among its pins.
+  const content = parseModelJson(out.content, 'Homepage generation');
+  return { content, usage: out.usage, model: out.model };
 }
