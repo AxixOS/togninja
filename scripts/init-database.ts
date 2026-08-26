@@ -160,16 +160,35 @@ async function createStudioConfig() {
       return true;
     }
     
+    // A ROW, NOT AN ANSWER.
+    //
+    // This seeded businessName and studioName as "Photography Studio" — and server/index.ts
+    // treats a non-empty name as proof that a studio has been through Basics:
+    //
+    //     "A studio that has told us its own name has genuinely been through Basics.
+    //      That is a fact about the STUDIO rather than about the auth table."
+    //
+    // Sound reasoning, given a name the studio actually gave. The seed gave it one they
+    // never chose, so every freshly provisioned tenant booted, was auto-marked
+    // creative_setup_complete, and the /api/setup mount then required authentication —
+    // which does not exist yet, because the admin account is created several steps into the
+    // wizard that can no longer save anything. Observed on togninja-studio: setup status
+    // reported currentStep "complete" on an instance nobody had touched, and every save
+    // returned 401.
+    //
+    // Empty rather than absent: studio_name is NOT NULL, and the detector reads through
+    // nullif(trim(...), '') so an empty string is correctly read as unanswered.
     await db.insert(studioConfigs).values({
-      studioName: 'Photography Studio',
-      ownerEmail: 'admin@photography-crm.local',
-      subdomain: 'demo',
-      businessName: 'Photography Studio',
-      country: 'Austria',
-      primaryColor: '#7C3AED',
-      secondaryColor: '#F59E0B',
+      studioName: '',
+      businessName: '',
+      // Austria was the origin studio's. A seeded country pre-answers a question the wizard
+      // asks, and it drives the competitor search index and the pillar copy.
+      country: '',
+      ownerEmail: '',
+      subdomain: '',
+      // Left to the theme presets. #7C3AED is the violet this product spent a week removing
+      // from everything else it touched.
       fontFamily: 'Inter',
-      activeTemplate: 'template-01-modern-minimal',
       enabledFeatures: ['gallery', 'booking', 'blog', 'crm'],
       isActive: true,
       subscriptionStatus: 'trial'

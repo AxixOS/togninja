@@ -182,6 +182,33 @@ check('clearing only happens when setup never completed',
 check('a real instance is still never touched',
   ensure.includes('already exists'));
 
+// ── The seed must not answer the wizard's questions ────────────────────────
+//
+// init-database.ts seeded businessName and studioName as "Photography Studio", and
+// server/index.ts treats a non-empty name as proof the studio has been through Basics. So a
+// freshly provisioned tenant booted, was auto-marked creative_setup_complete, and the
+// /api/setup mount then demanded authentication that cannot exist yet — the admin account is
+// created several steps into the wizard that could no longer save anything. Observed live:
+// setup status said currentStep "complete" on an instance nobody had opened.
+const seed = readFileSync('scripts/init-database.ts', 'utf8');
+const boot = readFileSync('server/index.ts', 'utf8');
+
+check('the seed does not invent a studio name',
+  !seed.includes("businessName: 'Photography Studio'"));
+
+check('nor a country',
+  !seed.includes("country: 'Austria'"),
+  'a seeded country pre-answers the wizard and drives the search index');
+
+check('the boot detector ignores placeholder names',
+  boot.includes("'photography studio', 'my studio'"));
+
+// Excluding the placeholder stops it recurring and heals nothing already flagged, because
+// that branch only ever wrote true.
+check('and an already-stuck instance reopens itself',
+  boot.includes('creative_setup_complete = false') && boot.includes('adminCount === 0'),
+  'no admin means the wizard was never completed, whatever the flag says');
+
 // ── The trap that cost a real onboarding ────────────────────────────────────
 check('the storage endpoint note names the S3-compatible host',
   y.includes('s3.<region>.backblazeb2.com') && y.includes('api.backblazeb2.com'),

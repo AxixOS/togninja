@@ -1098,10 +1098,26 @@ app.use((req, res, next) => {
         //
         // A studio that has told us its own name has genuinely been through Basics.
         // That is a fact about the STUDIO rather than about the auth table.
+        // A NAME THE STUDIO CHOSE, not one we wrote in for them.
+        //
+        // The reasoning above is right and the input was wrong. scripts/init-database.ts
+        // seeded businessName and studioName as "Photography Studio" when provisioning a new
+        // instance, so this detector saw a name, concluded Basics had been completed, and
+        // marked creative_setup_complete on a tenant nobody had opened. The /api/setup mount
+        // then required authentication — which does not exist yet, because the admin account
+        // is created several steps into the wizard that could no longer save anything.
+        //
+        // The seed is fixed, but instances provisioned before that fix already carry the row,
+        // and they would be stuck forever. Excluding the placeholder by name heals them on
+        // the next boot and costs a real studio nothing: "Photography Studio" is what the
+        // provisioner wrote, and any studio who genuinely types it can type it again in
+        // Basics, which is the step this is deciding whether to skip.
         const adminCheck = await db.execute(sql`
           SELECT EXISTS(
             SELECT 1 FROM studio_configs
              WHERE coalesce(nullif(trim(business_name), ''), nullif(trim(studio_name), '')) IS NOT NULL
+               AND lower(coalesce(nullif(trim(business_name), ''), nullif(trim(studio_name), ''))) NOT IN
+                   ('photography studio', 'my studio')
           ) AS has_admin`);
         const hasAdmin = !!(adminCheck.rows?.[0] as any)?.has_admin;
         if (hasAdmin) {
@@ -1112,6 +1128,37 @@ app.use((req, res, next) => {
             WHERE id = (SELECT id FROM studio_configs LIMIT 1)
           `);
           console.log('✅ Existing instance detected (the studio has a name) — auto-marked onboarding complete');
+        } else {
+          // UNSTICK AN INSTANCE THAT WAS MARKED COMPLETE ON A NAME IT NEVER CHOSE.
+          //
+          // Excluding the placeholder above stops this happening again, and does nothing for
+          // the tenants it already happened to: this branch only ever WROTE true, so a row
+          // that already says true stays true and the wizard stays locked out for good.
+          //
+          // Clearing it needs a second fact, because a studio could legitimately be called
+          // Photography Studio. No admin user is that fact: the account step is inside the
+          // wizard, so an instance with no admin has certainly not completed it, whatever the
+          // flag says. Both conditions together describe exactly one situation — provisioned,
+          // never opened, wrongly flagged.
+          try {
+            const adminRows = await db.execute(sql`SELECT count(*)::int AS n FROM admin_users`);
+            const adminCount = Number((adminRows.rows?.[0] as any)?.n ?? 0);
+            if (adminCount === 0) {
+              const { rowCount } = await db.execute(sql`
+                UPDATE studio_configs
+                   SET creative_setup_complete = false, technical_setup_complete = false
+                 WHERE creative_setup_complete = true
+              `) as any;
+              if (rowCount) {
+                console.log(
+                  '🔓 Onboarding was marked complete on a placeholder name with no admin account — '
+                  + 'reopening setup. This instance was provisioned and never opened.'
+                );
+              }
+            }
+          } catch (healErr: any) {
+            console.warn('⚠️ Could not check for a stuck onboarding flag:', healErr?.message || healErr);
+          }
         }
       } catch (autoDetectError: any) {
         console.warn('⚠️ Onboarding auto-detect skipped:', autoDetectError.message);
