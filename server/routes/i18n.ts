@@ -38,7 +38,13 @@ async function ensureTables(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS i18n_settings (
       id integer PRIMARY KEY DEFAULT 1,
-      default_language text DEFAULT 'de',
+      -- 'en', not 'de'. This default only ever applies to a row being created, which
+      -- means an instance being provisioned right now — and a new tenant is not German.
+      -- An instance that already has a row keeps whatever it stores, so nothing live
+      -- moves. Measured on a freshly provisioned tenant, this table answered
+      -- {"defaultLanguage":"de"} and the whole UI rendered in German while the studio
+      -- identity said lang "en".
+      default_language text DEFAULT 'en',
       enabled_languages jsonb DEFAULT '["en","de"]'::jsonb,
       updated_at timestamptz DEFAULT now()
     )`);
@@ -62,10 +68,16 @@ async function ensureTables(): Promise<void> {
 //
 // getExplicitSiteLanguage() returns null when the studio NEVER ANSWERED the
 // question (see site-language.ts) — and null must defer to this table unchanged.
-// Such an instance is legitimately German and has no stored answer to promote,
-// so overriding it here would flip a live site to English. Null is the whole
-// safety story: on an unanswered instance this handler returns exactly what it
-// returned before.
+// An instance that already stores 'de' is legitimately German and has no stored
+// answer to promote, so overriding it here would flip a live site to English.
+//
+// What changed: the ambient 'de' has become 'en'. That reasoning conflated two
+// different instances — one that has been running in German since before the
+// question existed, and one provisioned five minutes ago that has answered nothing
+// because nobody has been asked yet. The first keeps its stored value and is
+// untouched by this. The second was being handed the origin studio's language: a
+// tenant deployed today, with site identity reporting lang "en", rendered its entire
+// UI in German down to the cookie banner.
 router.get('/i18n/settings', async (_req: Request, res: Response) => {
   // Resolved OUTSIDE the try so the error path honours it too. Never throws —
   // a missing column or table is swallowed into null.
@@ -83,14 +95,19 @@ router.get('/i18n/settings', async (_req: Request, res: Response) => {
     // studio's language selector.
     if (explicit && !enabled.includes(explicit)) enabled.unshift(explicit);
     res.json({
-      defaultLanguage: explicit || r.default_language || 'de',
+      // Falls to English when the row exists but the column is null. A stored 'de' still
+      // wins, so a German instance is untouched.
+      defaultLanguage: explicit || r.default_language || 'en',
       enabledLanguages: enabled.length ? enabled : ['en', 'de'],
     });
   } catch (e: any) {
     // Never break the site over i18n — fall back to en/de, still honouring an
     // explicit answer if we resolved one before the failure.
     res.json({
-      defaultLanguage: explicit || 'de',
+      // The error path. If the table cannot be read at all there is no stored answer to
+      // honour, and guessing German for a studio we know nothing about is how the origin
+      // studio's language reached instances that never asked for it.
+      defaultLanguage: explicit || 'en',
       enabledLanguages: explicit && explicit !== 'en' && explicit !== 'de' ? [explicit, 'en', 'de'] : ['en', 'de'],
     });
   }

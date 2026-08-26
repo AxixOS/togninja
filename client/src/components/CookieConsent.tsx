@@ -64,11 +64,21 @@ function FocusTrapModal({
 }
 
 export default function CookieConsent({
-  privacyPolicyUrl = "/datenschutz/",
-  imprintUrl = "/impressum/",
+  privacyPolicyUrl,
+  imprintUrl,
 }: Props) {
   const { language } = useLanguage();
   const de = language === "de";
+
+  // Defaults follow the language rather than being fixed German paths. The labels here
+  // always translated and the hrefs never did, so an English studio got a link reading
+  // "Privacy Policy" that pointed at /datenschutz/.
+  const privacyHref = privacyPolicyUrl ?? (de ? "/datenschutz/" : "/privacy/");
+
+  // Impressum is a German and Austrian legal requirement specifically. A UK or US studio
+  // has no imprint page, so offering the link at all is offering a broken one — the whole
+  // link is dropped rather than translated.
+  const imprintHref = imprintUrl ?? (de ? "/impressum/" : null);
   const [visible, setVisible] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
 
@@ -151,13 +161,19 @@ export default function CookieConsent({
                   </p>
                   <p className="mt-2 text-xs text-gray-500">
                     {de ? "Mehr Infos:" : "More info:"}{" "}
-                    <a className="underline hover:no-underline" href={privacyPolicyUrl}>
+                    <a className="underline hover:no-underline" href={privacyHref}>
                       {de ? "Datenschutz" : "Privacy Policy"}
-                    </a>{" "}
-                    ·{" "}
-                    <a className="underline hover:no-underline" href={imprintUrl}>
-                      {de ? "Impressum" : "Imprint"}
                     </a>
+                    {/* Only where an imprint is actually a legal page. Rendering it for a UK
+                        studio offered a link to a route that does not exist. */}
+                    {imprintHref && (
+                      <>
+                        {" "}·{" "}
+                        <a className="underline hover:no-underline" href={imprintHref}>
+                          {de ? "Impressum" : "Imprint"}
+                        </a>
+                      </>
+                    )}
                   </p>
                 </div>
 
@@ -176,7 +192,8 @@ export default function CookieConsent({
                   </button>
                   <button
                     onClick={acceptAll}
-                    className="rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                    className="rounded-xl px-4 py-2 text-sm font-semibold hover:opacity-90"
+                    style={{ background: 'var(--tn-primary, #111827)', color: 'var(--tn-on-primary, #ffffff)' }}
                   >
                     {de ? "Alle akzeptieren" : "Accept all"}
                   </button>
@@ -255,7 +272,8 @@ export default function CookieConsent({
             </button>
             <button
               onClick={savePreferences}
-              className="rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+              className="rounded-xl px-4 py-2 text-sm font-semibold hover:opacity-90"
+              style={{ background: 'var(--tn-primary, #111827)', color: 'var(--tn-on-primary, #ffffff)' }}
             >
               {de ? "Speichern" : "Save"}
             </button>

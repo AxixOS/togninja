@@ -1103,7 +1103,10 @@ function App() {
               </LocalizedRoutes>
               </Suspense>
               </ErrorBoundary>
-              <CookieConsent privacyPolicyUrl="/datenschutz/" imprintUrl="/impressum/" />
+              {/* Paths resolved inside the component from the studio's own language: the
+                  labels used to translate while the hrefs stayed German, and Impressum is
+                  a German/Austrian legal page a UK studio does not have. */}
+              <CookieConsent />
               <ConsentScripts />
             </Router>
               </LanguageProvider>
