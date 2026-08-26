@@ -1338,9 +1338,25 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
         if (row && (row.present === true || row.present === 't')) preserved.push(col);
       } catch { /* column absent on this instance */ }
     }
-    const aiReady = preserved.includes('openai_api_key_encrypted') || !!(process.env.OPENAI_API_KEY || '').trim();
-    if (!aiReady) {
-      console.warn('[reset-demo] no OpenAI key on this instance — the next onboarding will crawl but generate nothing');
+    // Ask the thing that will actually decide, not two slots that look like it.
+    //
+    // This read `preserved.includes('openai_api_key_encrypted') || process.env.OPENAI_API_KEY`,
+    // and onboarding generation is PLATFORM-funded — platformAiConfigured(), which is the
+    // gateway key or the platform key sealed at boot. Neither slot it checked is consulted by
+    // that path, so its verdict was wrong in both directions: it stayed quiet when a studio key
+    // sat in studio_integrations and no platform key existed (the case where the next onboarding
+    // really does crawl and generate nothing), and it would have warned on a deployment funded
+    // purely through the AxixOS gateway, which generates perfectly well.
+    //
+    // Wrong-in-both-directions is worse than absent: this is the line an operator reads right
+    // before running the onboarding they are about to be surprised by.
+    const { platformAiConfigured } = await import('./lib/openaiClient');
+    if (!platformAiConfigured()) {
+      console.warn(
+        '[reset-demo] NO PLATFORM AI KEY — the next onboarding will crawl the site and then generate nothing.\n'
+        + '             Set PLATFORM_OPENAI_API_KEY on this service and redeploy. A key in\n'
+        + '             studio_integrations belongs to the STUDIO and does not fund platform work.',
+      );
     }
     try {
       const { config } = await import('./config-reader');
