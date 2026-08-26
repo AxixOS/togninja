@@ -99,8 +99,23 @@ check('a generated homepage is published when there is no homepage yet',
   pipeline.includes("await neonDb.updateLandingPage(page.id, { status: 'published' })")
   && pipeline.includes('SET homepage_landing_slug = $1'));
 
-check('and it can never overwrite an existing one',
-  pipeline.includes('if (!existing) {'));
+// The property is that a LIVE studio's homepage cannot be replaced behind their back — not
+// that this particular `if` is spelled a particular way.
+//
+// This asserted `pipeline.includes('if (!existing) {')`, a literal match on the implementation,
+// and it went red on a deliberate change rather than on a regression. The change: `if
+// (!existing)` alone made Regenerate a button that could not work. The first run claims "/", so
+// every later run wrote a page nobody would ever see — the wizard previewed the new draft while
+// "/" kept serving the first attempt. A studio unhappy with their homepage could press it all
+// day and never alter their site.
+//
+// So a forced run MAY now claim "/", but only while creative_setup_complete is false — a page
+// they are still choosing, not a homepage they have been running in public. Both halves are
+// asserted, because either one alone is the old bug or a new one.
+check('and it can never overwrite a homepage the studio is already running',
+  pipeline.includes('opts.force && stillInSetup')
+  && pipeline.includes('creative_setup_complete AS done'),
+  'a regenerate during setup may replace it; after setup, never');
 
 // ── Their own photographs, not stock ────────────────────────────────────────
 check('empty image slots are filled from their own website',

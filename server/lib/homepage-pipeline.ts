@@ -437,6 +437,18 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
           publish: true,
         });
         console.log(`[homepage-pipeline] pillar pages: ${r.created} created, ${r.skipped} already existed, ${r.remaining} left for a later build`);
+        if (r.aborted) {
+          // Says it in the log AND on the studio's own progress list, because the alternative
+          // is a menu that is quietly two services shorter than the site it was built from,
+          // with nothing anywhere explaining why. The nav filters unbuilt pillars out (see the
+          // hasPage flag on /api/authority-map), so the failure is invisible without this.
+          console.warn(`[homepage-pipeline] pillar build stopped after "${r.aborted.afterPillar}": ${r.aborted.code}`);
+          await note(
+            state,
+            'problem',
+            `${r.created + r.published} service page(s) built — the rest can be finished from Website Studio`,
+          );
+        }
 
         // A voucher shop stocked with the studio's OWN services, from the same map.
         // Created inactive and unpriced — see starter-products for why nothing here
@@ -557,13 +569,28 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     // ONLY when there is no homepage yet. This cannot overwrite a studio's existing "/" —
     // it fills an empty slot on a brand-new instance, where a generated page written from
     // their own website beats the placeholder it is replacing by every measure.
+    // …AND when the studio asked for this one specifically, during setup.
+    //
+    // `if (!existing)` alone made Regenerate a button that could not work. The first run
+    // publishes a page and claims "/", so every later run wrote a page nobody would ever see:
+    // the wizard showed the new draft in its preview frame, implying the site had changed,
+    // while "/" went on serving the first attempt. A studio unhappy with their homepage could
+    // press Regenerate as often as they liked and never alter their site — and each press
+    // accumulated another published page nothing linked to.
+    //
+    // Bounded to a FORCED run before setup completes. `force` means the studio pressed the
+    // button rather than the wizard firing automatically, and creative_setup_complete being
+    // false means this is still a page they are choosing rather than a live homepage they have
+    // been running. After setup, an automatic overwrite of "/" is the studio's call to make in
+    // Website Studio, not this pipeline's while their site is public.
     let published = false;
     try {
       const { rows } = await pool.query(
-        `SELECT homepage_landing_slug AS slug FROM studio_configs LIMIT 1`,
+        `SELECT homepage_landing_slug AS slug, creative_setup_complete AS done FROM studio_configs LIMIT 1`,
       );
       const existing = String(rows[0]?.slug || '').trim();
-      if (!existing) {
+      const stillInSetup = rows[0]?.done !== true;
+      if (!existing || (opts.force && stillInSetup)) {
         await neonDb.updateLandingPage(page.id, { status: 'published' });
         await pool.query(
           `UPDATE studio_configs SET homepage_landing_slug = $1, updated_at = now() WHERE id = (SELECT id FROM studio_configs LIMIT 1)`,

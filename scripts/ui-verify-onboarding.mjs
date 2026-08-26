@@ -306,6 +306,36 @@ check('a run that died with its process stops being "running"',
   && setupRoutes.includes("status: stalled ? 'error'"),
   'startedAt is read, and a stale run is reported as the state that offers Try again');
 
+// ── Regenerate changes the site, and a partial build still counts ───────────
+//
+// The homepage assignment was `if (!existing)`, so only the FIRST run ever claimed "/". Every
+// later run wrote a page nobody would see: the wizard previewed the new draft, implying the
+// site had changed, while "/" served the first attempt and another published page piled up
+// behind it. A studio unhappy with their homepage could press Regenerate all day and never
+// alter their website.
+check('a forced regenerate during setup can change what "/" serves',
+  pipeline.includes('opts.force && stillInSetup')
+  && pipeline.includes('creative_setup_complete AS done'),
+  'bounded to setup: after that, overwriting a live homepage is the studio\'s call');
+
+// A run that stopped early still built pages, and they are live. v1.9.158 aborted the pillar
+// loop by rethrowing, which threw the results array away with it — so a refusal on pillar four
+// reported a failed build to a studio who had just had three pages created and published.
+const scaffold = read('server/lib/authority-scaffold.ts');
+check('a pillar build that stops early still reports what it built',
+  scaffold.includes('aborted = {') && scaffold.includes('break;')
+  && !/if \(e instanceof NoOpenAIError \|\| e\?\.name === 'PlatformAIRefusal'\) throw e;/.test(scaffold),
+  'the pages exist; the answer must say so');
+
+// A gateway refusal is not a server crash. These routes classified NoOpenAIError and let
+// PlatformAIRefusal fall to the generic branch — 500, carrying the gateway's raw refusal text,
+// so a spent allowance read to the studio as a crash worded for us rather than for them.
+const routesSrc = read('server/routes.ts');
+const refusalHandlers = (routesSrc.match(/const refusal = e\?\.name === 'PlatformAIRefusal';/g) || []).length;
+check('a gateway refusal is classified, not returned as a crash',
+  refusalHandlers >= 2 && routesSrc.includes("e.code === 'quota_exceeded' ? 429 : 503"),
+  `${refusalHandlers} admin route(s) classify it`);
+
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');

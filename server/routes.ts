@@ -7697,13 +7697,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }, 'studio');
       res.json({ ok: true, map });
     } catch (e: any) {
-      // 503, not 400. Nothing was wrong with the request — the platform has not funded
-      // generation on this instance, which is ours to fix and nothing the studio can act on.
-      // The old copy named OPENAI_API_KEY to a photographer with no shell on this host.
+      // 503, not 400. Nothing was wrong with the request — AI generation is unavailable on
+      // this instance, which is nothing the studio can act on from a form. The old copy named
+      // OPENAI_API_KEY to a photographer with no shell on this host.
+      //
+      // PlatformAIRefusal is classified here too. It used to fall through to the generic
+      // branch and return 500 carrying the gateway's raw refusal text, so a spent allowance
+      // arrived as a server crash worded for us rather than for them.
       const noai = e?.name === 'NoOpenAIError';
-      res.status(noai ? 503 : 500).json({
-        error: noai
-          ? 'Automatic authority maps are not available on this instance yet. You can build your structure by hand in the meantime.'
+      const refusal = e?.name === 'PlatformAIRefusal';
+      const status = noai ? 503 : refusal ? (e.code === 'quota_exceeded' ? 429 : 503) : 500;
+      res.status(status).json({
+        error: refusal ? e.code : undefined,
+        message: noai || refusal
+          ? 'Automatic authority maps are not available on this instance right now. You can build your structure by hand in the meantime.'
           : (e?.message || 'Failed to generate authority map'),
       });
     }
@@ -7770,14 +7777,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         language: await getSiteLanguage(),
         publish: req.body?.publish === true,
       });
+      // A run that stopped early still built pages, and they are live. Reporting ok:false
+      // would tell a studio their build failed while three of their service pages were
+      // already published — so the outcome carries BOTH: what exists, and why the rest does
+      // not. `ok` reflects whether the run finished, not whether it achieved anything.
+      if (out.aborted) {
+        return res.status(out.aborted.code === 'quota_exceeded' ? 429 : 503).json({
+          ok: false,
+          ...out,
+          error: out.aborted.code,
+          message:
+            `${out.created + out.published} page(s) were built before generation became `
+            + `unavailable${out.aborted.retryable ? ' — this looks temporary, so trying again shortly may finish the rest' : ''}.`,
+        });
+      }
       res.json({ ok: true, ...out });
     } catch (e: any) {
       // Same reasoning as the authority-map route above: a platform config fault is a 503,
       // and the studio is told what still works rather than the name of a variable.
+      //
+      // PlatformAIRefusal is handled here too. It used to fall to the generic branch and
+      // return 500 with the gateway's raw refusal text — so a spent allowance read to the
+      // studio as a server crash, in wording written for us rather than for them.
       const noai = e?.name === 'NoOpenAIError';
-      res.status(noai ? 503 : 500).json({
-        error: noai
-          ? 'Automatic pillar pages are not available on this instance yet. You can add pages by hand in the meantime.'
+      const refusal = e?.name === 'PlatformAIRefusal';
+      const status = noai ? 503 : refusal ? (e.code === 'quota_exceeded' ? 429 : 503) : 500;
+      res.status(status).json({
+        error: refusal ? e.code : undefined,
+        message: noai || refusal
+          ? 'Automatic pillar pages are not available on this instance right now. You can add pages by hand in the meantime.'
           : (e?.message || 'Failed to scaffold pillar pages'),
       });
     }

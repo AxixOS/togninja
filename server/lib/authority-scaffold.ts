@@ -108,7 +108,15 @@ export async function scaffoldPillarPages(
    */
   payer: Payer,
   opts: { city?: string; limit?: number; publish?: boolean; language?: string } = {},
-): Promise<{ results: ScaffoldResult[]; created: number; published: number; skipped: number; remaining: number }> {
+): Promise<{
+  results: ScaffoldResult[];
+  created: number;
+  published: number;
+  skipped: number;
+  remaining: number;
+  /** Set when the run stopped early because the platform refused. The results above still stand. */
+  aborted: { code: string; message: string; retryable: boolean; afterPillar: string } | null;
+}> {
   const map = await getAuthorityMap();
   const cap = Math.max(1, Math.min(opts.limit || 6, 8)); // bound OpenAI cost/latency per call
   const results: ScaffoldResult[] = [];
@@ -116,6 +124,7 @@ export async function scaffoldPillarPages(
   let published = 0;
   let skipped = 0;
   let processed = 0;
+  let aborted: { code: string; message: string; retryable: boolean; afterPillar: string } | null = null;
 
   for (const pillar of map.pillars) {
     const slug = slugify(pillar.href.replace(/^\/+|\/+$/g, '') || pillar.label);
@@ -213,14 +222,34 @@ export async function scaffoldPillarPages(
       });
       created++;
     } catch (e: any) {
-      // Abort the whole run, not this pillar. If the platform cannot generate, pillars 2..N
+      // Stop the run, but KEEP what it built. If the platform cannot generate, pillars 2..N
       // will fail identically, and each attempt is a real cost: the gateway counts FAILED
       // attempts against the studio's cap, so grinding through six doomed pillars burns six
-      // attempts to produce nothing and returns ok:true with a list of six errors.
-      if (e instanceof NoOpenAIError || e?.name === 'PlatformAIRefusal') throw e;
+      // attempts to produce nothing.
+      //
+      // v1.9.158 did this by rethrowing, which threw the results array away with it — so a
+      // refusal on pillar four reported a failed build to a studio who had just had three
+      // pages created and published. The pages were real and live; the answer said otherwise.
+      // Breaking instead keeps both facts: what was built, and why the rest was not.
+      if (e instanceof NoOpenAIError || e?.name === 'PlatformAIRefusal') {
+        aborted = {
+          code: e?.code || e?.name || 'unavailable',
+          message: String(e?.message || 'AI generation is unavailable'),
+          retryable: e?.retryable === true,
+          afterPillar: pillar.label,
+        };
+        break;
+      }
       results.push({ pillar: pillar.label, slug, status: 'error', error: String(e?.message || e).slice(0, 200) });
     }
   }
 
-  return { results, created, published, skipped, remaining: Math.max(0, map.pillars.length - results.length) };
+  return {
+    results,
+    created,
+    published,
+    skipped,
+    remaining: Math.max(0, map.pillars.length - results.length),
+    aborted,
+  };
 }
