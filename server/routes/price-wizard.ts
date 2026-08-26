@@ -297,9 +297,16 @@ router.get('/diagnostics', async (_req, res) => {
         headers: { 'Content-Type': 'application/json', 'x-axixos-api-key': picked.apiKey },
         // Same locale the real search uses, so a green diagnostic means the studio's own
         // market is reachable — not that Austria is.
+        //
+        // And the same PURPOSE, for the same reason. A tenant key must name one; omitting it
+        // is a 400 unknown_purpose. This probe is a raw fetch rather than a call through
+        // AxixosSearchService, so it did not inherit the purpose that service now sends — a
+        // diagnostic that would have reported "AxixOS discovery is failing" on an instance
+        // where discovery works, and sent somebody to fix a problem that was not there.
         body: JSON.stringify({
           query: `photographer prices ${probeLocale.city || ''}`.trim(),
           limit: 2,
+          purpose: 'search.competitor',
           ...(probeLocale.country ? { country: probeLocale.country } : {}),
           language: probeLocale.language,
         }),

@@ -152,6 +152,34 @@ check('the crawl payer cannot be defaulted',
   axixos.includes('readPageText(url: string, purpose: CrawlPurpose'),
   'purpose is required, so it cannot be got wrong by omission');
 
+// ── Every AxixOS call names a purpose ───────────────────────────────────────
+//
+// A tenant key MUST name one: omitting it is a 400 unknown_purpose rather than a silent
+// default, because guessing the payer would defeat having a payer rule at all.
+//
+// Checked across the whole tree rather than in AxixosSearchService, because the call that
+// broke this was the one that did NOT go through the service — the Price Wizard diagnostic is
+// a raw fetch, so it inherited nothing, and would have reported "AxixOS discovery is failing"
+// on an instance where discovery worked fine.
+const endpointMisses = [];
+for (const f of walk('server')) {
+  const src = read(f);
+  // Comments name these paths while documenting them; only real calls matter.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  const re = /\/v1\/(search|crawl)\/[a-z]+/g;
+  let m;
+  while ((m = re.exec(code))) {
+    // The body follows the path within a few lines. Deliberately generous — a window too
+    // short produces a false FAIL, which is noisy but safe; too long produces a false PASS.
+    if (!code.slice(m.index, m.index + 600).includes('purpose')) {
+      endpointMisses.push(`${f.replace('server/', '')} ${m[0]}`);
+    }
+  }
+}
+check('every AxixOS search and crawl call names a purpose',
+  endpointMisses.length === 0,
+  endpointMisses.length ? endpointMisses.join(', ') : 'a tenant key 400s without one');
+
 // ── The gateway seam ────────────────────────────────────────────────────────
 //
 // AxixOS smarthub exposes POST /v1/ai/complete with a server-side purpose registry, a
