@@ -1,54 +1,128 @@
-# Render Blueprint — studioOS platform (tenant instance)
+# Render Blueprint — TogNinja tenant instance
 #
-# Connects this GitHub repo to Render for AUTO-DEPLOY: every push to the tracked
-# branch triggers a build of ./Dockerfile and a zero-downtime deploy. No more
-# manual image pushes.
+# One click provisions a complete, private instance: a Postgres database, the web service,
+# and every secret it needs. The studio owns the Render account and the database; nothing
+# here runs on infrastructure belonging to anybody else.
 #
-# ── One-time connection (owner, in the Render dashboard) ────────────────────
-#   1. Render → New + → "Blueprint".
-#   2. "Connect GitHub" → install the Render GitHub App on `siparrott/studioOS-platform`
-#      (grant repo access). This OAuth step can only be done in the browser.
-#   3. Pick this repo → Render reads render.yaml → "Apply".
-#   4. Fill the prompted secrets (marked `sync: false` below).
-# After that, pushes to `portable-pg` deploy automatically.
+# ── What the studio does ────────────────────────────────────────────────────
+#   1. Render → New + → "Blueprint" → connect GitHub → pick this repo → Apply.
+#   2. Fill the handful of prompted values (marked `sync: false`).
+#   3. Open the service URL. Setup starts on its own.
+# Everything else — schema, secrets, database connection — happens without them.
 #
-# To brand the instance, set the optional identity vars (see the block at the
-# bottom); leave them unset and the app renders neutrally as "My Studio".
+# ── What this file got wrong before, and why it mattered ────────────────────
+# Every one of these shipped, and each one breaks a tenant differently:
+#
+#   * it pointed at siparrott/studioOS-platform on branch portable-pg — the previous
+#     repository and a branch the product no longer ships from, so an "Apply" deployed
+#     something other than TogNinja;
+#
+#   * DEMO_MODE was "true", which enables POST /api/setup/reset-demo. That endpoint
+#     TRUNCATEs clients, invoices, leads, galleries and landing pages, and it is not
+#     authenticated, because on a demo instance it is not supposed to be. Every tenant
+#     provisioned from this file shipped with a one-request CRM wipe;
+#
+#   * ENCRYPTION_KEY was absent entirely, while nine stored credentials are AES-GCM
+#     encrypted from it. See server/lib/capabilities.ts encryptionHealthy(), which exists
+#     precisely because an instance that cannot decrypt its own credentials is a confusing
+#     thing to debug;
+#
+#   * DATABASE_URL was `sync: false`, so the studio had to go and create a database
+#     somewhere else first — which is most of the friction this Blueprint exists to remove.
+#     Render provisions Postgres, so it is provisioned here.
+
+databases:
+  # The studio's own database, in their own Render account.
+  #
+  # Postgres is all this product wants — it uses pg and Drizzle against a connection string
+  # and nothing else. There is no Supabase auth, storage, realtime or RLS in the codebase, so
+  # a Supabase project would be an extra account, an extra vendor and an extra OAuth
+  # integration buying nothing. Render provisions it in the same click as the web service.
+  #
+  # The schema installs itself: server/index.ts runs its DDL on every boot, so an empty
+  # database becomes a working one on the first request with no migration step.
+  - name: togninja-db
+    databaseName: togninja
+    plan: free          # upgrade to "basic" for backups and no 90-day expiry
+    region: oregon
 
 services:
   - type: web
-    name: tenant-zero
+    name: togninja
     runtime: docker
     dockerfilePath: ./Dockerfile
-    region: oregon
-    plan: free            # free spins down when idle; upgrade to "starter" for always-on
-    branch: portable-pg   # the product branch (tenant-zero = reference instance)
+    region: oregon      # must match the database region, or every query crosses a continent
+    plan: free          # free spins down when idle; "starter" for always-on
+    repo: https://github.com/AxixOS/togninja
+    branch: product/main
     autoDeploy: true
     healthCheckPath: /healthz
     envVars:
       # ── Runtime ──────────────────────────────────────────────────────────
       - key: NODE_ENV
         value: production
+
+      # FALSE, and it must stay false. See the note at the top: true exposes an
+      # unauthenticated endpoint that empties the CRM.
       - key: DEMO_MODE
-        value: "true"     # tenant-zero ships seeded demo content
+        value: "false"
+
       # Render injects PORT automatically and health-checks it — do not set it.
 
-      # ── Required secrets (you are prompted for these on Apply) ────────────
+      # ── Database — wired from the block above, not typed by hand ─────────
       - key: DATABASE_URL
-        sync: false        # Postgres connection string (Supabase / Neon / any)
-      - key: SESSION_SECRET
-        generateValue: true # Render generates a strong secret
+        fromDatabase:
+          name: togninja-db
+          property: connectionString
 
-      # ── AI keys (optional — app boots without them; AI features 401 until set)
+      # ── Secrets Render generates, so nobody ever sees or handles them ────
+      #
+      # Both are load-bearing and NEITHER can be changed later without consequence: the
+      # studio's stored integration credentials are encrypted from them, so rotating either
+      # one silently makes every saved key unreadable.
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+
+      # ── The studio's own AI account (optional) ───────────────────────────
+      #
+      # Deliberately theirs. The product's rule is that the platform pays to SHOW a feature
+      # and the studio pays to USE it, so ongoing generation runs on their key and their
+      # bill. The app boots without these and the AI features explain themselves as
+      # unavailable rather than failing.
       - key: OPENAI_API_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
 
-      # ── Identity / branding (optional — unset ⇒ neutral "My Studio") ─────
-      # Set these to brand the instance. See server/lib/siteIdentity.ts for the
-      # full list (address, geo, socials, GA, logo, locale). PUBLIC_SITE_URL is
-      # the single canonical origin used across SEO, sitemap, canonicals & links.
+      # ── File storage (optional at deploy, required before uploads) ───────
+      #
+      # Render has no object storage, so this is the one place a second vendor is
+      # unavoidable. Leave blank and set it later in Technical Setup — the wizard now says
+      # plainly that photographs cannot be stored until it is connected.
+      #
+      # For Backblaze use the S3-COMPATIBLE endpoint, s3.<region>.backblazeb2.com, not
+      # api.backblazeb2.com. The latter is B2's native JSON API and the S3 client cannot
+      # read its replies. See describeWrongApiEndpoint() in server/services/s3-storage.ts.
+      - key: AWS_S3_BUCKET
+        sync: false
+      - key: AWS_S3_ENDPOINT
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+
+      # ── Identity (all optional) ──────────────────────────────────────────
+      #
+      # Every one of these is also asked for in the setup wizard and stored in the database,
+      # which is where a studio can change them afterwards. They exist here only so a
+      # pre-branded instance can be handed over ready-made; leave them unset and setup
+      # collects them. PUBLIC_SITE_URL is the canonical origin used for SEO, sitemap and
+      # canonical links.
       - key: PUBLIC_SITE_URL
         sync: false
       - key: BUSINESS_NAME

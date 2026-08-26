@@ -111,6 +111,77 @@ export function describeRegionMismatch(endpoint: string, region: string): string
     `Set Region to "${hostRegion}" to match the endpoint.`;
 }
 
+/**
+ * Is this endpoint the provider's S3 API, or a different API on the same brand?
+ *
+ * Backblaze publishes two: api.backblazeb2.com is the NATIVE B2 API and speaks JSON, and
+ * s3.<region>.backblazeb2.com is the S3-compatible one and speaks XML. Both are real, both
+ * are documented, and the native one is the one people find first because it is the one B2
+ * calls "the API".
+ *
+ * Point the AWS SDK at the JSON one and it fails while parsing the reply, not while making
+ * the request, so what reaches the studio is:
+ *
+ *     char '{' is not expected.:1:1 Deserialization error: to see the raw response,
+ *     inspect the hidden field {error}.$response on this object
+ *
+ * which tells a photographer nothing and tells most engineers nothing either. The cause is
+ * one wrong hostname and it is completely knowable up front.
+ *
+ * Returns the explanation, or null when the endpoint looks right.
+ */
+export function describeWrongApiEndpoint(endpoint: string, region: string): string | null {
+  const ep = String(endpoint || '').toLowerCase();
+  if (!ep) return null;
+
+  if (ep.includes('api.backblazeb2.com')) {
+    // The region is usually already correct in the sibling field, so the corrected host can
+    // be handed over rather than described.
+    const suggested = region ? `https://s3.${region}.backblazeb2.com` : 'https://s3.<your-region>.backblazeb2.com';
+    return 'That endpoint is Backblaze\'s native B2 API, which speaks a different protocol. '
+      + `Use the S3-compatible endpoint instead: ${suggested}`;
+  }
+
+  // Supabase storage has the same shape of trap: the project URL is not the S3 endpoint.
+  if (ep.includes('supabase') && !ep.includes('/storage/v1/s3')) {
+    return 'That looks like your Supabase project URL rather than its S3 endpoint. '
+      + 'Use the S3 connection endpoint from Storage settings, which ends in /storage/v1/s3';
+  }
+
+  return null;
+}
+
+/**
+ * Turn an AWS SDK failure into something a photographer can act on.
+ *
+ * Called from the upload path, which previously appended the raw SDK message to a generic
+ * "check your storage keys" line — so the studio got the generic advice AND the
+ * incomprehensible detail, and neither named the actual problem.
+ */
+export function explainStorageFailure(err: any, cfg: { endpoint: string; region: string }): string | null {
+  const raw = String(err?.message || err || '');
+
+  // The deserialization failure IS the wrong-protocol symptom. Check the endpoint we were
+  // actually pointed at and name the real cause.
+  if (/Deserialization error|is not expected|Unexpected token|not a valid XML/i.test(raw)) {
+    return describeWrongApiEndpoint(cfg.endpoint, cfg.region)
+      || 'Your storage endpoint answered in a format the S3 client could not read. It is '
+        + 'probably not the S3-compatible endpoint for your provider.';
+  }
+
+  if (/InvalidAccessKeyId|SignatureDoesNotMatch/i.test(raw)) {
+    return describeRegionMismatch(cfg.endpoint, cfg.region)
+      || 'Your storage key was rejected. Check the key ID and secret, and that the key has '
+        + 'write access to this bucket.';
+  }
+
+  if (/NoSuchBucket|does not exist/i.test(raw)) {
+    return 'That bucket does not exist on this account. Check the bucket name.';
+  }
+
+  return null;
+}
+
 type StorageProvider = 'backblaze' | 'supabase' | 'aws' | 'custom';
 
 /** Which provider an endpoint points at. No endpoint means AWS's default host. */

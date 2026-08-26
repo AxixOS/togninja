@@ -314,8 +314,31 @@ async function storeSectionImage(req: any, res: Response) {
     const reason = e?.Code || e?.name || e?.code || 'StorageError';
     const detail = e?.message ? String(e.message).replace(/\s+/g, ' ').slice(0, 180) : '';
     console.error('[setup] image upload failed:', reason, detail || e);
+
+    // NAME THE CAUSE, do not paste the SDK at them.
+    //
+    // This appended the raw AWS SDK message to a generic "check your keys" line, so a studio
+    // whose endpoint pointed at Backblaze's native B2 API — the JSON one, not the
+    // S3-compatible one — was told:
+    //
+    //     Image upload failed (Error). Check your File storage keys, bucket and endpoint
+    //     in setup. — char '{' is not expected.:1:1 Deserialization error: to see the
+    //     hidden field {error}.$response on this object
+    //
+    // Generic advice they could not act on, followed by a parser error they could not read,
+    // for a problem that is one wrong hostname and entirely knowable from the config we
+    // already hold.
+    let explained: string | null = null;
+    try {
+      const { explainStorageFailure, getS3Config } = await import('./services/s3-storage');
+      const cfg = getS3Config();
+      explained = explainStorageFailure(e, { endpoint: cfg.endpoint, region: cfg.region });
+    } catch { /* fall through to the generic message */ }
+
     return res.status(500).json({
-      error: `Image upload failed (${reason}). Check your File storage keys, bucket and endpoint in setup.${detail ? ' — ' + detail : ''}`,
+      error: explained
+        ? `Could not save that image. ${explained}`
+        : `Image upload failed (${reason}). Check your File storage keys, bucket and endpoint in setup.${detail ? ' — ' + detail : ''}`,
     });
   }
 }
