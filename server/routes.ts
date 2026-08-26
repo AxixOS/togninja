@@ -393,7 +393,7 @@ import accountingExportRouter from './accounting-export/routes';
 import { storage as storageInstance } from './storage';
 import { sessionConfig, requireAuth, requireAdmin } from './auth';
 import { findCoupon, isCouponActive, allowsSku, forceRefreshCoupons } from './services/coupons';
-import { requireTenantOpenAI } from './lib/openaiClient';
+import { requireTenantOpenAI, tenantOpenAIKey } from './lib/openaiClient';
 
 /**
  * The studio's timezone, for the calendar and scheduler paths in this file.
@@ -2604,9 +2604,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ success: false, error: 'No audio file provided' });
       }
 
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(500).json({ success: false, error: 'OpenAI API key not configured' });
-      }
+      // The env gate that used to sit here refused before requireTenantOpenAI below — which
+      // reads the studio's own key from the database and throws a readable message of its own.
+      // On a provisioned tenant it answered "OpenAI API key not configured" to a studio who had
+      // configured one, and named an environment variable while doing it.
 
       console.log('Transcribing audio file:', audioFile.originalname, 'Size:', audioFile.size, 'bytes');
 
@@ -6045,7 +6046,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         galleryMeta.service = String(hit?.label || '');
 
-        if (process.env.OPENAI_API_KEY && files[0]?.buffer) {
+        // analyzeVision resolves the studio's key itself and already has a .catch below, so the
+        // env half of this condition only ever skipped work that would have succeeded — on
+        // exactly the tenants that keep their key in the database rather than the environment.
+        if (files[0]?.buffer) {
           const { analyzeVision } = await import('./services/blogImageAnalysis.js');
           const first = files[0];
           const dataUri = `data:${first.mimetype || 'image/jpeg'};base64,${first.buffer.toString('base64')}`;
@@ -10427,7 +10431,11 @@ ${getBizName()} Team`;
       if (weakSecret) warn('weak-session-secret', 'Security: weak SESSION_SECRET', 'Your session secret looks like a placeholder — admin sessions could be forged. Rotate it now.');
       if (!process.env.STRIPE_SECRET_KEY) warn('no-stripe', 'Payments not configured', 'STRIPE_SECRET_KEY is missing — checkout will not take real payments.');
       if (!process.env.SMTP_HOST || !process.env.SMTP_USER) warn('no-smtp', 'Email sending not configured', 'SMTP is incomplete — invoices, leads and campaigns will not send.');
-      if (!process.env.OPENAI_API_KEY) warn('no-openai', 'AI features disabled', 'OPENAI_API_KEY is missing — AI generation and translation will not run.');
+      // Asks the resolver, not the environment. A provisioned tenant deliberately has no
+      // OPENAI_API_KEY and keeps the studio's key in the database, so this told studios "AI
+      // features disabled" on instances where AI was working perfectly — and named an
+      // environment variable to a photographer who has no way to reach one.
+      if (!(await tenantOpenAIKey('notifications'))) warn('no-openai', 'AI features disabled', 'No AI key is configured yet, so AI writing and translation will not run. Add one in Settings.');
       if (!process.env.GOOGLE_PLACES_API_KEY) warn('no-places', 'Live Google reviews off', 'GOOGLE_PLACES_API_KEY is not set — the site shows curated reviews instead of live ones.');
       if (process.env.PULSE_API_KEY && !process.env.PULSE_PROFILE_INSTAGRAM) {
         warn('pulse-no-ig-profile', 'Pulse: Instagram account not pinned', 'PULSE_PROFILE_INSTAGRAM is unset, so Pulse posts to the workspace default Instagram account.');
@@ -13913,8 +13921,9 @@ The {{studioName}} team`,
         return res.status(400).json({ error: "Message is required" });
       }
 
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(500).json({ error: "OpenAI API key not configured" });
+      const apiKey = await tenantOpenAIKey('togninja-chat');
+      if (!apiKey) {
+        return res.status(503).json({ error: 'AI is not available on this instance yet.' });
       }
 
       const assistantId = "asst_nlyO3yRav2oWtyTvkq0cHZaU"; // TOGNINJA BLOG WRITER
@@ -13925,7 +13934,7 @@ The {{studioName}} team`,
         const threadResponse = await fetch('https://api.openai.com/v1/threads', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
             'OpenAI-Beta': 'assistants=v2'
           },
@@ -13944,7 +13953,7 @@ The {{studioName}} team`,
       await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -13958,7 +13967,7 @@ The {{studioName}} team`,
       const runResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -13984,7 +13993,7 @@ The {{studioName}} team`,
         
         const statusResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${runId}`, {
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'OpenAI-Beta': 'assistants=v2'
           }
         });
@@ -14005,7 +14014,7 @@ The {{studioName}} team`,
       // Get response
       const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'OpenAI-Beta': 'assistants=v2'
         }
       });
@@ -14048,8 +14057,9 @@ The {{studioName}} team`,
         return res.status(400).json({ error: "Message is required" });
       }
 
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(500).json({ error: "OpenAI API key not configured" });
+      const apiKey = await tenantOpenAIKey('test-chat');
+      if (!apiKey) {
+        return res.status(503).json({ error: 'AI is not available on this instance yet.' });
       }
 
       const assistantId = "asst_nlyO3yRav2oWtyTvkq0cHZaU"; // TOGNINJA BLOG WRITER
@@ -14060,7 +14070,7 @@ The {{studioName}} team`,
         const threadResponse = await fetch('https://api.openai.com/v1/threads', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
             'OpenAI-Beta': 'assistants=v2'
           },
@@ -14079,7 +14089,7 @@ The {{studioName}} team`,
       await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -14093,7 +14103,7 @@ The {{studioName}} team`,
       const runResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -14119,7 +14129,7 @@ The {{studioName}} team`,
         
         const statusResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${runId}`, {
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'OpenAI-Beta': 'assistants=v2'
           }
         });
@@ -14140,7 +14150,7 @@ The {{studioName}} team`,
       // Get response
       const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'OpenAI-Beta': 'assistants=v2'
         }
       });
@@ -18941,6 +18951,9 @@ Return ONLY a valid JSON object with EXACTLY these keys:
 
   app.post("/api/openai/assistants", authenticateUser, async (req: Request, res: Response) => {
     try {
+      // No gate here at all before this: the Bearer header below simply sent whatever the
+      // variable held, which on a provisioned tenant is nothing.
+      const apiKey = await tenantOpenAIKey('openai-assistants');
       const result = insertOpenaiAssistantSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ error: result.error.issues });
@@ -18953,7 +18966,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
           const openaiResponse = await fetch('https://api.openai.com/v1/assistants', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+              'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json',
               'OpenAI-Beta': 'assistants=v2'
             },
@@ -19048,14 +19061,15 @@ Return ONLY a valid JSON object with EXACTLY these keys:
   // ==================== OPENAI CHAT ROUTES ====================
   app.post("/api/openai/chat/thread", async (req: Request, res: Response) => {
     try {
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(400).json({ error: "OpenAI API key not configured" });
+      const apiKey = await tenantOpenAIKey('openai-thread');
+      if (!apiKey) {
+        return res.status(503).json({ error: 'AI is not available on this instance yet.' });
       }
 
       const response = await fetch('https://api.openai.com/v1/threads', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         }
@@ -19081,8 +19095,9 @@ Return ONLY a valid JSON object with EXACTLY these keys:
         return res.status(400).json({ error: "Message is required" });
       }
 
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(400).json({ error: "OpenAI API key not configured" });
+      const apiKey = await tenantOpenAIKey('openai-message');
+      if (!apiKey) {
+        return res.status(503).json({ error: 'AI is not available on this instance yet.' });
       }
 
       if (!threadId) {
@@ -19097,7 +19112,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -19111,7 +19126,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       const runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -19137,7 +19152,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
 
         const statusResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${run.id}`, {
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'OpenAI-Beta': 'assistants=v2'
           }
         });
@@ -19151,7 +19166,7 @@ Return ONLY a valid JSON object with EXACTLY these keys:
       // Get messages
       const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'OpenAI-Beta': 'assistants=v2'
         }
       });
@@ -19592,8 +19607,9 @@ Was interessiert Sie am meisten?`;
 
       console.log('AutoBlog Assistant chat request:', { message, assistantId, threadId, imageCount: images?.length || 0 });
 
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(500).json({ error: 'OpenAI API key not configured' });
+      const apiKey = await tenantOpenAIKey('autoblog-chat');
+      if (!apiKey) {
+        return res.status(503).json({ error: 'AI is not available on this instance yet.' });
       }
 
       if (!assistantId) {
@@ -19729,7 +19745,7 @@ Was interessiert Sie am meisten?`;
           const statusResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}`, {
             method: 'GET',
             headers: {
-              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+              'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json',
               'OpenAI-Beta': 'assistants=v2'
             }
@@ -19768,7 +19784,7 @@ Was interessiert Sie am meisten?`;
       const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         }
