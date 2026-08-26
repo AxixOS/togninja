@@ -13,7 +13,7 @@ import { storage } from './storage';
 import { BLOG_ASSISTANT, DEBUG_OPENAI } from './config';
 import { logAutoBlogCall, runAutoBlogDiagnostics } from './autoblog-diagnostics';
 import { contentProcessor, type ImageAnalysisResult } from './autoblog-content-fixes';
-import { requireTenantOpenAI } from './lib/openaiClient';
+import { requireTenantOpenAI, tenantOpenAIKey } from './lib/openaiClient';
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 // Resolved at use, not at import. A module-level client captures whichever key existed
@@ -342,6 +342,17 @@ Key Features: High-quality photography, professional editing, personal service
    */
   async generateWithTOGNinjaAssistant(images: ProcessedImage[], input: AutoBlogInput, context: string): Promise<string | null> {
     try {
+      // The Assistants flow below talks to api.openai.com with a bare fetch, so it needs the
+      // KEY rather than a client. Resolved the same way everything else is — the studio's own
+      // key first, the platform's only as a fallback — because blog writing is ongoing work a
+      // studio asked for. These headers read process.env.OPENAI_API_KEY directly until now,
+      // which on a provisioned tenant is unset: they sent the literal string "Bearer undefined"
+      // and every one of them 401'd.
+      const apiKey = await tenantOpenAIKey('autoblog-assistant');
+      if (!apiKey) {
+        console.warn('[autoblog] no OpenAI key configured — cannot reach the Assistant');
+        return null;
+      }
       console.log('🚀 Using REAL TOGNINJA BLOG WRITER Assistant with preserved training...');
       
       // ENHANCED: Get detailed image analysis first
@@ -370,7 +381,7 @@ Key Features: High-quality photography, professional editing, personal service
           const uploadResponse = await fetch('https://api.openai.com/v1/files', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+              'Authorization': `Bearer ${apiKey}`,
             },
             body: formData as any
           });
@@ -389,7 +400,7 @@ Key Features: High-quality photography, professional editing, personal service
       const threadResponse = await fetch('https://api.openai.com/v1/threads', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -404,7 +415,7 @@ Key Features: High-quality photography, professional editing, personal service
       await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -418,7 +429,7 @@ Key Features: High-quality photography, professional editing, personal service
       const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -436,7 +447,7 @@ Key Features: High-quality photography, professional editing, personal service
         await new Promise(resolve => setTimeout(resolve, 2000));
         const statusResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${runStatus.id}`, {
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
             'OpenAI-Beta': 'assistants=v2'
           }
@@ -449,7 +460,7 @@ Key Features: High-quality photography, professional editing, personal service
       if (runStatus.status === 'completed') {
         const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
             'OpenAI-Beta': 'assistants=v2'
           }
@@ -475,7 +486,7 @@ Key Features: High-quality photography, professional editing, personal service
             await fetch(`https://api.openai.com/v1/files/${fileId}`, {
               method: 'DELETE',
               headers: {
-                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                'Authorization': `Bearer ${apiKey}`,
               }
             });
           } catch (error) {
@@ -499,6 +510,14 @@ Key Features: High-quality photography, professional editing, personal service
    */
   async getRawAssistantContent(images: ProcessedImage[], input: AutoBlogInput, siteContext: string, assistantId: string): Promise<string | null> {
     try {
+      // Same resolution as the method above: this one mixes SDK calls with raw fetches, so it
+      // needs both a client and a key, and they must come from the same place or the two halves
+      // of one operation could bill different accounts.
+      const apiKey = await tenantOpenAIKey('autoblog-raw');
+      if (!apiKey) {
+        console.warn('[autoblog] no OpenAI key configured — cannot read the Assistant reply');
+        return null;
+      }
       // Use simple context for raw content
       const userMessage = `Create a German blog post about this photography session: ${input.contentGuidance || 'Professional photography session'}`;
       
@@ -517,7 +536,7 @@ Key Features: High-quality photography, professional editing, personal service
       let runStatus;
       const response = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         }
@@ -530,7 +549,7 @@ Key Features: High-quality photography, professional editing, personal service
         await new Promise(resolve => setTimeout(resolve, 2000));
         const statusResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
             'OpenAI-Beta': 'assistants=v2'
           }
@@ -542,7 +561,7 @@ Key Features: High-quality photography, professional editing, personal service
       if (runStatus.status === 'completed') {
         const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
             'OpenAI-Beta': 'assistants=v2'
           }
@@ -840,6 +859,11 @@ ADDITIONAL CONTEXT SOURCES:
     assistantId: string
   ): Promise<AutoBlogParsed | null> {
     try {
+      const apiKey = await tenantOpenAIKey('autoblog-prompt');
+      if (!apiKey) {
+        console.warn('[autoblog] no OpenAI key configured — cannot run the prompt template');
+        return null;
+      }
       console.log('🎯 === SOPHISTICATED TOGNINJA PROMPT TEMPLATE ===');
       console.log('🔑 Using Assistant ID:', assistantId);
       
@@ -921,7 +945,7 @@ Create complete blog package with all sections per your training. Include SEO ta
       try {
         const response = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
             'OpenAI-Beta': 'assistants=v2'
           }
@@ -964,7 +988,7 @@ Create complete blog package with all sections per your training. Include SEO ta
         try {
           const response = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
             headers: {
-              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+              'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json',
               'OpenAI-Beta': 'assistants=v2'
             }

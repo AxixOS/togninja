@@ -8,6 +8,8 @@
  * with intelligent HTML conversion but NO content modification.
  */
 
+import { tenantOpenAIKey } from './lib/openaiClient';
+
 // Types for the Assistant-First architecture
 interface ProcessedImage {
   buffer: Buffer;
@@ -48,8 +50,15 @@ export class AssistantFirstAutoBlogGenerator {
     }
 
     console.log('🔍 ANALYZING', images.length, 'UPLOADED IMAGES WITH GPT-4o VISION');
-    
+
     try {
+      // Returns a STRING, so a missing key degrades to the same "no analysis" sentence this
+      // method already produces for an empty image list — not null into a template.
+      const apiKey = await tenantOpenAIKey('autoblog-vision');
+      if (!apiKey) {
+        console.warn('[autoblog] no OpenAI key configured — skipping image analysis');
+        return 'IMAGE ANALYSIS:\nNot available on this instance';
+      }
       // Prepare images for GPT-4o Vision analysis
       const imageContent = [];
       
@@ -88,7 +97,7 @@ export class AssistantFirstAutoBlogGenerator {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -311,6 +320,11 @@ CRITICAL: Generate the COMPLETE FULL BLOG ARTICLE with proper H2/H3 structure, N
     context: string
   ): Promise<string | null> {
     try {
+      const apiKey = await tenantOpenAIKey('autoblog-assistant-first');
+      if (!apiKey) {
+        console.warn('[autoblog] no OpenAI key configured — cannot reach the Assistant');
+        return null;
+      }
       console.log('🎯 CALLING YOUR TRAINED TOGNINJA ASSISTANT - NO INTERFERENCE');
       
       // COMPREHENSIVE CONTEXT - ALL 7 DATA SOURCES FOR YOUR ASSISTANT
@@ -321,7 +335,7 @@ CRITICAL: Generate the COMPLETE FULL BLOG ARTICLE with proper H2/H3 structure, N
       const threadResponse = await fetch('https://api.openai.com/v1/threads', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -334,7 +348,7 @@ CRITICAL: Generate the COMPLETE FULL BLOG ARTICLE with proper H2/H3 structure, N
       await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -348,7 +362,7 @@ CRITICAL: Generate the COMPLETE FULL BLOG ARTICLE with proper H2/H3 structure, N
       const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'assistants=v2'
         },
@@ -368,7 +382,7 @@ CRITICAL: Generate the COMPLETE FULL BLOG ARTICLE with proper H2/H3 structure, N
         
         const statusResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
           headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Authorization': `Bearer ${apiKey}`,
             'OpenAI-Beta': 'assistants=v2'
           }
         });
@@ -385,7 +399,7 @@ CRITICAL: Generate the COMPLETE FULL BLOG ARTICLE with proper H2/H3 structure, N
       // Get messages
       const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'OpenAI-Beta': 'assistants=v2'
         }
       });
