@@ -83,13 +83,54 @@ export async function tenantOpenAI(label: string, options: ClientOptions = {}): 
  * call already comes through here, nothing else has to.
  */
 export async function platformOpenAI(label: string, options: ClientOptions = {}): Promise<InstanceType<typeof OpenAI> | null> {
-  const key = process.env.OPENAI_API_KEY;
+  const key = platformKey();
   if (!key) {
     console.warn(`[${label}] no platform OpenAI key — platform-funded generation is unavailable`);
     return null;
   }
   const C = await ctor();
   return new C({ apiKey: key, ...options });
+}
+
+/**
+ * THE PLATFORM'S KEY, from a slot the tenant cannot write.
+ *
+ * This function exists because reading process.env.OPENAI_API_KEY here was WRONG, and wrong in
+ * the direction that costs a customer money. That variable is not the platform's — it is a
+ * shared, mutable slot that the studio's own key overwrites, by two separate routes:
+ *
+ *   server/technical-setup-routes.ts:413  `if (openaiApiKey) process.env.OPENAI_API_KEY = ...`
+ *       Unconditional, at runtime, the moment a studio saves a key in Technical Setup.
+ *   server/config-reader.ts:343  hydrateEnvFromDb(), at every boot
+ *       Copies studio_integrations.openai_api_key_encrypted into OPENAI_API_KEY. Its guard is
+ *       `if (process.env[envName]) continue`, which only protects a slot that is ALREADY set —
+ *       and an AxixOS-provisioned tenant deliberately has no OPENAI_API_KEY, so on exactly the
+ *       deployments this product is sold as, the studio's key lands in the platform's slot and
+ *       stays there.
+ *
+ * The consequence was total rather than occasional: with the gateway returning 404 today, every
+ * ai.landing, ai.authority_map and ai.authority_from_crawl call falls through to the direct
+ * path — so the homepage rewrite, the authority map and up to six pillar pages, the entire
+ * sales pitch the platform is supposed to fund, were billed to the studio's own OpenAI account.
+ * The docblock above says "Never the studio's key, even when they have one." It was not true.
+ *
+ * TWO SLOTS, IN ORDER:
+ *   1. PLATFORM_OPENAI_API_KEY — explicit, and nothing in this codebase ever writes it. This is
+ *      the one to set going forward. It mirrors what AxixOS did on their own side for exactly
+ *      this reason, and the TAVILY_PLATFORM_API_KEY separation config-reader already documents.
+ *   2. A snapshot of OPENAI_API_KEY taken at MODULE LOAD, which is before hydrateEnvFromDb runs
+ *      (server/index.ts:397, inside async boot) and before any request can reach Technical
+ *      Setup. Existing deployments keep working without a config change; a studio saving their
+ *      own key afterwards cannot reach this value, because it was copied before they could.
+ *
+ * The live process.env.OPENAI_API_KEY is never read here again.
+ */
+const PLATFORM_KEY_AT_BOOT = (process.env.OPENAI_API_KEY || '').trim();
+
+function platformKey(): string | null {
+  const explicit = (process.env.PLATFORM_OPENAI_API_KEY || '').trim();
+  if (explicit) return explicit;
+  return PLATFORM_KEY_AT_BOOT || null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -327,5 +368,9 @@ export function platformAiConfigured(): boolean {
   // EITHER route counts. A provisioned tenant has an AxixOS key and deliberately no
   // OPENAI_API_KEY, so checking only the latter would refuse before the gateway was tried —
   // which is the precise failure this function was rewritten to remove.
-  return !!(gatewayKey() || (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim()));
+  //
+  // platformKey(), not process.env.OPENAI_API_KEY: this must agree with what platformOpenAI
+  // will actually resolve, and the live variable is one a studio's own key overwrites. Reading
+  // it here would report the platform funded when only the studio is.
+  return !!(gatewayKey() || platformKey());
 }

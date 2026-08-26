@@ -19,6 +19,104 @@ import { join } from 'path';
 
 const read = (p) => readFileSync(p, 'utf8');
 
+/**
+ * Blank out comments, WITHOUT deleting code that merely looks like one.
+ *
+ * This was `src.replace(/\/\*[\s\S]*?\*\//g, ' ')` plus a line-comment regex, and it was
+ * catastrophically wrong on real source. `'https://x'` contains `//`, so everything after it on
+ * that line vanished — including endpoint paths the purpose check needed to see. Worse, any
+ * string containing `/*` opened a block comment that ran until the next `*​/` anywhere in the
+ * file: a review measured roughly 160KB of server code being deleted before the checks looked at
+ * it, including server/routes.ts 2159-3941 and server/index.ts 235-1315.
+ *
+ * A guard that silently stops reading two thirds of a file passes for reasons that have nothing
+ * to do with the code being correct. So this walks the source character by character, tracking
+ * whether it is inside a string, a template literal, a regex, or a comment, and replaces only
+ * genuine comment bytes with spaces — preserving offsets so line numbers and windows still line
+ * up with the original.
+ */
+function stripComments(src) {
+  const out = Array.from(src);
+  let i = 0;
+  const n = src.length;
+  let state = 'code'; // code | line | block | sq | dq | tpl | re
+  // Whether a `/` here starts a regex or is a division operator. Regex literals matter because
+  // one can contain // or /* — e.g. /https:\/\//g.
+  const regexAllowedAfter = /[=(,:[!&|?{};+\-*%~^<>]|return|typeof|case|in|of|new|delete|void|instanceof$/;
+  while (i < n) {
+    const c = src[i];
+    const c2 = src[i + 1];
+    if (state === 'code') {
+      if (c === '/' && c2 === '/') { state = 'line'; out[i] = ' '; out[i + 1] = ' '; i += 2; continue; }
+      if (c === '/' && c2 === '*') { state = 'block'; out[i] = ' '; out[i + 1] = ' '; i += 2; continue; }
+      if (c === "'") { state = 'sq'; i++; continue; }
+      if (c === '"') { state = 'dq'; i++; continue; }
+      if (c === '`') { state = 'tpl'; i++; continue; }
+      if (c === '/') {
+        const before = src.slice(Math.max(0, i - 12), i).trimEnd();
+        if (before === '' || regexAllowedAfter.test(before)) { state = 're'; i++; continue; }
+      }
+      i++; continue;
+    }
+    if (state === 'line') {
+      if (c === '\n') { state = 'code'; i++; continue; }
+      out[i] = ' '; i++; continue;
+    }
+    if (state === 'block') {
+      if (c === '*' && c2 === '/') { state = 'code'; out[i] = ' '; out[i + 1] = ' '; i += 2; continue; }
+      if (c !== '\n') out[i] = ' ';
+      i++; continue;
+    }
+    // Inside a string / template / regex: copy verbatim, honour escapes, find the terminator.
+    if (c === '\\') { i += 2; continue; }
+    if (state === 'sq' && c === "'") { state = 'code'; i++; continue; }
+    if (state === 'dq' && c === '"') { state = 'code'; i++; continue; }
+    if (state === 'tpl' && c === '`') { state = 'code'; i++; continue; }
+    if (state === 're' && c === '/') { state = 'code'; i++; continue; }
+    // An unterminated string cannot span a newline in valid JS; recover rather than eat the file.
+    if ((state === 'sq' || state === 'dq' || state === 're') && c === '\n') { state = 'code'; i++; continue; }
+    i++;
+  }
+  return out.join('');
+}
+
+/**
+ * The text of the call expression containing `index`.
+ *
+ * Walks back to the `(` that opens the enclosing call, then forward to its match, counting
+ * depth and ignoring anything inside quotes. Returns the whole argument list, so a check can
+ * ask "does THIS call name a purpose" rather than "is the word purpose somewhere nearby".
+ *
+ * Falls back to a bounded slice if the parentheses do not balance, so a parse quirk degrades
+ * to the old behaviour rather than throwing the whole verifier.
+ */
+function enclosingCall(code, index) {
+  let open = -1, depth = 0;
+  for (let i = index; i >= 0 && index - i < 4000; i--) {
+    const c = code[i];
+    if (c === ')') depth++;
+    else if (c === '(') {
+      if (depth === 0) { open = i; break; }
+      depth--;
+    }
+  }
+  if (open < 0) return code.slice(index, index + 600);
+
+  let d = 0, q = null;
+  for (let i = open; i < code.length && i - open < 20000; i++) {
+    const c = code[i];
+    if (q) {
+      if (c === '\\') { i++; continue; }
+      if (c === q) q = null;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') { q = c; continue; }
+    if (c === '(') d++;
+    else if (c === ')') { d--; if (d === 0) return code.slice(open, i + 1); }
+  }
+  return code.slice(open, Math.min(code.length, open + 4000));
+}
+
 let failed = 0;
 const check = (label, ok, detail = '') => {
   console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${label}${detail ? '  — ' + detail : ''}`);
@@ -55,6 +153,32 @@ check('the studio path reads the tenant key first',
 // A platform call falling back to a tenant key would charge the studio for the sales pitch.
 check('the platform path never falls back to a tenant key',
   !/platformOpenAI[\s\S]*?config\.get/.test(resolver));
+
+// ── The platform's key comes from a slot no tenant can write ────────────────
+//
+// The check above asks whether platformOpenAI calls config.get. It passed for months while the
+// function was doing the forbidden thing by another route entirely: reading
+// process.env.OPENAI_API_KEY, which IS a tenant value. technical-setup-routes writes the
+// studio's key there the moment they save one, and config-reader's hydrateEnvFromDb copies it
+// there at every boot on any deployment where the slot starts empty — which is precisely an
+// AxixOS-provisioned tenant. So the studio funded their own sales pitch, and this file said ok.
+//
+// Bound to the function BODY, because "somewhere in the file" is how the original passed.
+const platformBody = (() => {
+  const start = resolverCode.indexOf('export async function platformOpenAI');
+  if (start < 0) return '';
+  const end = resolverCode.indexOf('\n}', start);
+  return end < 0 ? resolverCode.slice(start) : resolverCode.slice(start, end);
+})();
+
+check('the platform path does not read the shared env slot',
+  platformBody.length > 0 && !platformBody.includes('process.env.OPENAI_API_KEY'),
+  'that variable is tenant-writable; a studio saving a key would fund their own onboarding');
+
+check('the platform key is captured before a tenant can overwrite it',
+  resolverCode.includes('PLATFORM_OPENAI_API_KEY')
+  && /const PLATFORM_KEY_AT_BOOT\s*=/.test(resolverCode),
+  'an explicit platform slot, and a boot snapshot for deployments that have not set one');
 
 check('and it says so when the platform is paying for ongoing work',
   resolver.includes('bills to the PLATFORM key'));
@@ -96,7 +220,7 @@ for (const f of walk('server')) {
   if (ALLOWED.has(f)) continue;
   const src = read(f);
   // Comments may discuss the variable; code may not construct a client from it.
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  const code = stripComments(src);
   if (!/new OpenAI\(\s*\{\s*apiKey:\s*process\.env\.OPENAI_API_KEY/.test(code)) continue;
   (DEAD.has(f) ? deadOffenders : offenders).push(f);
 }
@@ -165,13 +289,21 @@ const endpointMisses = [];
 for (const f of walk('server')) {
   const src = read(f);
   // Comments name these paths while documenting them; only real calls matter.
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  const code = stripComments(src);
   const re = /\/v1\/(search|crawl)\/[a-z]+/g;
   let m;
   while ((m = re.exec(code))) {
-    // The body follows the path within a few lines. Deliberately generous — a window too
-    // short produces a false FAIL, which is noisy but safe; too long produces a false PASS.
-    if (!code.slice(m.index, m.index + 600).includes('purpose')) {
+    // Bounded by the CALL, not by a character count.
+    //
+    // This was `code.slice(m.index, m.index + 600)`, and the number was wrong in both
+    // directions. Too far and a call with no purpose passes on its NEIGHBOUR's purpose; too
+    // near and correct code fails — which is exactly what happened the moment comments started
+    // being blanked rather than deleted, because a seven-line explanation between the path and
+    // the body pushed a real `purpose` past 600 characters of preserved offsets.
+    //
+    // A magic number cannot express "this call names its purpose". Balanced parentheses can.
+    const call = enclosingCall(code, m.index);
+    if (!call.includes('purpose')) {
       endpointMisses.push(`${f.replace('server/', '')} ${m[0]}`);
     }
   }
