@@ -54,7 +54,11 @@ services:
     region: oregon      # must match the database region, or every query crosses a continent
     plan: free          # free spins down when idle; "starter" for always-on
     repo: https://github.com/AxixOS/togninja
-    branch: product/main
+    # main, not product/main. `product` is the REMOTE name in this working copy — the pushes
+    # are `git push product HEAD:main`, which sends to remote `product`, branch `main`. Writing
+    # the remote/branch shorthand here made Render look for a branch literally called
+    # "product/main", which does not exist, and refuse the Blueprint.
+    branch: main
     autoDeploy: true
     healthCheckPath: /healthz
     envVars:

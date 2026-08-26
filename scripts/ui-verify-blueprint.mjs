@@ -30,8 +30,34 @@ check('it points at the product repository',
   y.includes('https://github.com/AxixOS/togninja'),
   'siparrott/studioOS-platform is the previous one');
 
-check('and the branch the product ships from',
-  /branch:\s*product\/main/.test(y));
+// The branch must be a BRANCH, not remote/branch shorthand.
+//
+// This file said `product/main`, which reads like a branch and is not one. In the working
+// copy `product` is the REMOTE — the pushes are `git push product HEAD:main`, i.e. remote
+// `product`, branch `main`. Render went looking for a branch literally called
+// "product/main", found none, and refused the Blueprint with
+//
+//     services[0].branch  branch product/main could not be found
+//
+// Slashes in branch names are perfectly legal (feature/x), so the check is not "no slash".
+// It is: the first segment must not be the name of a remote configured in this repository,
+// which is exactly the confusion that produced it.
+const branchLine = lines.find((l) => l.startsWith('branch:')) || '';
+const branch = branchLine.replace('branch:', '').trim();
+
+let remoteNames = [];
+try {
+  const cfg = readFileSync('.git/config', 'utf8');
+  remoteNames = [...cfg.matchAll(/\[remote "([^"]+)"\]/g)].map((m) => m[1]);
+} catch { /* not a git checkout; skip the cross-check rather than fail */ }
+
+check('a branch is declared', branch.length > 0, branch || 'none');
+
+check('it is a branch name, not remote/branch shorthand',
+  !remoteNames.includes(branch.split('/')[0]),
+  remoteNames.length
+    ? `branch "${branch}" vs remotes ${remoteNames.join(', ')}`
+    : 'no git config to cross-check against');
 
 // ── It cannot ship a CRM-wipe endpoint ──────────────────────────────────────
 //
