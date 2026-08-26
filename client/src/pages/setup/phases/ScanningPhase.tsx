@@ -116,6 +116,8 @@ export default function ScanningPhase({ onComplete, isLast = false }: ScanningPh
   // URL was captured in Basics, then polls the pipeline and previews the draft.
   const [hpKicked, setHpKicked] = useState(false);
   const [hpPolling, setHpPolling] = useState(true);
+  /** Why a regenerate did not start. The server refuses with a reason; the studio should read it. */
+  const [hpNotice, setHpNotice] = useState<string | null>(null);
   const { data: hp } = useQuery<any>({
     queryKey: ['homepage-gen-status'],
     queryFn: async () => {
@@ -157,9 +159,24 @@ export default function ScanningPhase({ onComplete, isLast = false }: ScanningPh
 
   // Re-run generation from scratch (fresh crawl + AI). Uses the backend's force path,
   // which clears the prior draft. Lets you regenerate if you're not happy with the draft.
-  const handleRegenerate = () => {
+  // A refusal has to be visible. This was `.catch(() => {})` with the response discarded, so
+  // when the server started bounding this endpoint — a cooldown, and a lifetime run limit that
+  // ?force=1 cannot step over — the button became a no-op that looked like a broken button.
+  // Nothing is worse to use than a control that responds to being pressed by doing nothing.
+  const handleRegenerate = async () => {
+    setHpNotice(null);
     setHpPolling(true);
-    fetch('/api/setup/homepage/generate?force=1', { method: 'POST' }).catch(() => {});
+    try {
+      const res = await fetch('/api/setup/homepage/generate?force=1', { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as any));
+        setHpPolling(false);
+        setHpNotice(body?.message || 'That could not be started just now. Please try again shortly.');
+      }
+    } catch {
+      setHpPolling(false);
+      setHpNotice('We could not reach the server. Check your connection and try again.');
+    }
   };
 
   // Complete phase mutation
@@ -299,6 +316,12 @@ export default function ScanningPhase({ onComplete, isLast = false }: ScanningPh
           platform's own configuration, not a fault in their website and not something a retry
           can change — offering one would just fail again and read as their problem.
         */}
+        {hpNotice && (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+            {hpNotice}
+          </div>
+        )}
+
         {hp?.status === 'skipped' && (
           <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-700">
             Automatic homepage writing isn't switched on for this instance yet — that's on us,

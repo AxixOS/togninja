@@ -53,6 +53,15 @@ export interface HomepageGenState {
   error: string | null;
   startedAt: string | null;
   website: string | null;
+  /**
+   * How many times this instance has started a generation, ever.
+   *
+   * Carried across runs deliberately. It is what bounds POST /api/setup/homepage/generate,
+   * which is open to anonymous callers for as long as onboarding is unfinished — and one run
+   * spends a homepage, a profile distil, an authority map and a pillar page per pillar, all
+   * platform-funded. Without a number that survives the next run there is nothing to count.
+   */
+  runs: number;
 }
 
 /** Append a finding and flush, so the client sees it on its next poll. */
@@ -220,10 +229,14 @@ async function uniqueSlug(base: string): Promise<string> {
  */
 export async function runHomepagePipeline(config: any, opts: { force?: boolean } = {}): Promise<void> {
   const website = normalizeWebsiteUrl(config?.website || config?.frontendUrl || '');
+  // Everything else is reset per run; `runs` is not. It is the only field that has to survive,
+  // because it is what the open generate endpoint counts against.
+  const priorRuns = Number((config?.homepageGenState as any)?.runs || 0);
   const state: HomepageGenState = {
     status: 'running', stage: 'crawling', pagesCrawled: 0, findings: [],
     draftId: null, slug: null, previewToken: null, error: null,
     startedAt: new Date().toISOString(), website: website || null,
+    runs: priorRuns + 1,
   };
 
   try {

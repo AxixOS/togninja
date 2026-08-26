@@ -804,6 +804,22 @@ router.get('/status', async (_req: Request, res: Response) => {
 // edits + publishes + sets as their homepage. Runs on the OPEN setup surface because
 // the user has no session yet during onboarding. See server/lib/homepage-pipeline.ts.
 
+/**
+ * How many generations one instance may start while its setup surface is open, ever, and how
+ * close together.
+ *
+ * Five is generous for the real case: a studio runs this once automatically, looks at the
+ * result, and regenerates once or twice if the crawl caught a thin page. It is not generous
+ * for a loop. Ninety seconds stops the same person double-clicking Regenerate, and stops two
+ * wizard steps racing each other — ScanningPhase and SiteImagesPhase both fire this.
+ *
+ * These are OUR bounds on an open endpoint, not the gateway's budget. AxixOS enforces its own
+ * allowance server-side and must keep doing so; a tenant counting its own spend is the same
+ * non-enforcement one layer along.
+ */
+const GENERATE_MAX_RUNS = 5;
+const GENERATE_COOLDOWN_MS = 90_000;
+
 router.post('/homepage/generate', async (req: Request, res: Response) => {
   try {
     const config = await getConfigRow();
@@ -817,6 +833,45 @@ router.post('/homepage/generate', async (req: Request, res: Response) => {
     // Idempotency: don't double-fire a running job unless forced.
     if (current?.status === 'running' && !force) {
       return res.json({ started: true, already: true });
+    }
+
+    // ── Bounds that `force` cannot walk past ────────────────────────────────
+    //
+    // This mount is open to anonymous callers for as long as creative_setup_complete is false
+    // (see the /api/setup guard in routes.ts) — which is exactly the state a freshly
+    // provisioned tenant sits in, publicly reachable on its Render URL, before its owner has
+    // ever logged in. The only gate here was `status === 'running' && !force`, and ?force=1
+    // steps straight over it.
+    //
+    // What that buys an attacker is not a slow endpoint, it is money. One run spends a
+    // homepage, a business-profile distil, an authority map and ONE PILLAR PAGE PER PILLAR —
+    // seven to ten platform-funded generations, against an allowance of ten per purpose. A
+    // loop over ?force=1 drains the platform's budget for that studio before the studio
+    // arrives, and after the gateway lands it burns their attempt cap too, because AxixOS
+    // counts failures.
+    //
+    // Both bounds apply to forced calls, or they are decoration.
+    const runs = Number((current as any)?.runs || 0);
+    const startedAt = current?.startedAt ? Date.parse(current.startedAt) : 0;
+    const sinceLast = startedAt ? Date.now() - startedAt : Infinity;
+
+    if (sinceLast < GENERATE_COOLDOWN_MS) {
+      return res.status(429).json({
+        started: false,
+        reason: 'cooling-down',
+        retryAfterSeconds: Math.ceil((GENERATE_COOLDOWN_MS - sinceLast) / 1000),
+        message: 'A generation was just started. Give it a moment before trying again.',
+      });
+    }
+
+    if (runs >= GENERATE_MAX_RUNS) {
+      return res.status(429).json({
+        started: false,
+        reason: 'run-limit',
+        message:
+          'This site has been regenerated the maximum number of times during setup. '
+          + 'You can still edit any page from your dashboard.',
+      });
     }
 
     // On force, delete the old draft if it's still a draft (avoids orphans).

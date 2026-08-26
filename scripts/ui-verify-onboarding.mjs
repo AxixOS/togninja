@@ -210,6 +210,42 @@ check('the unavailable state does not offer a pointless retry',
   !skippedBlock.slice(0, 700).includes('handleRegenerate'),
   'a platform key does not appear because somebody clicked Try again');
 
+console.log('\n=== the open generate endpoint is bounded ===');
+// POST /api/setup/homepage/generate is reachable by anyone while creative_setup_complete is
+// false — the state a freshly provisioned tenant sits in, on a public URL, before its owner has
+// logged in. One run spends a homepage, a profile distil, an authority map and a pillar page
+// per pillar, all platform-funded. Its only gate was `status === 'running' && !force`, which
+// ?force=1 steps over, so a loop drained the platform's budget for a studio who had not arrived.
+const genRoute = (() => {
+  const a = setupRoutes.indexOf("router.post('/homepage/generate'");
+  const b = setupRoutes.indexOf("router.post('/homepage/starter'");
+  return a < 0 ? '' : setupRoutes.slice(a, b > a ? b : a + 6000);
+})();
+
+check('a forced regenerate still respects a cooldown',
+  genRoute.includes('GENERATE_COOLDOWN_MS') && genRoute.includes('cooling-down'));
+
+check('and a lifetime run limit',
+  genRoute.includes('GENERATE_MAX_RUNS') && genRoute.includes('run-limit'));
+
+// The bounds must be unconditional. Inside an `if (!force)` they would be decoration, which is
+// precisely what the original gate was.
+check('the bounds are not something force can step over',
+  genRoute.includes('GENERATE_COOLDOWN_MS')
+  && !/!force[\s\S]{0,400}GENERATE_(COOLDOWN_MS|MAX_RUNS)/.test(genRoute),
+  'checked unconditionally, after the idempotency gate');
+
+// A counter the pipeline resets counts to one forever. runHomepagePipeline builds a fresh
+// state object every run, so this field has to be carried across deliberately.
+check('the run counter survives the run that increments it',
+  pipeline.includes('priorRuns') && pipeline.includes('runs: priorRuns + 1'),
+  'the pipeline rebuilds its state each run and would otherwise zero it');
+
+// A refusal the client discards is a button that does nothing when pressed.
+check('a refused regenerate is shown to the studio',
+  scanning.includes('setHpNotice') && scanning.includes('{hpNotice &&'),
+  'the 429 carries a reason; it has to reach the screen');
+
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');
