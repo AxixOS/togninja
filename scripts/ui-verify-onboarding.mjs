@@ -184,6 +184,32 @@ check('a rotated encryption key does not padlock everything',
   && caps.includes("status: 'unreadable' as const"),
   'doors stay open; the status carries the truth');
 
+console.log('\n=== a run that stops tells you it stopped ===');
+// The homepage pipeline reaches three terminal states. ScanningPhase stops polling on all
+// three — but only rendered a panel for two, so 'skipped' made the generation card vanish
+// mid-run: "Writing your new homepage…" disappeared and the studio was told nothing. No
+// error, no retry, no way to tell a missing credential from a crash from a finished job.
+//
+// Bound to the pipeline rather than to a list written here, so a fourth terminal state added
+// later fails this check instead of silently rendering nothing. quota_exceeded is coming.
+// `pipeline` and `scanning` are already read above — reusing them rather than reading the
+// same two files a second time under new names.
+const terminal = [...new Set(
+  [...pipeline.matchAll(/state\.status = '([a-z_]+)'/g)].map((m) => m[1]),
+)].filter((s) => s !== 'running');
+
+const unrendered = terminal.filter((s) => !scanning.includes(`hp?.status === '${s}'`));
+check('every terminal generation state renders something',
+  unrendered.length === 0,
+  unrendered.length ? `silent: ${unrendered.join(', ')}` : `${terminal.join(', ')} all surface`);
+
+// A missing platform credential is not fixed by asking again. Offering a retry there just
+// fails again and reads to the studio as their problem rather than ours.
+const skippedBlock = scanning.slice(scanning.indexOf("hp?.status === 'skipped'"));
+check('the unavailable state does not offer a pointless retry',
+  !skippedBlock.slice(0, 700).includes('handleRegenerate'),
+  'a platform key does not appear because somebody clicked Try again');
+
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');

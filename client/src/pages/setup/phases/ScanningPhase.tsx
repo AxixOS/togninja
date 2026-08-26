@@ -146,6 +146,9 @@ export default function ScanningPhase({ onComplete, isLast = false }: ScanningPh
       case 'distilling': return 'Understanding your content…';
       case 'writing': return 'Writing your new homepage…';
       case 'ready': return 'Your new homepage is ready';
+      // Without this, a skipped run sat under "Preparing…" forever while polling had already
+      // stopped — a progress line describing work that was never going to happen.
+      case 'skipped': return 'Homepage writing is unavailable right now';
       default: return 'Preparing…';
     }
   };
@@ -280,6 +283,26 @@ export default function ScanningPhase({ onComplete, isLast = false }: ScanningPh
             >
               Try again
             </button>
+          </div>
+        )}
+
+        {/*
+          The state that rendered nothing at all.
+
+          The pipeline sets status 'skipped' when the platform cannot generate, and polling
+          stops on it — but only 'error' had a panel. So the generation card simply disappeared
+          mid-run: "Writing your new homepage…" vanished and the studio was told nothing, with
+          no way to tell a missing credential from a crash from a finished job.
+
+          Deliberately not styled as an error and deliberately has no Try again. This is the
+          platform's own configuration, not a fault in their website and not something a retry
+          can change — offering one would just fail again and read as their problem.
+        */}
+        {hp?.status === 'skipped' && (
+          <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-700">
+            Automatic homepage writing isn't switched on for this instance yet — that's on us,
+            not your website. Nothing about your setup is affected, and you can write a homepage
+            any time from your dashboard.
           </div>
         )}
 

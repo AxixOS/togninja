@@ -31,10 +31,12 @@ const SHAPE = `{
 
 export async function generateAuthorityMap(input: AuthorityMapInput): Promise<AuthorityMap> {
   if (!hasOpenAI()) throw new NoOpenAIError();
-  const OpenAI = (await import('openai')).default;
   // Platform-funded, same reason as the landing copy it is generated alongside.
   const openai = await platformOpenAI('authority-map');
-  if (!openai) throw new Error('Platform AI is not configured');
+  // NoOpenAIError, not a bare Error. routes.ts branches on e?.name === 'NoOpenAIError' to pick
+  // a status code, so a plain Error here was classified as an unexpected server fault: the
+  // studio got a 500 and the literal words 'Platform AI is not configured' echoed back at them.
+  if (!openai) throw new NoOpenAIError();
 
   const system = `You are an SEO information-architecture strategist. You design topical-authority site structures: a small set of pillar (money/service) pages, each supported by cluster (informational blog) articles, all tied together with an internal-link graph. You output STRICT JSON only — no prose, no code fences.`;
 

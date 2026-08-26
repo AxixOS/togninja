@@ -1,4 +1,4 @@
-import { platformOpenAI } from './openaiClient';
+import { platformOpenAI, platformAiConfigured } from './openaiClient';
 // Shared landing-page copy generator.
 //
 // The prompt-building + OpenAI call used to live inline in the admin route
@@ -6,15 +6,37 @@ import { platformOpenAI } from './openaiClient';
 // route AND the onboarding homepage pipeline (which runs on the un-authenticated
 // /api/setup surface) can produce the same structured page JSON from one context.
 
+/**
+ * The platform cannot generate right now. Never the studio's fault, and never their fix.
+ *
+ * The default message named OPENAI_API_KEY. That string is echoed to the browser by at least
+ * two endpoints, so a photographer was being shown the name of an environment variable on a
+ * host they have no shell on — the same unactionable leak searchProvider's copy was rewritten
+ * to remove. What a studio can act on is nothing; what they need to know is that it is being
+ * handled and that it has not damaged their setup.
+ */
 export class NoOpenAIError extends Error {
-  constructor(message = 'OPENAI_API_KEY is not configured') {
+  constructor(message = 'Site generation is not available on this instance yet') {
     super(message);
     this.name = 'NoOpenAIError';
   }
 }
 
+/**
+ * Can the platform generate? Delegates rather than deciding.
+ *
+ * This used to read process.env.OPENAI_API_KEY itself, which made it a second definition of
+ * "the platform can pay" sitting a few lines above platformOpenAI(), the function that
+ * actually resolves the client. They agreed only by coincidence of reading the same variable.
+ *
+ * That coincidence was about to end. The AxixOS Blueprint stops writing OPENAI_API_KEY into
+ * provisioned tenants, so on every new studio this gate would have returned false and thrown
+ * NoOpenAIError at the top of all three generators — before the gateway they are being pointed
+ * at was ever called. Wiring up /v1/ai/complete would have changed nothing at all, and the
+ * symptom would have been silence rather than an error worth reading.
+ */
 export function hasOpenAI(): boolean {
-  return !!(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim());
+  return platformAiConfigured();
 }
 
 /**
@@ -185,7 +207,6 @@ export async function generateLandingContent(
   context: LandingContext,
 ): Promise<{ content: any; usage: any; model: string }> {
   if (!hasOpenAI()) throw new NoOpenAIError();
-  const OpenAI = (await import('openai')).default;
   // Platform-funded: this is the site a studio sees before they have configured or paid
   // for anything. Never their key. See server/lib/openaiClient.ts.
   const openai = await platformOpenAI('landing-generator');

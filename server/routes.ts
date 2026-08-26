@@ -7693,8 +7693,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       res.json({ ok: true, map });
     } catch (e: any) {
-      const code = e?.name === 'NoOpenAIError' ? 400 : 500;
-      res.status(code).json({ error: e?.name === 'NoOpenAIError' ? 'OpenAI is not configured (set OPENAI_API_KEY) to generate an authority map.' : (e?.message || 'Failed to generate authority map') });
+      // 503, not 400. Nothing was wrong with the request — the platform has not funded
+      // generation on this instance, which is ours to fix and nothing the studio can act on.
+      // The old copy named OPENAI_API_KEY to a photographer with no shell on this host.
+      const noai = e?.name === 'NoOpenAIError';
+      res.status(noai ? 503 : 500).json({
+        error: noai
+          ? 'Automatic authority maps are not available on this instance yet. You can build your structure by hand in the meantime.'
+          : (e?.message || 'Failed to generate authority map'),
+      });
     }
   });
 
@@ -7761,8 +7768,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       res.json({ ok: true, ...out });
     } catch (e: any) {
+      // Same reasoning as the authority-map route above: a platform config fault is a 503,
+      // and the studio is told what still works rather than the name of a variable.
       const noai = e?.name === 'NoOpenAIError';
-      res.status(noai ? 400 : 500).json({ error: noai ? 'OpenAI is not configured (set OPENAI_API_KEY) to build pillar pages.' : (e?.message || 'Failed to scaffold pillar pages') });
+      res.status(noai ? 503 : 500).json({
+        error: noai
+          ? 'Automatic pillar pages are not available on this instance yet. You can add pages by hand in the meantime.'
+          : (e?.message || 'Failed to scaffold pillar pages'),
+      });
     }
   });
 

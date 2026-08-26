@@ -41,7 +41,6 @@ export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void
       .slice(0, 12000);
 
     // 1) Distil a concise business profile from the crawled content.
-    const OpenAI = (await import('openai')).default;
     const openai = await platformOpenAI('authority-from-crawl');
     if (!openai) {
       // Platform-funded. No key means the platform has not funded this, which is our

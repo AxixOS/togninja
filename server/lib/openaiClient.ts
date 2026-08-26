@@ -106,7 +106,22 @@ export async function requireTenantOpenAI(label: string, options: ClientOptions 
   return c;
 }
 
-/** True when the platform can fund generation. For callers that check before starting. */
+/**
+ * Can the platform fund generation at all? THE one definition.
+ *
+ * For callers that want to check before doing expensive preparatory work — reading the
+ * database, distilling a crawl — rather than discovering it after.
+ *
+ * It has to answer the same question platformOpenAI() answers, because a pre-flight gate that
+ * disagrees with the call it guards is worse than no gate: it refuses work the call would have
+ * done, or waves through work the call then refuses, and either way the reason is invisible.
+ * landing-generator's hasOpenAI() used to be a second, independent copy of this. The two
+ * agreed only because they happened to read the same variable — and the AxixOS Blueprint stops
+ * writing OPENAI_API_KEY to provisioned tenants, which is exactly the change that would have
+ * pulled them apart, with the gate refusing before the gateway was ever reached.
+ *
+ * So: when platformOpenAI() learns about the gateway, this changes with it, in this file.
+ */
 export function platformAiConfigured(): boolean {
   return !!(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim());
 }
