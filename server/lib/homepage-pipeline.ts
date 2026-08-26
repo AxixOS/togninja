@@ -445,7 +445,98 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
       preview_token_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     });
 
-    await note(state, 'done', 'Your homepage is ready to look at');
+    // ── Their own photographs, put where they belong ─────────────────────────
+    //
+    // The crawl has just read their website and recorded every photograph on it. Leaving
+    // those in a table nobody reads and then showing the studio an empty page is the worst
+    // of both: we have their work and we are not using it.
+    //
+    // Only fills EMPTY slots, so a photograph the studio uploaded themselves at the
+    // photographs step always wins — this is a floor, not an override. And it is their own
+    // work, so it does not touch the rule against shipping placeholder photography: no stock
+    // is involved and never will be.
+    try {
+      const { crawledImages } = await import('./crawledImages');
+      const found = await crawledImages(12);
+      if (found.length) {
+        const { rows: taken } = await pool.query(
+          `SELECT section FROM homepage_images WHERE is_active = true AND section IN ('hero','content-1','content-2')`,
+        );
+        const filled = new Set((taken as any[]).map((r) => r.section));
+        const wanted = ['hero', 'content-1', 'content-2'].filter((sec) => !filled.has(sec));
+
+        let used = 0;
+        for (const section of wanted) {
+          const img = found[used];
+          if (!img) break;
+          await pool.query(
+            `INSERT INTO homepage_images (section, url, alt, sort_order, is_active) VALUES ($1, $2, $3, 0, true)`,
+            [section, img.url, img.label || null],
+          );
+          used++;
+        }
+
+        if (used > 0) {
+          // The hero also has to reach the page itself — the renderer reads
+          // landing_pages.hero_image_url, not homepage_images.
+          //
+          // updateLandingPage, NOT payload: createLandingPage has already run by this point,
+          // so assigning to payload here would have been a silent no-op that looked correct
+          // in review and shipped an imageless page.
+          if (wanted.includes('hero') && found[0] && !(payload as any).hero_image_url) {
+            await neonDb.updateLandingPage(page.id, { hero_image_url: found[0].url });
+          }
+          await note(
+            state,
+            'found',
+            `Used ${used} of your own photograph${used === 1 ? '' : 's'} from your website`,
+          );
+        }
+      }
+    } catch (e: any) {
+      console.warn('[homepage-pipeline] could not reuse crawled photographs:', e?.message || e);
+    }
+
+    // ── Make it the homepage, if there is not one already ────────────────────
+    //
+    // The pipeline wrote a draft and stopped, and the studio was told they would "review,
+    // edit and publish it from your dashboard after setup". Nobody did, so
+    // studio_configs.homepage_landing_slug stayed NULL and "/" fell through to the built-in
+    // HomePage — which is not a landing page, does not go through the theme/layout
+    // providers, and therefore shows none of the arrangement the studio picked in step one.
+    // A studio who chose Editorial saw a page that could not be Editorial and reasonably
+    // concluded the feature did not work.
+    //
+    // ONLY when there is no homepage yet. This cannot overwrite a studio's existing "/" —
+    // it fills an empty slot on a brand-new instance, where a generated page written from
+    // their own website beats the placeholder it is replacing by every measure.
+    let published = false;
+    try {
+      const { rows } = await pool.query(
+        `SELECT homepage_landing_slug AS slug FROM studio_configs LIMIT 1`,
+      );
+      const existing = String(rows[0]?.slug || '').trim();
+      if (!existing) {
+        await neonDb.updateLandingPage(page.id, { status: 'published' });
+        await pool.query(
+          `UPDATE studio_configs SET homepage_landing_slug = $1, updated_at = now() WHERE id = (SELECT id FROM studio_configs LIMIT 1)`,
+          [page.slug],
+        );
+        published = true;
+      }
+    } catch (e: any) {
+      // The draft still exists and is still previewable; publishing is the bonus, not the
+      // point. Never lose the page over this.
+      console.warn('[homepage-pipeline] could not publish as homepage:', e?.message || e);
+    }
+
+    await note(
+      state,
+      'done',
+      published
+        ? 'Your new homepage is live — you can edit it any time'
+        : 'Your homepage is ready to look at',
+    );
     state.status = 'ready'; state.stage = 'ready';
     state.draftId = page.id; state.slug = page.slug; state.previewToken = previewToken;
     await writeGenState(state);

@@ -6,6 +6,7 @@ import LanguageSelector from '../common/LanguageSelector';
 import { useDateFormatSync } from '../../hooks/useDateFormatSync';
 import NotificationBell from './NotificationBell';
 import AgentChatWidget from './AgentChatWidget';
+import SetupProgressBanner from './SetupProgressBanner';
 import LicenseBanner from './LicenseBanner';
 import {
   LayoutDashboard,
@@ -675,6 +676,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         </header>
 
         {/* Page Content */}
+        {/* Above the page, below the header: a studio should learn what is unconnected
+            before they walk into a feature that needs it, not from that feature's own
+            improvised refusal. */}
+        <SetupProgressBanner />
+
         <main className="flex-1 p-6 overflow-auto">
           <LicenseBanner />
           {children}

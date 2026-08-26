@@ -92,6 +92,8 @@ const AdminInboxPage: React.FC = () => {
   const [replyMode, setReplyMode] = useState<'reply' | 'forward' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Shown inline rather than as a modal — see the refresh handler.
+  const [needsEmailAccount, setNeedsEmailAccount] = useState(false);
   const [folderCounts, setFolderCounts] = useState({ inbox: 0, sent: 0, archive: 0, trash: 0 });
   
   // Custom folders state
@@ -411,8 +413,23 @@ const AdminInboxPage: React.FC = () => {
         await fetchFolderCounts(); // Reload folder counts
         alert(`Email refresh completed: ${result.newEmails ?? 0} new emails imported`);
       } else {
-        // Surface the real reason (e.g. the IMAP auth error) instead of a generic message.
-        alert(result.error || 'Failed to refresh emails. Please try again.');
+        const reason = String(result.error || '');
+        // NOT CONFIGURED IS NOT AN ERROR.
+        //
+        // A brand-new studio arrives here with no email account, presses Refresh, and gets a
+        // browser alert() — a modal, in the middle of the screen, that they have to dismiss
+        // before they can look at anything. That is the shape of a failure, and nothing has
+        // failed: they simply have not connected an account yet, which on day one is the
+        // expected state rather than a mistake.
+        //
+        // Real errors keep the alert, because an IMAP password that stopped working IS a
+        // failure and does deserve interrupting for.
+        if (/not configured/i.test(reason)) {
+          setNeedsEmailAccount(true);
+        } else {
+          // Surface the real reason (e.g. the IMAP auth error) instead of a generic message.
+          alert(reason || 'Failed to refresh emails. Please try again.');
+        }
       }
     } catch (error: any) {
       alert(`Failed to refresh emails: ${error?.message || 'network error'}`);
@@ -1230,6 +1247,20 @@ const AdminInboxPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Said where they are, not over the top of it. */}
+        {needsEmailAccount && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-medium">No email account connected yet</p>
+            <p className="mt-1">
+              Connect one and your client replies land here. Until then you can still write
+              and send from Compose using whatever you use today.
+            </p>
+            <a href="/admin/settings/technical-setup" className="mt-2 inline-block font-medium underline underline-offset-2">
+              Connect an email account
+            </a>
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative">
