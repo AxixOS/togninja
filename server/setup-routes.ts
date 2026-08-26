@@ -1120,6 +1120,17 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       // the landing pages, a preset left behind means the next studio opens on the previous
       // studio's colours and typeface.
       'site_theme_preset',
+      // And the arrangement, which is a separate choice from the palette and was added to
+      // the schema after this list was written. Colour was cleared and composition was not,
+      // so the next studio would have opened on their own palette in the previous studio's
+      // bones — and, being asked to choose a layout at step one, would have seen a default
+      // that was not the default.
+      'site_layout',
+      // Where the studio works. The city drives the search locale, the pillar pages, the
+      // landing-page copy and the currency guess; the country picks the search index. Left
+      // behind, a fresh onboarding starts pre-answered with the last tenant's location, and
+      // the answers look plausible enough that nobody checks them.
+      'city', 'country', 'address', 'phone', 'website',
       // Money and locale — the quietest of the lot and the most misleading during a test.
       // A re-onboarded studio inherited the previous tenant's currency and timezone, so a
       // GBP studio following a GBP studio looks right for the wrong reason and any currency
