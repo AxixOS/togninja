@@ -1,3 +1,4 @@
+import { platformOpenAI } from './openaiClient';
 // Shared landing-page copy generator.
 //
 // The prompt-building + OpenAI call used to live inline in the admin route
@@ -185,7 +186,10 @@ export async function generateLandingContent(
 ): Promise<{ content: any; usage: any; model: string }> {
   if (!hasOpenAI()) throw new NoOpenAIError();
   const OpenAI = (await import('openai')).default;
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  // Platform-funded: this is the site a studio sees before they have configured or paid
+  // for anything. Never their key. See server/lib/openaiClient.ts.
+  const openai = await platformOpenAI('landing-generator');
+  if (!openai) throw new NoOpenAIError();
   const { systemPrompt, userPrompt } = buildLandingPrompts(context);
 
   const completion = await openai.chat.completions.create({

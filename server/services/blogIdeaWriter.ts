@@ -12,6 +12,7 @@ import OpenAI from 'openai';
 import type { BlogContext, VisionResult, ImageExif } from './blogImageAnalysis.js';
 import { loadStudioVoice, voiceRules, type StudioVoice } from './blogStudioVoice.js';
 import { loadCoverage, findConflicts, coverageRules } from './blogCoverage.js';
+import { tenantOpenAI } from '../lib/openaiClient';
 
 export interface IdeaImage {
   url?: string;
@@ -48,8 +49,11 @@ export interface WriterOutput {
 const UNIVERSAL_LINKS = ['/vouchers', '/kontakt', '/contact', '/warteliste', '/waitlist'];
 
 let _openai: OpenAI | null = null;
-function openai(): OpenAI {
-  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+async function openai(): Promise<OpenAI | null> {
+  // Blog writing is ongoing work a studio asked for, so it is theirs to fund. The
+  // 'sk-not-configured' placeholder also produced an OpenAI auth error rather than an
+  // honest "no key" — indistinguishable, in a log, from a key that had been revoked.
+  if (!_openai) _openai = await tenantOpenAI('blog-ideas');
   return _openai;
 }
 
@@ -245,7 +249,7 @@ export async function generateArticle(input: WriterInput): Promise<WriterOutput>
     'Respond as JSON: { "excerpt": "...", "seoTitle": "...", "metaDescription": "...", "html": "...", "faq": [{ "question": "...", "answer": "..." }] }.',
   ].filter(Boolean).join('\n');
 
-  const res = await openai().chat.completions.create({
+  const res = await (await openai())!.chat.completions.create({
     // gpt-4o was two generations behind by the time this shipped.
     model: process.env.BLOG_WRITER_MODEL || 'gpt-4o',
     temperature: 0.6,

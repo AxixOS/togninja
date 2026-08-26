@@ -1,6 +1,7 @@
 // AutoBlog diagnostic utilities based on expert analysis
 import OpenAI from 'openai';
 import { BLOG_ASSISTANT, DEBUG_OPENAI } from './config';
+import { tenantOpenAI } from './lib/openaiClient';
 
 export interface DiagnosticResult {
   issue: string;
@@ -28,7 +29,10 @@ export async function runAutoBlogDiagnostics(): Promise<DiagnosticResult[]> {
   
   // Check #2: Assistant instructions not re-sent
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+    const openai = await tenantOpenAI('autoblog-diagnostics');
+    if (!openai) {
+      return { ok: false, reason: 'No OpenAI key configured' } as any;
+    }
     const assistant = await openai.beta.assistants.retrieve(BLOG_ASSISTANT);
     diagnostics.push({
       issue: "Assistant instructions not re-sent - using chat.completions instead of assistant",

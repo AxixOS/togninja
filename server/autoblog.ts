@@ -13,11 +13,13 @@ import { storage } from './storage';
 import { BLOG_ASSISTANT, DEBUG_OPENAI } from './config';
 import { logAutoBlogCall, runAutoBlogDiagnostics } from './autoblog-diagnostics';
 import { contentProcessor, type ImageAnalysisResult } from './autoblog-content-fixes';
+import { requireTenantOpenAI } from './lib/openaiClient';
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' 
-});
+// Resolved at use, not at import. A module-level client captures whichever key existed
+// when this file was first loaded — always the platform's, because env is set on every
+// deployment. Blog writing is ongoing work a studio asked for, so it is theirs to fund.
+const openai = () => requireTenantOpenAI('autoblog');
 
 // Enable debug logging as per expert advice
 if (DEBUG_OPENAI) {
@@ -300,7 +302,7 @@ Key Features: High-quality photography, professional editing, personal service
     ];
 
     try {
-      const response = await openai.chat.completions.create({
+      const response = await (await openai()).chat.completions.create({
         model: "gpt-4o",
         messages: messages,
         max_tokens: 3000,
@@ -500,13 +502,13 @@ Key Features: High-quality photography, professional editing, personal service
       // Use simple context for raw content
       const userMessage = `Create a German blog post about this photography session: ${input.contentGuidance || 'Professional photography session'}`;
       
-      const thread = await openai.beta.threads.create();
-      await openai.beta.threads.messages.create(thread.id, {
+      const thread = await (await openai()).beta.threads.create();
+      await (await openai()).beta.threads.messages.create(thread.id, {
         role: "user",
         content: userMessage
       });
 
-      const run = await openai.beta.threads.runs.create(thread.id, {
+      const run = await (await openai()).beta.threads.runs.create(thread.id, {
         assistant_id: assistantId,
         temperature: 0.7
       });
@@ -820,7 +822,7 @@ ADDITIONAL CONTEXT SOURCES:
    */
   async getAssistantInstructions(assistantId: string): Promise<string> {
     try {
-      const assistant = await openai.beta.assistants.retrieve(assistantId);
+      const assistant = await (await openai()).beta.assistants.retrieve(assistantId);
       return assistant.instructions || '';
     } catch (error) {
       console.error('Failed to retrieve assistant instructions:', error);
@@ -861,7 +863,7 @@ ADDITIONAL CONTEXT SOURCES:
             ]
           }];
 
-          const imageResponse = await openai.chat.completions.create({
+          const imageResponse = await (await openai()).chat.completions.create({
             model: "gpt-4o",
             messages: imageMessages,
             max_tokens: 50
@@ -889,11 +891,11 @@ ${(input as any).imageMarkdown || ''}
 Create complete blog package with all sections per your training. Include SEO table, outline, key takeaways, and review snippets.`;
 
       // STEP 3: Create thread for REAL Assistant
-      const thread = await openai.beta.threads.create();
+      const thread = await (await openai()).beta.threads.create();
       console.log('✅ Thread created:', thread.id);
       
       // Send message to REAL Assistant (no file uploads needed - context is in text)
-      const message = await openai.beta.threads.messages.create(thread.id, {
+      const message = await (await openai()).beta.threads.messages.create(thread.id, {
         role: "user",
         content: userMessage
       });
@@ -901,7 +903,7 @@ Create complete blog package with all sections per your training. Include SEO ta
 
       // Run the REAL Assistant using SDK with FIXED max_tokens (Fix #5 from expert analysis)
       console.log('🚀 Running TOGNINJA BLOG WRITER Assistant using proper SDK...');
-      const run = await openai.beta.threads.runs.create(thread.id, {
+      const run = await (await openai()).beta.threads.runs.create(thread.id, {
         assistant_id: assistantId,
         // max_tokens: 2000, // Removed - not supported in Assistant API
         temperature: 0.7,
@@ -984,7 +986,7 @@ Create complete blog package with all sections per your training. Include SEO ta
 
       // Retrieve messages using SDK (FIXED - no fetch() bypass)
       console.log('📥 Retrieving Assistant response using SDK...');
-      const messages = await openai.beta.threads.messages.list(thread.id);
+      const messages = await (await openai()).beta.threads.messages.list(thread.id);
       const assistantMessages = messages.data.filter(msg => msg.role === 'assistant');
       
       if (assistantMessages.length === 0) {

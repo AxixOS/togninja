@@ -2,6 +2,7 @@ import { pool } from '../db';
 import { generateAuthorityMap } from './authority-map-generator.js';
 import { hasOpenAI, landingModel } from './landing-generator.js';
 import { saveAuthorityMap } from './authority-map.js';
+import { platformOpenAI } from './openaiClient';
 
 /**
  * P2a — connect the onboarding site-analysis to the Authority Map.
@@ -41,7 +42,13 @@ export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void
 
     // 1) Distil a concise business profile from the crawled content.
     const OpenAI = (await import('openai')).default;
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = await platformOpenAI('authority-from-crawl');
+    if (!openai) {
+      // Platform-funded. No key means the platform has not funded this, which is our
+      // problem to fix and never 'your site could not be read'.
+      console.warn('[authority-from-crawl] platform AI unavailable — skipping map generation');
+      return null as any;
+    }
     // Shared with the site copy and the Authority Map — this call distils the business
     // profile those two are built from, so a weaker model here degrades everything after it.
     const model = landingModel();

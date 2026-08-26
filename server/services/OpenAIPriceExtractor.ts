@@ -7,6 +7,7 @@
 
 import OpenAI from 'openai';
 import { studioMoneyContext } from '../lib/money';
+import { tenantOpenAI } from '../lib/openaiClient';
 
 interface ExtractedPrice {
   serviceName: string;
@@ -58,13 +59,22 @@ interface MarketAnalysis {
 }
 
 export class OpenAIPriceExtractor {
-  private openai: OpenAI;
+  /**
+   * Resolved per call, not per instance.
+   *
+   * A client built in the constructor captures whichever key existed when the service was
+   * created, which on this path was always the platform one. Price research is ongoing work
+   * a studio asked for, so it is theirs to fund.
+   */
+  private async client() {
+    const c = await tenantOpenAI('price-extractor');
+    if (!c) throw new Error('No OpenAI key configured for price research');
+    return c;
+  }
   private model: string;
 
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured',
-    });
+    // Nothing to construct here — see client() below.
     // Use a chat/completions-compatible model. Deliberately NOT process.env.OPENAI_MODEL —
     // the host sets that to a Responses-API-only model (e.g. a GPT-5/o-series), which
     // 404s on chat/completions and made every extraction return 0 prices. Override with
@@ -99,7 +109,7 @@ export class OpenAIPriceExtractor {
     }
 
     try {
-      const response = await this.openai.chat.completions.create({
+      const response = await (await this.client()).chat.completions.create({
         model: this.model,
         messages: [
           {
@@ -302,7 +312,7 @@ Note: ${dropped} price${dropped === 1 ? '' : 's'} far outside the rest of the ra
     ].join('');
 
     try {
-      const response = await this.openai.chat.completions.create({
+      const response = await (await this.client()).chat.completions.create({
         model: this.model,
         messages: [
           {
@@ -504,7 +514,7 @@ Return JSON with:
     const money = await studioMoneyContext();
 
     try {
-      const response = await this.openai.chat.completions.create({
+      const response = await (await this.client()).chat.completions.create({
         model: this.model,
         messages: [
           {

@@ -35,6 +35,7 @@ import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
 import { runHomepagePipeline, normalizeWebsiteUrl, type HomepageGenState } from './lib/homepage-pipeline';
+import { tenantOpenAI } from './lib/openaiClient';
 
 const router = Router();
 
@@ -520,10 +521,12 @@ async function countRows(table: any, where?: any): Promise<number> {
 // falls back cleanly to the provided text if unset or the call fails — the
 // onboarding flow must never break because AI is unavailable.
 async function aiText(prompt: string, fallback: string, maxTokens = 350): Promise<string> {
-  if (!process.env.OPENAI_API_KEY) return fallback;
   try {
-    const OpenAI = (await import('openai')).default;
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // Resolve FIRST, then decide. The old guard read process.env before the tenant key was
+    // ever consulted, so a studio who had entered their own key still got the fallback text
+    // whenever the platform key happened to be unset.
+    const client = await tenantOpenAI('setup');
+    if (!client) return fallback;
     const r = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],

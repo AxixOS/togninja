@@ -16,6 +16,7 @@ import { writeFile, readFile, unlink, mkdtemp, rmdir } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import OpenAI from 'openai';
+import { tenantOpenAI } from '../lib/openaiClient';
 
 export interface ImageExif {
   make?: string;
@@ -85,8 +86,9 @@ export interface IptcInput {
 // produce a missing tag, because a wrong stamp travels with the file for ever.
 
 let _openai: OpenAI | null = null;
-function openai(): OpenAI {
-  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+async function openai(): Promise<OpenAI | null> {
+  // Alt text and IPTC for a studio's own photographs — theirs to fund.
+  if (!_openai) _openai = await tenantOpenAI('image-analysis');
   return _openai;
 }
 
@@ -225,7 +227,7 @@ export async function analyzeVision(imageUrl: string, hint?: string): Promise<Vi
   const { sys, ask } = build(niche);
   const userText = ask(hint);
 
-  const res = await openai().chat.completions.create({
+  const res = await (await openai())!.chat.completions.create({
     model: 'gpt-4o',
     temperature: 0.2,
     // No cap was set. The API default is the model's full 16,384 output tokens, so one

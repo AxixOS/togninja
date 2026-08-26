@@ -3,6 +3,7 @@
 // and saved by the studio (POST .../generate returns it; PUT /api/authority-map persists it).
 import { hasOpenAI, NoOpenAIError, landingModel } from './landing-generator.js';
 import { normalizeAuthorityMap, type AuthorityMap } from '../../shared/authorityMap.js';
+import { platformOpenAI } from './openaiClient';
 
 export interface AuthorityMapInput {
   businessName?: string;
@@ -31,7 +32,9 @@ const SHAPE = `{
 export async function generateAuthorityMap(input: AuthorityMapInput): Promise<AuthorityMap> {
   if (!hasOpenAI()) throw new NoOpenAIError();
   const OpenAI = (await import('openai')).default;
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  // Platform-funded, same reason as the landing copy it is generated alongside.
+  const openai = await platformOpenAI('authority-map');
+  if (!openai) throw new Error('Platform AI is not configured');
 
   const system = `You are an SEO information-architecture strategist. You design topical-authority site structures: a small set of pillar (money/service) pages, each supported by cluster (informational blog) articles, all tied together with an internal-link graph. You output STRICT JSON only — no prose, no code fences.`;
 

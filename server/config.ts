@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { tenantOpenAI } from './lib/openaiClient';
 
 // Central configuration file - single source of truth for assistant IDs
 export const BLOG_ASSISTANT = process.env.TOGNINJA_ASSISTANT_ID || 'asst_nlyO3yRav2oWtyTvkq0cHZaU';
@@ -13,7 +14,11 @@ console.log('🐛 DEBUG_OPENAI:', DEBUG_OPENAI);
 // Utility to get assistant instructions for fallback system prompts (Patch B from expert advice)
 export async function getAssistantInstructions(assistantId: string): Promise<string> {
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+    const openai = await tenantOpenAI('config');
+    if (!openai) {
+      console.warn('[config] no OpenAI key — assistant check skipped');
+      return null as any;
+    }
     const assistant = await openai.beta.assistants.retrieve(assistantId);
     return assistant.instructions || '';
   } catch (error) {

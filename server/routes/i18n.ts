@@ -17,6 +17,7 @@ import { Router, Request, Response } from 'express';
 import { pool } from '../db';
 import { requireAuth } from '../auth';
 import { getExplicitSiteLanguage } from '../lib/site-language';
+import { tenantOpenAI } from '../lib/openaiClient';
 
 const router = Router();
 
@@ -176,7 +177,10 @@ router.post('/admin/i18n/generate', requireAuth, async (req: Request, res: Respo
     if (todo.length === 0) return res.json({ language, translated: 0, total: sourceKeys.length, cached: sourceKeys.length });
 
     const OpenAI = (await import('openai')).default;
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = await tenantOpenAI('i18n');
+    if (!openai) {
+      return res.status(503).json({ error: 'not_configured', message: 'Add an OpenAI key to translate your site.' });
+    }
     const model = process.env.OPENAI_LANDING_MODEL || process.env.OPENAI_PRICE_MODEL || 'gpt-4o-mini';
     const langName = LANGUAGE_NAMES[language] || language;
 

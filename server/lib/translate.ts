@@ -7,6 +7,7 @@
 // call fails we return the original text — translation must never break content.
 
 import crypto from 'crypto';
+import { tenantOpenAI } from './openaiClient';
 
 const cache = new Map<string, string>();
 const MAX_CACHE = 5000;
@@ -33,7 +34,12 @@ export async function translateText(
 
   try {
     const OpenAI = (await import('openai')).default;
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const client = await tenantOpenAI('translate');
+  if (!client) {
+    // Translation is optional: the caller falls back to the untranslated string.
+    console.warn('[translate] no OpenAI key available — returning the source text');
+    return null;
+  }
     const langName = LANG_NAME[target] || target;
     const r = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',

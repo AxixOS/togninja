@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../auth';
 import { getSiteIdentity } from '../lib/siteIdentity';
 import { config as appConfig } from '../config-reader';
+import { tenantOpenAI } from '../lib/openaiClient';
 
 const router = express.Router();
 
@@ -232,7 +233,10 @@ router.post('/enhance-field', requireAuth, async (req, res) => {
     }
 
     const OpenAI = (await import('openai')).default;
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+    const openai = await tenantOpenAI('manual-pages');
+    if (!openai) {
+      return res.status(503).json({ error: 'not_configured', message: 'Add an OpenAI key to have pages written for you.' });
+    }
 
     const { brand, lang, city, location } = await buildStudioContext(language);
     const localePhrase = location ? ` in ${location}` : '';

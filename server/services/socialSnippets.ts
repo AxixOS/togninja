@@ -2,6 +2,7 @@
 // emotional/story hooks (see WRITING-GUIDELINES). Used for the Zernio CSV export
 // and (later) the Zernio API connector. One gpt-4o-mini call per post.
 import OpenAI from 'openai';
+import { tenantOpenAI } from '../lib/openaiClient';
 
 export interface SocialPostInput {
   title: string;
@@ -45,11 +46,13 @@ export interface PreparedSocialPack {
 let _o: OpenAI | null = null;
 // maxRetries: the SDK retries transient 429/5xx with backoff; timeout bounds a
 // hung request. A studio admin clicking "Social Pack" should never wait forever.
-const openai = () => (_o ??= new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured',
-  maxRetries: 3,
-  timeout: 30_000,
-}));
+// Social copy for a studio's own posts — theirs to fund. Async now, because resolving
+// their key means reading the database. The retry and timeout options are preserved for
+// the reason given above them.
+const openai = async () => {
+  if (!_o) _o = await tenantOpenAI('social-snippets', { maxRetries: 3, timeout: 30_000 });
+  return _o;
+};
 
 const stripHtml = (s = '') => s.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -109,7 +112,9 @@ export async function generateSocialPack(input: SocialPostInput): Promise<Social
 
   let res;
   try {
-    res = await openai().chat.completions.create({
+    const client = await openai();
+    if (!client) throw new Error('No OpenAI key configured');
+    res = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       temperature: 0.7,
       response_format: { type: 'json_object' },

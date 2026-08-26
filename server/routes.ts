@@ -393,6 +393,7 @@ import accountingExportRouter from './accounting-export/routes';
 import { storage as storageInstance } from './storage';
 import { sessionConfig, requireAuth, requireAdmin } from './auth';
 import { findCoupon, isCouponActive, allowsSku, forceRefreshCoupons } from './services/coupons';
+import { requireTenantOpenAI } from './lib/openaiClient';
 
 /**
  * The studio's timezone, for the calendar and scheduler paths in this file.
@@ -2609,8 +2610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('Transcribing audio file:', audioFile.originalname, 'Size:', audioFile.size, 'bytes');
 
-      const OpenAI = (await import('openai')).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+        const openai = await requireTenantOpenAI('routes');
 
       // Create a temporary file for OpenAI Whisper API
       const fs = await import('fs');
@@ -15953,8 +15953,7 @@ ${getBizName()} CRM System
       const { brief = '', targetPrice = '', language = 'de' } = req.body || {};
       if (!String(brief).trim()) return res.status(400).json({ error: 'brief is required' });
 
-      const OpenAI = (await import('openai')).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+        const openai = await requireTenantOpenAI('routes');
 
       const lang = language === 'en' ? 'English' : 'German';
       const city = process.env.BUSINESS_CITY || 'Wien';
@@ -19592,7 +19591,7 @@ Was interessiert Sie am meisten?`;
       const { BLOG_ASSISTANT, DEBUG_OPENAI } = await import('./config');
       
       // Initialize OpenAI Assistant API with debug logging
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+      const openai = await requireTenantOpenAI('routes');
       
       if (DEBUG_OPENAI) {
         // Some OpenAI client implementations may not expose these properties in types
@@ -20968,8 +20967,7 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
     try {
       const { section, context, currentContent } = req.body;
       
-      const OpenAI = (await import('openai')).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+        const openai = await requireTenantOpenAI('routes');
 
       const completion = await openai.chat.completions.create({
         model: process.env.OPENAI_LANDING_MODEL || process.env.OPENAI_PRICE_MODEL || 'gpt-4o-mini',
@@ -21037,8 +21035,7 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
       const customPart = customInstruction ? `\nAdditional instruction: ${customInstruction}` : '';
       const hasCurrent = currentContent && Object.keys(currentContent).length > 0;
 
-      const OpenAI = (await import('openai')).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+        const openai = await requireTenantOpenAI('routes');
 
       const completion = await openai.chat.completions.create({
         model: process.env.OPENAI_LANDING_MODEL || process.env.OPENAI_PRICE_MODEL || 'gpt-4o-mini',
@@ -21105,8 +21102,7 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
         + '"seo": {"keyphrase": "the single primary keyword this page should rank for (2-4 words, include the city)"}'
         + '}';
 
-      const OpenAI = (await import('openai')).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+        const openai = await requireTenantOpenAI('routes');
 
       const completion = await openai.chat.completions.create({
         model: process.env.OPENAI_LANDING_MODEL || process.env.OPENAI_PRICE_MODEL || 'gpt-4o-mini',
@@ -21250,8 +21246,7 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
       const { channels, tone, promoObjective } = req.body;
       const content = typeof page.content_json === 'string' ? JSON.parse(page.content_json) : page.content_json;
 
-      const OpenAI = (await import('openai')).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-not-configured' });
+        const openai = await requireTenantOpenAI('routes');
 
       const pageContext = `
 Page: "${page.title || page.name || ''}"

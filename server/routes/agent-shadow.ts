@@ -16,13 +16,14 @@ import { agentAuditDiff, agentSession, agentMessage } from '../../shared/schema'
 import { ToolBus } from '../../agent/v2/core/ToolBus';
 import { ToolContext } from '../../agent/v2/core/Types';
 import { logShadowDiff } from '../../agent/v2/core/Audit';
+import { tenantOpenAI } from '../lib/openaiClient';
 
 const router = express.Router();
 
 // Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
+// Lazily resolved: a module-level client captures whichever key existed at import time,
+// which on this path was always the platform one.
+const openai = () => tenantOpenAI('agent-shadow');
 
 interface ShadowChatRequest {
   message: string;
@@ -108,7 +109,9 @@ router.post('/chat', async (req: Request, res: Response) => {
       const availableTools = ToolBus.listOpenAITools(context.scopes);
 
       // Call OpenAI with V2 tools
-      const completion = await openai.chat.completions.create({
+      const client = await openai();
+      if (!client) throw new Error('No OpenAI key available');
+      const completion = await client.chat.completions.create({
         model: process.env.AGENT_MODEL || 'gpt-4-turbo-preview',
         messages: [
           {
