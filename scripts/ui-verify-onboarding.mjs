@@ -291,6 +291,21 @@ check('and stops polling when the run stops',
   images.includes('GEN_TERMINAL.includes(q.state.data?.status)'),
   'a flat interval polls a finished job for as long as the tab is open');
 
+// ── A run that died with its process stops claiming to be running ───────────
+//
+// runHomepagePipeline writes 'running' and then works for a minute or two in ONE process. If
+// that process goes away mid-run — a deploy, a restart, an OOM — nothing writes a terminal
+// status, because the only code that would have has stopped existing.
+//
+// 'running' is not terminal, so both pollers keep asking and the wizard shows "Writing your
+// homepage in your own words" indefinitely, with no way out from inside the product. startedAt
+// was written for exactly this case and nothing read it.
+check('a run that died with its process stops being "running"',
+  setupRoutes.includes('GEN_STALE_MS')
+  && /const stalled\s*=/.test(setupRoutes)
+  && setupRoutes.includes("status: stalled ? 'error'"),
+  'startedAt is read, and a stale run is reported as the state that offers Try again');
+
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');

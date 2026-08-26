@@ -820,6 +820,16 @@ router.get('/status', async (_req: Request, res: Response) => {
 const GENERATE_MAX_RUNS = 5;
 const GENERATE_COOLDOWN_MS = 90_000;
 
+/**
+ * After this long, a run still marked 'running' has died with its process.
+ *
+ * A real generation is one to three minutes: a crawl of up to a dozen pages, a distil, a
+ * homepage, then pillar pages in the background. Fifteen is far enough above that to never
+ * catch a slow-but-live run, and short enough that a studio hit by a mid-run deploy is not
+ * staring at a spinner for the rest of the afternoon.
+ */
+const GEN_STALE_MS = 15 * 60_000;
+
 router.post('/homepage/generate', async (req: Request, res: Response) => {
   try {
     const config = await getConfigRow();
@@ -1040,14 +1050,36 @@ router.get('/homepage/status', async (_req: Request, res: Response) => {
       return res.json({ status: 'idle', stage: null, pagesCrawled: 0, previewUrl: null, draftId: null, hasWebsite });
     }
     const previewUrl = st.slug && st.previewToken ? `/lp/${st.slug}?preview=${st.previewToken}` : null;
+
+    // A run that cannot still be running is not still running.
+    //
+    // The pipeline writes status 'running' and then does a minute or two of work in one
+    // process. If that process goes away mid-run — a deploy, a restart, an OOM — nothing ever
+    // writes a terminal status, because the only code that would have has stopped existing.
+    // The row keeps saying 'running' for ever.
+    //
+    // 'running' is not a terminal state, so both pollers keep asking, the wizard keeps showing
+    // "Writing your homepage in your own words", and there is no way out from inside the
+    // product: Regenerate refuses while a run is in flight, and this one never ends.
+    // startedAt was written for exactly this and nothing read it.
+    //
+    // Reported as 'error' rather than repaired in the database: this is a READ, and a read that
+    // rewrites state races the very restart that caused the problem. 'error' is the state that
+    // already renders a Try again, which is precisely what is needed.
+    const startedMs = st.startedAt ? Date.parse(st.startedAt) : 0;
+    const stalled = st.status === 'running' && startedMs > 0 && Date.now() - startedMs > GEN_STALE_MS;
+    if (stalled) {
+      console.warn(`[setup] homepage generation has been 'running' since ${st.startedAt} — reporting it as failed`);
+    }
+
     return res.json({
-      status: st.status,
-      stage: st.stage,
+      status: stalled ? 'error' : st.status,
+      stage: stalled ? 'error' : st.stage,
       pagesCrawled: st.pagesCrawled || 0,
       previewUrl,
       draftId: st.draftId,
       slug: st.slug,
-      error: st.error || null,
+      error: stalled ? 'Generation stopped before it finished — this usually means the server restarted mid-run.' : (st.error || null),
       // What the pipeline has actually established so far. The wizard shows a spinner and a
       // stage word for a minute or more of real work — crawling a site, pulling out what the
       // studio shoots, writing their homepage — and a spinner that long reads as a hang.
