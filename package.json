@@ -26,6 +26,7 @@
     "start": "cross-env NODE_ENV=production tsx server/index.ts",
     "start:prod": "cross-env NODE_ENV=production node start.mjs",
     "prerender:routes": "node scripts/gen-prerender-routes.mjs",
+    "verify": "node scripts/verify-all.mjs",
     "verify:boot": "tsx scripts/verify-boot.ts",
     "build:with-prerender": "cross-env PRERENDER=1 npm run build || cross-env PRERENDER= npm run build",
     "heroku-postbuild": "npm run build:with-prerender && node scripts/write-build-info.mjs && npm run verify:boot",

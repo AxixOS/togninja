@@ -198,17 +198,38 @@ const terminal = [...new Set(
   [...pipeline.matchAll(/state\.status = '([a-z_]+)'/g)].map((m) => m[1]),
 )].filter((s) => s !== 'running');
 
-const unrendered = terminal.filter((s) => !scanning.includes(`hp?.status === '${s}'`));
+// Bound to a RENDER, not to a mention. This looked for `hp?.status === '<state>'` anywhere in
+// the file — a string that also appears in the polling-stop condition and in any early return.
+// It happened to be right only because ScanningPhase's poll uses `hp.status` without the
+// optional chain; a single edit to that line would have made every state read as "rendered"
+// while nothing appeared on screen. The JSX opener is the thing that puts pixels up.
+// The `{` opener and the `&&` are what make it a render; the poll's condition is an `if (...)`
+// with no brace and no optional chain, so the two stay distinguishable. Deliberately NOT
+// requiring `&& (` immediately after: 'ready' renders under two panels that each add a further
+// condition (`&& hp?.previewUrl`), and demanding the state be the sole term failed correct code.
+const unrendered = terminal.filter((s) => !scanning.includes(`{hp?.status === '${s}' &&`));
 check('every terminal generation state renders something',
   unrendered.length === 0,
   unrendered.length ? `silent: ${unrendered.join(', ')}` : `${terminal.join(', ')} all surface`);
 
 // A missing platform credential is not fixed by asking again. Offering a retry there just
 // fails again and reads to the studio as their problem rather than ours.
-const skippedBlock = scanning.slice(scanning.indexOf("hp?.status === 'skipped'"));
+// Scoped to the PANEL, by balanced parentheses from its JSX opener — not to the first 700
+// characters after the first mention of the string. That window was escapable from both ends:
+// anchored on any earlier occurrence, and satisfied by pushing the button past character 700.
+const skippedBlock = (() => {
+  const open = scanning.indexOf("{hp?.status === 'skipped' && (");
+  if (open < 0) return '';
+  let depth = 0;
+  for (let i = open; i < scanning.length; i++) {
+    if (scanning[i] === '(') depth++;
+    else if (scanning[i] === ')') { depth--; if (depth === 0) return scanning.slice(open, i + 1); }
+  }
+  return scanning.slice(open);
+})();
 check('the unavailable state does not offer a pointless retry',
-  !skippedBlock.slice(0, 700).includes('handleRegenerate'),
-  'a platform key does not appear because somebody clicked Try again');
+  skippedBlock.length > 0 && !skippedBlock.includes('handleRegenerate'),
+  skippedBlock.length ? 'a platform key does not appear because somebody clicked Try again' : 'panel not found');
 
 console.log('\n=== the open generate endpoint is bounded ===');
 // POST /api/setup/homepage/generate is reachable by anyone while creative_setup_complete is

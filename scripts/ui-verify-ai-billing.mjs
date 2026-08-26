@@ -255,7 +255,10 @@ const PLATFORM_PAID = [
   'server/lib/authority-map-generator.ts',
   'server/lib/authority-from-crawl.ts',
 ];
-const wrongSide = PLATFORM_PAID.filter((f) => read(f).includes('tenantOpenAI('));
+// `tenantOpenAI(` does not match `requireTenantOpenAI(` — different first letter — so the
+// tighter of the two tenant resolvers was the one this check could not see. A generator moved
+// onto it would have billed the studio for the sales pitch and passed here.
+const wrongSide = PLATFORM_PAID.filter((f) => /\b(require)?[tT]enantOpenAI\(/.test(stripComments(read(f))));
 check('the onboarding generators are not billed to the studio',
   wrongSide.length === 0,
   wrongSide.join(', ') || `${PLATFORM_PAID.length} generators`);
@@ -348,15 +351,25 @@ check('the onboarding crawl is funded by the platform',
   crawler.includes("'crawl.onboarding'") && !crawler.includes("'crawl.competitor'"),
   'reading a studio own site before they have agreed to anything');
 
+// Asserts the VALUE, not that an identifier exists. This checked `axixos.includes('SEARCH_COMPETITOR')`,
+// which is satisfied by the constant being declared — including one retargeted to a
+// platform-funded purpose, which is the only change that would actually matter here.
+const searchConst = (stripComments(axixos).match(/const SEARCH_COMPETITOR\s*=\s*'([^']+)'/) || [])[1];
 check('competitor research is funded by the studio',
-  axixos.includes("purpose: 'crawl.competitor'") && axixos.includes('SEARCH_COMPETITOR'),
-  'they asked for it, so they fund it');
+  axixos.includes("purpose: 'crawl.competitor'") && searchConst === 'search.competitor',
+  searchConst ? `search purpose is ${searchConst}` : 'SEARCH_COMPETITOR is not a literal');
 
 // Required positional argument, so omission is TS2554 and a non-crawl purpose is TS2345 —
 // the compiler enforces the payer, not this file. This only checks the shape stays that way.
+//
+// The old form was a substring test for `readPageText(url: string, purpose: CrawlPurpose`,
+// which is a PREFIX of the very signature it exists to forbid: adding
+// ` = 'crawl.competitor'` still contains it, so a defaulted payer passed the check named
+// "the crawl payer cannot be defaulted". The parameter list is read and the default rejected.
+const readPageSig = (stripComments(axixos).match(/readPageText\(([^)]*)\)/) || [, ''])[1];
 check('the crawl payer cannot be defaulted',
-  axixos.includes('readPageText(url: string, purpose: CrawlPurpose'),
-  'purpose is required, so it cannot be got wrong by omission');
+  /purpose\s*:\s*CrawlPurpose\s*(,|$)/.test(readPageSig.trim()),
+  readPageSig.includes('purpose') ? `signature: ${readPageSig.trim()}` : 'no purpose parameter at all');
 
 // ── Every AxixOS call names a purpose ───────────────────────────────────────
 //
