@@ -200,13 +200,28 @@ check('nor a country',
   !seed.includes("country: 'Austria'"),
   'a seeded country pre-answers the wizard and drives the search index');
 
+// A name is not a finished setup. The detector flipped creative_setup_complete the moment
+// studio_configs held a name — and a studio types their name at step 2 of 5, so a real
+// onboarding was declared finished on the next boot and the /api/setup mount then demanded
+// authentication for the three steps still to come.
+//
+// What it is FOR is recognising an instance that predates the wizard, whose owner should not
+// be marched through onboarding they never needed. Such an instance has a business: an admin
+// account AND real records. A wizard in progress has a name and nothing else.
+check('a name alone no longer completes setup',
+  boot.includes('hasName && admins > 0 && records > 0'),
+  'all three, because any two of them describe a wizard partway through');
+
+check('and it counts real records, not just a name',
+  boot.includes("countOf('crm_clients')") && boot.includes("countOf('admin_users')"));
+
 check('the boot detector ignores placeholder names',
   boot.includes("'photography studio', 'my studio'"));
 
 // Excluding the placeholder stops it recurring and heals nothing already flagged, because
 // that branch only ever wrote true.
 check('and an already-stuck instance reopens itself',
-  boot.includes('creative_setup_complete = false') && boot.includes('adminCount === 0'),
+  boot.includes('creative_setup_complete = false') && boot.includes('admins === 0'),
   'no admin means the wizard was never completed, whatever the flag says');
 
 // ── The trap that cost a real onboarding ────────────────────────────────────

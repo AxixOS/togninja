@@ -1119,8 +1119,42 @@ app.use((req, res, next) => {
                AND lower(coalesce(nullif(trim(business_name), ''), nullif(trim(studio_name), ''))) NOT IN
                    ('photography studio', 'my studio')
           ) AS has_admin`);
-        const hasAdmin = !!(adminCheck.rows?.[0] as any)?.has_admin;
-        if (hasAdmin) {
+        const hasName = !!(adminCheck.rows?.[0] as any)?.has_admin;
+
+        // A NAME IS NOT A FINISHED SETUP.
+        //
+        // This flipped creative_setup_complete the moment studio_configs held a name — and a
+        // studio types their name at step 2 of 5. So a real onboarding, half done, was
+        // declared finished on the next boot, and the /api/setup mount then required
+        // authentication for the three steps still to come. Observed live: "Damion Mower
+        // Photography" saved at Basics, redeploy, and every subsequent save returned 401 with
+        // the wizard sitting on step 1.
+        //
+        // What this check is FOR is recognising an instance that predates the wizard entirely,
+        // so its owner is not marched back through onboarding they never needed. Such an
+        // instance has a business: an admin account AND real records. A wizard in progress has
+        // a name and nothing else, which is exactly how the two tell apart.
+        //
+        // Each count is its own statement and its own catch: these tables are created at
+        // different times, and a missing one must read as "no data" rather than abandoning the
+        // whole check and leaving a legitimate old instance stuck in onboarding.
+        const countOf = async (table: string): Promise<number> => {
+          try {
+            const r = await db.execute(sql.raw(`SELECT count(*)::int AS n FROM ${table}`));
+            return Number((r.rows?.[0] as any)?.n ?? 0);
+          } catch {
+            return 0;
+          }
+        };
+
+        const admins = await countOf('admin_users');
+        const records =
+          (await countOf('crm_clients'))
+          + (await countOf('galleries'))
+          + (await countOf('crm_invoices'));
+
+        // All three, deliberately. Any two of them describe a wizard partway through.
+        if (hasName && admins > 0 && records > 0) {
           // Use raw SQL to update — more reliable than Drizzle if schema is out of sync
           await db.execute(sql`
             UPDATE studio_configs 
@@ -1141,9 +1175,8 @@ app.use((req, res, next) => {
           // flag says. Both conditions together describe exactly one situation — provisioned,
           // never opened, wrongly flagged.
           try {
-            const adminRows = await db.execute(sql`SELECT count(*)::int AS n FROM admin_users`);
-            const adminCount = Number((adminRows.rows?.[0] as any)?.n ?? 0);
-            if (adminCount === 0) {
+            // Reuses the count taken above rather than asking again.
+            if (admins === 0) {
               const { rowCount } = await db.execute(sql`
                 UPDATE studio_configs
                    SET creative_setup_complete = false, technical_setup_complete = false
