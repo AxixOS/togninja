@@ -204,9 +204,23 @@ const USABLE_TEXT = 400;
  *
  * Three pages is enough: the homepage generator needs four hundred characters and one
  * rescued page of a photography site carries several thousand.
+ *
+ * THE 25 SECONDS WAS SET AGAINST THE WRONG CAUSE.
+ *
+ * A real onboarding failed at 25s and I read it as the partner instance cold-starting,
+ * and was about to spend the budget on a longer FIRST attempt with shorter ones after.
+ * The team that runs it checked: the instance does not sleep — it is on a paid plan with
+ * a keep-warm ping every ten minutes — and the latency is not startup at all. Their page
+ * crawler launches a fresh Chromium per call and closes it in a finally block. There is no
+ * browser pool. Every request that falls through to the browser strategy pays a full
+ * Chromium launch, not just the first of a session.
+ *
+ * So the allowance has to be generous on EVERY attempt. A first-attempt-only fix would
+ * have rescued page one and timed out on two and three, which is the shape of bug that
+ * looks like it works.
  */
 const PARTNER_MAX_PAGES = 3;
-const PARTNER_TIMEOUT_MS = 25_000;
+const PARTNER_TIMEOUT_MS = 50_000;
 
 /**
  * Did this response actually contain the page, or a bot-management challenge?
@@ -579,7 +593,10 @@ export async function crawlSite(
           JSON.stringify(meta),
         ],
       );
-      crawled++;
+      // Only pages we actually READ. Counting challenged ones produced "Read 1 page from
+      // your site" directly above "Could not read your site" — two lines contradicting each
+      // other about a page that was never read.
+      if (!challenged) crawled++;
       for (const link of links) {
         if (!sameHost(link, origin)) continue;
         const n = normalizeUrl(link);
