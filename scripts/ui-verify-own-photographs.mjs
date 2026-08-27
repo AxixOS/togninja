@@ -60,9 +60,31 @@ check('lazy and responsive images are captured',
 // ── SSRF ────────────────────────────────────────────────────────────────────
 //
 // Assert both halves. Either one alone leaves the endpoint open.
-check('the crawl list is restricted to the studio\'s own host',
-  /host !== siteHost && !host\.endsWith\('\.' \+ siteHost\)/.test(lib),
-  'leading dot matters: without it siteHost.evil.com passes');
+// The own-host half. The LEADING DOT is the whole point: `endsWith(siteHost)` without it
+// accepts evilnickdalephotography.com for a studio at nickdalephotography.com.
+check('the studio\'s own host is matched with a leading dot',
+  /host\.endsWith\('\.' \+ siteHost\)/.test(lib),
+  'without it, siteHost as a plain suffix lets an attacker-registered domain through');
+
+// The other half, added when the own-host rule turned out to exclude most real studios: a
+// Squarespace site keeps its photographs on images.squarespace-cdn.com, so the check that was
+// exactly right for a self-hosted site returned ZERO images for the builders photographers
+// actually use. Measured on a real site: 1,774 photographs captured, none offered.
+//
+// Widening an SSRF boundary is the kind of change that must not be done by pattern. These URLs
+// are FETCHED server-side by use-crawled-image, so the list has to stay a closed set of literal
+// hosts. A suffix match on 'cdn.com', or anything built from the crawled page's own host, would
+// turn a database lookup into an open fetch-anything proxy.
+check('the builder CDN list is a closed set, not a pattern',
+  /const BUILDER_IMAGE_CDNS = new Set\(\[/.test(lib)
+  && /BUILDER_IMAGE_CDNS\.has\(host\)/.test(lib)
+  && !/BUILDER_IMAGE_CDNS[\s\S]{0,400}endsWith|isBuilderImageCdn[\s\S]{0,200}endsWith/.test(lib),
+  'exact host equality only — a suffix match here is an open proxy');
+
+// And nothing gets in by BOTH doors being open at once.
+check('a host must pass one of the two, not neither',
+  /if \(!ownSite && !isBuilderImageCdn\(host\)\) continue;/.test(lib),
+  'the skip must fire when neither rule matches');
 
 check('only http and https are ever fetched',
   /abs\.protocol !== 'http:' && abs\.protocol !== 'https:'/.test(lib));

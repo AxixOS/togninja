@@ -34,13 +34,54 @@ const NOT_A_PHOTOGRAPH =
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|avif)(\?|#|$)/i;
 
+/**
+ * The image CDNs of the site builders photographers actually use.
+ *
+ * WHY THIS EXISTS. The host check below was "the studio's own domain, or a subdomain of it",
+ * which is a correct SSRF boundary and was silently useless for most of the people it serves.
+ * A self-hosted site does put its images on images.example.com. Squarespace, Wix, Format and
+ * Pixieset put every customer's images on ONE shared CDN, so the studio's own photographs are
+ * on a host that has nothing to do with their domain.
+ *
+ * Measured on a real Squarespace site: the crawl captured 1,774 photograph URLs on
+ * images.squarespace-cdn.com and this function returned ZERO. The feature that exists so a
+ * photographer never has to hand-upload nine images showed them an empty list.
+ *
+ * THIS IS STILL A BOUNDARY, and it has to be, because use-crawled-image FETCHES these URLs
+ * server-side. It is an explicit, closed list of hosts that serve nothing but site-builder
+ * customer media — not a pattern, not a suffix match on "cdn", and nothing that resolves to an
+ * internal address. Adding to it is a deliberate act. What it must never become is "any host a
+ * crawled page linked to", which is an open fetch-anything proxy wearing a database lookup.
+ *
+ * Stock libraries are deliberately absent. A studio's own site may well embed a stock photo,
+ * and offering it back as "your photograph" is exactly the failure this product exists to avoid.
+ */
+const BUILDER_IMAGE_CDNS = new Set([
+  'images.squarespace-cdn.com',
+  'static1.squarespace.com',
+  'static.wixstatic.com',
+  'images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com',
+  'cdn.format.com',
+  'images.format.com',
+  'photos.smugmug.com',
+  'cdn.pixieset.com',
+  'images.pixieset.com',
+]);
+
+function isBuilderImageCdn(host: string): boolean {
+  return BUILDER_IMAGE_CDNS.has(host);
+}
+
 /** "edinburgh-military-tattoo-2024.jpg" -> "Edinburgh military tattoo" */
 function labelFromUrl(u: string): string {
   try {
     const last = decodeURIComponent(new URL(u).pathname.split('/').filter(Boolean).pop() || '');
     const stem = last.replace(/\.[a-z0-9]+$/i, '');
     const words = stem
-      .split(/[-_.]+/)
+      // '+' too. Squarespace names uploads "Dark+Waters.jpg", and decodeURIComponent leaves a
+      // literal plus alone — it only means "space" in form encoding, not in a path. Without
+      // this the picker offered a photograph called "Dark+Waters".
+      .split(/[-_.+]+/)
       // Drop the size and hash noise a CMS appends: 1024x768, scaled, e1699887, v2.
       .filter((w) => w && !/^\d{2,}(x\d{2,})?$/i.test(w) && !/^(scaled|copy|final|small|medium|large|thumb|min|opt)$/i.test(w))
       .filter((w) => !/^[0-9a-f]{8,}$/i.test(w));
@@ -90,16 +131,33 @@ export async function crawledImages(limit = 40): Promise<CrawledImage[]> {
 
       if (abs.protocol !== 'http:' && abs.protocol !== 'https:') continue;
       // The boundary. Subdomains of the studio's own site are allowed because a photography
-      // site's images very often live on one (images.example.com, cdn.example.com).
+      // site's images very often live on one (images.example.com, cdn.example.com) — and so are
+      // the image CDNs of the site builders photographers actually use.
       const host = abs.host.replace(/^www\./i, '').toLowerCase();
-      if (host !== siteHost && !host.endsWith('.' + siteHost)) continue;
+      const ownSite = host === siteHost || host.endsWith('.' + siteHost);
+      if (!ownSite && !isBuilderImageCdn(host)) continue;
 
       const url = abs.toString();
-      if (seen.has(url)) continue;
       if (!IMAGE_EXT.test(abs.pathname)) continue;
       if (NOT_A_PHOTOGRAPH.test(url)) continue;
 
-      seen.add(url);
+      // Deduplicate on the PHOTOGRAPH, not the URL.
+      //
+      // Two things multiply one picture into many URLs. Every site builder serves it at a dozen
+      // widths — Squarespace appends ?format=2500w and a responsive srcset lists all of them —
+      // and the same file uploaded twice gets two asset ids, so even the paths differ. Measured
+      // on a real site: forty offered slots held five actual pictures, the first eight of them
+      // identical.
+      //
+      // So the identity is the FILENAME. The trade-off is deliberate and worth naming: a site
+      // that names every gallery image `1.jpg` will have distinct photographs collapsed into
+      // one. Offering a studio the same picture eight times is the worse failure — this list
+      // exists so they can pick nine images quickly, and a picker full of duplicates is one
+      // they close.
+      const filename = decodeURIComponent(abs.pathname.split('/').filter(Boolean).pop() || '').toLowerCase();
+      const identity = filename || abs.origin + abs.pathname;
+      if (seen.has(identity)) continue;
+      seen.add(identity);
       out.push({ url, label: labelFromUrl(url), fromPage: String(p.url || '') });
     }
   }
