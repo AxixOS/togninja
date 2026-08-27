@@ -348,6 +348,21 @@ export async function complete(
             + 'does not carry ai:generate, or the route is unmapped. This is NOT falling back to a '
             + 'direct OpenAI call: a scope problem must not be paid for twice and called working.',
           );
+        } else if (res.status === 401) {
+          // The key we hold is not recognised: wrong value, or revoked here. NOT falling back
+          // to a direct OpenAI call, for the same reason as 403 — quietly re-billing platform
+          // work we were just refused would hide a broken credential behind a working invoice,
+          // and the first sign would be an OpenAI bill that never shrank.
+          //
+          // Seen live the first time an instance actually reached the gateway. The refusal
+          // reads "Platform AI refused (Unauthorized)", which tells whoever has to fix it
+          // nothing at all about which key or where.
+          console.error(
+            `[${purpose}] gateway rejected our key (401). AXIXOS_INTERNAL_API_KEY on THIS instance `
+            + 'is not recognised — usually a value pasted into Render but never deployed, a '
+            + 'truncated paste, or a key that has been revoked. Test the value directly against '
+            + 'GET /v1/ai/purposes: if it works there, what is deployed here is not what you set.',
+          );
         } else if (body?.error === 'metering_unavailable') {
           // The gateway will not spend what it cannot count, which is correct — but it reads as
           // a broken gateway, and the actual cause is almost always one thing. AxixOS warned us
