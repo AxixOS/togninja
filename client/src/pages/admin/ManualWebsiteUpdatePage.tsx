@@ -1218,6 +1218,15 @@ const PortfolioImagesManager: React.FC = () => {
 
 const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const [selectedPage, setSelectedPage] = useState<ManualPageDefinition | null>(manualPageManifest[0] || null);
+  // The studio's OWN pages — generated from their Authority Map, so absent from the fixed
+  // manifest above. Listed beneath it so the pages they most want to edit are findable from
+  // the screen that claims to edit any public page.
+  const { data: studioPagesRaw } = useQuery({
+    queryKey: ['/api/admin/landing-pages'],
+    queryFn: async () => (await fetch('/api/admin/landing-pages')).json(),
+    staleTime: 60_000,
+  });
+  const studioPages: any[] = Array.isArray(studioPagesRaw) ? studioPagesRaw : [];
   const [language, setLanguage] = useState<'de' | 'en'>(DEFAULT_EDITOR_LANG);
   const [editedContent, setEditedContent] = useState<Record<string, string>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -1964,6 +1973,44 @@ const ManualWebsiteUpdatePage: React.FC<{ embedded?: boolean }> = ({ embedded })
                 )}
               </button>
             ))}
+
+            {/*
+              THE STUDIO'S OWN PAGES.
+
+              Everything above comes from shared/manualPages.ts, a fixed manifest of the
+              fourteen pages this product ships with. A studio's service pages are rows in
+              landing_pages, generated from their Authority Map during onboarding, so they can
+              never appear in a hardcoded list — and they are the pages a photographer most
+              wants to edit. "Edit any public page content" was excluding their money pages.
+
+              Links out rather than selectable here: these are landing pages with their own
+              editor, not translation-keyed manifest pages, and pretending otherwise would mean
+              a panel of fields that do not apply to them.
+            */}
+            {studioPages.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <div className="px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  Your service pages
+                </div>
+                {studioPages.map((p: any) => (
+                  <a
+                    key={p.id}
+                    href={`/admin/landing-pages/${p.id}`}
+                    className="block w-full text-left px-4 py-3 rounded-lg mb-1 hover:bg-gray-100 text-gray-700 transition-colors"
+                  >
+                    <div className="font-medium flex items-center gap-2">
+                      {p.title || p.slug}
+                      {p.status !== 'published' && (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded uppercase tracking-wide">
+                          {p.status || 'draft'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">/{p.slug}</div>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
