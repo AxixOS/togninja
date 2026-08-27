@@ -54,6 +54,17 @@ export interface HomepageGenState {
   startedAt: string | null;
   website: string | null;
   /**
+   * WHICH PATH PAID, and what the studio has left.
+   *
+   * complete() returns this and every caller discarded it, so a run that fell back to a direct
+   * OpenAI call looked identical to one that went through the AxixOS gateway — the integration
+   * could be silently inert and every screen would still say "ready". Discovered on the day the
+   * gateway went live, trying to prove a successful generation had actually used it.
+   */
+  via: 'gateway' | 'openai' | null;
+  quota: { budget: number; used: number; remaining: number } | null;
+
+  /**
    * How many times this instance has started a generation, ever.
    *
    * Carried across runs deliberately. It is what bounds POST /api/setup/homepage/generate,
@@ -236,6 +247,7 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     status: 'running', stage: 'crawling', pagesCrawled: 0, findings: [],
     draftId: null, slug: null, previewToken: null, error: null,
     startedAt: new Date().toISOString(), website: website || null,
+    via: null, quota: null,
     runs: priorRuns + 1,
   };
 
@@ -367,6 +379,8 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     try {
       const gen = await generateLandingContent(context, 'platform', 'ai.landing');
       content = gen.content;
+      state.via = gen.via;
+      state.quota = gen.quota;
     } catch (e: any) {
       // The fourth state, and the only one that needed new words. A spent allowance is not a
       // fault: the platform works, the studio has used what was included. Calling it "not

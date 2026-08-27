@@ -310,6 +310,14 @@ export async function complete(
 
       if (res.ok) {
         const body: any = await res.json();
+        // Say which path paid, and what is left. Without this a run that fell back to a direct
+        // OpenAI call is indistinguishable from one that went through the gateway — the whole
+        // integration could be silently inert and every screen would still say "ready". That
+        // was true on the day the gateway went live, and it is why this line exists.
+        const q = body?.quota;
+        console.log(
+          `[${purpose}] via gateway${q ? ` — ${q.remaining} of ${q.budget} left for this studio` : ' (no tenant to bill)'}`,
+        );
         return {
           content: String(body?.content ?? ''),
           model: String(body?.model || spec.model),

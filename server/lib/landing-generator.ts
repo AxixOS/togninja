@@ -215,7 +215,7 @@ export async function generateLandingContent(
    * included site generations" had actually spent them on pillar pages.
    */
   purpose: Extract<PlatformPurpose, 'ai.landing' | 'ai.pillar'>,
-): Promise<{ content: any; usage: any; model: string }> {
+): Promise<{ content: any; usage: any; model: string; via: 'gateway' | 'openai'; quota: { budget: number; used: number; remaining: number } | null }> {
   // No pre-flight gate here any more, because there is no longer one answer to gate on.
   //
   // This read `if (!hasOpenAI())`, and hasOpenAI() is platformAiConfigured() — purely whether
@@ -246,5 +246,5 @@ export async function generateLandingContent(
   // Guarded. This was a bare JSON.parse that survived only because response_format was set on
   // the call; the gateway's published registry does not list response_format among its pins.
   const content = parseModelJson(out.content, 'Homepage generation');
-  return { content, usage: out.usage, model: out.model };
+  return { content, usage: out.usage, model: out.model, via: out.via, quota: out.quota };
 }

@@ -1084,6 +1084,13 @@ router.get('/homepage/status', async (_req: Request, res: Response) => {
       // stage word for a minute or more of real work — crawling a site, pulling out what the
       // studio shoots, writing their homepage — and a spinner that long reads as a hang.
       findings: Array.isArray(st.findings) ? st.findings : [],
+      // Which path paid, and what is left. Not for the studio — the wizard ignores both — but
+      // for whoever has to answer "is the gateway actually being used on this instance".
+      // Without it a run that fell back to a direct OpenAI call is indistinguishable from one
+      // that went through AxixOS, and the whole integration could be inert while every screen
+      // says "ready". No secret in either: 'gateway' | 'openai', and three integers.
+      via: (st as any).via ?? null,
+      quota: (st as any).quota ?? null,
     });
   } catch (error: any) {
     console.error('Homepage status error:', error?.message || error);
