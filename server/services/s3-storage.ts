@@ -334,7 +334,12 @@ export async function storageHealth() {
     bucket: cfg.bucket || null,
     endpoint: cfg.endpoint || null,
     canList: false,
+    // NOT ATTEMPTED and FAILED are different answers, and reporting both as `false` made me
+    // diagnose a working bucket as a broken one. The write test only runs behind
+    // ALLOW_S3_HEALTH_WRITE, so on any normal instance this field is false because nothing
+    // tried — and it reads exactly like a permissions failure. Says which now.
     canWriteTest: false,
+    writeTested: false,
   };
   if (!cfg.isConfigured) return result;
   const s3 = getS3Client();
@@ -346,6 +351,7 @@ export async function storageHealth() {
   }
   // Optional write test only when explicitly allowed (never by default in prod)
   if (String(process.env.ALLOW_S3_HEALTH_WRITE || '').toLowerCase() === 'true') {
+    result.writeTested = true;
     try {
       const key = `health/${Date.now()}_${Math.random().toString(36).slice(2)}.txt`;
       await s3.send(new PutObjectCommand({
