@@ -195,7 +195,7 @@ export async function scaffoldPillarPages(
             ].join('\n')
           : undefined,
       };
-      const gen = await generateLandingContent(context, payer);
+      const gen = await generateLandingContent(context, payer, 'ai.pillar');
       const payload = mapGeneratedToLandingPage(gen.content, context, { userId: null });
       payload.slug = slug; // pin to the pillar slug (confirmed available above)
       payload.page_type = 'landing';

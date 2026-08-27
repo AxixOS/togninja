@@ -409,14 +409,25 @@ for (const f of ['server/lib/landing-generator.ts', 'server/lib/authority-map-ge
 // admin generator drawing on the same budget would exhaust a studio's onboarding allowance
 // permanently, and the studio would discover it as quota_exceeded on a site they already own.
 const payerSites = [
-  ['server/lib/homepage-pipeline.ts', "generateLandingContent(context, 'platform')", 'onboarding homepage'],
+  ['server/lib/homepage-pipeline.ts', "generateLandingContent(context, 'platform', 'ai.landing')", 'onboarding homepage'],
   ['server/lib/homepage-pipeline.ts', "scaffoldPillarPages('platform'", 'onboarding pillar pages'],
   ['server/lib/authority-from-crawl.ts', "}, 'platform')", 'onboarding authority map'],
   ['server/lib/authority-from-crawl.ts', "complete('platform', 'ai.authority_from_crawl'", 'onboarding profile distil'],
-  ['server/routes.ts', "generateLandingContent(req.body || {}, 'studio')", 'admin page generator'],
+  ['server/routes.ts', "generateLandingContent(req.body || {}, 'studio', 'ai.landing')", 'admin page generator'],
   ['server/routes.ts', "}, 'studio')", 'admin authority map'],
   ['server/routes.ts', "scaffoldPillarPages('studio'", 'admin pillar pages'],
 ];
+
+// A pillar page is not a homepage, and must not spend the homepage's allowance.
+//
+// They shared ai.landing until AxixOS raised that budget after we found it mis-sized — ten
+// lifetime calls against the seven-to-ten a single wizard run spends. Sharing the bucket is
+// what caused it, and it also made the refusal untrue: a studio told it had "used its included
+// site generations" had spent them on pillar pages. AxixOS will drop ai.landing back to ~10
+// now that pillar work has its own purpose, so this must not quietly merge again.
+check('pillar pages spend their own allowance, not the homepage one',
+  stripComments(read('server/lib/authority-scaffold.ts')).includes("'ai.pillar'"),
+  'ai.landing is being re-sized on the assumption this stays separate');
 const wrongPayer = payerSites.filter(([f, needle]) => !stripComments(read(f)).includes(needle));
 check('onboarding bills the platform and the admin screens bill the studio',
   wrongPayer.length === 0,
@@ -470,6 +481,27 @@ for (const f of walk('server')) {
 check('every AxixOS search and crawl call names a purpose',
   endpointMisses.length === 0,
   endpointMisses.length ? endpointMisses.join(', ') : 'a tenant key 400s without one');
+
+// ── Extraction is not writing ───────────────────────────────────────────────
+//
+// The REGISTRY here mirrors what AxixOS pins server-side, and exists so the direct fallback
+// produces the same output as the gateway. A drift between them is invisible: the same studio
+// gets a different homepage depending on whether AxixOS happened to be deployed that day.
+//
+// One value in it is not a mirror but a correction. ai.authority_from_crawl pulls businessName,
+// niche and city out of page text — one right answer, and sampling can only move away from it.
+// It was 0.2 here, AxixOS first pinned 0.7 having copied it from the sibling that writes prose,
+// and on being asked they dropped it to 0. The two that genuinely write stay warm.
+const temps = Object.fromEntries(
+  [...resolverCode.matchAll(/'(ai\.[a-z_]+)':\s*\{[^}]*temperature:\s*([0-9.]+)/g)].map((m) => [m[1], Number(m[2])]),
+);
+check('the extraction purpose samples nothing',
+  temps['ai.authority_from_crawl'] === 0,
+  `ai.authority_from_crawl is ${temps['ai.authority_from_crawl']}`);
+
+check('and the two that write still do',
+  temps['ai.landing'] > 0.5 && temps['ai.authority_map'] > 0.5,
+  `landing ${temps['ai.landing']}, authority_map ${temps['ai.authority_map']} — a tidy-up that pins everything to 0 flattens the copy`);
 
 // ── The gateway seam ────────────────────────────────────────────────────────
 //

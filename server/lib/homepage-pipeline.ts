@@ -365,7 +365,7 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     await note(state, 'writing', 'Writing your homepage in your own words');
     let content: any;
     try {
-      const gen = await generateLandingContent(context, 'platform');
+      const gen = await generateLandingContent(context, 'platform', 'ai.landing');
       content = gen.content;
     } catch (e: any) {
       // The fourth state, and the only one that needed new words. A spent allowance is not a

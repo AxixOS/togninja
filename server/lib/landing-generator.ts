@@ -1,4 +1,4 @@
-import { platformAiConfigured, complete, parseModelJson, NoOpenAIError, type Payer } from './openaiClient';
+import { platformAiConfigured, complete, parseModelJson, NoOpenAIError, type Payer, type PlatformPurpose } from './openaiClient';
 // Shared landing-page copy generator.
 //
 // The prompt-building + OpenAI call used to live inline in the admin route
@@ -205,6 +205,16 @@ export async function generateLandingContent(
    * Both succeed either way, so a default would misbill in silence.
    */
   payer: Payer,
+  /**
+   * WHICH JOB. A homepage and a pillar page are the same generator and different work: one per
+   * studio versus one per service, so up to nine of the second for every one of the first.
+   *
+   * They shared a purpose until AxixOS raised it after we found the allowance mis-sized — ten
+   * lifetime calls against seven-to-ten spent by a single wizard run. Sharing the bucket is
+   * what caused that, and it also made the refusal a lie: a studio told it had "used its
+   * included site generations" had actually spent them on pillar pages.
+   */
+  purpose: Extract<PlatformPurpose, 'ai.landing' | 'ai.pillar'>,
 ): Promise<{ content: any; usage: any; model: string }> {
   // No pre-flight gate here any more, because there is no longer one answer to gate on.
   //
@@ -228,7 +238,7 @@ export async function generateLandingContent(
   // parameter that costs money — sending them is a validation error, not an ignored field —
   // and the direct path applies the same pins so the two produce the same page. That makes
   // OPENAI_LANDING_MAX_TOKENS dead; it was the knob for the truncation bug the 8000 pin fixed.
-  const out = await complete(payer, 'ai.landing', [
+  const out = await complete(payer, purpose, [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
   ]);

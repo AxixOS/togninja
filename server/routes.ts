@@ -21011,7 +21011,7 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
     try {
       // Prompt-building + OpenAI call now live in server/lib/landing-generator.ts so
       // the onboarding homepage pipeline can reuse the exact same generation.
-      const result = await generateLandingContent(req.body || {}, 'studio');
+      const result = await generateLandingContent(req.body || {}, 'studio', 'ai.landing');
       res.json(result);
     } catch (error: any) {
       console.error('Error generating landing page:', error?.message);

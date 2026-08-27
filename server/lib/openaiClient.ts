@@ -156,7 +156,7 @@ function platformKey(): string | null {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** The three platform-funded jobs, by the names the AxixOS registry knows them by. */
-export type PlatformPurpose = 'ai.landing' | 'ai.authority_map' | 'ai.authority_from_crawl';
+export type PlatformPurpose = 'ai.landing' | 'ai.pillar' | 'ai.authority_map' | 'ai.authority_from_crawl';
 
 /**
  * What the gateway pins server-side, mirrored here for the DIRECT path ONLY.
@@ -166,19 +166,27 @@ export type PlatformPurpose = 'ai.landing' | 'ai.authority_map' | 'ai.authority_
  * its own parameters, a studio's homepage would differ depending on whether the gateway
  * happened to be deployed, and nothing on either side would report a change.
  *
- * Two of these are deliberate changes from what the code sent before, both to match the pins:
- * the authority map was temperature 0.6 / 2200 tokens, and the crawl distil was 0.2 / 300.
+ * The authority map was temperature 0.6 / 2200 tokens before the gateway; it matches the pin now.
  *
- * The 0.2 one is worth raising with AxixOS rather than absorbing quietly. ai.authority_from_crawl
- * is a field-extraction job — pull businessName, niche, city out of page text — and 0.7 is a
- * creative-writing temperature. Matching it here is the lesser evil, because a fallback that
- * behaves differently from the gateway is a bug you cannot see; but the pin itself is wrong for
- * the job, and it is one field on their side.
+ * ai.authority_from_crawl is TEMPERATURE 0, and that is the interesting one. It ran at 0.2 here,
+ * AxixOS first pinned it at 0.7, and on being asked they dropped it to 0 — correctly: it pulls
+ * businessName, niche and city out of page text, there is one right answer, and sampling can
+ * only move away from it. 0.7 had been copied from its sibling, which genuinely writes prose.
+ * The two that DO write stay warm, at 0.7 and 0.8.
+ *
+ * Keeping this table in step with theirs is the whole job. A fallback that behaves differently
+ * from the gateway is a difference nothing on either side reports: the same studio would get a
+ * different homepage depending on whether AxixOS happened to be deployed that day.
  */
 const REGISTRY: Record<PlatformPurpose, { model: string; maxTokens: number; temperature: number }> = {
   'ai.landing': { model: 'gpt-4o', maxTokens: 8000, temperature: 0.8 },
+  // Its own purpose, not a second helping of ai.landing. One homepage and up to nine pillar
+  // pages are different jobs at different volumes, and sharing a bucket is what mis-sized the
+  // original allowance — a studio refused on ai.landing was told it had "used its included site
+  // generations" when it had actually spent them on pillar pages.
+  'ai.pillar': { model: 'gpt-4o', maxTokens: 8000, temperature: 0.8 },
   'ai.authority_map': { model: 'gpt-4o', maxTokens: 4000, temperature: 0.7 },
-  'ai.authority_from_crawl': { model: 'gpt-4o', maxTokens: 4000, temperature: 0.7 },
+  'ai.authority_from_crawl': { model: 'gpt-4o', maxTokens: 4000, temperature: 0 },
 };
 
 /** Their 75s upstream ceiling plus room, so a slow generation is THEIR structured 504 and
@@ -312,9 +320,29 @@ export async function complete(
       }
 
       if (res.status === 404) {
+        // 404 means the route is not there — the gateway is unmerged, and a direct call is
+        // right. NOTE: this is true only until AxixOS merge. Their scopes are deny-by-default,
+        // so afterwards an unmapped /v1 path answers 403, not 404, for every caller including
+        // their own console key. Do not build any other "404 means absent" probe on this.
         console.warn(`[${purpose}] gateway not deployed yet (404) — falling back to a direct OpenAI call`);
       } else {
         const body: any = await res.json().catch(() => ({}));
+
+        // 403 is a SCOPE fault: the key we hold does not carry ai:generate, or the route is
+        // unmapped on their side. Deliberately NOT falling through to a direct OpenAI call —
+        // that would silently re-bill platform work we were refused, and hide a broken key
+        // behind a working invoice. But it reaches the studio as "not switched on for this
+        // instance", which is true and useless to whoever has to fix it, so say the real thing
+        // here where an operator will find it.
+        if (res.status === 403) {
+          console.error(
+            `[${purpose}] gateway refused with 403 — the AXIXOS_INTERNAL_API_KEY on this instance `
+            + 'does not carry ai:generate, or the route is unmapped. This is NOT falling back to a '
+            + 'direct OpenAI call: a scope problem must not be paid for twice and called working.',
+          );
+        } else {
+          console.warn(`[${purpose}] gateway refused (${res.status} ${body?.error || 'no code'})`);
+        }
         throw new PlatformAIRefusal(body, res.status, purpose);
       }
     } catch (e: any) {
