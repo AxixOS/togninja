@@ -628,6 +628,38 @@ const PortfolioImagesManager: React.FC = () => {
   const getAdminToken = () => (typeof window !== 'undefined' ? (localStorage.getItem('ADMIN_TOKEN') || '') : '');
   const withAdminHeaders = () => ({ 'x-admin-token': getAdminToken() });
   const withAdminJsonHeaders = () => ({ 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() });
+  // The studio's own photographs, from the crawl of the site they already have. A public GET —
+  // the list is nothing but image addresses from their own public website.
+  const { data: ownPhotosRaw } = useQuery({
+    queryKey: ['/api/setup/crawled-images'],
+    queryFn: async () => (await fetch('/api/setup/crawled-images')).json(),
+    staleTime: 5 * 60_000,
+  });
+  const ownPhotos: any[] = Array.isArray(ownPhotosRaw?.images) ? ownPhotosRaw.images : [];
+  const [addingOwn, setAddingOwn] = useState<string | null>(null);
+
+  const addOwnPhoto = async (img: { url: string; label?: string }) => {
+    setAddingOwn(img.url);
+    try {
+      const res = await fetch('/api/portfolio/images', {
+        method: 'POST',
+        headers: withAdminJsonHeaders(),
+        // The server copies the bytes into the studio's own bucket before recording the row, so
+        // what is stored is a copy rather than a link to the site they are migrating away from.
+        body: JSON.stringify({ category: newImageCategory, url: img.url, alt: img.label || '', title: img.label || '' }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as any));
+        setUploadNote(body?.error || 'Could not add that photograph.');
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolio/images'] });
+    } catch {
+      setUploadNote('Could not reach the server.');
+    } finally {
+      setAddingOwn(null);
+    }
+  };
 
   // Category IDs are structural (portfolio images are stored against them); the labels
   // are the studio's own and come from the same keys the public portfolio page uses,
@@ -639,6 +671,9 @@ const PortfolioImagesManager: React.FC = () => {
       const label = t(key);
       return { value, label: label && label !== key ? label : value };
     });
+
+  // Named in the picker below, so it is clear where a chosen photograph lands.
+  const categoryLabel = categories.find((c) => c.value === newImageCategory)?.label || newImageCategory;
 
   // Fetch portfolio images
   const { data: images, isLoading } = useQuery({
@@ -946,6 +981,50 @@ const PortfolioImagesManager: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/*
+        THEIR OWN PHOTOGRAPHS, from the site they already have.
+
+        The crawler has recorded every image on the studio's existing website since it shipped,
+        and the setup wizard offers them for the nine site slots. Nothing offered them here — so
+        a studio whose portfolio is empty was asked to re-upload work that is already in the
+        database. Measured on a real site: 35 photographs available, portfolio showing zero.
+        crawledImages() reads the most recent crawl and does not expire, so this keeps working
+        long after onboarding.
+
+        POST /api/portfolio/images copies the bytes into the studio's own bucket (v1.9.185), so
+        choosing one here stores a copy rather than a link to the site they are leaving.
+      */}
+      {ownPhotos.length > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold flex items-center gap-2 mb-1">
+            <ImageIcon size={20} />
+            From your existing website
+          </h3>
+          <p className="text-sm text-gray-600 mb-4">
+            {ownPhotos.length} photograph{ownPhotos.length === 1 ? '' : 's'} we found on your site.
+            Choosing one stores a copy in your own bucket, so it keeps working the day your old site goes
+            — and files it under <strong>{categoryLabel}</strong>, the category selected above.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+            {ownPhotos.map((img: any) => (
+              <button
+                key={img.url}
+                type="button"
+                disabled={addingOwn === img.url}
+                onClick={() => addOwnPhoto(img)}
+                title={img.label || 'Add to portfolio'}
+                className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200 hover:border-purple-400 disabled:opacity-50"
+              >
+                <img src={img.url} alt={img.label || ''} loading="lazy" className="h-full w-full object-cover" />
+                <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] px-1 py-0.5 truncate">
+                  {addingOwn === img.url ? 'Adding…' : (img.label || 'Add')}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter and Current Images */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">

@@ -157,6 +157,27 @@ check('the rows record where the bytes now live',
   && /\[category, copied\.url, alt \|\| null/.test(adminRoutes),
   'inserting the original url would be a no-op with extra steps');
 
+// ── The rest of the crawl is reachable after onboarding ─────────────────────
+//
+// The crawl captures up to 40 photographs and the wizard consumes three. The other 37 were
+// visible for one screen and then unreachable forever, which is the wrong way round: the
+// portfolio is the gallery a studio shows clients, and it starts empty on a brand-new site.
+// So a studio was choosing between an empty portfolio and re-uploading by hand the pictures
+// this instance had already found, listed, and then thrown away.
+//
+// The half that matters is WHERE a chosen photograph is sent. Rendering the list in the admin
+// is easy to do wrongly: drop the url straight into portfolio_images and the gallery hotlinks
+// the site they are migrating away from — the exact bug fixed above on the other two doors.
+const manual = read('client/src/pages/admin/ManualWebsiteUpdatePage.tsx');
+
+check('the admin portfolio offers the rest of the crawl',
+  /\/api\/setup\/crawled-images/.test(manual),
+  'onboarding used 3 of up to 40 and the remainder had no second door');
+
+check('and a chosen one is POSTed to the endpoint that copies',
+  /addOwnPhoto[\s\S]{0,700}?'\/api\/portfolio\/images'[\s\S]{0,200}?method: 'POST'/.test(manual),
+  'writing the crawled url anywhere else re-creates the hotlink this file exists to prevent');
+
 console.log(`
   ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}
 `);
