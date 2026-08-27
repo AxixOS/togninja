@@ -139,13 +139,23 @@ check('and only on the page that IS the homepage',
 // from. Two doors into one table behaving oppositely is how the wrong one gets used.
 const adminRoutes = read('server/routes.ts');
 
-check('the admin Use URL path copies the image rather than linking it',
-  /const alreadyOurs =/.test(adminRoutes) && /storedUrl = buildPublicUrl\(/.test(adminRoutes),
-  'same rule as the wizard: hotlinking breaks the day they take the old site down');
+check('there is one copy-into-storage helper, and it uploads',
+  /async function copyImageIntoStorage\(/.test(adminRoutes)
+  && /copyImageIntoStorage[\s\S]*?PutObjectCommand/.test(adminRoutes),
+  'two copies of this decision is how the two doors drifted apart in the first place');
 
-check('and the row records where the bytes now live',
-  /\[section, storedUrl, alt \|\| null/.test(adminRoutes),
-  'copying and then inserting the original url is a no-op with extra steps');
+// BOTH tables. The homepage one was found hotlinking; the portfolio one had the identical
+// shape and is the gallery a studio shows clients, so it is the worse one to have go blank.
+const copyCallers = (adminRoutes.match(/await copyImageIntoStorage\(/g) || []).length;
+check('both image tables copy before they record',
+  copyCallers >= 2,
+  `${copyCallers} caller(s) — homepage and portfolio`);
+
+// And the copy is pointless if the row still records where the bytes came from.
+check('the rows record where the bytes now live',
+  /\[section, storedUrl, alt \|\| null/.test(adminRoutes)
+  && /\[category, copied\.url, alt \|\| null/.test(adminRoutes),
+  'inserting the original url would be a no-op with extra steps');
 
 console.log(`
   ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}

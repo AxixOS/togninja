@@ -14992,6 +14992,68 @@ ${getBizName()} CRM System
   // HOMEPAGE IMAGES API
   // ============================================================================
 
+  /**
+   * Take a copy of a remote image, and return the URL to record.
+   *
+   * WHY BOTH IMAGE TABLES NEED THIS. The setup wizard's picker has always downloaded and
+   * re-uploaded, with a guard asserting it, because "hotlinking breaks the day they take the old
+   * site down". The two admin "Use URL" tabs — homepage images and portfolio images — stored
+   * whatever URL they were handed. Observed live: every homepage image on the demo pointing at
+   * images.squarespace-cdn.com, on an instance whose purpose is to REPLACE that Squarespace
+   * site. Those render from a server the studio stops paying for the week after they buy this.
+   *
+   * One helper rather than two copies, because the reason these drifted apart in the first place
+   * is that the same decision was written in more than one place.
+   *
+   * A URL already in the studio's own bucket is returned untouched — re-downloading our own
+   * object to upload it again would be a slow no-op.
+   */
+  async function copyImageIntoStorage(
+    remoteUrl: string,
+    keyPrefix: string,
+  ): Promise<{ url: string } | { error: string; status: number }> {
+    const s3 = getS3Config();
+    if (!/^https?:\/\//i.test(remoteUrl)) return { url: remoteUrl };
+    if (s3.bucket && remoteUrl.includes(String(s3.bucket))) return { url: remoteUrl };
+
+    try {
+      const r = await fetch(remoteUrl, { redirect: 'follow' });
+      if (!r.ok) return { error: `Could not download that image (${r.status}).`, status: 502 };
+
+      // Believe the server, not the extension.
+      const mime = String(r.headers.get('content-type') || '').split(';')[0].trim();
+      if (!/^image\/(png|jpe?g|webp|avif)$/.test(mime)) {
+        return { error: `That URL returned ${mime || 'no image type'}, not an image.`, status: 400 };
+      }
+
+      const buf = Buffer.from(await r.arrayBuffer());
+      // Checked AFTER download: a remote server does not have to tell the truth in
+      // content-length, and the ceiling exists to bound what we store, not what it claims.
+      if (buf.length > 12 * 1024 * 1024) {
+        return { error: 'That image is larger than 12 MB.', status: 400 };
+      }
+      if (!s3.isConfigured) {
+        // Refusing honestly. Falling back to storing the link would be the original bug with a
+        // better excuse, and the studio would not know their site depended on someone else's.
+        return { error: 'File storage is not connected, so that image cannot be saved here yet.', status: 503 };
+      }
+
+      const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : mime === 'image/avif' ? 'avif' : 'jpg';
+      const key = `${keyPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
+      await getS3Client().send(new PutObjectCommand({
+        Bucket: s3.bucket,
+        Key: key,
+        Body: buf,
+        ContentType: mime,
+        CacheControl: 'public, max-age=31536000',
+      }));
+      return { url: buildPublicUrl(s3.bucket, s3.endpoint, key) };
+    } catch (e: any) {
+      console.error('[images] could not copy remote image:', e?.message || e);
+      return { error: 'Could not save a copy of that image.', status: 502 };
+    }
+  }
+
   // Get all homepage images
   app.get("/api/homepage/images", async (req: Request, res: Response) => {
     try {
@@ -15057,50 +15119,9 @@ ${getBizName()} CRM System
         return res.status(400).json({ error: "Section and URL are required" });
       }
 
-      // COPY THE BYTES. This stored whatever URL it was handed, verbatim.
-      //
-      // The "Use URL" tab therefore hotlinked: a studio pasting an image address from their
-      // existing site got a homepage that renders from someone else's server. Observed live —
-      // three homepage images pointing at images.squarespace-cdn.com, on an instance whose whole
-      // purpose is to replace that Squarespace site. Those images break on the day the studio
-      // cancels the hosting they are migrating away from, which is the week after they buy this.
-      //
-      // The setup wizard's picker has always downloaded and re-uploaded, with a guard asserting
-      // it, for exactly this reason. Two doors into one table behaving oppositely is how the
-      // wrong one gets used.
-      let storedUrl = String(url);
-      const s3 = getS3Config();
-      const alreadyOurs = !!s3.endpoint && storedUrl.includes(String(s3.bucket));
-      if (!alreadyOurs && /^https?:\/\//i.test(storedUrl)) {
-        try {
-          const r = await fetch(storedUrl, { redirect: 'follow' });
-          if (!r.ok) return res.status(502).json({ error: `Could not download that image (${r.status}).` });
-          const mime = String(r.headers.get('content-type') || '').split(';')[0].trim();
-          if (!/^image\/(png|jpe?g|webp|avif)$/.test(mime)) {
-            return res.status(400).json({ error: `That URL returned ${mime || 'no image type'}, not an image.` });
-          }
-          const buf = Buffer.from(await r.arrayBuffer());
-          // After download: a remote server does not have to tell the truth in content-length.
-          if (buf.length > 12 * 1024 * 1024) {
-            return res.status(400).json({ error: 'That image is larger than 12 MB.' });
-          }
-          if (!s3.isConfigured) {
-            return res.status(503).json({ error: 'File storage is not connected, so that image cannot be saved here yet.' });
-          }
-          const key = `homepage/${section}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}.jpg`;
-          await getS3Client().send(new PutObjectCommand({
-            Bucket: s3.bucket,
-            Key: key,
-            Body: buf,
-            ContentType: mime,
-            CacheControl: 'public, max-age=31536000',
-          }));
-          storedUrl = buildPublicUrl(s3.bucket, s3.endpoint, key);
-        } catch (e: any) {
-          console.error('[homepage images] could not copy remote image:', e?.message || e);
-          return res.status(502).json({ error: 'Could not save a copy of that image.' });
-        }
-      }
+      const copied = await copyImageIntoStorage(String(url), `homepage/${section}`);
+      if ('error' in copied) return res.status(copied.status).json({ error: copied.error });
+      const storedUrl = copied.url;
 
       const result = await runSql(`
         INSERT INTO homepage_images (section, url, alt, title, sort_order, is_active)
@@ -15342,12 +15363,18 @@ ${getBizName()} CRM System
       if (!category || !url) {
         return res.status(400).json({ error: "Category and URL are required" });
       }
-      
+
+      // Same rule as the homepage table: take a copy. A portfolio hotlinked to the studio's old
+      // site is the same failure with more images in it — and this is the gallery they show
+      // clients, so it is the worst one to have go blank.
+      const copied = await copyImageIntoStorage(String(url), `portfolio/${String(category).replace(/[^a-z0-9-]+/gi, '-')}`);
+      if ('error' in copied) return res.status(copied.status).json({ error: copied.error });
+
       const result = await runSql(`
         INSERT INTO portfolio_images (category, url, alt, title, description, sort_order, is_active)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id, category, url, alt, title, description, sort_order, is_active, created_at, updated_at
-      `, [category, url, alt || null, title || null, description || null, sortOrder || 0, isActive !== false]);
+      `, [category, copied.url, alt || null, title || null, description || null, sortOrder || 0, isActive !== false]);
       
       console.log(`✅ Created portfolio image: ${result[0].id}`);
       res.json(result[0]);
