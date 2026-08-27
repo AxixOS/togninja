@@ -15052,17 +15052,64 @@ ${getBizName()} CRM System
   app.post("/api/homepage/images", authenticateUser, async (req: Request, res: Response) => {
     try {
       const { section, url, alt, title, sortOrder, isActive } = req.body;
-      
+
       if (!section || !url) {
         return res.status(400).json({ error: "Section and URL are required" });
       }
-      
+
+      // COPY THE BYTES. This stored whatever URL it was handed, verbatim.
+      //
+      // The "Use URL" tab therefore hotlinked: a studio pasting an image address from their
+      // existing site got a homepage that renders from someone else's server. Observed live —
+      // three homepage images pointing at images.squarespace-cdn.com, on an instance whose whole
+      // purpose is to replace that Squarespace site. Those images break on the day the studio
+      // cancels the hosting they are migrating away from, which is the week after they buy this.
+      //
+      // The setup wizard's picker has always downloaded and re-uploaded, with a guard asserting
+      // it, for exactly this reason. Two doors into one table behaving oppositely is how the
+      // wrong one gets used.
+      let storedUrl = String(url);
+      const s3 = getS3Config();
+      const alreadyOurs = !!s3.endpoint && storedUrl.includes(String(s3.bucket));
+      if (!alreadyOurs && /^https?:\/\//i.test(storedUrl)) {
+        try {
+          const r = await fetch(storedUrl, { redirect: 'follow' });
+          if (!r.ok) return res.status(502).json({ error: `Could not download that image (${r.status}).` });
+          const mime = String(r.headers.get('content-type') || '').split(';')[0].trim();
+          if (!/^image\/(png|jpe?g|webp|avif)$/.test(mime)) {
+            return res.status(400).json({ error: `That URL returned ${mime || 'no image type'}, not an image.` });
+          }
+          const buf = Buffer.from(await r.arrayBuffer());
+          // After download: a remote server does not have to tell the truth in content-length.
+          if (buf.length > 12 * 1024 * 1024) {
+            return res.status(400).json({ error: 'That image is larger than 12 MB.' });
+          }
+          if (!s3.isConfigured) {
+            return res.status(503).json({ error: 'File storage is not connected, so that image cannot be saved here yet.' });
+          }
+          const key = `homepage/${section}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}.jpg`;
+          await getS3Client().send(new PutObjectCommand({
+            Bucket: s3.bucket,
+            Key: key,
+            Body: buf,
+            ContentType: mime,
+            CacheControl: 'public, max-age=31536000',
+          }));
+          storedUrl = buildPublicUrl(s3.bucket, s3.endpoint, key);
+        } catch (e: any) {
+          console.error('[homepage images] could not copy remote image:', e?.message || e);
+          return res.status(502).json({ error: 'Could not save a copy of that image.' });
+        }
+      }
+
       const result = await runSql(`
         INSERT INTO homepage_images (section, url, alt, title, sort_order, is_active)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, section, url, alt, title, sort_order, is_active, created_at, updated_at
-      `, [section, url, alt || null, title || null, sortOrder || 0, isActive !== false]);
-      
+        // storedUrl, NOT url — the copy above is pointless if the row still records where the
+        // bytes came from rather than where they now live.
+      `, [section, storedUrl, alt || null, title || null, sortOrder || 0, isActive !== false]);
+
       console.log(`✅ Created homepage image: ${result[0].id}`);
       res.json(result[0]);
     } catch (error) {

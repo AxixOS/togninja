@@ -129,6 +129,24 @@ check('and only on the page that IS the homepage',
   contentHook.includes('slug === homeSlug') && contentHook.includes('enabled: isHomepage'),
   'gated on studio_configs.homepage_landing_slug, and not fetched at all elsewhere');
 
+// ── Both doors into homepage_images copy the bytes ──────────────────────────
+//
+// The setup picker has always downloaded and re-uploaded. POST /api/homepage/images — the admin
+// "Use URL" tab — stored whatever URL it was handed, so a studio pasting an address from their
+// existing site got a homepage rendering off someone else's server. Observed live: three images
+// pointing at images.squarespace-cdn.com, on an instance whose entire purpose is to replace that
+// Squarespace site. They break the week the studio cancels the hosting they are migrating away
+// from. Two doors into one table behaving oppositely is how the wrong one gets used.
+const adminRoutes = read('server/routes.ts');
+
+check('the admin Use URL path copies the image rather than linking it',
+  /const alreadyOurs =/.test(adminRoutes) && /storedUrl = buildPublicUrl\(/.test(adminRoutes),
+  'same rule as the wizard: hotlinking breaks the day they take the old site down');
+
+check('and the row records where the bytes now live',
+  /\[section, storedUrl, alt \|\| null/.test(adminRoutes),
+  'copying and then inserting the original url is a no-op with extra steps');
+
 console.log(`
   ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}
 `);
