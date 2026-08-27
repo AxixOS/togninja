@@ -18,12 +18,28 @@
  *                           pooler (Connect → Transaction, port 6543) for connection
  *                           headroom — a :5432 Supabase pooler URI is auto-upgraded to :6543.
  *
- *   STORAGE (required for uploads; Supabase Storage → S3 Access Keys)
- *     AWS_S3_ENDPOINT       https://<ref>.storage.supabase.co/storage/v1/s3
+ *   STORAGE — pick ONE of these two.
+ *
+ *   (a) PER-TENANT, and the right one for anything a customer will hold. Set your Backblaze
+ *       MASTER key and this script mints the studio a bucket of their own plus an application
+ *       key scoped to that bucket alone. The master never leaves this machine.
+ *     B2_KEY_ID             Backblaze master applicationKeyId
+ *     B2_APP_KEY            Backblaze master applicationKey
+ *
+ *   (b) EXPLICIT, and SHARED. The five values below are copied straight into the instance, so
+ *       every instance provisioned with the same values shares one bucket under one credential.
+ *       Fine for your own demo. Not fine for a studio who will hold this Render account — they
+ *       can read their own environment, and that credential reaches every other studio's
+ *       client photographs. Supabase Storage can only ever be used this way: its S3 keys are
+ *       PROJECT-scoped, so no key exists that reaches one tenant and not the rest.
+ *     AWS_S3_ENDPOINT       e.g. https://<ref>.storage.supabase.co/storage/v1/s3
  *     AWS_S3_BUCKET         a PUBLIC bucket name you created
  *     AWS_ACCESS_KEY_ID
  *     AWS_SECRET_ACCESS_KEY
  *     AWS_REGION            e.g. eu-central-1 (default)
+ *
+ *   Neither is required to boot. An instance with no storage runs the CRM perfectly well and
+ *   refuses uploads until Technical Setup is filled in, which the wizard states plainly.
  *
  *   OPTIONAL
  *     RENDER_OWNER_ID       your Render team/user id (auto-resolved if omitted)
@@ -117,11 +133,8 @@ const envVars = [
   { key: 'DEMO_MODE', value: process.env.DEMO_MODE || 'true' },
   { key: 'AUTO_INIT_SCHEMA', value: 'true' },
   { key: 'DATABASE_URL', value: DATABASE_URL },
-  { key: 'AWS_S3_ENDPOINT', value: need('AWS_S3_ENDPOINT') },
-  { key: 'AWS_S3_BUCKET', value: need('AWS_S3_BUCKET') },
-  { key: 'AWS_ACCESS_KEY_ID', value: need('AWS_ACCESS_KEY_ID') },
-  { key: 'AWS_SECRET_ACCESS_KEY', value: need('AWS_SECRET_ACCESS_KEY') },
-  { key: 'AWS_REGION', value: process.env.AWS_REGION || 'eu-central-1' },
+  // Storage is resolved in main(), not here — see resolveStorage(). It is the one value that
+  // must be MINTED per tenant rather than copied from this machine's environment.
   { key: 'SESSION_SECRET', value: SESSION_SECRET },
   { key: 'ENCRYPTION_KEY', value: ENCRYPTION_KEY },
   { key: 'SHOOTCLEANER_API_KEY', value: SHOOTCLEANER_API_KEY },
@@ -144,10 +157,70 @@ if (DB_MODE === 'transaction') {
   envVars.push({ key: 'PG_SESSION_POOL_MAX', value: process.env.PG_SESSION_POOL_MAX || '5' });
 }
 
+/**
+ * Storage for THIS tenant, and nobody else's.
+ *
+ * This used to be five need() calls reading the operator's own AWS_* variables, which meant
+ * every instance this script created shared one bucket under one credential. That was only
+ * ever safe while nobody could read their own environment — and under the owned model the LTD
+ * creates a Render account and hands it to the studio, so from handover the studio holds the
+ * dashboard and everything in it. A shared storage credential there is a credential every
+ * customer holds, reaching every other customer's client photographs.
+ *
+ * With B2_KEY_ID and B2_APP_KEY set, this mints a bucket for the tenant and an application key
+ * scoped to that bucket alone. Those are the MASTER credentials and they stay on this machine;
+ * what reaches the instance can read, write, list and delete inside one bucket and do nothing
+ * else — it cannot even enumerate the account it belongs to.
+ *
+ * Without them it falls back to explicit AWS_* variables, so an existing workflow, a
+ * self-hosted install, or a studio bringing their own bucket all keep working — but it says
+ * plainly that the credential is shared, because that is a decision, not a default.
+ */
+async function resolveStorage() {
+  const b2KeyId = (process.env.B2_KEY_ID || '').trim();
+  const b2AppKey = (process.env.B2_APP_KEY || '').trim();
+
+  if (b2KeyId && b2AppKey) {
+    if (process.env.DRY_RUN === '1') {
+      console.log('   storage: (DRY_RUN) would mint a B2 bucket + bucket-scoped key for this tenant');
+      return { AWS_S3_ENDPOINT: '<b2-s3-endpoint>', AWS_S3_BUCKET: '<per-tenant-bucket>', AWS_ACCESS_KEY_ID: '<scoped-key-id>', AWS_SECRET_ACCESS_KEY: '<scoped-key>', AWS_REGION: '<from-endpoint>' };
+    }
+    const { provisionTenantStorage } = await import('./lib/b2.mjs');
+    const out = await provisionTenantStorage({ keyId: b2KeyId, appKey: b2AppKey, serviceName: SERVICE_NAME });
+    console.log(`   storage: bucket "${out.bucketName}" ${out.created ? 'created' : 'reused'}, key scoped to it alone`);
+    return out.env;
+  }
+
+  const explicit = ['AWS_S3_ENDPOINT', 'AWS_S3_BUCKET', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'];
+  if (explicit.every((k) => (process.env[k] || '').trim())) {
+    console.log('   ⚠ storage: using the AWS_* values from THIS machine, so this instance shares');
+    console.log('     whatever bucket they point at. Fine for your own demo; NOT fine for a customer');
+    console.log('     who will hold this Render account. Set B2_KEY_ID / B2_APP_KEY to mint a');
+    console.log('     bucket and a scoped key per tenant instead.');
+    return {
+      AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT,
+      AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
+      AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+      AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+      AWS_REGION: process.env.AWS_REGION || 'eu-central-1',
+    };
+  }
+
+  // Deliberately not fatal. An instance with no storage boots, serves, and runs the CRM; it
+  // just cannot accept an upload until Technical Setup is filled in, and the wizard says so.
+  console.log('   ⚠ storage: NONE. The instance will run, but uploads are refused until the');
+  console.log('     studio connects storage in Technical Setup. Set B2_KEY_ID / B2_APP_KEY to');
+  console.log('     mint per-tenant storage automatically.');
+  return null;
+}
+
 async function main() {
   const ownerId = process.env.DRY_RUN === '1'
     ? (process.env.RENDER_OWNER_ID || '<owner-id>')
     : await resolveOwnerId();
+
+  const storage = await resolveStorage();
+  if (storage) for (const [key, value] of Object.entries(storage)) envVars.push({ key, value });
   const payload = {
     type: 'web_service',
     name: SERVICE_NAME,

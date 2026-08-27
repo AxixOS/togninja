@@ -229,5 +229,35 @@ check('the storage endpoint note names the S3-compatible host',
   y.includes('s3.<region>.backblazeb2.com') && y.includes('api.backblazeb2.com'),
   'pointing at the native B2 API produces an unreadable SDK parser error');
 
+// ── One studio's credential must not reach another studio ───────────────────
+//
+// provision-instance.mjs built every instance's storage from need('AWS_ACCESS_KEY_ID') — the
+// OPERATOR's own environment — so every studio it provisioned shared one bucket under one
+// credential. That is only survivable while nobody can read their own environment, and under
+// the owned model the LTD creates a Render account and hands it to the studio, who then holds
+// the dashboard and everything in it. The credential would reach every other studio's client
+// photographs: portraits, weddings, newborn sessions.
+//
+// Bound to need(), not to the presence of the variables: they still appear on the fallback
+// path, deliberately, for a self-hosted install or a studio bringing their own bucket. What
+// must never come back is REQUIRING them from this machine, which is what silently made them
+// shared and gave the operator no signal that it had.
+const prov = readFileSync('scripts/provision-instance.mjs', 'utf8');
+const forced = ['AWS_S3_ENDPOINT', 'AWS_S3_BUCKET', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']
+  .filter((k) => prov.includes(`need('${k}')`));
+check('the provisioner does not copy one storage credential into every tenant',
+  forced.length === 0,
+  forced.length ? `still required from the operator: ${forced.join(', ')}` : 'minted per tenant, or explicitly opted into');
+
+check('and it can mint a bucket-scoped key instead',
+  prov.includes('B2_KEY_ID') && prov.includes("import('./lib/b2.mjs')"),
+  'B2 scopes an application key to one bucket; Supabase S3 keys are project-wide and cannot');
+
+// A shared credential is still allowed — for a demo, or a self-hosted install — but it is a
+// decision, and the operator has to be told they made it.
+check('choosing the shared path says so out loud',
+  prov.includes('NOT fine for a customer'),
+  'silence is how it became the default in the first place');
+
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);
