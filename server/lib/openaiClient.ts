@@ -340,6 +340,23 @@ export async function complete(
             + 'does not carry ai:generate, or the route is unmapped. This is NOT falling back to a '
             + 'direct OpenAI call: a scope problem must not be paid for twice and called working.',
           );
+        } else if (body?.error === 'metering_unavailable') {
+          // The gateway will not spend what it cannot count, which is correct — but it reads as
+          // a broken gateway, and the actual cause is almost always one thing. AxixOS warned us
+          // about this specific confusion: the platform key can be present and healthy (their
+          // /v1/ai/purposes reports configured: true without touching the database) while the
+          // two ledger tables have not been created, and every metered call then fails closed.
+          console.error(
+            `[${purpose}] gateway cannot meter this call (503 metering_unavailable). This is NOT `
+            + 'a broken gateway: it refuses to spend what it cannot count. Almost always the '
+            + 'tenant_keys / usage_ledger tables have not been created from supabase-schema.sql '
+            + 'on the AxixOS Supabase project. A healthy /v1/ai/purposes does not rule this out.',
+          );
+        } else if (body?.error === 'not_configured') {
+          console.error(
+            `[${purpose}] gateway has no platform OpenAI credential (503 not_configured). Theirs, `
+            + 'not ours: PLATFORM_OPENAI_API_KEY is unset or rejected on the AxixOS service.',
+          );
         } else {
           console.warn(`[${purpose}] gateway refused (${res.status} ${body?.error || 'no code'})`);
         }
