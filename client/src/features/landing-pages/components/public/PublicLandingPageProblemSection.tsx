@@ -12,9 +12,15 @@ interface PublicLandingPageProblemSectionProps {
     painPoints?: string[];
   };
   align?: SectionAlign;
+  /**
+   * One of the studio's own photographs, beside the copy. Only ever supplied on the page that is
+   * the studio's homepage — see useHomepageContentImages. Absent everywhere else, and the
+   * section lays out exactly as before when it is.
+   */
+  image?: { url: string; alt: string | null } | null;
 }
 
-export function PublicLandingPageProblemSection({ data, align = 'center' }: PublicLandingPageProblemSectionProps) {
+export function PublicLandingPageProblemSection({ data, align = 'center', image = null }: PublicLandingPageProblemSectionProps) {
   const editorial = useIsEditorial();
   const points = (data.painPoints ?? []).filter(Boolean);
   // With 3 points use a 3-up grid, otherwise a 2-up — keeps the row balanced
@@ -72,16 +78,34 @@ export function PublicLandingPageProblemSection({ data, align = 'center' }: Publ
   return (
     <PublicLandingPageSectionWrapper bg="gray">
       <div className="max-w-5xl mx-auto">
-        <div className={`max-w-2xl ${alignBlock(align)} ${alignText(align)}`}>
-          {data.headline && (
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              {data.headline}
-            </h2>
-          )}
-          {data.description && (
-            <p className="text-gray-600 text-lg mb-10 leading-relaxed">
-              {data.description}
-            </p>
+        {/*
+          With a photograph, the copy and the picture sit side by side and the copy stops being
+          centred — a centred column beside an image reads as two things that were not designed
+          together. Without one, this is byte-for-byte the layout that shipped before.
+        */}
+        <div className={image ? 'grid gap-8 md:grid-cols-2 md:items-center' : ''}>
+          <div className={image ? 'text-left' : `max-w-2xl ${alignBlock(align)} ${alignText(align)}`}>
+            {data.headline && (
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                {data.headline}
+              </h2>
+            )}
+            {data.description && (
+              <p className={`text-gray-600 text-lg leading-relaxed ${image ? 'mb-0' : 'mb-10'}`}>
+                {data.description}
+              </p>
+            )}
+          </div>
+          {image && (
+            <img
+              src={image.url}
+              // The studio's own alt text when the upload produced one. Falling back to the
+              // headline rather than to a filename: a screen reader reading
+              // "Dark+Waters-2500w.jpg" is worse than reading the section it illustrates.
+              alt={image.alt || data.headline || ''}
+              loading="lazy"
+              className="w-full rounded-2xl object-cover aspect-[4/3] shadow-sm"
+            />
           )}
         </div>
         {points.length > 0 && (

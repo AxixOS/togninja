@@ -109,5 +109,27 @@ check('the chosen image is copied into the studio\'s own storage',
   /await r\.arrayBuffer\(\)/.test(routes),
   'hotlinking breaks the day they take the old site down');
 
-console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
+// ── The content photographs actually appear on the page ─────────────────────
+//
+// The wizard asks for three images and stored three. `content-1` and `content-2` were read by
+// exactly one file — client/src/pages/HomePage.tsx, the built-in template — while onboarding
+// sets homepage_landing_slug so "/" serves the GENERATED landing page instead. So a studio
+// uploaded three photographs, paid to store them, and saw one.
+const renderer = read('client/src/features/landing-pages/components/public/PublicLandingPageRenderer.tsx');
+const contentHook = read('client/src/hooks/useHomepageContentImages.ts');
+
+check('the two content photographs reach the generated page',
+  renderer.includes('image={contentImages.one}') && renderer.includes('image={contentImages.two}'),
+  'otherwise they are stored, charged for, and rendered nowhere');
+
+// The same renderer draws every pillar page. Handing it homepage images unconditionally would
+// put one studio's two photographs on "Wildlife Prints", "Photography Courses" and every other
+// service — which is worse than showing none, because it looks deliberate.
+check('and only on the page that IS the homepage',
+  contentHook.includes('slug === homeSlug') && contentHook.includes('enabled: isHomepage'),
+  'gated on studio_configs.homepage_landing_slug, and not fetched at all elsewhere');
+
+console.log(`
+  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}
+`);
 process.exit(failed === 0 ? 0 : 1);

@@ -16,6 +16,7 @@ import { PublicLandingPageVideoSection } from './PublicLandingPageVideoSection';
 import { PublicLandingPageTrustBar } from './PublicLandingPageTrustBar';
 import { PublicLandingPageProblemSection } from './PublicLandingPageProblemSection';
 import { PublicLandingPageOfferSection } from './PublicLandingPageOfferSection';
+import { useHomepageContentImages } from '@/hooks/useHomepageContentImages';
 import { PublicLandingPageBenefitsSection } from './PublicLandingPageBenefitsSection';
 import { PublicLandingPageWhyChooseUsSection } from './PublicLandingPageWhyChooseUsSection';
 import { PublicLandingPageInclusionsSection } from './PublicLandingPageInclusionsSection';
@@ -120,6 +121,10 @@ export function PublicLandingPageRenderer({
   previewExpiresAt = null,
 }: PublicLandingPageRendererProps) {
   const labels = usePublicLabels();
+  // The two content photographs from onboarding. Empty unless THIS page is the studio's
+  // homepage — the same renderer draws every pillar page, and repeating one studio's two
+  // pictures across every service page looks deliberate, which is worse than showing none.
+  const contentImages = useHomepageContentImages(page.slug);
   const content = page.content_json || {};
   const ctaAction = page.cta_action || 'enquire';
   const ctaHref = getCtaHref(page, labels);
@@ -208,7 +213,7 @@ export function PublicLandingPageRenderer({
     ) : null,
 
     problemSection: () => content.problemSection ? (
-      <PublicLandingPageProblemSection key="problemSection" data={content.problemSection} align={alignFor('problemSection')} />
+      <PublicLandingPageProblemSection key="problemSection" data={content.problemSection} align={alignFor('problemSection')} image={contentImages.one} />
     ) : null,
 
     offerSection: () => content.offerSection ? (
@@ -216,6 +221,7 @@ export function PublicLandingPageRenderer({
         key="offerSection"
         data={content.offerSection}
         align={alignFor('offerSection')}
+        image={contentImages.two}
         ctaHref={ctaHref}
         ctaText={ctaText}
         pageId={page.id}

@@ -36,6 +36,12 @@ interface PublicLandingPageOfferSectionProps {
     urgency?: string;
   };
   align?: SectionAlign;
+  /**
+   * One of the studio's own photographs, above the offer. Supplied only on the page that IS the
+   * studio's homepage — see useHomepageContentImages. Absent on every pillar page, where these
+   * two images would otherwise repeat across every service.
+   */
+  image?: { url: string; alt: string | null } | null;
   ctaHref: string;
   ctaText: string;
   pageId: string;
@@ -46,6 +52,7 @@ interface PublicLandingPageOfferSectionProps {
 export function PublicLandingPageOfferSection({
   data,
   align = 'center',
+  image = null,
   ctaHref,
   ctaText,
   pageId,
@@ -137,6 +144,19 @@ export function PublicLandingPageOfferSection({
   return (
     <PublicLandingPageSectionWrapper bg="purple">
       <div className={`max-w-2xl ${alignBlock(align)}`}>
+        {/*
+          Above the intro, not beside it. This section is a centred max-w-2xl offer card, and a
+          two-column split would fight the one layout on the page that is deliberately narrow —
+          it is the screen a customer buys from. A band reads as part of the same column.
+        */}
+        {image && (
+          <img
+            src={image.url}
+            alt={image.alt || data.headline || ''}
+            loading="lazy"
+            className="w-full rounded-2xl object-cover aspect-[16/9] mb-8 shadow-sm"
+          />
+        )}
         {/* Intro above the card */}
         <div className={`${alignText(align)} mb-8`}>
           {data.headline && (
