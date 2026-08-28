@@ -36,6 +36,16 @@ export interface StoreSiteImageInput {
   originalName: string;
   /** Caller's alt text. A vision description beats it when one is available. */
   alt?: string | null;
+  /**
+   * Where a 'hero' should be mirrored to, when the caller already knows.
+   *
+   * Otherwise it is looked up from studio_configs.homepage_gen_state.draftId — which is
+   * correct for an upload arriving later, and WRONG for the pipeline, which creates the page
+   * and assigns its images ~70 lines before it writes that draft id. The lookup found null and
+   * the mirror silently did nothing, so a generated homepage came out with no hero at all
+   * while its two content photographs were both in place.
+   */
+  heroPageId?: string | null;
 }
 
 export interface StoreSiteImageResult {
@@ -163,8 +173,13 @@ export async function storeSiteImage(input: StoreSiteImageInput): Promise<StoreS
   // draft exists. This branch covers "after"; the pipeline covers "before".
   if (section === 'hero') {
     try {
-      const { rows } = await db.execute(sql`SELECT homepage_gen_state AS s FROM studio_configs LIMIT 1`) as any;
-      const draftId = (rows ?? [])[0]?.s?.draftId;
+      // The caller's own id first. The lookup below is only a fallback for callers who do not
+      // have one — an upload arriving after generation has finished.
+      let draftId: string | null = input.heroPageId || null;
+      if (!draftId) {
+        const { rows } = await db.execute(sql`SELECT homepage_gen_state AS s FROM studio_configs LIMIT 1`) as any;
+        draftId = (rows ?? [])[0]?.s?.draftId || null;
+      }
       if (draftId) {
         await db.execute(sql`UPDATE landing_pages SET hero_image_url = ${url} WHERE id = ${draftId}`);
         console.log(`[setup] hero image attached to homepage draft ${draftId}`);

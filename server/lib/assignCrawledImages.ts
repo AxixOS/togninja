@@ -93,7 +93,10 @@ export interface AssignResult {
  * the pages — mirroring a hero onto a landing_pages row that does not exist yet silently does
  * nothing. The pipeline calls this twice for that reason, not because the logic differs.
  */
-export async function assignCrawledSiteImages(scope: 'site' | 'pillars'): Promise<AssignResult> {
+export async function assignCrawledSiteImages(
+  scope: 'site' | 'pillars',
+  opts: { heroPageId?: string | null } = {},
+): Promise<AssignResult> {
   const out: AssignResult = { filled: 0, skipped: 0 };
   try {
     const { crawledImages } = await import('./crawledImages');
@@ -185,6 +188,8 @@ export async function assignCrawledSiteImages(scope: 'site' | 'pillars'): Promis
           // A slot label describes the slot, not the picture. Passed only as the floor —
           // storeSiteImage replaces it with a real description when vision is available.
           alt: img.label || slot.label || null,
+          // Only the hero uses it, and only the pipeline knows it this early.
+          heroPageId: opts.heroPageId ?? null,
         });
         out.filled++;
       } catch (e: any) {

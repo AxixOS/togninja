@@ -238,8 +238,12 @@ const store = read('server/lib/siteImageStore.ts');
 
 check('empty slots are filled from the crawl automatically',
   /export async function assignCrawledSiteImages/.test(assign)
-  && /assignCrawledSiteImages\('site'\)/.test(pipeline)
-  && /assignCrawledSiteImages\('pillars'\)/.test(pipeline),
+  // Matched on the call, not on its exact argument list. Pinning the closing paren made this
+  // go red for a change that was entirely correct — the pipeline now hands over the page id,
+  // because the draft id these images used to be mirrored through is written seventy lines
+  // later and the lookup was finding null.
+  && /assignCrawledSiteImages\('site'/.test(pipeline)
+  && /assignCrawledSiteImages\('pillars'/.test(pipeline),
   'both halves — the homepage slots and the service pages');
 
 // THE property. An automatic path that wrote rows directly would produce the WORST images on

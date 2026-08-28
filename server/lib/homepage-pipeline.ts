@@ -562,7 +562,11 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     // their identity, and the hero mirrored onto the draft the renderer actually reads.
     try {
       const { assignCrawledSiteImages } = await import('./assignCrawledImages');
-      const r = await assignCrawledSiteImages('site');
+      // page.id, NOT the draft id in homepage_gen_state — that is written ~70 lines below
+      // this, so at this moment the lookup inside storeSiteImage returns null and the hero
+      // never reaches the page. Same trap the old code avoided by passing page.id directly,
+      // walked straight back into when this moved behind a shared helper.
+      const r = await assignCrawledSiteImages('site', { heroPageId: page.id });
       if (r.filled > 0) {
         await note(
           state,

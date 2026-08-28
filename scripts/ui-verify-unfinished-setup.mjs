@@ -126,8 +126,10 @@ check('and it can never overwrite a homepage the studio is already running',
 const autoImages = read('server/lib/assignCrawledImages.ts');
 check('empty image slots are filled from their own website',
   autoImages.includes("const { crawledImages } = await import('./crawledImages')")
-  && pipeline.includes("assignCrawledSiteImages('site')")
-  && pipeline.includes("assignCrawledSiteImages('pillars')"));
+  // Matched on the call, not its exact arguments — the hero page id was added later and
+  // an exact-string check went red for a change that was entirely correct.
+  && /assignCrawledSiteImages\('site'/.test(pipeline)
+  && /assignCrawledSiteImages\('pillars'/.test(pipeline));
 
 check('and an auto-filled image is stored, not linked',
   autoImages.includes('storeSiteImage(')
@@ -140,11 +142,24 @@ check('an uploaded photograph always wins over an auto-filled one',
 
 // The trap I actually hit writing this: createLandingPage has already run by then, so
 // assigning to payload is a silent no-op that looks right in review.
-// Same trap, one layer down now: storeSiteImage is what reaches the draft, and it does it by
-// looking the draft id up from homepage_gen_state rather than trusting a payload that
-// createLandingPage has already consumed.
+// The hero has to reach the page the pipeline JUST CREATED, using the id it is holding.
+//
+// This has now gone wrong twice in the same spot, in opposite directions. First by assigning
+// to `payload` after createLandingPage had already consumed it. Then, when the store moved
+// behind a shared helper, by relying on studio_configs.homepage_gen_state.draftId — which the
+// pipeline writes about seventy lines AFTER it assigns these images. The lookup returned null,
+// the mirror did nothing, and a generated homepage shipped with no hero while both of its
+// content photographs were in place. Live on the demo, and only visible by looking at the page.
+//
+// Both failures are silent, and neither is visible in the row the wizard shows as filled. So
+// the check is that the pipeline HANDS OVER the id rather than trusting anything to find it.
 check('the auto-filled hero updates the created page, not a dead payload',
-  read('server/lib/siteImageStore.ts').includes('UPDATE landing_pages SET hero_image_url = ${url} WHERE id = ${draftId}'));
+  pipeline.includes("assignCrawledSiteImages('site', { heroPageId: page.id })"),
+  'anything that looks the id up instead is reading state written later in the same function');
+
+check('and the store prefers a caller-supplied id over that lookup',
+  read('server/lib/siteImageStore.ts').includes('let draftId: string | null = input.heroPageId || null;'),
+  'the lookup stays for uploads arriving after generation, where there is no caller id');
 
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);
