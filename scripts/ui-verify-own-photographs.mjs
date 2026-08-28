@@ -199,6 +199,31 @@ check('and a chosen one is POSTed to the endpoint that copies',
   /addOwnPhoto[\s\S]{0,700}?'\/api\/portfolio\/images'[\s\S]{0,200}?method: 'POST'/.test(manual),
   'writing the crawled url anywhere else re-creates the hotlink this file exists to prevent');
 
+// ── A pillar page can be given one of the studio's own photographs ──────────
+//
+// The hero column and the renderer that draws it both existed; the only way to fill it was to
+// upload a file. So every generated service page — "Boudoir Photography", "Intimate
+// Portraiture" — shipped as pure type on a photographer's website, while onboarding had
+// already crawled, listed and stored the addresses of dozens of that studio's pictures and
+// used three of them.
+const settings = read('client/src/features/landing-pages/components/editor/LandingPageSettingsPanel.tsx');
+
+check('a pillar hero can be picked from the crawl, not only uploaded',
+  /\/api\/setup\/crawled-images/.test(settings) && /chooseCrawledHero/.test(settings),
+  'the column and the renderer were both already there — only the way in was missing');
+
+// The third door into an image table, and it must behave like the other two.
+check('and choosing one copies the bytes into the studio\'s bucket',
+  /data\.hero_image_url[\s\S]{0,400}?await copyImageIntoStorage\(/.test(adminRoutes),
+  'a pillar page hotlinking the old site goes blank the week it is cancelled');
+
+// The copy means the stored url is NOT the one that was sent. The panel's generic savePatch
+// writes back the patch it sent, so reusing it here would leave the old site's address on
+// screen — looking exactly like the hotlink the copy just prevented.
+check('and the panel shows where the bytes actually landed',
+  /saved\?\.hero_image_url \|\| img\.url/.test(settings),
+  'the server\'s answer, not the request');
+
 console.log(`
   ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}
 `);

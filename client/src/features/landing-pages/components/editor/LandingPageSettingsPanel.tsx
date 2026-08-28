@@ -77,6 +77,25 @@ export default function LandingPageSettingsPanel({ page, title, onTitleChange }:
   };
   const [products, setProducts] = useState<VoucherProduct[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  // The studio's own photographs, from the crawl of the site they already have.
+  //
+  // A pillar page shipped with no hero at all unless somebody uploaded one by hand, so every
+  // generated service page — "Boudoir Photography", "Intimate Portraiture" — was pure type on
+  // a photographer's website. Meanwhile onboarding had already found and listed dozens of
+  // their pictures and used three.
+  const [ownPhotos, setOwnPhotos] = useState<Array<{ url: string; label?: string }>>([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickingHero, setPickingHero] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/setup/crawled-images')
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled && Array.isArray(d?.images)) setOwnPhotos(d.images); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Drag-to-fit hero crop: object-position (x/y in %) + zoom. Drag the
@@ -176,6 +195,41 @@ export default function LandingPageSettingsPanel({ page, title, onTitleChange }:
     const ok = await saveField('hero_video_url', heroVideo.trim() || null);
     setVideoSaveStatus(ok ? 'saved' : 'error');
     if (ok) window.setTimeout(() => setVideoSaveStatus('idle'), 4000);
+  };
+
+  /**
+   * Use one of the studio's existing photographs as this page's hero.
+   *
+   * Deliberately NOT saveField(): the server copies the bytes into the studio's own bucket and
+   * returns a DIFFERENT url from the one sent. saveField writes the patch it sent into the
+   * query cache, so the panel would keep showing the old site's address until a refetch — and
+   * would look, correctly, like the hotlink this copy exists to prevent.
+   */
+  const chooseCrawledHero = async (img: { url: string; label?: string }) => {
+    setPickingHero(img.url);
+    try {
+      const res = await fetch(`/api/admin/landing-pages/${page.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hero_image_url: img.url }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as any));
+        toast({ title: 'Could not use that photograph', description: body?.error || 'Please try another.', variant: 'destructive' });
+        return;
+      }
+      const saved = await res.json().catch(() => ({} as any));
+      const stored = saved?.hero_image_url || img.url;
+      setHeroImage(stored);
+      qc.setQueryData(['landing-page', page.id], (old: any) => (old ? { ...old, hero_image_url: stored } : old));
+      setShowPicker(false);
+      toast({ title: 'Hero image set', description: 'A copy is stored in your own bucket.' });
+    } catch {
+      toast({ title: 'Could not reach the server', variant: 'destructive' });
+    } finally {
+      setPickingHero(null);
+    }
   };
 
   const handleUpload = async (file: File) => {
@@ -350,7 +404,7 @@ export default function LandingPageSettingsPanel({ page, title, onTitleChange }:
             <div className="absolute inset-0 bg-black/55 pointer-events-none" />
             <div className="absolute inset-0 flex items-center justify-center px-3 pointer-events-none">
               <p className="text-white text-[10px] font-extrabold text-center leading-tight line-clamp-2">
-                {((p as any).content_json?.hero?.headline as string) || p.hero_headline || 'Ihre Headline'}
+                {((p as any).content_json?.hero?.headline as string) || p.hero_headline || 'Your headline'}
               </p>
             </div>
             <button
@@ -359,7 +413,7 @@ export default function LandingPageSettingsPanel({ page, title, onTitleChange }:
               className="absolute top-1 right-1 bg-black/60 text-white text-xs px-2 py-0.5 rounded"
             >Remove</button>
             <span className="absolute bottom-1 left-1 bg-black/50 text-white/80 text-[9px] px-1.5 py-0.5 rounded pointer-events-none">
-              ✥ Ziehen zum Ausrichten
+              ✥ Drag to reposition
             </span>
           </div>
         ) : (
@@ -391,6 +445,50 @@ export default function LandingPageSettingsPanel({ page, title, onTitleChange }:
           {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
           {uploading ? 'Uploading…' : 'Upload hero image'}
         </Button>
+
+        {/*
+          Uploading was the ONLY way to give a pillar page a hero, which meant finding the file
+          again on disk — for photographs this instance had already crawled, listed and stored
+          the addresses of. Offered second, because a studio who has a specific picture in mind
+          should not have to scroll past a grid to upload it.
+        */}
+        {ownPhotos.length > 0 && (
+          <>
+            <Button variant="outline" size="sm" className="w-full gap-2"
+              onClick={() => setShowPicker((v) => !v)}>
+              <ImageIcon className="h-4 w-4" />
+              {showPicker ? 'Hide your photographs' : `Choose from your site (${ownPhotos.length})`}
+            </Button>
+
+            {showPicker && (
+              <div className="rounded-md border border-gray-200 p-2">
+                <p className="text-[10px] text-gray-500 mb-2 leading-snug">
+                  Found on your existing website. Choosing one saves a copy to your own storage,
+                  so it keeps working after your old site goes.
+                </p>
+                <div className="grid grid-cols-3 gap-1.5 max-h-64 overflow-y-auto">
+                  {ownPhotos.map((img) => (
+                    <button
+                      key={img.url}
+                      type="button"
+                      disabled={pickingHero !== null}
+                      onClick={() => chooseCrawledHero(img)}
+                      title={img.label || 'Use as hero image'}
+                      className="group relative aspect-square overflow-hidden rounded border border-gray-200 hover:border-purple-400 disabled:opacity-50"
+                    >
+                      <img src={img.url} alt={img.label || ''} loading="lazy" className="h-full w-full object-cover" />
+                      {pickingHero === img.url && (
+                        <span className="absolute inset-0 grid place-items-center bg-black/50">
+                          <Loader2 className="h-4 w-4 animate-spin text-white" />
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         <LandingPageInlineTextField
           label="Hero video URL (optional — .mp4, YouTube or Vimeo)"

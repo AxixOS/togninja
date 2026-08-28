@@ -20796,6 +20796,17 @@ Current system status: The AI agent system is temporarily unavailable. Please tr
   app.put("/api/admin/landing-pages/:id", authOrApiKey('landing-pages:write'), async (req: Request, res: Response) => {
     try {
       const data = req.body;
+      // A hero image arriving as a URL is COPIED into the studio's own bucket before the row
+      // records it — the same rule the homepage and portfolio doors got in v1.9.184/185.
+      // Without it, choosing one of the studio's crawled photographs for a pillar page
+      // hotlinks the site they are migrating away from, and the page goes blank the week they
+      // cancel it. copyImageIntoStorage already no-ops on a URL that is in the bucket, so
+      // re-saving a page that is already correct costs nothing.
+      if (typeof data.hero_image_url === 'string' && data.hero_image_url.trim()) {
+        const copied = await copyImageIntoStorage(data.hero_image_url.trim(), `landing/${req.params.id}`);
+        if ('error' in copied) return res.status(copied.status).json({ error: copied.error });
+        data.hero_image_url = copied.url;
+      }
       // If slug changed, check uniqueness
       if (data.slug) {
         const slugAvailable = await neonDb.checkSlugAvailable(data.slug, req.params.id);
