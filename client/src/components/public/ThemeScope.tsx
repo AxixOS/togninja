@@ -10,6 +10,26 @@ import { SiteLayoutProvider } from './SiteLayoutContext';
  * /api/studio-config (siteTheme) unless one is passed in (e.g. an admin live preview).
  */
 export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePreset }> = ({ children, preset }) => {
+  /**
+   * The studio's theme and layout, stamped into the HTML shell by server/vite.ts so the FIRST
+   * paint is already theirs.
+   *
+   * Without it, the fallbacks below are what a visitor actually sees for as long as the fetch
+   * takes: getThemePreset(undefined) returns THEME_PRESETS[0] — 'atelier', a rust-red accent —
+   * and a null layout falls through to DEFAULT_LAYOUT_ID, 'classic'. Both are correct defaults
+   * for a section rendered outside a provider. Neither is correct for a real visitor.
+   *
+   * Measured on the live demo: ~2 seconds of a fully rendered page in another studio's
+   * identity — red nav and buttons instead of near-black, classic instead of editorial, no
+   * logo — before it swapped. The headline in that window was dark centred type over a
+   * photograph chosen for editorial's left-aligned treatment, and barely legible.
+   *
+   * The query stays as the fallback for the dev server and any shell served without the
+   * stamp, which is exactly how RootHome treats __HOMEPAGE_LANDING_SLUG__.
+   */
+  const injected: { theme?: string | null; layout?: string | null } | undefined =
+    typeof window !== 'undefined' ? (window as any).__SITE_CHROME__ : undefined;
+
   const { data } = useQuery({
     queryKey: ['site-theme'],
     queryFn: async () => {
@@ -20,13 +40,13 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
       return { theme: d?.siteTheme || null, layout: d?.siteLayout?.id || null };
     },
     staleTime: 5 * 60 * 1000,
-    enabled: !preset,
+    enabled: !preset && !injected,
   });
 
-  const theme = preset || getThemePreset((data as any)?.theme?.id);
+  const theme = preset || getThemePreset(injected?.theme ?? (data as any)?.theme?.id);
   // An explicit preset means an admin preview of one particular theme; the layout still
   // comes from what the studio has actually chosen.
-  const layoutId = (data as any)?.layout || null;
+  const layoutId = injected?.layout ?? (data as any)?.layout ?? null;
   const c = theme.colors;
   const f = theme.fonts;
 

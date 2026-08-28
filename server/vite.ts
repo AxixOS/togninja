@@ -350,6 +350,49 @@ async function getHomepageLandingSlug(): Promise<string | null> {
   }
 }
 
+// The studio's theme and layout, for the SHELL.
+//
+// Exactly the same bug as the slug above, one layer out. ThemeScope fetches
+// /api/studio-config from the browser, and until that lands it falls back to
+// THEME_PRESETS[0] — 'atelier', a rust-red accent — and DEFAULT_LAYOUT_ID, 'classic'. Both
+// defaults are right for a section rendered outside a provider; neither is right for the
+// two seconds a real visitor spends waiting for the fetch.
+//
+// Measured on the live demo: the page painted in full, in another studio's identity, for
+// ~2s of a 6s load. Red nav and buttons instead of near-black, classic instead of
+// editorial, no logo, a nav item missing — and a headline set as dark centred type over a
+// photograph chosen for editorial's left-aligned treatment, so it was barely legible.
+//
+// The comment on the homepage branch below calls its version of this "a visible flash of
+// another studio's content on every load". This is that, for the brand rather than the body.
+//
+// Only the IDs are injected, which is precisely what ThemeScope derives from the API today
+// (it takes siteTheme.id and looks the preset up locally). Short TTL for the same reason as
+// the slug: these change only when a studio picks a different one.
+let siteChromeCache: { js: string; at: number } | null = null;
+const SITE_CHROME_TTL = 60_000;
+async function siteChromeScript(): Promise<string> {
+  if (siteChromeCache && Date.now() - siteChromeCache.at < SITE_CHROME_TTL) return siteChromeCache.js;
+  try {
+    const [theme, layout] = await Promise.all([
+      import("./lib/site-theme").then((m) => m.getSiteTheme()).catch(() => null),
+      import("./lib/site-layout").then((m) => m.getSiteLayoutForStudio()).catch(() => null),
+    ]);
+    const payload = { theme: (theme as any)?.id ?? null, layout: (layout as any)?.id ?? null };
+    // JSON.stringify escapes the values safely for an inline script context.
+    const js = (payload.theme || payload.layout)
+      ? `<script>window.__SITE_CHROME__=${JSON.stringify(payload)}</script>`
+      : "";
+    siteChromeCache = { js, at: Date.now() };
+    return js;
+  } catch {
+    // Never block or break a public page for this. An empty string is exactly today's
+    // behaviour — the client fetches and flashes — which is worse, not broken.
+    siteChromeCache = { js: "", at: Date.now() };
+    return "";
+  }
+}
+
 // Is this path one of the studio's own pillar pages?
 //
 // The meta branch below is gated on a path pattern — /blog/, /gutschein/, /lp/ — and a
@@ -1221,6 +1264,16 @@ export function serveStatic(app: Express) {
     // per-route logic in this handler.
     const requestPath = (req.originalUrl || "/").split("?")[0];
 
+    // Every HTML response below carries the studio's theme and layout, so the FIRST paint is
+    // already theirs. Raced, like every other lookup in this handler: a slow database may
+    // cost a flash, never a hung public page.
+    const chromeScript = await Promise.race([
+      siteChromeScript(),
+      new Promise<string>((resolve) => setTimeout(() => resolve(""), 1500).unref?.()),
+    ]);
+    const withChrome = (html: string): string =>
+      chromeScript ? html.replace("</head>", `${chromeScript}</head>`) : html;
+
     // Data-driven routes (blog posts, voucher details): inject real meta from
     // the DB and serve the shell — NEVER the prerendered files for these
     // paths, which captured the build-time "not found" error state (the
@@ -1262,9 +1315,9 @@ export function serveStatic(app: Express) {
             res.setHeader("X-Route-Body", "hit");
           }
         }
-        return res.status(200).type("html").send(html);
+        return res.status(200).type("html").send(withChrome(html));
       } catch {
-        return res.status(200).type("html").send(renderedIndex());
+        return res.status(200).type("html").send(withChrome(renderedIndex()));
       }
     }
 
@@ -1295,7 +1348,9 @@ export function serveStatic(app: Express) {
           }
           prerenderedCache.set(cacheKey, html);
         }
-        return res.status(200).type("html").send(html);
+        // Wrapped at SEND time, not baked into prerenderedCache: the chrome has its own
+        // 60s TTL, and a studio changing theme should not need the page cache to turn over.
+        return res.status(200).type("html").send(withChrome(html));
       } catch {
         return res.sendFile(prerenderedHtmlPath);
       }
@@ -1335,9 +1390,9 @@ export function serveStatic(app: Express) {
           let html = injectRouteMeta(emptiedShell(), homeMeta);
           html = injectBodyIntoRoot(html, homeMeta.bodyHtml);
           res.setHeader("X-Route-Meta", "home-custom");
-          return res.status(200).type("html").send(withSlug(html));
+          return res.status(200).type("html").send(withChrome(withSlug(html)));
         }
-        return res.status(200).type("html").send(withSlug(renderedIndex()));
+        return res.status(200).type("html").send(withChrome(withSlug(renderedIndex())));
       } catch (err) {
         console.warn("[route-meta] homepage branch failed:", (err as any)?.message);
       }
@@ -1349,7 +1404,7 @@ export function serveStatic(app: Express) {
     // rendered (reported on /cart after the landing-page CTA, /contact, …).
     // Serve the emptied shell everywhere except "/" itself.
     res.status(200).type("html").send(
-      requestPath === "/" ? renderedIndex() : emptiedShell()
+      withChrome(requestPath === "/" ? renderedIndex() : emptiedShell())
     );
    } catch (fatal) {
     // Last-resort guard: this handler must NEVER leave a request hanging

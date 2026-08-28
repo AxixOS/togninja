@@ -219,5 +219,47 @@ check('light text is only used when there is media behind it',
 check('the classic arrangement is untouched',
   /\/\/ ── Classic/.test(hero) && /from-purple-700 via-purple-600 to-pink-600/.test(hero));
 
+// ── The studio's identity is on the page at FIRST paint ────────────────────
+//
+// ThemeScope fetched /api/studio-config from the browser. Until it landed, getThemePreset()
+// returned THEME_PRESETS[0] — 'atelier', a rust-red accent — and a null layout fell through
+// to 'classic'. Both are right for a section rendered outside a provider; neither is right
+// for a visitor. So every public page painted in full, in ANOTHER studio's identity, and
+// then swapped.
+//
+// Caught on video on the live demo: ~2s of red nav and buttons, classic instead of
+// editorial, no logo, and a headline set as dark centred type over a photograph chosen for
+// editorial's left-aligned treatment — barely legible.
+//
+// This is the third time this exact shape has been fixed in this file's neighbourhood. The
+// homepage BODY flash and the language-guess both have comments explaining why guessing is
+// worse than waiting. The brand did not get the same treatment.
+const viteShell = read('server/vite.ts');
+const themeScopeSrc = read('client/src/components/public/ThemeScope.tsx');
+
+check('the shell stamps the studio theme and layout',
+  /window\.__SITE_CHROME__=/.test(viteShell) && /getSiteLayoutForStudio\(\)/.test(viteShell),
+  'so the first paint is already the studio\'s, with no round trip');
+
+// Injecting it is useless if a send path forgets to carry it. Every HTML response from the
+// catch-all must go through withChrome — the prerendered branch included, which is the one
+// serving most pillar pages.
+const chromeSends = (viteShell.match(/type\("html"\)\.send\(/g) || []).length;
+const chromeWrapped = (viteShell.match(/type\("html"\)\.send\(\s*withChrome\(/g) || []).length
+  + (viteShell.match(/send\(\n\s*withChrome\(/g) || []).length;
+check('and every HTML response carries it',
+  chromeWrapped >= chromeSends,
+  `${chromeWrapped}/${chromeSends} send paths wrapped`);
+
+check('the client prefers the stamp over its own fetch',
+  /__SITE_CHROME__/.test(themeScopeSrc) && /enabled: !preset && !injected/.test(themeScopeSrc),
+  'otherwise the round trip stays and so does the flash');
+
+// The fetch must SURVIVE as the fallback: the dev server does not stamp, and neither does
+// the last-resort sendFile. Deleting it would trade a flash for a permanently wrong theme.
+check('but keeps the fetch for shells that carry no stamp',
+  /\/api\/studio-config/.test(themeScopeSrc),
+  'dev server and the fatal-catch sendFile both serve an unstamped shell');
+
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);
