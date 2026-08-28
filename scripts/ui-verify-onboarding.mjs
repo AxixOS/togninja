@@ -366,6 +366,35 @@ check('the photographs step says so when generation stopped',
   images.includes('readStopped &&') && images.includes('could not finish writing your homepage'),
   'otherwise the findings list ends mid-sentence and reads as a hang');
 
+// ── The reset that wipes the instance must not need a dialog ────────────────
+//
+// DemoResetButton gated on window.confirm() and reported failure with alert(). Chrome offers
+// "Prevent this page from creating additional dialogs" once a page has shown a few, and the
+// choice persists for the rest of that page's life — after which confirm() returns FALSE
+// WITHOUT ASKING. The handler took its early return and did nothing: no reset, no message, no
+// busy state. Reported as "the reset button isn't clicking", which is precisely how it looks.
+//
+// alert() is silenced by the same switch, so the error path was mute for the same reason —
+// the two mechanisms that were supposed to make this safe both fail closed and silently.
+//
+// The rule this asserts is narrow on purpose: the single most destructive control in the
+// product — it truncates clients, invoices, galleries and admin_users — must not depend on a
+// dialog the browser is free to withhold, and its failure must be visible in the DOM.
+const reset = read('client/src/components/admin/DemoResetButton.tsx');
+const resetCode = reset.split(/\r?\n/).filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+check('the demo reset does not depend on a suppressible dialog',
+  !/window\.confirm|(^|[^.\w])confirm\(|(^|[^.\w])alert\(/.test(resetCode),
+  'a browser that withholds confirm() turns this into a button that does nothing');
+
+check('and its confirmation is rendered, so it cannot be withheld',
+  /confirming/.test(resetCode) && /setConfirming\(true\)/.test(resetCode),
+  'two-stage in the component, not a native dialog');
+
+check('a failed reset says why on the page',
+  /setError\(/.test(resetCode) && /\{error &&/.test(resetCode),
+  'including the 401 that a stale session produces on a dashboard left open');
+
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');
