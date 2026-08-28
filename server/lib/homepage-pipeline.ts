@@ -451,6 +451,29 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
           publish: true,
         });
         console.log(`[homepage-pipeline] pillar pages: ${r.created} created, ${r.skipped} already existed, ${r.remaining} left for a later build`);
+
+        // Now, and not before: storeSiteImage mirrors a service photograph onto the pillar
+        // page's own hero_image_url, and a landing_pages row that does not exist yet matches
+        // nothing. Running this earlier would have filled the wizard's slots while leaving
+        // every service page exactly as blank as it was.
+        //
+        // Without it a studio reached the end of onboarding with a homepage full of their own
+        // work and service pages that were flat colour under a heading — the photographs were
+        // in the database the whole time and only the choice was missing.
+        try {
+          const { assignCrawledSiteImages } = await import('./assignCrawledImages');
+          const imgs = await assignCrawledSiteImages('pillars');
+          if (imgs.filled > 0) {
+            console.log(`[homepage-pipeline] service pages: ${imgs.filled} photograph(s) assigned from the crawl`);
+            await note(
+              state,
+              'found',
+              `Added a photograph to ${imgs.filled} of your service page${imgs.filled === 1 ? '' : 's'}`,
+            );
+          }
+        } catch (e: any) {
+          console.warn('[homepage-pipeline] service page images skipped:', e?.message || e);
+        }
         if (r.aborted) {
           // Says it in the log AND on the studio's own progress list, because the alternative
           // is a menu that is quietly two services shorter than the site it was built from,
@@ -528,43 +551,24 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     // photographs step always wins — this is a floor, not an override. And it is their own
     // work, so it does not touch the rule against shipping placeholder photography: no stock
     // is involved and never will be.
+    // This used to INSERT the crawled URL straight into homepage_images. Three consequences,
+    // all of them live on the demo until now: the homepage HOTLINKED images.squarespace-cdn.com
+    // on an instance whose whole purpose is to replace that Squarespace site; the pictures had
+    // no alt text beyond a filename; and the files carried no byline or copyright. The wizard's
+    // own picker did all three correctly, so the studio got worse images by NOT choosing.
+    //
+    // assignCrawledSiteImages goes through storeSiteImage, the same door the picker uses:
+    // downloaded into the studio's own bucket, described by the vision model, stamped with
+    // their identity, and the hero mirrored onto the draft the renderer actually reads.
     try {
-      const { crawledImages } = await import('./crawledImages');
-      const found = await crawledImages(12);
-      if (found.length) {
-        const { rows: taken } = await pool.query(
-          `SELECT section FROM homepage_images WHERE is_active = true AND section IN ('hero','content-1','content-2')`,
+      const { assignCrawledSiteImages } = await import('./assignCrawledImages');
+      const r = await assignCrawledSiteImages('site');
+      if (r.filled > 0) {
+        await note(
+          state,
+          'found',
+          `Used ${r.filled} of your own photograph${r.filled === 1 ? '' : 's'} from your website`,
         );
-        const filled = new Set((taken as any[]).map((r) => r.section));
-        const wanted = ['hero', 'content-1', 'content-2'].filter((sec) => !filled.has(sec));
-
-        let used = 0;
-        for (const section of wanted) {
-          const img = found[used];
-          if (!img) break;
-          await pool.query(
-            `INSERT INTO homepage_images (section, url, alt, sort_order, is_active) VALUES ($1, $2, $3, 0, true)`,
-            [section, img.url, img.label || null],
-          );
-          used++;
-        }
-
-        if (used > 0) {
-          // The hero also has to reach the page itself — the renderer reads
-          // landing_pages.hero_image_url, not homepage_images.
-          //
-          // updateLandingPage, NOT payload: createLandingPage has already run by this point,
-          // so assigning to payload here would have been a silent no-op that looked correct
-          // in review and shipped an imageless page.
-          if (wanted.includes('hero') && found[0] && !(payload as any).hero_image_url) {
-            await neonDb.updateLandingPage(page.id, { hero_image_url: found[0].url });
-          }
-          await note(
-            state,
-            'found',
-            `Used ${used} of your own photograph${used === 1 ? '' : 's'} from your website`,
-          );
-        }
       }
     } catch (e: any) {
       console.warn('[homepage-pipeline] could not reuse crawled photographs:', e?.message || e);

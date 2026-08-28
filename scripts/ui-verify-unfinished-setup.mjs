@@ -118,18 +118,33 @@ check('and it can never overwrite a homepage the studio is already running',
   'a regenerate during setup may replace it; after setup, never');
 
 // ── Their own photographs, not stock ────────────────────────────────────────
+// The auto-fill moved into lib/assignCrawledImages and now covers the SERVICE pages as well
+// as the homepage — a studio was finishing onboarding with pictures on one page and flat
+// colour on the rest. The INSERT this used to look for is deliberately gone: writing the row
+// directly is what made the automatic path hotlink the studio's old site and skip alt text
+// and IPTC entirely. It goes through storeSiteImage now, the same door the wizard uses.
+const autoImages = read('server/lib/assignCrawledImages.ts');
 check('empty image slots are filled from their own website',
-  pipeline.includes("const { crawledImages } = await import('./crawledImages')")
-  && pipeline.includes('INSERT INTO homepage_images'));
+  autoImages.includes("const { crawledImages } = await import('./crawledImages')")
+  && pipeline.includes("assignCrawledSiteImages('site')")
+  && pipeline.includes("assignCrawledSiteImages('pillars')"));
+
+check('and an auto-filled image is stored, not linked',
+  autoImages.includes('storeSiteImage(')
+  && !pipeline.includes('INSERT INTO homepage_images'),
+  'the pipeline used to INSERT the crawled URL raw — the demo hotlinked squarespace-cdn for it');
 
 check('an uploaded photograph always wins over an auto-filled one',
-  pipeline.includes('!filled.has(sec)'),
+  autoImages.includes('filledSections.has(w.section)'),
   'auto-fill is a floor, not an override');
 
 // The trap I actually hit writing this: createLandingPage has already run by then, so
 // assigning to payload is a silent no-op that looks right in review.
+// Same trap, one layer down now: storeSiteImage is what reaches the draft, and it does it by
+// looking the draft id up from homepage_gen_state rather than trusting a payload that
+// createLandingPage has already consumed.
 check('the auto-filled hero updates the created page, not a dead payload',
-  pipeline.includes('await neonDb.updateLandingPage(page.id, { hero_image_url: found[0].url })'));
+  read('server/lib/siteImageStore.ts').includes('UPDATE landing_pages SET hero_image_url = ${url} WHERE id = ${draftId}'));
 
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);

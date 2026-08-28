@@ -224,6 +224,71 @@ check('and the panel shows where the bytes actually landed',
   /saved\?\.hero_image_url \|\| img\.url/.test(settings),
   'the server\'s answer, not the request');
 
+// ── Every page arrives with a photograph on it ──────────────────────────────
+//
+// Onboarding offered six slots — a hero, two content blocks, one per service — and a real
+// studio filled three. So they finished with a homepage full of their own work and service
+// pages that were flat colour under headings like "Discover the Empowerment of Boudoir
+// Photography". The photographs were in the database the entire time; only the decision
+// about which went where was missing, and for a photographer's own files that decision is
+// often written on the tin: BoudoirPhotographyNYC.jpg, QueerWeddingPhotographyNYC.jpg.
+const assign = read('server/lib/assignCrawledImages.ts');
+const pipeline = read('server/lib/homepage-pipeline.ts');
+const store = read('server/lib/siteImageStore.ts');
+
+check('empty slots are filled from the crawl automatically',
+  /export async function assignCrawledSiteImages/.test(assign)
+  && /assignCrawledSiteImages\('site'\)/.test(pipeline)
+  && /assignCrawledSiteImages\('pillars'\)/.test(pipeline),
+  'both halves — the homepage slots and the service pages');
+
+// THE property. An automatic path that wrote rows directly would produce the WORST images on
+// the site: hotlinked to the old site, no alt text, no byline — precisely the pictures nobody
+// ever revisits. It was doing exactly that, and the demo hotlinked images.squarespace-cdn.com
+// on all three homepage slots as a result.
+check('and go through the same door a hand-picked one does',
+  /storeSiteImage\(/.test(assign)
+  && !/INSERT INTO homepage_images/.test(pipeline),
+  'downloaded into their bucket, described, and stamped — not an INSERT of someone else\'s URL');
+
+check('the shared store is what carries the metadata',
+  /analyzeVision\(/.test(store) && /writeIptc\(/.test(store) && /buildImageFilename\(/.test(store),
+  'alt text from the picture, IPTC from the tenant, an SEO filename');
+
+// A studio's own choice must always outrank a guess, and re-running must never overwrite it.
+check('a slot the studio filled themselves is never touched',
+  /filledSections\.has\(w\.section\)/.test(assign),
+  'this is a floor, not an override');
+
+// Three services showing one photograph reads as broken in a way three empty blocks do not.
+check('and no photograph is used on two pages',
+  /claimed\.add\(/.test(assign) && /claimed\.has\(/.test(assign));
+
+// Ordering is the subtle one, and the obvious check for it is worthless. storeSiteImage
+// mirrors a service photograph onto the pillar page's own hero_image_url, and a landing_pages
+// row that does not exist yet matches nothing — so the pillar pass has to run AFTER
+// authority-scaffold. But the scaffold is fire-and-forget inside a .then(), so it sits EARLIER
+// in the file than code that runs before it: comparing text offsets proves nothing, and the
+// first version of this check passed while the call had been moved into a different block.
+//
+// So match braces from the callback that awaited the scaffold, and require the call to be
+// inside it. That is the actual property — "runs after the pages exist" — rather than a proxy.
+const scaffoldBlock = (() => {
+  const awaitAt = pipeline.indexOf('await scaffoldPillarPages(');
+  if (awaitAt < 0) return '';
+  const openAt = pipeline.lastIndexOf('.then(async () => {', awaitAt);
+  if (openAt < 0) return '';
+  let depth = 0;
+  for (let i = pipeline.indexOf('{', openAt); i < pipeline.length; i++) {
+    if (pipeline[i] === '{') depth++;
+    else if (pipeline[i] === '}' && --depth === 0) return pipeline.slice(openAt, i);
+  }
+  return '';
+})();
+check('service images are assigned only once those pages exist',
+  /assignCrawledSiteImages\('pillars'\)/.test(scaffoldBlock),
+  scaffoldBlock ? 'inside the callback that awaited the scaffold' : 'could not locate the scaffold callback');
+
 console.log(`
   ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}
 `);

@@ -103,7 +103,9 @@ router.post('/upload-image', setupImageUpload.single('file'), (req: any, res: Re
 // Slots the wizard is allowed to write. An allow-list, so a mistyped or hostile section
 // cannot create arbitrary rows in a table the public site renders from. Pillar slots are
 // validated separately against the studio's own map.
-const FIXED_IMAGE_SECTIONS = new Set(['hero', 'content-1', 'content-2']);
+// Re-exported from the module that owns the storing rule, so the validation here and the
+// branch inside storeSiteImage can never disagree about what a fixed section is.
+import { FIXED_IMAGE_SECTIONS } from './lib/siteImageStore';
 
 /**
  * Store one image against one slot.
@@ -148,170 +150,26 @@ async function storeSectionImage(req: any, res: Response) {
       return res.status(400).json({ error: 'Please upload a JPG, PNG, WebP or AVIF image.' });
     }
 
-    const { getS3Client, getS3Config, buildPublicUrl } = await import('./services/s3-storage');
-    const cfg = getS3Config();
-    if (!cfg.isConfigured) {
-      return res.status(503).json({ error: 'File storage is not configured yet — add your storage keys first.' });
-    }
-    const ext = path.extname(req.file.originalname) ||
-      (mime === 'image/png' ? '.png' : mime === 'image/webp' ? '.webp' : mime === 'image/avif' ? '.avif' : '.jpg');
+    // The whole store — analyse, stamp, upload, record, mirror to the pillar page — now lives
+    // in lib/siteImageStore so the AUTOMATIC path can use it too. It used to live here, which
+    // meant a photograph got alt text and IPTC only if a human picked it in the wizard: the
+    // pipeline's auto-fill INSERTed a crawled URL raw, so a studio ended up hotlinking the site
+    // they were leaving, with no description on the pictures they never touched.
+    const { storeSiteImage } = await import('./lib/siteImageStore');
+    const stored = await storeSiteImage({
+      section,
+      buffer: req.file.buffer,
+      mime,
+      originalName: req.file.originalname,
+      alt: req.body?.alt,
+    });
 
-    // ── Describe and name the photograph ──────────────────────────────────────
-    // These nine images (hero, two content blocks, one per pillar) are the studio's
-    // whole public-facing photography, so they are the images where alt text and
-    // embedded metadata are actually the product. Nine vision calls is roughly 5p.
-    //
-    // Everything here is best-effort: an upload must succeed with a plain buffer and a
-    // uuid key even when OpenAI is unset, the model errors, or ExifTool is unavailable.
-    // A studio blocked from uploading a picture because a metadata step failed would be
-    // a far worse bug than the one this fixes.
-    let body: Buffer = req.file.buffer;
-    let alt = String(req.body?.alt || '').trim().slice(0, 200) || null;
-    let key = `Site Images/${section}-${crypto.randomUUID()}${ext}`;
-
-    try {
-      const { getImageIdentity } = await import('./lib/studioImageIdentity');
-      const { analyzeVision, writeIptc, extractExif } = await import('./services/blogImageAnalysis');
-      const { buildImageFilename } = await import('./lib/imageFilename');
-      const identity = await getImageIdentity();
-
-      // The pillar's own label, so the filename and the keywords say "Marathons
-      // Photography" rather than the internal slot key "services-marathons".
-      let serviceLabel = '';
-      if (section.startsWith('services-')) {
-        const { rows: mapRows } = await db.execute(sql`SELECT authority_map FROM studio_configs LIMIT 1`) as any;
-        const pillars = ((mapRows ?? [])[0]?.authority_map?.pillars || []) as any[];
-        const match = pillars.find(
-          (pl) => 'services-' + String(pl?.href || '').replace(/^[/]+|[/]+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-') === section,
-        );
-        serviceLabel = String(match?.label || '');
-      }
-
-      // Pass the bytes as a data URI rather than a public URL. The blog path hands
-      // OpenAI an unsigned B2 link, which costs a round trip AND requires the bucket to
-      // stay world-readable; the buffer is already in hand here.
-      let vision: any = null;
-      if (process.env.OPENAI_API_KEY) {
-        const dataUri = `data:${mime};base64,${body.toString('base64')}`;
-        vision = await analyzeVision(dataUri, serviceLabel || undefined).catch((e: any) => {
-          console.warn('[site-image] vision failed, continuing without it:', e?.message || e);
-          return null;
-        });
-      }
-
-      const exif = await extractExif(body).catch(() => null as any);
-      const captured = exif?.dateTimeOriginal ? new Date(exif.dateTimeOriginal) : null;
-
-      // The wizard sends the slot's own label as alt ("Homepage hero", "First content
-      // block", or the service name repeated) — which describes the slot, not the
-      // picture, and is useless to a screen reader. A real description wins.
-      if (vision?.altText) alt = String(vision.altText).slice(0, 200);
-
-      const stem = buildImageFilename({
-        subject: vision?.altText || vision?.description || '',
-        service: serviceLabel,
-        place: identity.city,
-        date: captured,
-        originalName: req.file.originalname,
-        ext: ext.replace(/^[.]/, '') || 'jpg',
-      });
-      key = `Site Images/${stem}`;
-
-      if (vision?.description || identity.creator) {
-        body = await writeIptc(body, {
-          caption: vision?.description || '',
-          keywords: [
-            ...(vision?.sceneKeywords || []).slice(0, 10),
-            ...(serviceLabel ? [serviceLabel] : []),
-          ].map(String).filter(Boolean),
-          creator: identity.creator,
-          copyright: identity.copyright,
-          credit: identity.credit,
-          location: identity.city,
-          country: identity.country,
-          // Deliberately NO gps. identity.gps is the STUDIO's address, and these are
-          // location photographs — stamping the office onto a shot taken at a marathon
-          // would be a confident, wrong claim of where the picture was made.
-          aiGenerated: !!vision,
-        });
-      }
-    } catch (e: any) {
-      console.warn('[site-image] metadata step failed, storing the original:', e?.message || e);
-      body = req.file.buffer;
-    }
-
-    const { PutObjectCommand } = await import('@aws-sdk/client-s3');
-    await getS3Client().send(new PutObjectCommand({
-      Bucket: cfg.bucket, Key: key, Body: body, ContentType: mime,
-    }));
-    const url = buildPublicUrl(cfg.bucket, cfg.endpoint, key);
-    await db.execute(sql`DELETE FROM homepage_images WHERE section = ${section}`);
-    await db.execute(sql`
-      INSERT INTO homepage_images (section, url, alt, title, sort_order, is_active)
-      VALUES (${section}, ${url}, ${alt}, ${null}, ${0}, ${true})
-    `);
-
-    // A pillar image belongs on the pillar PAGE as well as the homepage card, which is
-    // what this step tells the studio it does. Nothing wrote landing_pages.hero_image_url —
-    // the column is created by a migration and never populated — so pillar pages rendered
-    // the fallback purple gradient no matter what was uploaded.
-    //
-    // The landing-page slug is NOT the services- key: authority-scaffold.ts:35 derives it
-    // with slugify() from landing-mapping, which additionally trims dashes and caps at 60
-    // characters. Deriving it any other way silently matches no row on a long href, so it
-    // is imported and reused rather than reimplemented.
-    // THE HERO GOES TO THE HOMEPAGE DRAFT. It did not, and that is why a studio could
-    // upload their best photograph and watch the preview stay empty.
-    //
-    // The renderer reads landing_pages.hero_image_url (PublicLandingPageRenderer.tsx:194).
-    // The pipeline never set that column, and this handler only set it for PILLAR sections
-    // — so the 'hero' slot wrote a homepage_images row that the generated homepage does not
-    // read, and every draft rendered with no picture no matter what was uploaded.
-    //
-    // Doing it here is also what makes the ORDER not matter, which the new photographs step
-    // depends on: it runs while the crawl and generation are still going, so the upload can
-    // finish before or after the draft exists. This branch covers "after"; the pipeline
-    // covers "before".
-    if (section === 'hero') {
-      try {
-        const { rows } = await db.execute(sql`SELECT homepage_gen_state AS s FROM studio_configs LIMIT 1`) as any;
-        const draftId = (rows ?? [])[0]?.s?.draftId;
-        if (draftId) {
-          await db.execute(sql`UPDATE landing_pages SET hero_image_url = ${url} WHERE id = ${draftId}`);
-          console.log(`[setup] hero image attached to homepage draft ${draftId}`);
-        }
-      } catch (e: any) {
-        // Never fail the upload over this — the image is stored and the studio can set it
-        // from Website Studio.
-        console.warn('[setup] could not attach hero to the draft:', e?.message || e);
-      }
-    }
-
-    let pillarPage: string | null = null;
-    if (!FIXED_IMAGE_SECTIONS.has(section)) {
-      try {
-        const { slugify: landingSlugify } = await import('./lib/landing-mapping');
-        const { rows } = await db.execute(sql`SELECT authority_map FROM studio_configs LIMIT 1`) as any;
-        const pillars = ((rows ?? [])[0]?.authority_map?.pillars || []) as any[];
-        const hit = pillars.find(
-          (p) => 'services-' + String(p?.href || '').replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-') === section,
-        );
-        if (hit) {
-          const slug = landingSlugify(String(hit.href || '').replace(/^\/+|\/+$/g, '') || hit.label);
-          const r: any = await db.execute(
-            sql`UPDATE landing_pages SET hero_image_url = ${url}, updated_at = now() WHERE slug = ${slug}`,
-          );
-          if ((r?.rowCount ?? 0) > 0) pillarPage = slug;
-        }
-      } catch (e: any) {
-        // The homepage image is already saved; failing to also reach the pillar page is
-        // not worth losing that. Logged, not surfaced.
-        console.warn('[setup] pillar hero update failed:', e?.message || e);
-      }
-    }
-
-    return res.json({ url, section, pillarPage });
+    return res.json({ url: stored.url, section: stored.section, pillarPage: stored.pillarPage });
   } catch (e: any) {
+    // storeSiteImage throws this before touching the network. It was a 503 with an
+    // actionable message when the guard lived in this handler, and it has to stay one —
+    // 'storage is not configured' is the studio's to fix, not a server fault.
+    if (e?.storageUnconfigured) return res.status(503).json({ error: e.message });
     const reason = e?.Code || e?.name || e?.code || 'StorageError';
     const detail = e?.message ? String(e.message).replace(/\s+/g, ' ').slice(0, 180) : '';
     console.error('[setup] image upload failed:', reason, detail || e);

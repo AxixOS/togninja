@@ -76,9 +76,13 @@ const setupRoutes = read('server/setup-routes.ts');
 const pipeline = read('server/lib/homepage-pipeline.ts');
 const images = read('client/src/pages/setup/phases/SiteImagesPhase.tsx');
 
+// Moved out of setup-routes into lib/siteImageStore, so the AUTOMATIC path gets it too — it
+// used to be reachable only by a human picking a file in the wizard. The property is
+// unchanged and so is this check; only the file it reads moved.
+const siteImageStore = read('server/lib/siteImageStore.ts');
 check('a hero uploaded after generation reaches the draft',
-  setupRoutes.includes("if (section === 'hero') {")
-  && setupRoutes.includes('UPDATE landing_pages SET hero_image_url'));
+  siteImageStore.includes("if (section === 'hero') {")
+  && siteImageStore.includes('UPDATE landing_pages SET hero_image_url'));
 
 check('a hero uploaded before generation reaches the draft',
   pipeline.includes("SELECT url FROM homepage_images WHERE section = 'hero'")
