@@ -5,6 +5,7 @@ import { db } from '../db';
 import { crmClients, crmMessages, smsConfig } from '@shared/schema';
 import { eq, desc } from 'drizzle-orm';
 import { config as configReader } from '../config-reader';
+import { getSiteIdentity } from '../lib/siteIdentity';
 
 /**
  * Send individual email with auto client linking
@@ -426,10 +427,21 @@ export const testEmailConfig = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Test email address required' });
     }
 
+    // A studio testing their own SMTP should get a mail that looks like it came from THEM,
+    // in the language they work in. This was hardcoded German and signed with the origin
+    // studio's name, so a UK photographer's first test of their mail setup arrived as
+    // "Test E-Mail von New Age Fotografie CRM".
+    const identity = getSiteIdentity();
+    const german = String(identity.lang || 'en').toLowerCase().startsWith('de');
+
     const result = await EnhancedEmailService.sendEmail({
       to: testEmail,
-      subject: 'Test E-Mail von New Age Fotografie CRM',
-      content: 'Dies ist eine Test-E-Mail zur Überprüfung der E-Mail-Konfiguration.',
+      subject: german
+        ? `Test-E-Mail von ${identity.name}`
+        : `Test email from ${identity.name}`,
+      content: german
+        ? 'Dies ist eine Test-E-Mail zur Überprüfung der E-Mail-Konfiguration.'
+        : 'This is a test email, sent to check your email configuration is working.',
       autoLinkClient: false,
     });
 

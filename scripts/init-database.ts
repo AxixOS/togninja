@@ -314,8 +314,30 @@ async function createSampleVouchers() {
       log('ℹ️  Vouchers already exist, skipping...', COLORS.blue);
       return true;
     }
-    
-    const vouchers = [
+
+    // These were the ORIGIN STUDIO'S OWN German product list, seeded into every tenant
+    // regardless of who the tenant is. Observed live on a Buckinghamshire photographer's
+    // instance: a public voucher shop selling "Familie Fotoshooting" and "Neugeborenen
+    // Fotoshooting". Vouchers are not internal sample data — they are a shop page the
+    // studio's own customers buy from, so this is the most visible of the seeded leaks.
+    //
+    // Same rule the Knowledge Base and pre-shoot questionnaire seeds already apply: only
+    // seed content in a language the studio actually publishes in. Unlike those two this
+    // does not skip, because an empty voucher shop on a new site reads as broken and these
+    // are placeholders the studio is expected to price and rename. Skipping is right for
+    // an article written about someone else's shoots; a starter product is not a claim
+    // about the studio, it is a form with the fields filled in.
+    //
+    // getSiteLanguage() falls back to 'en' when studio_configs has no site_language yet,
+    // which at step 7 of a fresh install is the normal case — English is the product's
+    // default, German is the exception that has to be asked for.
+    const { getSiteLanguage } = await import('../server/lib/site-language');
+    const lang = await getSiteLanguage().catch(() => 'en');
+    const german = String(lang).slice(0, 2).toLowerCase() === 'de';
+
+    // Left exactly as it was, slugs included: these are live public URLs on the studios
+    // already running in German, and renaming a slug breaks every link to it.
+    const germanVouchers = [
       {
         name: 'Familie Fotoshooting',
         description: 'Professional family photo session in our studio or outdoor location',
@@ -353,10 +375,53 @@ async function createSampleVouchers() {
         isActive: true
       }
     ];
+
+    // The category IDs are structural — portfolio, pricing and the public shop all key off
+    // them — so they stay identical across both sets. Only what a customer reads changes.
+    const englishVouchers = [
+      {
+        name: 'Family Photo Session',
+        description: 'Professional family photo session in our studio or outdoor location',
+        price: '299.00',
+        originalPrice: '349.00',
+        category: 'familie',
+        sessionDuration: 120,
+        validityPeriod: 1460, // 48 months
+        redemptionInstructions: 'Contact us to schedule your session',
+        slug: 'family-photo-session',
+        isActive: true,
+        featured: true,
+        badge: '15% OFF'
+      },
+      {
+        name: 'Newborn Photo Session',
+        description: 'Gentle newborn photography session with props and setups',
+        price: '399.00',
+        category: 'baby',
+        sessionDuration: 180,
+        validityPeriod: 365, // 12 months
+        redemptionInstructions: 'Best within first 14 days after birth',
+        slug: 'newborn-photo-session',
+        isActive: true,
+        featured: true
+      },
+      {
+        name: 'Business Portrait Session',
+        description: 'Professional headshots for business use',
+        price: '199.00',
+        category: 'business',
+        sessionDuration: 60,
+        validityPeriod: 730, // 24 months
+        slug: 'business-portrait',
+        isActive: true
+      }
+    ];
+
+    const vouchers = german ? germanVouchers : englishVouchers;
     
     await db.insert(voucherProducts).values(vouchers);
     
-    log(`✅ Created ${vouchers.length} voucher products!`, COLORS.green);
+    log(`✅ Created ${vouchers.length} ${german ? 'German' : 'English'} voucher products!`, COLORS.green);
     return true;
   } catch (error: any) {
     log(`❌ Error creating vouchers: ${error.message}`, COLORS.red);
@@ -390,7 +455,10 @@ async function createSampleCoupons() {
       {
         code: 'SUMMER25',
         name: 'Summer Sale',
-        description: '€25 off any session',
+        // No currency in the text: discountType and discountValue already carry the amount,
+        // and the UI renders it in the studio's own currency. '€25' here put euros on a
+        // sterling studio's coupon list.
+        description: 'Fixed discount on any session',
         discountType: 'fixed_amount',
         discountValue: '25.00',
         minOrderAmount: '150.00',

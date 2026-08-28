@@ -6,6 +6,7 @@
 import type { ExportAdapter, CLSExportData, ExportFile, ValidationError, ValidationWarning } from '../types';
 import { createHash } from 'crypto';
 import PDFDocument from 'pdfkit';
+import { getSiteIdentity } from '../../lib/siteIdentity';
 
 export class PDFReportAdapter implements ExportAdapter {
   readonly name = 'PDF Invoice Report';
@@ -69,7 +70,11 @@ export class PDFReportAdapter implements ExportAdapter {
         margin: 50,
         info: {
           Title: 'Invoice Report',
-          Author: 'New Age Fotografie CRM',
+          // The STUDIO's name, not the product's and certainly not the origin studio's. This
+          // is document metadata on an accounting export a studio hands to their accountant —
+          // it shows in Document Properties, and it said "New Age Fotografie CRM" on every
+          // buyer's books. getSiteIdentity() reads no database, so it is safe on this path.
+          Author: getSiteIdentity().name,
         }
       });
 

@@ -328,7 +328,7 @@ app.use((req, res, next) => {
   try {
     // Note: global error handlers already set above and do NOT exit the process
 
-    console.log('🚀 Starting New Age Fotografie CRM server...');
+    console.log('🚀 Starting TogNinja CRM server...');
     
     // ========== START LISTENING IMMEDIATELY ==========
     // Start the HTTP server FIRST so we can accept health checks and Stripe
@@ -1470,7 +1470,7 @@ app.use((req, res, next) => {
     });
 
     // Additional runtime info after initial async init completes
-  console.log(`✅ New Age Fotografie CRM post-init. Environment: ${process.env.NODE_ENV}`);
+  console.log(`✅ TogNinja CRM post-init. Environment: ${process.env.NODE_ENV}`);
   console.log(`Working directory: ${process.cwd()}`);
   console.log(`Demo mode: ${process.env.DEMO_MODE}`);
   console.log(`Database URL configured: ${!!process.env.DATABASE_URL}`);

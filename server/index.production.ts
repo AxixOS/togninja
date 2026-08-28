@@ -130,7 +130,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'public/uploads')));
   const host = '0.0.0.0';
   
   server.listen(port, host, () => {
-    console.log(`✅ New Age Fotografie CRM production server started on ${host}:${port}`);
+    console.log(`✅ TogNinja CRM production server started on ${host}:${port}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'production'}`);
     console.log(`Working directory: ${process.cwd()}`);
     console.log(`Static files served from: ${fs.existsSync(distPath) ? distPath : clientPath}`);

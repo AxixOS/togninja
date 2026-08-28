@@ -44,6 +44,57 @@ async function resolveStudioId(): Promise<string> {
 // another. Writes to these pages mirror across every language the studio has.
 const GLOBAL_PAGES = new Set(['site-settings']);
 
+/**
+ * The language a request means when it does not say.
+ *
+ * Every handler in this file defaulted to 'de' — the ORIGIN studio's language — while the
+ * editor's own toggle defaults to the studio's. On an English studio that is a split brain:
+ * the editor saves under 'en' and anything omitting the parameter reads 'de', so a studio
+ * writes a page, reloads the site, and finds their work missing. GET /published/all is the
+ * one that hurts, because it is what the public site reads to overlay their edits.
+ *
+ * Observed on togninja-studio, whose site_language is 'en', reading site-settings and
+ * contact as 'de' on a public request.
+ */
+async function defaultLanguage(): Promise<string> {
+  try {
+    const { getSiteLanguage } = await import('../lib/site-language');
+    return await getSiteLanguage();
+  } catch {
+    return 'en';
+  }
+}
+
+/**
+ * Correcting the default must not orphan what the old default wrote.
+ *
+ * A studio that edited pages while everything defaulted to 'de' has rows under 'de' whatever
+ * language it publishes in. Switching reads to 'en' without this would blank those pages —
+ * turning a mislabelling bug into apparent data loss, which is much worse. So a read asks for
+ * the studio's language, and falls back to a language this studio actually HAS rows in.
+ *
+ * Writes deliberately do not do this: they file under the studio's real language, so the
+ * first save after this change migrates the page and every later read finds it directly.
+ */
+async function readLanguage(studioId: string, requested: string, pageId?: string): Promise<string> {
+  try {
+    const where = pageId
+      ? and(eq(manualPageContent.studioId, studioId), eq(manualPageContent.pageId, pageId))
+      : eq(manualPageContent.studioId, studioId);
+    const rows = await db
+      .select({ language: manualPageContent.language })
+      .from(manualPageContent)
+      .where(where);
+    const langs = rows.map((r) => r.language).filter(Boolean) as string[];
+    if (!langs.length || langs.includes(requested)) return requested;
+    return langs.includes('de') ? 'de' : langs[0];
+  } catch {
+    // Table missing or DB blip — answer with what was asked for rather than failing the read.
+    return requested;
+  }
+}
+
+
 /** Every language this studio already has rows for, plus the one being written. */
 async function languagesForStudio(studioId: string, include: string): Promise<string[]> {
   const rows = await db
@@ -83,7 +134,8 @@ async function buildStudioContext(reqLanguage: string) {
 router.get('/', requireAuth, async (req, res) => {
   try {
     const studioId = await resolveStudioId();
-    const { language = 'de' } = req.query;
+    const requested = String(req.query.language || (await defaultLanguage()));
+    const language = await readLanguage(studioId, requested);
 
     const records = await db
       .select()
@@ -110,7 +162,8 @@ router.get('/', requireAuth, async (req, res) => {
 router.get('/published/all', async (req, res) => {
   try {
     const studioId = await resolveStudioId();
-    const { language = 'de' } = req.query;
+    const requested = String(req.query.language || (await defaultLanguage()));
+    const language = await readLanguage(studioId, requested);
 
     const records = await db
       .select()
@@ -136,7 +189,7 @@ router.get('/published/all', async (req, res) => {
     // Table missing or DB error — the site must still render its built-in copy.
     console.warn('Published manual content fallback:', (error as any)?.message || error);
     res.setHeader('Cache-Control', 'public, max-age=60');
-    res.json({ language: req.query.language || 'de', content: {} });
+    res.json({ language: String(req.query.language || 'en'), content: {} });
   }
 });
 
@@ -144,10 +197,12 @@ router.get('/published/all', async (req, res) => {
 router.get('/:pageId', async (req, res) => {
   try {
     const { pageId } = req.params;
-    const { language = 'de', studioId: queryStudioId } = req.query;
-    
+    const { studioId: queryStudioId } = req.query;
+
     // Allow public access for frontend rendering
     const studioId = queryStudioId || await resolveStudioId();
+    const requested = String(req.query.language || (await defaultLanguage()));
+    const language = await readLanguage(String(studioId), requested, pageId);
 
     const [record] = await db
       .select()
@@ -210,7 +265,7 @@ router.get('/:pageId', async (req, res) => {
     // If the table doesn't exist yet or any DB error occurs, return a safe fallback
     console.warn('Manual page fetch fallback:', (error as any)?.message || error);
     const { pageId } = req.params;
-    const { language = 'de' } = req.query;
+    const language = String(req.query.language || 'en');
     res.setHeader('Cache-Control', 'public, max-age=60');
     return res.json({
       pageId,
@@ -226,7 +281,8 @@ router.get('/:pageId', async (req, res) => {
 // literal path isn't captured as a pageId.
 router.post('/enhance-field', requireAuth, async (req, res) => {
   try {
-    const { text, mode = 'refine', label = '', helperText = '', pageName = '', context = [], language = 'de' } = req.body || {};
+    const { text, mode = 'refine', label = '', helperText = '', pageName = '', context = [] } = req.body || {};
+    const language = req.body?.language || (await defaultLanguage());
     // refine/seo improve existing copy; generate writes from scratch (no text needed).
     if (mode !== 'generate' && (!text || typeof text !== 'string' || !text.trim())) {
       return res.status(400).json({ error: 'text is required' });
@@ -295,7 +351,8 @@ router.post('/:pageId', requireAuth, async (req, res) => {
   try {
     const { pageId } = req.params;
     const studioId = await resolveStudioId();
-    const { language = 'de', draftContent, action = 'save_draft' } = req.body;
+    const { draftContent, action = 'save_draft' } = req.body;
+    const language = req.body?.language || (await defaultLanguage());
 
     if (!draftContent || typeof draftContent !== 'object') {
       return res.status(400).json({ error: 'draftContent is required and must be an object' });
@@ -419,7 +476,7 @@ router.post('/:pageId/publish', requireAuth, async (req, res) => {
   try {
     const { pageId } = req.params;
     const studioId = await resolveStudioId();
-    const { language = 'de' } = req.body;
+    const language = req.body?.language || (await defaultLanguage());
 
     const [existing] = await db
       .select()
@@ -460,7 +517,8 @@ router.delete('/:pageId', requireAuth, async (req, res) => {
   try {
     const { pageId } = req.params;
     const studioId = await resolveStudioId();
-    const { language = 'de' } = req.query;
+    const requested = String(req.query.language || (await defaultLanguage()));
+    const language = await readLanguage(studioId, requested, pageId);
 
     await db
       .delete(manualPageContent)
