@@ -79,6 +79,20 @@ export function PublicLandingPageOfferSection({
   if (editorial) {
     return (
       <PublicLandingPageSectionWrapper bg="white">
+        {/*
+          Held to the same measure as the offer beneath it. This section is deliberately the
+          narrowest column on the page — it is the screen a customer buys from — so a wider
+          photograph here would break the one place the page is meant to gather rather than
+          spread. See the note in the problem section for why this branch had no image at all.
+        */}
+        {image && (
+          <img
+            src={image.url}
+            alt={image.alt || data.headline || ''}
+            loading="lazy"
+            className={`mb-14 md:mb-16 w-full max-w-3xl aspect-[3/2] object-cover ${alignBlock(align)}`}
+          />
+        )}
         <div className={`max-w-3xl ${alignBlock(align)}`}>
           <div className={alignText(align)}>
             {data.headline && (

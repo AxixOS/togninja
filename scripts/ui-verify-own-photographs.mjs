@@ -122,6 +122,27 @@ check('the two content photographs reach the generated page',
   renderer.includes('image={contentImages.one}') && renderer.includes('image={contentImages.two}'),
   'otherwise they are stored, charged for, and rendered nowhere');
 
+// Passing the image down is not the same as drawing it, and the check above cannot tell the
+// difference — it passed for a fortnight while an editorial site rendered neither photograph.
+//
+// Both sections early-return for the editorial layout, and both had their `{image && ...}`
+// block AFTER that return, so it belonged to the classic branch alone. The image was fetched,
+// gated on the homepage slug, threaded through the renderer and then dropped on the floor.
+//
+// The layout it was dropped by describes itself as: "Photographs run edge to edge and carry
+// the page. Best when you have a strong set of images to show."
+//
+// So: each section must draw the image once per layout branch, not once in total.
+for (const name of ['PublicLandingPageProblemSection', 'PublicLandingPageOfferSection']) {
+  const src = read(`client/src/features/landing-pages/components/public/${name}.tsx`);
+  const branches = (src.match(/src=\{image\.url\}/g) || []).length;
+  const hasEditorial = /if \(editorial\) \{/.test(src);
+  check(`${name.replace('PublicLandingPage', '')} draws the photograph in BOTH layouts`,
+    !hasEditorial || branches >= 2,
+    `${branches} render site(s) — editorial returns early, so one is classic-only`);
+}
+
+
 // The same renderer draws every pillar page. Handing it homepage images unconditionally would
 // put one studio's two photographs on "Wildlife Prints", "Photography Courses" and every other
 // service — which is worse than showing none, because it looks deliberate.

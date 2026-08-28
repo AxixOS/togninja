@@ -41,6 +41,26 @@ export function PublicLandingPageProblemSection({ data, align = 'center', image 
   if (editorial) {
     return (
       <PublicLandingPageSectionWrapper bg="gray">
+        {/*
+          The studio's own photograph. This layout describes itself as "photographs run edge to
+          edge and carry the page", and it was the one dropping them: `image` was read only in
+          the classic branch below, so on an editorial site the picture was fetched, gated,
+          passed down and then never rendered. A studio uploaded three during onboarding, paid
+          to store them, and saw one.
+
+          A band above the two columns rather than a third column beside them — the grid is
+          already a 22rem rail against a ruled list, and splitting it again collapses both to
+          nothing short of a desktop. Square corners, no shadow: the rounded card with a soft
+          shadow is the classic treatment, and it is exactly what editorial exists to avoid.
+        */}
+        {image && (
+          <img
+            src={image.url}
+            alt={image.alt || data.headline || ''}
+            loading="lazy"
+            className="mb-14 md:mb-20 w-full max-w-5xl mx-auto aspect-[16/7] object-cover"
+          />
+        )}
         <div className="max-w-5xl mx-auto grid gap-10 md:gap-16 md:grid-cols-[minmax(0,22rem)_1fr]">
           <div className={alignText(align)}>
             {data.headline && (
