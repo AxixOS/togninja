@@ -256,6 +256,34 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  /**
+   * Five cards instead of one form.
+   *
+   * This step asked twenty-five questions on a single scroll, opening with the business name
+   * and reaching the logo somewhere past the fold — and it is the SECOND thing a photographer
+   * sees after choosing a look. The fields are unchanged and so is what gets saved; they are
+   * only shown a few at a time, with the two that block a site first and the company-admin
+   * material last, behind a card they can skip.
+   *
+   * Required fields are validated per card rather than all at the end, so an error appears
+   * beside the question that caused it instead of at the bottom of a form they have scrolled
+   * past.
+   */
+  const CARDS = [
+    { title: 'Your business', blurb: 'The name your clients know you by.', requires: ['businessName', 'businessType', 'businessTypeOther'] },
+    { title: 'Where and how you work', blurb: 'Language, money and dates — used across your site and invoices.', requires: ['timezone', 'siteLanguage'] },
+    { title: 'About you', blurb: 'Goes on your About page, and into what Google and AI assistants read.', requires: [] },
+    { title: 'Brand and contact', blurb: 'How you look, and how people reach you.', requires: [] },
+    { title: 'Finishing touches', blurb: 'All optional — nothing here stops your site going live.', requires: [] },
+  ];
+  const [card, setCard] = useState(0);
+  const isLastCard = card === CARDS.length - 1;
+
+  // What we read off their existing website, offered rather than applied silently.
+  const [siteUrl, setSiteUrl] = useState('');
+  const [reading, setReading] = useState(false);
+  const [readNote, setReadNote] = useState<string | null>(null);
+
   // Logo upload (was a dead placeholder before — no file input was wired).
   const [logoUrl, setLogoUrl] = useState(initialData?.logoUrl || '');
   const [logoUploading, setLogoUploading] = useState(false);
@@ -347,6 +375,83 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
     return Object.keys(newErrors).length === 0;
   };
 
+  /** Only the required fields belonging to the card being left. */
+  const validateCard = (n: number): boolean => {
+    const required = CARDS[n].requires;
+    const all: Record<string, string> = {};
+    if (required.includes('businessName') && !formData.businessName.trim()) all.businessName = 'Business name is required';
+    if (required.includes('businessType') && !formData.businessType) all.businessType = 'Please select a business type';
+    if (required.includes('businessTypeOther') && formData.businessType === 'other' && !businessTypeOther.trim()) {
+      all.businessTypeOther = 'Please tell us what kind of photography you do';
+    }
+    if (required.includes('timezone') && !formData.timezone) all.timezone = 'Please select a timezone';
+    if (required.includes('siteLanguage') && !formData.siteLanguage) all.siteLanguage = 'Please choose the language your website is written in';
+    setErrors((prev) => ({ ...prev, ...all, submit: '' }));
+    return Object.keys(all).length === 0;
+  };
+
+  const goNextCard = () => {
+    if (!validateCard(card)) return;
+    setCard((c) => Math.min(c + 1, CARDS.length - 1));
+    // A new card starts at the top of itself, not wherever the last one was scrolled to.
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const goPrevCard = () => {
+    setCard((c) => Math.max(c - 1, 0));
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  /**
+   * Read their existing website and offer what it says.
+   *
+   * Only fills fields that are still EMPTY — re-reading after they have corrected something
+   * must never undo the correction. Everything is a suggestion: a wrong guess costs one edit,
+   * and the alternative was retyping facts already published on their own homepage.
+   */
+  const readMySite = async () => {
+    if (!siteUrl.trim()) return;
+    setReading(true);
+    setReadNote(null);
+    try {
+      const res = await fetch('/api/setup/read-site?url=' + encodeURIComponent(siteUrl.trim()));
+      const body = await res.json().catch(() => ({} as any));
+      if (!res.ok || body?.ok === false) {
+        setReadNote(body?.error || 'We could not read that site — no harm done, just fill it in below.');
+        return;
+      }
+      const sug = body.suggestions || {};
+      const applied: string[] = [];
+      setFormData((prev: any) => {
+        const next = { ...prev };
+        const take = (key: string, value: unknown, label: string) => {
+          if (!value) return;
+          if (String(next[key] ?? '').trim()) return;   // never overwrite what they have
+          next[key] = value;
+          applied.push(label);
+        };
+        take('businessName', sug.businessName, 'name');
+        take('city', sug.city, 'town');
+        take('phone', sug.phone, 'phone');
+        take('tagline', sug.tagline, 'tagline');
+        take('instagramUrl', sug.instagramUrl, 'Instagram');
+        take('facebookUrl', sug.facebookUrl, 'Facebook');
+        take('twitterUrl', sug.twitterUrl, 'X');
+        if (!String(next.website ?? '').trim() && sug.sourceUrl) next.website = sug.sourceUrl;
+        return next;
+      });
+      setReadNote(
+        applied.length
+          ? `Filled in your ${applied.join(', ')}. Check each one and change anything we got wrong.`
+          : 'We read your site but could not find anything to fill in — please add it below.',
+      );
+    } catch {
+      setReadNote('We could not reach that site — no harm done, just fill it in below.');
+    } finally {
+      setReading(false);
+    }
+  };
+
   const handleSubmit = () => {
     if (!validate()) {
       // The required fields sit near the top; make the reason visible next to
@@ -390,7 +495,7 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
             <Building2 className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <CardTitle className="text-2xl">Tell us about your business</CardTitle>
+            <CardTitle className="text-2xl">{CARDS[card].title}</CardTitle>
             <CardDescription>
               This information will be used throughout your studio management system
             </CardDescription>
@@ -399,6 +504,50 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
       </CardHeader>
       
       <CardContent className="space-y-6">
+        {/* Which of the five we are on, so the studio can see the end of it from the start. */}
+        <div className="flex items-center gap-1.5" aria-hidden="true">
+          {CARDS.map((c, i) => (
+            <span
+              key={c.title}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${i < card ? 'bg-blue-600' : i === card ? 'bg-blue-400' : 'bg-slate-200'}`}
+            />
+          ))}
+        </div>
+        <p className="text-sm text-gray-500 -mt-2">
+          Step {card + 1} of {CARDS.length} — {CARDS[card].blurb}
+        </p>
+
+        {card === 0 && (
+        <>
+        {/*
+          Their website answers most of this already. Asking someone to retype facts published
+          on their own homepage is the least defensible kind of form, and this is the second
+          screen of the product — so the first thing offered is to not fill it in by hand.
+          Deterministic: schema.org markup, og: tags, tel: links. No model, no key, which
+          matters because the AI keys are entered several steps after this one.
+        */}
+        <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-4 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-blue-900">Already have a website?</p>
+            <p className="text-xs text-blue-800/80">Paste the address and we will fill in what we can find.</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              value={siteUrl}
+              onChange={(e) => setSiteUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); readMySite(); } }}
+              placeholder="yourstudio.com"
+              className="bg-white"
+              aria-label="Your existing website address"
+            />
+            <Button type="button" variant="outline" onClick={readMySite} disabled={reading || !siteUrl.trim()} className="gap-2 shrink-0">
+              {reading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {reading ? 'Reading…' : 'Read my site'}
+            </Button>
+          </div>
+          {readNote && <p className="text-xs text-blue-900">{readNote}</p>}
+        </div>
+
         {/* Business Name */}
         <div className="space-y-2">
           <Label htmlFor="businessName">Business Name *</Label>
@@ -463,6 +612,11 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
           )}
         </div>
         
+        </>
+        )}
+
+        {card === 1 && (
+        <>
         {/* Timezone & Currency Row */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -592,6 +746,11 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
           </p>
         </div>
 
+        </>
+        )}
+
+        {card === 2 && (
+        <>
         {/* Tagline */}
         <div className="space-y-2">
           <Label htmlFor="tagline">Tagline (optional)</Label>
@@ -677,6 +836,11 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
           </div>
         </div>
 
+        </>
+        )}
+
+        {card === 3 && (
+        <>
         {/* Brand Color */}
         <div className="space-y-2">
           <Label htmlFor="primaryColor">Primary Brand Color</Label>
@@ -729,6 +893,11 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
           </div>
         </div>
 
+        </>
+        )}
+
+        {card === 4 && (
+        <>
         {/* Location Section (collapsible) */}
         <div className="border rounded-lg">
           <button
@@ -915,32 +1084,49 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
           )}
           {errors.logo && <p className="text-sm text-red-500">{errors.logo}</p>}
         </div>
+        </>
+        )}
       </CardContent>
       
       <CardFooter className="flex flex-col items-stretch gap-3 pt-6 border-t sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-sm text-gray-500">* Required fields</p>
+          <p className="text-sm text-gray-500">
+            {CARDS[card].requires.length ? '* Required fields' : 'Everything on this card is optional'}
+          </p>
           {errors.submit && (
             <p className="text-sm text-red-500 mt-1">{errors.submit}</p>
           )}
         </div>
-        <Button
-          onClick={handleSubmit}
-          disabled={saveMutation.isPending}
-          className="gap-2"
-        >
-          {saveMutation.isPending ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              Continue
-              <ArrowRight className="w-4 h-4" />
-            </>
+        <div className="flex items-center gap-2">
+          {card > 0 && (
+            <Button type="button" variant="ghost" onClick={goPrevCard} disabled={saveMutation.isPending}>
+              Back
+            </Button>
           )}
-        </Button>
+          {/* The last card is entirely optional, so it says so rather than pretending to be a gate. */}
+          {isLastCard && (
+            <Button type="button" variant="ghost" onClick={handleSubmit} disabled={saveMutation.isPending}>
+              Skip
+            </Button>
+          )}
+          <Button
+            onClick={isLastCard ? handleSubmit : goNextCard}
+            disabled={saveMutation.isPending}
+            className="gap-2"
+          >
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                {isLastCard ? 'Save and continue' : 'Continue'}
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </Button>
+        </div>
       </CardFooter>
     </>
   );

@@ -796,6 +796,35 @@ router.post('/homepage/starter', async (req: Request, res: Response) => {
  * stock — which this product must not do, because placeholder photography is exactly how
  * the origin studio's pictures ended up on every buyer's homepage.
  */
+/**
+ * Read the studio's existing website and propose answers for the setup form.
+ *
+ * A GET on the setup mount, which is unauthenticated before onboarding completes — so it
+ * fetches only what assertPublicHttpUrl will allow, and returns suggestions rather than
+ * writing anything. Nothing here touches the database.
+ *
+ * Failure is not an error state. A site that blocks us, or has no markup worth reading, gets
+ * an empty set of suggestions and the studio fills the form as they would have anyway.
+ */
+router.get('/read-site', async (req: Request, res: Response) => {
+  const raw = String(req.query.url || '');
+  try {
+    const { readSiteIdentity } = await import('./lib/readSiteIdentity');
+    const suggestions = await readSiteIdentity(raw);
+    const found = Object.keys(suggestions).filter((k) => k !== 'sourceUrl').length;
+    console.log(`[setup] read-site ${suggestions.sourceUrl}: ${found} field(s) found`);
+    return res.json({ ok: true, found, suggestions });
+  } catch (e: any) {
+    if (e?.name === 'UnsafeUrlError') {
+      // Almost always a typo in their own address, so the message is theirs to act on.
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+    console.warn('[setup] read-site failed:', e?.message || e);
+    // A site we could not read must not look like a broken product.
+    return res.json({ ok: false, found: 0, suggestions: { sourceUrl: raw } });
+  }
+});
+
 router.get('/crawled-images', async (_req: Request, res: Response) => {
   try {
     const { crawledImages } = await import('./lib/crawledImages');

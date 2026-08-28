@@ -399,6 +399,94 @@ check('a failed reset says why on the page',
   /setError\(/.test(resetCode) && /\{error &&/.test(resetCode),
   'including the 401 that a stale session produces on a dashboard left open');
 
+// ── Business basics is five cards, not one wall ────────────────────────────
+//
+// It asked twenty-five questions on a single scroll — opening with a business name and
+// reaching the logo well past the fold — and it is the SECOND thing a photographer sees.
+// Same fields, same save; shown a few at a time, with the two that actually block a site
+// first and the company-registration material last behind a card that says it is optional.
+const basics = read('client/src/pages/setup/phases/BasicsPhase.tsx');
+
+check('the step is broken into cards',
+  /const CARDS = \[/.test(basics) && /\{card === 0 && \(/.test(basics) && /\{card === 4 && \(/.test(basics));
+
+// THE failure mode worth a guard. A field left outside every {card === n} wrapper renders
+// nowhere: the studio cannot fill it, cannot see it, and nothing complains — the save just
+// carries an empty value forever. Splitting a form by inserting wrappers is exactly the edit
+// that drops one.
+// Counting fields that appear after a card OPENS is not the same as counting fields inside
+// one, and the difference is the whole bug: the first version of this tracked the last-seen
+// opener and never noticed a close, so a field orphaned after the final card still counted as
+// inside it. It passed while a field rendered nowhere, which is precisely what it exists to
+// catch. So match parens from each opener and take the union of the regions.
+const cardRegions = (() => {
+  const out = [];
+  const re = /\{card === \d+ && \(/g;
+  let m;
+  while ((m = re.exec(basics))) {
+    let depth = 0;
+    for (let i = m.index + m[0].length - 1; i < basics.length; i++) {
+      const ch = basics[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') {
+        if (--depth === 0) { out.push([m.index, i]); break; }
+      }
+    }
+  }
+  return out;
+})();
+const inACard = (idx) => cardRegions.some(([a, b]) => idx > a && idx < b);
+
+let placed = 0;
+let total = 0;
+{
+  const re = /htmlFor="[a-zA-Z]+"/g;
+  let m;
+  while ((m = re.exec(basics))) { total++; if (inACard(m.index)) placed++; }
+}
+check('every field sits inside one of them',
+  total > 0 && placed === total,
+  `${placed}/${total} fields inside a card — any outside would render nowhere at all`);
+
+// Validating everything at the end put the error under a Continue button the studio had
+// scrolled a long way past, describing fields they could no longer see.
+check('required fields are checked on the card that asks them',
+  /const validateCard = \(n: number\)/.test(basics) && /CARDS\[n\]\.requires/.test(basics));
+
+// ── Reading their existing website ─────────────────────────────────────────
+//
+// Most of this form is facts already published on the studio's own homepage. Deterministic
+// on purpose — schema.org, og: tags, tel: links — because this step runs several steps BEFORE
+// the AI keys are entered and has to work with none configured.
+const reader = read('server/lib/readSiteIdentity.ts');
+const setupRoutesSrc = read('server/setup-routes.ts');
+
+check('the wizard can read a studio\'s existing site',
+  /\/api\/setup\/read-site/.test(basics) && /router\.get\('\/read-site'/.test(setupRoutesSrc));
+
+check('and never overwrites something they have already typed',
+  /if \(String\(next\[key\] \?\? ''\)\.trim\(\)\) return;/.test(basics),
+  'a re-read must not undo a correction');
+
+// This fetches a URL supplied by whoever is standing in front of an un-onboarded instance,
+// on an unauthenticated mount. Without a guard it is a request forwarder inside the network
+// boundary — ask it for 169.254.169.254 and it reads the cloud metadata service.
+const safeUrl = read('server/lib/safePublicUrl.ts');
+check('a URL it will fetch is vetted by ADDRESS, not by name',
+  /dns/.test(safeUrl) && /isPrivateAddress/.test(safeUrl) && /lookup\(host/.test(safeUrl),
+  'blocking the string "localhost" stops nobody — DNS is attacker-controlled');
+
+check('and the private ranges are actually enumerated',
+  /169 && b === 254/.test(safeUrl) && /a === 127/.test(safeUrl) && /a === 10/.test(safeUrl));
+
+// A social link is matched on HOSTNAME. The first version tested /x\.com/ against the whole
+// URL, and "x.com" is a substring of "500px.com" — so a wildlife photographer's 500px
+// portfolio was offered to them as their Twitter account.
+check('social links are matched by host, not by substring',
+  /const hostIs = \(u: URL, domains: string\[\]\)/.test(reader)
+  && !/pick\(\/\(\?:twitter\|x\)/.test(reader),
+  'the same suffix mistake the crawled-image host check warns about');
+
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');
