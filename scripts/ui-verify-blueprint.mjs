@@ -259,5 +259,46 @@ check('choosing the shared path says so out loud',
   prov.includes('NOT fine for a customer'),
   'silence is how it became the default in the first place');
 
+
+// ── Who pays for the site a new instance generates ─────────────────────────
+//
+// This script creates instances for people the provider has never met. It set storage per
+// tenant, minted a ShootCleaner key per tenant, generated a SESSION_SECRET and an
+// ENCRYPTION_KEY per tenant — and then funded the AI by copying OPENAI_API_KEY straight in
+// from whoever ran it. One shared credential on every instance, unmetered, with nothing
+// between a wizard someone keeps clicking and a real invoice.
+//
+// The alternative it fell back to was worse in a different direction: with no key at all, an
+// instance crawls the studio's website and then generates nothing, which is a trial that
+// looks broken and reads as the product not working.
+//
+// The gateway exists precisely to make this per-tenant and bounded. It was simply never
+// reached from here.
+check('provisioning mints a metered AI key per tenant',
+  /async function resolvePlatformAi/.test(prov)
+  && /\/v1\/ai\/keys/.test(prov)
+  && /AXIXOS_INTERNAL_API_KEY/.test(prov));
+
+// The header is the one that looks like a bad key when it is wrong.
+check('and calls the gateway the way the gateway expects',
+  /'x-axixos-api-key': consoleKey/.test(prov),
+  'Authorization: Bearer answers 401 and is indistinguishable from a dead key');
+
+// A shared unmetered key must be reachable — it is right for the provider's own demos — but
+// never by DEFAULT, because the default is what gets used at three in the morning.
+check('an unmetered shared key requires saying so out loud',
+  /ALLOW_UNMETERED_PLATFORM_AI !== '1'/.test(prov)
+  && !/if \(process\.env\.OPENAI_API_KEY\) envVars\.push/.test(prov),
+  'it used to be copied in silently whenever it happened to be set');
+
+check('and so does provisioning an instance that cannot generate',
+  /ALLOW_NO_PLATFORM_AI !== '1'/.test(prov),
+  'a trial that crawls a website and produces nothing is worse than no trial');
+
+// The provider reads this sheet and hands the instance over; which of the three it got is the
+// difference between a bounded trial and an open tab.
+check('and the handover sheet says which of the three it got',
+  /Site generation is funded by/.test(prov),
+  'stated where the provider is already looking');
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);

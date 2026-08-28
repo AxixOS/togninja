@@ -41,7 +41,20 @@
  *   Neither is required to boot. An instance with no storage runs the CRM perfectly well and
  *   refuses uploads until Technical Setup is filled in, which the wizard states plainly.
  *
+ *   PLATFORM AI — how the instance pays for the site onboarding generates for the studio.
+ *       Required unless you opt out, because an instance with neither is a trial that crawls
+ *       a website and then produces nothing.
+ *     AXIXOS_CONSOLE_KEY    Mints this tenant a metered key of its own (per-tenant lifetime
+ *                           budget). The right one for anything a stranger will touch.
+ *     ALLOW_UNMETERED_PLATFORM_AI=1
+ *                           Permits copying OPENAI_API_KEY in instead — one shared key, no
+ *                           budget, no ceiling. Your own demos only.
+ *     ALLOW_NO_PLATFORM_AI=1
+ *                           Permits an instance with no generation at all (CRM only).
+ *
  *   OPTIONAL
+ *     STUDIO_LABEL          Label for the minted AxixOS key (default: SERVICE_NAME)
+ *     AXIXOS_API_BASE       default: https://axixos-intelligence.onrender.com
  *     RENDER_OWNER_ID       your Render team/user id (auto-resolved if omitted)
  *     RENDER_REGION         Render region (default: frankfurt — EU)
  *     RENDER_PLAN           starter | standard | ... (default: starter)
@@ -148,7 +161,9 @@ const envVars = [
 // client (printed at the end).
 if (process.env.GOOGLE_CLIENT_ID) envVars.push({ key: 'GOOGLE_CLIENT_ID', value: process.env.GOOGLE_CLIENT_ID });
 if (process.env.GOOGLE_CLIENT_SECRET) envVars.push({ key: 'GOOGLE_CLIENT_SECRET', value: process.env.GOOGLE_CLIENT_SECRET });
-if (process.env.OPENAI_API_KEY) envVars.push({ key: 'OPENAI_API_KEY', value: process.env.OPENAI_API_KEY });
+// Platform AI is resolved in main(), not here — see resolvePlatformAi(). OPENAI_API_KEY used
+// to be copied straight in from this machine, which is the unmetered path: one shared key on
+// every instance, no per-tenant budget, nothing to stop a wizard loop spending real money.
 if (process.env.PROTECTED_DB_HOSTS) envVars.push({ key: 'PROTECTED_DB_HOSTS', value: process.env.PROTECTED_DB_HOSTS });
 // Transaction-mode pooler allows more clients → give the app pools more headroom.
 // (On the session pooler we leave these unset so the code's safe 8+3 defaults apply.)
@@ -214,6 +229,79 @@ async function resolveStorage() {
   return null;
 }
 
+/**
+ * How this instance pays for the generation onboarding does FOR the studio.
+ *
+ * "Platform work" is the homepage and the service pages the wizard writes before a studio has
+ * entered any key of their own — the product showing itself off. Someone has to fund it, and
+ * the whole point of the AxixOS gateway is that it is funded per tenant, with a lifetime
+ * budget (ten landing pages, sixty pillars) that cannot be exceeded.
+ *
+ * This script never minted one. So a new instance got either OPENAI_API_KEY copied in from
+ * whoever ran it — one shared key across every instance, unmetered, with nothing between a
+ * looping wizard and a real invoice — or nothing at all, in which case onboarding crawls the
+ * studio's site and then generates nothing, which is the failure the boot log now announces.
+ *
+ * Both are survivable when you provision by hand for people you know. Neither is survivable
+ * the moment instances are handed to strangers, which is exactly what this script is for.
+ *
+ * So: mint a tenant key, or say explicitly that you meant one of the other two.
+ */
+async function resolvePlatformAi() {
+  const consoleKey = (process.env.AXIXOS_CONSOLE_KEY || '').trim();
+  const base = (process.env.AXIXOS_API_BASE || 'https://axixos-intelligence.onrender.com').replace(/\/+$/, '');
+  const label = process.env.STUDIO_LABEL || SERVICE_NAME;
+
+  if (consoleKey) {
+    if (process.env.DRY_RUN === '1') {
+      console.log(`   platform AI: (DRY_RUN) would mint an AxixOS tenant key for "${SERVICE_NAME}"`);
+      return { AXIXOS_INTERNAL_API_KEY: '<minted-tenant-key>' };
+    }
+    // The header is x-axixos-api-key, NOT Authorization: Bearer — Bearer answers 401 and looks
+    // exactly like a bad key.
+    const res = await fetch(`${base}/v1/ai/keys`, {
+      method: 'POST',
+      headers: { 'x-axixos-api-key': consoleKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantId: SERVICE_NAME, label }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body?.key) {
+      console.error(`❌ Could not mint an AxixOS tenant key (${res.status}).`);
+      console.error('   ', body?.error || JSON.stringify(body).slice(0, 200));
+      console.error('   Check AXIXOS_CONSOLE_KEY, or set ALLOW_NO_PLATFORM_AI=1 to provision');
+      console.error('   an instance that cannot generate a site.');
+      process.exit(1);
+    }
+    console.log(`   platform AI: minted tenant key for "${SERVICE_NAME}" (metered, per-tenant budget)`);
+    return { AXIXOS_INTERNAL_API_KEY: body.key };
+  }
+
+  const openai = (process.env.OPENAI_API_KEY || '').trim();
+  if (openai) {
+    if (process.env.ALLOW_UNMETERED_PLATFORM_AI !== '1') {
+      console.error('❌ OPENAI_API_KEY is set but AXIXOS_CONSOLE_KEY is not.');
+      console.error('   Copying that key in gives this instance UNMETERED platform spend on a');
+      console.error('   credential shared with every other instance — no per-tenant budget, and');
+      console.error('   nothing between a looping wizard and a real invoice.');
+      console.error('   Set AXIXOS_CONSOLE_KEY to mint a metered tenant key instead, or');
+      console.error('   ALLOW_UNMETERED_PLATFORM_AI=1 if you genuinely mean it (your own demo).');
+      process.exit(1);
+    }
+    console.log('   ⚠ platform AI: raw OpenAI key, UNMETERED and shared. Your own demo only.');
+    return { OPENAI_API_KEY: openai };
+  }
+
+  if (process.env.ALLOW_NO_PLATFORM_AI !== '1') {
+    console.error('❌ No platform AI configured, so this instance would crawl a studio\'s website');
+    console.error('   and then generate nothing — which is a trial that looks broken.');
+    console.error('   Set AXIXOS_CONSOLE_KEY to mint a metered tenant key, or');
+    console.error('   ALLOW_NO_PLATFORM_AI=1 to provision a CRM-only instance on purpose.');
+    process.exit(1);
+  }
+  console.log('   ⚠ platform AI: NONE. The CRM runs; site generation refuses and says so.');
+  return null;
+}
+
 async function main() {
   const ownerId = process.env.DRY_RUN === '1'
     ? (process.env.RENDER_OWNER_ID || '<owner-id>')
@@ -221,6 +309,9 @@ async function main() {
 
   const storage = await resolveStorage();
   if (storage) for (const [key, value] of Object.entries(storage)) envVars.push({ key, value });
+
+  const platformAi = await resolvePlatformAi();
+  if (platformAi) for (const [key, value] of Object.entries(platformAi)) envVars.push({ key, value });
   const payload = {
     type: 'web_service',
     name: SERVICE_NAME,
@@ -268,6 +359,13 @@ async function main() {
 
   // One copyable handover sheet per new studio.
   const callback = `${url}/api/auth/google/callback`;
+  // Worth stating plainly on the sheet: it is the difference between a metered trial and an
+  // open tab on your card.
+  const aiLine = envVars.some((v) => v.key === 'AXIXOS_INTERNAL_API_KEY')
+    ? 'a metered AxixOS tenant key (per-tenant lifetime budget)'
+    : envVars.some((v) => v.key === 'OPENAI_API_KEY')
+    ? 'a SHARED, UNMETERED OpenAI key — your own demos only'
+    : 'nothing — the CRM runs, site generation refuses';
   const oauthLine = process.env.GOOGLE_CLIENT_ID
     ? 'Shared GOOGLE_CLIENT_ID is set — studios just click "Connect Google Calendar".'
     : 'No shared GOOGLE_CLIENT_ID — set one + re-provision to make calendar self-serve.';
@@ -284,7 +382,9 @@ async function main() {
       API key             : ${SHOOTCLEANER_API_KEY}
       (Studio can rotate this later in Settings → ShootCleaner.)
 
- 3. Google Calendar — one action for YOU (the provider)
+ 3. Site generation is funded by: ${aiLine}
+
+ 4. Google Calendar — one action for YOU (the provider)
       Add this Authorised redirect URI to the shared Google OAuth client
       (Google Cloud Console → APIs & Services → Credentials → OAuth client):
       ${callback}
