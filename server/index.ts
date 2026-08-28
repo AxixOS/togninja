@@ -405,14 +405,23 @@ app.use((req, res, next) => {
     // instance yet") because there is nothing they can do about it. Whoever runs the instance
     // needs the specific reason, at boot, not a support ticket about a blank homepage.
     try {
-      const { sealPlatformKey } = await import('./lib/openaiClient');
-      const sealed = sealPlatformKey();
-      console.log(sealed
-        ? '🔑 Platform AI key sealed — site generation is funded'
-        : '⚠️ NO PLATFORM AI KEY. Onboarding will crawl a site and then generate nothing.\n'
-          + '   Set PLATFORM_OPENAI_API_KEY on this service (or OPENAI_API_KEY in its environment,\n'
-          + '   not only in the database) and redeploy. A key stored only in studio_integrations is\n'
-          + '   the STUDIO\'s and must not fund platform work.');
+      const { sealPlatformKey, platformAiFunding } = await import('./lib/openaiClient');
+      sealPlatformKey();
+      // Name the ROUTE, not just the fact of a key. The two fail in different places — the
+      // gateway can refuse on scope or quota while a direct key cannot, and a direct key can
+      // exhaust a card while the gateway cannot — so "funded" alone does not tell an operator
+      // where to look when generation stops.
+      const funding = platformAiFunding();
+      console.log(
+        funding === 'gateway'
+          ? '🔑 Platform AI funded through the AxixOS gateway — metered per tenant.\n'
+            + '   No OpenAI key is needed on this service; one is used only if the gateway 404s.'
+          : funding === 'openai'
+          ? '🔑 Platform AI key sealed — site generation is funded directly, unmetered'
+          : '⚠️ NO PLATFORM AI. Onboarding will crawl a site and then generate nothing.\n'
+            + '   Set AXIXOS_INTERNAL_API_KEY (a tenant key, prefix axk_t_) or PLATFORM_OPENAI_API_KEY\n'
+            + '   on this service and redeploy. A key stored only in studio_integrations is the\n'
+            + '   STUDIO\'s and must not fund platform work.');
     } catch (e: any) {
       console.warn('⚠️ Could not seal the platform AI key (non-fatal):', e?.message || e);
     }

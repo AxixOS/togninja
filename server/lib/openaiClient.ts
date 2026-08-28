@@ -533,3 +533,21 @@ export function platformAiConfigured(): boolean {
   // it here would report the platform funded when only the studio is.
   return !!(gatewayKey() || platformKey());
 }
+/**
+ * WHICH source funds platform work — for the boot log an operator reads after a deploy.
+ *
+ * platformAiConfigured() answers "is it funded at all". That was enough while OpenAI was the
+ * only route, and stopped being enough the moment a tenant could be funded through the gateway
+ * with deliberately no OPENAI_API_KEY: the boot line then announced NO PLATFORM AI KEY on an
+ * instance that generates perfectly well, which is the same wrong-in-both-directions bug that
+ * was already removed from the reset-demo warning.
+ *
+ * Order matches complete(): the gateway is tried first when it has a key, so that is what is
+ * reported. 'openai' here means the direct path is the ONLY one available, not merely present.
+ */
+export function platformAiFunding(): 'gateway' | 'openai' | 'none' {
+  if (gatewayKey()) return 'gateway';
+  if (platformKey()) return 'openai';
+  return 'none';
+}
+

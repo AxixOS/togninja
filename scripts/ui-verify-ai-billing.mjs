@@ -513,5 +513,30 @@ check('the gateway has one seam to land in',
   resolver.includes('/v1/ai/complete'),
   'documented where the change will be made');
 
+// ── The boot line an operator reads after a deploy ──────────────────────────
+//
+// It announced "NO PLATFORM AI KEY. Onboarding will crawl a site and then generate nothing."
+// whenever sealPlatformKey() came back empty — and a gateway-funded tenant deliberately has no
+// OPENAI_API_KEY, so the warning fired on instances that generate perfectly well. Observed on
+// togninja-studio the day PLATFORM_OPENAI_API_KEY came off it.
+//
+// That is the same wrong-in-both-directions bug already removed from the reset-demo warning,
+// and it is worse at boot, because this is the line read while deciding whether a deploy
+// worked. A verdict here must come from what the GENERATION path consults, never from one of
+// the two keys that path might use.
+check('the boot verdict asks what actually funds generation',
+  /platformAiFunding\(\)/.test(bootSrc),
+  'sealPlatformKey() alone cannot see the gateway');
+
+check('and does not branch on the sealed OpenAI key by itself',
+  !/const sealed = sealPlatformKey\(\)[\s\S]{0,200}?console\.log\(\s*sealed\s*\?/.test(bootSrc),
+  'that is the exact shape that mislabelled a working gateway instance');
+
+// Order matters as much as presence: complete() tries the gateway first, so a funding report
+// that checked the OpenAI key first would name the route that will not be used.
+check('funding names the route complete() will actually take',
+  /platformAiFunding[\s\S]{0,400}?gatewayKey\(\)\) return 'gateway';[\s\S]{0,120}?platformKey\(\)\) return 'openai';/.test(resolver),
+  'gateway is checked first in complete(), so it must be checked first here');
+
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);
