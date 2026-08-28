@@ -44,6 +44,15 @@ export function contentSectionsFor(slug: string, homepageSlug: string | null): [
   return [`page-${slug}-1`, `page-${slug}-2`];
 }
 
+/**
+ * The gallery strip's keys. Uniform across every page including the homepage — unlike the two
+ * content slots, there is no legacy naming to preserve here, so nothing needs a special case.
+ */
+export const GALLERY_SLOTS = 6;
+export function gallerySectionsFor(slug: string): string[] {
+  return Array.from({ length: GALLERY_SLOTS }, (_, i) => `page-${slug}-gallery-${i + 1}`);
+}
+
 export function useHomepageContentImages(slug: string | undefined): PageContentImages {
   const { data: config } = useQuery({
     queryKey: ['/api/studio-config'],
@@ -72,4 +81,30 @@ export function useHomepageContentImages(slug: string | undefined): PageContentI
   };
 
   return { one: pick(keyOne), two: pick(keyTwo) };
+}
+
+/**
+ * The strip of the studio's own photographs for this page.
+ *
+ * Reuses the same single /api/homepage/images response the content images already fetch, so a
+ * gallery costs no extra request. Returns only what is actually stored — a page with none
+ * renders no section at all, which is the correct outcome for a studio whose crawl found
+ * little and far better than a band of empty boxes.
+ */
+export function usePageGalleryImages(slug: string | undefined): PageContentImages['one'][] {
+  const { data: images } = useQuery({
+    queryKey: ['/api/homepage/images', 'content'],
+    queryFn: async () => (await fetch('/api/homepage/images')).json(),
+    enabled: !!slug,
+    staleTime: 5 * 60_000,
+  });
+
+  if (!slug || !Array.isArray(images)) return [];
+  const bySection = new Map<string, any>(images.map((i: any) => [i?.section, i]));
+  return gallerySectionsFor(slug)
+    .map((section) => {
+      const hit = bySection.get(section);
+      return hit?.url ? { url: String(hit.url), alt: hit.alt ? String(hit.alt) : null } : null;
+    })
+    .filter(Boolean) as PageContentImages['one'][];
 }

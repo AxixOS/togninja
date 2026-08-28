@@ -16,7 +16,8 @@ import { PublicLandingPageVideoSection } from './PublicLandingPageVideoSection';
 import { PublicLandingPageTrustBar } from './PublicLandingPageTrustBar';
 import { PublicLandingPageProblemSection } from './PublicLandingPageProblemSection';
 import { PublicLandingPageOfferSection } from './PublicLandingPageOfferSection';
-import { useHomepageContentImages } from '@/hooks/useHomepageContentImages';
+import { useHomepageContentImages, usePageGalleryImages } from '@/hooks/useHomepageContentImages';
+import { PublicLandingPageGallerySection } from './PublicLandingPageGallerySection';
 import { PublicLandingPageBenefitsSection } from './PublicLandingPageBenefitsSection';
 import { PublicLandingPageWhyChooseUsSection } from './PublicLandingPageWhyChooseUsSection';
 import { PublicLandingPageInclusionsSection } from './PublicLandingPageInclusionsSection';
@@ -125,6 +126,9 @@ export function PublicLandingPageRenderer({
   // homepage — the same renderer draws every pillar page, and repeating one studio's two
   // pictures across every service page looks deliberate, which is worse than showing none.
   const contentImages = useHomepageContentImages(page.slug);
+  // Whatever the crawl found beyond the hero and the two content blocks. Empty on a studio
+  // whose site had few photographs, in which case no gallery section renders at all.
+  const galleryImages = usePageGalleryImages(page.slug);
   const content = page.content_json || {};
   const ctaAction = page.cta_action || 'enquire';
   const ctaHref = getCtaHref(page, labels);
@@ -303,6 +307,21 @@ export function PublicLandingPageRenderer({
               return r ? r() : null;
             })
             .filter(Boolean) as React.JSX.Element[];
+
+          // The studio's own work, before the page starts closing.
+          //
+          // Spliced rather than added to the section order for the same reason the video is:
+          // the order comes from content_json, which the generator writes and the editor
+          // edits, and a gallery is not something either of them knows about. Placed ahead of
+          // the FAQ and the final call to action — questions and a booking button are how a
+          // page ends, and pictures belong before that, not after it.
+          if (galleryImages.length > 0) {
+            const galleryEl = (
+              <PublicLandingPageGallerySection key="gallery" images={galleryImages as any} />
+            );
+            const closingAt = els.findIndex((e) => e.key === 'faq' || e.key === 'finalCta');
+            els.splice(closingAt >= 0 ? closingAt : els.length, 0, galleryEl);
+          }
 
           if (showVideoSection) {
             const videoEl = <PublicLandingPageVideoSection key="video-section" videoUrl={heroVideoUrl} />;

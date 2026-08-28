@@ -94,7 +94,7 @@ export interface AssignResult {
  * nothing. The pipeline calls this twice for that reason, not because the logic differs.
  */
 export async function assignCrawledSiteImages(
-  scope: 'site' | 'pillars',
+  scope: 'site' | 'pillars' | 'galleries',
   opts: { heroPageId?: string | null } = {},
 ): Promise<AssignResult> {
   const out: AssignResult = { filled: 0, skipped: 0 };
@@ -143,6 +143,37 @@ export async function assignCrawledSiteImages(
         { section: 'content-1', label: '', href: '' },
         { section: 'content-2', label: '', href: '' },
       ];
+    } else if (scope === 'galleries') {
+      /**
+       * Everything left over, spread across every page.
+       *
+       * The crawl finds forty photographs on a real studio's site and the hero and content
+       * slots use twelve. The rest had nowhere to land, which on a product sold to
+       * photographers meant pages that were three pictures and six hundred words of type.
+       *
+       * ROUND ROBIN, not page by page. Built column-first — every page's first gallery slot,
+       * then every page's second — so a studio whose site had only a handful of photographs
+       * gets one on each page rather than six on the homepage and none anywhere else.
+       */
+      const { rows: pageRows } = await pool.query(
+        `SELECT slug FROM landing_pages WHERE status IN ('published','draft') ORDER BY created_at`,
+      );
+      const slugs = (pageRows as any[]).map((r) => String(r.slug)).filter(Boolean);
+      // A pillar's own name still steers the match, so a gallery on the Boudoir page prefers
+      // photographs whose filenames say so. The homepage has none, and takes what is left.
+      const labelBySlug = new Map<string, { label: string; href: string }>();
+      const { slugify: gallerySlugify } = await import('./landing-mapping');
+      for (const p of allPillars) {
+        const bare = String(p.href).replace(/^\/+|\/+$/g, '');
+        labelBySlug.set(gallerySlugify(bare || String(p.label)), { label: String(p.label), href: String(p.href) });
+      }
+      wanted = [];
+      for (let i = 1; i <= 6; i++) {
+        for (const slug of slugs) {
+          const meta = labelBySlug.get(slug);
+          wanted.push({ section: `page-${slug}-gallery-${i}`, label: meta?.label || '', href: meta?.href || '' });
+        }
+      }
     } else {
       const { slugify: landingSlugify } = await import('./landing-mapping');
       wanted = [];

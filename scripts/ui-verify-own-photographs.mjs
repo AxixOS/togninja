@@ -319,6 +319,43 @@ check('service images are assigned only once those pages exist',
   /assignCrawledSiteImages\('pillars'\)/.test(scaffoldBlock),
   scaffoldBlock ? 'inside the callback that awaited the scaffold' : 'could not locate the scaffold callback');
 
+// ── The rest of the photographs land somewhere ─────────────────────────────
+//
+// The crawl finds forty on a real studio's site; the hero and content slots use twelve. The
+// other twenty-eight had nowhere to go, on a product sold to photographers — so a service page
+// was three pictures and six hundred words of type.
+const gallery = read('client/src/features/landing-pages/components/public/PublicLandingPageGallerySection.tsx');
+
+check('a page shows the studio\'s remaining photographs',
+  /export function PublicLandingPageGallerySection/.test(gallery)
+  && /usePageGalleryImages/.test(renderer)
+  && /assignCrawledSiteImages\('galleries'/.test(pipeline));
+
+// Same rule as every other image section on this renderer, and the one most recently broken:
+// both layouts early-return, so drawing the pictures in only one of them ships a page that
+// silently has none. Editorial is the layout whose whole premise is photographs.
+check('and draws them in BOTH layouts',
+  (gallery.match(/src=\{img\.url\}/g) || []).length >= 2,
+  'editorial returns early — one render site means the editorial half is blank');
+
+// A studio whose site had few photographs must not get a band of empty boxes.
+check('a page with none renders no section at all',
+  /if \(!shown\.length\) return null;/.test(gallery));
+
+// Round robin, not page-by-page: with only a handful left, one on each page beats six on the
+// homepage and none anywhere else.
+check('the remainder is spread across pages, not poured into the first',
+  /for \(let i = 1; i <= 6; i\+\+\) \{[\s\S]{0,200}?for \(const slug of slugs\)/.test(assign),
+  'built column-first — every page\'s first slot before any page\'s second');
+
+// Ordering: the gallery must take what is LEFT, never compete with the hero and content slots
+// for the photographs whose filenames name a service.
+const galleriesAt = pipeline.indexOf("assignCrawledSiteImages('galleries'");
+const pillarsAt2 = pipeline.indexOf("assignCrawledSiteImages('pillars'");
+check('and runs after the slots that match by name',
+  galleriesAt > 0 && pillarsAt2 > 0 && galleriesAt > pillarsAt2,
+  'otherwise a gallery takes the boudoir photograph the Boudoir hero wanted');
+
 console.log(`
   ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}
 `);

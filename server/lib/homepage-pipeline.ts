@@ -463,6 +463,13 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
         try {
           const { assignCrawledSiteImages } = await import('./assignCrawledImages');
           const imgs = await assignCrawledSiteImages('pillars');
+          // And then everything still unused, spread across every page. Runs last on purpose:
+          // the hero and content slots get first refusal on the photographs whose names match
+          // a service, and the gallery takes what is left rather than competing for them.
+          const extra = await assignCrawledSiteImages('galleries');
+          if (extra.filled > 0) {
+            console.log(`[homepage-pipeline] galleries: ${extra.filled} further photograph(s) placed`);
+          }
           if (imgs.filled > 0) {
             console.log(`[homepage-pipeline] service pages: ${imgs.filled} photograph(s) assigned from the crawl`);
             await note(

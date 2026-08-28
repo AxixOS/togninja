@@ -130,7 +130,7 @@ async function storeSectionImage(req: any, res: Response) {
     // page-<slug>-1 / -2 are a page's own two content photographs. Keyed by the LANDING PAGE
     // slug rather than the services- key, because that is what the renderer knows about
     // itself; the two derivations differ (landing-mapping's slugify trims and caps at 60).
-    const isPageContent = /^page-[a-z0-9-]{1,80}-[12]$/.test(section);
+    const isPageContent = /^page-[a-z0-9-]{1,80}-(?:[12]|gallery-[1-6])$/.test(section);
     if (!FIXED_IMAGE_SECTIONS.has(section) && !isPageContent) {
       if (!/^services-[a-z0-9-]{1,80}$/.test(section)) {
         return res.status(400).json({ error: `Unknown image slot "${section}".` });
@@ -150,7 +150,7 @@ async function storeSectionImage(req: any, res: Response) {
     // pillar slot does: without it the section key is a free-form string an unauthenticated
     // caller can write rows under.
     if (isPageContent) {
-      const pageSlug = section.replace(/^page-/, '').replace(/-[12]$/, '');
+      const pageSlug = section.replace(/^page-/, '').replace(/-(?:gallery-[1-6]|[12])$/, '');
       const { rows: pageRows } = await db.execute(
         sql`SELECT 1 FROM landing_pages WHERE slug = ${pageSlug} LIMIT 1`,
       ) as any;
