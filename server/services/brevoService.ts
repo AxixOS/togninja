@@ -6,6 +6,7 @@
 import { db } from '../db';
 import { crmMessages, crmClients } from '@shared/schema';
 import { ilike } from 'drizzle-orm';
+import { getSiteIdentity } from '../lib/siteIdentity';
 
 // Brevo API Base URL
 const BREVO_API_URL = 'https://api.brevo.com/v3';
@@ -183,8 +184,11 @@ export class BrevoService {
         console.log('📧 Brevo Demo: Email would be sent to:', recipientEmail);
         
         await db.insert(crmMessages).values({
-          senderName: options.senderName || process.env.BUSINESS_NAME || 'New Age Fotografie',
-          senderEmail: options.senderEmail || process.env.SMTP_FROM || 'noreply@newagefotografie.com',
+          senderName: options.senderName || getSiteIdentity().name,
+          // Was 'noreply@newagefotografie.com' — a real mailbox at the origin studio's domain.
+          // Any reply from a buyer's client went to them. No cross-studio default: fall back to
+          // the authenticated account, which is the only address most providers will accept.
+          senderEmail: options.senderEmail || process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@localhost',
           recipientEmail: recipientEmail,
           subject: options.subject,
           content: options.textContent || options.htmlContent || '',
@@ -395,7 +399,7 @@ export class BrevoService {
         console.log('💬 Brevo Demo: WhatsApp would be sent to:', options.to);
         
         await db.insert(crmMessages).values({
-          senderName: 'New Age Fotografie',
+          senderName: getSiteIdentity().name,
           senderEmail: '',
           recipientEmail: options.to,
           subject: 'WhatsApp',
@@ -429,7 +433,7 @@ export class BrevoService {
 
       // Save to database
       await db.insert(crmMessages).values({
-        senderName: 'New Age Fotografie',
+        senderName: getSiteIdentity().name,
         senderEmail: '',
         recipientEmail: options.to,
         subject: 'WhatsApp',

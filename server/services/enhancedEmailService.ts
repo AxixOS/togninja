@@ -336,105 +336,11 @@ export class EnhancedEmailService {
   }
 }
 
-// Email templates for common scenarios
-export const EmailTemplates = {
-  /**
-   * Welcome email for new clients
-   */
-  welcome: (clientName: string) => ({
-    subject: 'Willkommen bei New Age Fotografie!',
-    content: `Liebe/r ${clientName},
-
-herzlich willkommen bei New Age Fotografie! 
-
-Wir freuen uns sehr, Sie als neuen Kunden begrüßen zu dürfen. Unser Team steht Ihnen jederzeit zur Verfügung, um Ihre Fotoshoot-Wünsche zu verwirklichen.
-
-Was Sie als nächstes erwartet:
-• Terminbestätigung innerhalb von 24 Stunden
-• Persönliche Beratung zu Ihrem Fotoshoot
-• Professionelle Nachbearbeitung Ihrer Bilder
-• Zugang zu Ihrer privaten Online-Galerie
-
-Bei Fragen können Sie uns jederzeit unter dieser E-Mail-Adresse oder telefonisch erreichen.
-
-Wir freuen uns auf Ihr Fotoshoot!
-
-Herzliche Grüße
-Ihr Team von New Age Fotografie`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #7C3AED;">Willkommen bei New Age Fotografie!</h2>
-        <p>Liebe/r ${clientName},</p>
-        <p>herzlich willkommen bei New Age Fotografie!</p>
-        <p>Wir freuen uns sehr, Sie als neuen Kunden begrüßen zu dürfen. Unser Team steht Ihnen jederzeit zur Verfügung, um Ihre Fotoshoot-Wünsche zu verwirklichen.</p>
-        
-        <h3>Was Sie als nächstes erwartet:</h3>
-        <ul>
-          <li>Terminbestätigung innerhalb von 24 Stunden</li>
-          <li>Persönliche Beratung zu Ihrem Fotoshoot</li>
-          <li>Professionelle Nachbearbeitung Ihrer Bilder</li>
-          <li>Zugang zu Ihrer privaten Online-Galerie</li>
-        </ul>
-        
-        <p>Bei Fragen können Sie uns jederzeit unter dieser E-Mail-Adresse oder telefonisch erreichen.</p>
-        <p>Wir freuen uns auf Ihr Fotoshoot!</p>
-        
-        <p>Herzliche Grüße<br>
-        Ihr Team von New Age Fotografie</p>
-      </div>
-    `
-  }),
-
-  /**
-   * Booking confirmation email
-   */
-  bookingConfirmation: (clientName: string, date: string, time: string, type: string) => ({
-    subject: 'Terminbestätigung - Ihr Fotoshoot bei New Age Fotografie',
-    content: `Liebe/r ${clientName},
-
-vielen Dank für Ihre Buchung! Hiermit bestätigen wir Ihren Termin:
-
-📅 Datum: ${date}
-🕐 Uhrzeit: ${time}
-📸 Art: ${type}
-📍 Ort: Unser Studio in Wien
-
-Bitte bringen Sie mit:
-• Verschiedene Outfits nach Ihrem Geschmack
-• Persönliche Accessoires
-• Gute Laune!
-
-Bei Fragen oder Änderungen kontaktieren Sie uns bitte mindestens 24 Stunden vorher.
-
-Wir freuen uns auf Sie!
-
-Herzliche Grüße
-Ihr Team von New Age Fotografie`
-  }),
-
-  /**
-   * Follow-up after photoshoot
-   */
-  shootingFollowUp: (clientName: string) => ({
-    subject: 'Danke für Ihr Vertrauen - Ihre Bilder sind in Bearbeitung',
-    content: `Liebe/r ${clientName},
-
-vielen Dank für das wunderbare Fotoshoot! Es hat uns große Freude bereitet, Sie zu fotografieren.
-
-Ihre Bilder befinden sich nun in der professionellen Nachbearbeitung. Sie können sich auf folgendes freuen:
-
-• Farbkorrektur und Optimierung jedes Bildes
-• Zugang zu Ihrer privaten Online-Galerie
-• High-Resolution Downloads verfügbar
-• Optional: Professionelle Prints und Produkte
-
-Die Bearbeitung dauert normalerweise 7-14 Werktage. Sie erhalten automatisch eine E-Mail, sobald Ihre Galerie bereit ist.
-
-Vielen Dank für Ihr Vertrauen!
-
-Herzliche Grüße
-Ihr Team von New Age Fotografie`
-  })
-};
+// EmailTemplates lived here: a welcome mail, a booking confirmation and a shoot follow-up,
+// every one of them hardcoded German, signed 'Ihr Team von New Age Fotografie' and offering
+// 'Unser Studio in Wien'. Nothing imported them — they were a dead export, so no studio ever
+// sent one. Removed rather than translated: rewriting copy that has no caller would have
+// meant maintaining a second, invisible set of templates. The live path is
+// workflow_email_templates in the database, which each studio writes for itself.
 
 export default EnhancedEmailService;

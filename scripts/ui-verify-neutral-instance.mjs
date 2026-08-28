@@ -169,51 +169,99 @@ check('the SMTP test email comes from the studio, in their language',
   /subject: german[\s\S]{0,120}?identity\.name/.test(read('server/controllers/communicationController.ts')),
   'it was hardcoded German and signed with the origin studio');
 
-// A RATCHET, not a clean bill of health.
+// ── The customer communication path ────────────────────────────────────────
 //
-// The origin studio's name is still in 58 lines of live server code. It is NOT mostly the
-// autoblog files, which is what a truncated grep suggested — 35 of those lines are in the
-// customer COMMUNICATION path: enhancedEmailService, smsService, abandonedCheckout,
-// brevoService, WorkflowExecutionService. Those are worse than the blog, because they are
-// sent to a studio's own clients under the studio's name.
+// Worse than a log line or a blog post, because these go to a STUDIO'S OWN CLIENTS under the
+// studio's name. Five services carried the origin studio into them:
 //
-// The single worst line is autoblog.ts:221, fetchReviews('New Age Fotografie Wien'), which
-// pulls a NAMED THIRD PARTY'S reviews into a tenant's generated content.
+//   - abandonedCheckout mailed a "finish your order" button whose URL fell back to
+//     newagefotografie.com, sending a buyer's own customers to a different photographer.
+//     It also built its own transport hardcoded to smtp.easyname.com, the origin studio's
+//     provider, with no override — so for any studio not hosted there, this never sent at all.
+//   - brevoService fell back to a REAL mailbox at the origin domain, so replies went to them.
+//   - smsService signed a studio's texts with the origin studio's name.
+//   - WorkflowExecutionService used it whenever a studio left a template field blank.
+//   - enhancedEmailService and smsService each carried a whole set of German templates
+//     signed "Ihr Team von New Age Fotografie" — dead exports with no callers, so removed
+//     rather than translated.
+const commsFiles = [
+  'server/services/enhancedEmailService.ts',
+  'server/services/smsService.ts',
+  'server/services/abandonedCheckout.ts',
+  'server/services/brevoService.ts',
+  'server/services/WorkflowExecutionService.ts',
+];
+const commsLeaks = commsFiles.filter((f) => /New Age Fotografie|newagefotografie/i.test(codeOnly(read(f))));
+check('nothing sent to a studio\'s clients names the origin studio',
+  commsLeaks.length === 0,
+  commsLeaks.join(', ') || `${commsFiles.length} services clean`);
+
+// The link is the dangerous half. A missing name is embarrassing; a working button pointing
+// at another studio is a transfer of the customer.
+const abandoned = read('server/services/abandonedCheckout.ts');
+check('a recovery email with nowhere to link is not sent at all',
+  /if \(!origin\) \{/.test(abandoned) && /skipping reminders/.test(abandoned),
+  'no default is safe here, so there is no default');
+
+check('and it posts through the studio\'s own SMTP, not a hardcoded provider',
+  /getSmtpTransporter\(\)/.test(abandoned) && !/smtp\.easyname\.com/.test(codeOnly(abandoned)),
+  'the hardcoded host made this a delivery bug as well as a branding one');
+
+// ── Ratchets ───────────────────────────────────────────────────────────────
 //
-// Clearing that is a separate piece of work. What this does is fix the debt at its current
-// size: a file may shrink, never grow, and a name appearing in a new file fails outright.
-const BASELINE = {
+// NOT a clean bill of health. Both markers are still present in live server code and clearing
+// them is separate work — autoblog.ts alone has 13, including fetchReviews('New Age Fotografie
+// Wien'), which pulls a NAMED THIRD PARTY'S reviews into a tenant's generated content.
+//
+// Some remaining hits are correct and must stay: vite.ts rewrites the old domain when
+// migrating the origin instance, and routes.ts uses it in a regex whose whole job is to DETECT
+// origin branding. A ratchet records the number without claiming every line is a bug.
+//
+// A file may shrink, never grow; a marker in a new file fails outright.
+const NAME_BASELINE = {
   'server/autoblog.ts': 13,
   'server/autoblog-content-fixes.ts': 5,
+  'server/routes.ts': 5,
   'server/autoblog-assistant-first.ts': 3,
   'server/autoblog-fixed.ts': 2,
-  'server/services/enhancedEmailService.ts': 9,
-  'server/services/smsService.ts': 7,
-  'server/routes.ts': 5,
-  'server/services/abandonedCheckout.ts': 3,
-  'server/services/brevoService.ts': 3,
-  'server/services/WorkflowExecutionService.ts': 2,
   'server/storage.ts': 2,
   'server/routes/questionnaires.ts': 1,
   'server/services/socialSnippets.ts': 1,
   'server/togninja-sophisticated-prompt.ts': 1,
   'server/vite.ts': 1,
 };
+const DOMAIN_BASELINE = {
+  'server/autoblog.ts': 5,
+  'server/routes.ts': 4,
+  'server/autoblog-utils.ts': 1,
+  'server/index.production.ts': 1,
+  'server/index.ts': 1,
+  'server/routes/shootcleaner.ts': 1,
+  'server/services/indexNow.ts': 1,
+  'server/services/socialDistribution.ts': 1,
+  'server/services/socialSnippets.ts': 1,
+  'server/services/TavilySearchService.ts': 1,
+  'server/services/zernio.ts': 1,
+  'server/vite.ts': 1,
+};
 const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
   const full = `${dir}/${e.name}`;
   return e.isDirectory() ? walk(full) : /\.ts$/.test(e.name) ? [full] : [];
 });
-const grew = [];
-let remaining = 0;
-for (const f of walk('server')) {
-  const n = codeOnly(read(f)).split(/\r?\n/).filter((l) => ORIGIN.test(l)).length;
-  remaining += n;
-  const allowed = BASELINE[f] || 0;
-  if (n > allowed) grew.push(`${f} ${allowed}→${n}`);
-}
-check('the origin studio\'s name is not spreading',
-  grew.length === 0,
-  grew.length ? grew.join(', ') : `${remaining} line(s) of known debt, none growing`);
+const ratchet = (label, rx, baseline, note) => {
+  const grew = [];
+  let remaining = 0;
+  for (const f of walk('server')) {
+    const n = codeOnly(read(f)).split(/\r?\n/).filter((l) => rx.test(l)).length;
+    remaining += n;
+    if (n > (baseline[f] || 0)) grew.push(`${f} ${baseline[f] || 0}→${n}`);
+  }
+  check(label, grew.length === 0, grew.join(', ') || `${remaining} line(s) of known debt — ${note}`);
+};
+ratchet('the origin studio\'s name is not spreading', /New Age Fotografie/, NAME_BASELINE,
+  'was 58 before the communication path was cleared');
+ratchet('nor is its domain', /newagefotografie|newage-fotografie/i, DOMAIN_BASELINE,
+  'a domain fallback is a working link to another studio');
 
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);

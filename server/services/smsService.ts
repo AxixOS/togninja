@@ -2,6 +2,7 @@ import { db } from '../db';
 import { crmMessages, crmClients, messageCampaigns, smsConfig } from '@shared/schema';
 import { eq, or, ilike, and, gte, lt, inArray } from 'drizzle-orm';
 import fetch from 'node-fetch';
+import { getSiteIdentity } from '../lib/siteIdentity';
 import { config } from '../config-reader';
 
 export interface SendSMSOptions {
@@ -302,7 +303,7 @@ export class SMSService {
 
       // Save to database
       const messageRecord = await db.insert(crmMessages).values({
-        senderName: process.env.BUSINESS_NAME || 'New Age Fotografie',
+        senderName: getSiteIdentity().name,
         senderEmail: process.env.SMTP_FROM || process.env.SMTP_USER || '',
         subject: messageType === 'whatsapp' ? 'WhatsApp Message' : 'SMS Message',
         content: options.content,
@@ -335,7 +336,7 @@ export class SMSService {
       // Still save failed attempt to database for tracking
       try {
         await db.insert(crmMessages).values({
-          senderName: process.env.BUSINESS_NAME || 'New Age Fotografie',
+          senderName: getSiteIdentity().name,
           senderEmail: process.env.SMTP_FROM || process.env.SMTP_USER || '',
           subject: 'SMS Message',
           content: options.content,
@@ -588,37 +589,7 @@ export class SMSService {
   }
 }
 
-// SMS templates for common scenarios
-export const SMSTemplates = {
-  /**
-   * Appointment reminder
-   */
-  appointmentReminder: (clientName: string, date: string, time: string) => 
-    `Hallo ${clientName}! Erinnerung: Ihr Fotoshoot-Termin ist morgen um ${time} am ${date}. Wir freuen uns auf Sie! - New Age Fotografie`,
-
-  /**
-   * Booking confirmation
-   */
-  bookingConfirmation: (clientName: string, date: string) =>
-    `Hallo ${clientName}! Ihr Fotoshoot-Termin am ${date} ist bestätigt. Details folgen per E-Mail. Freuen uns auf Sie! - New Age Fotografie`,
-
-  /**
-   * Gallery ready notification
-   */
-  galleryReady: (clientName: string, galleryLink: string) =>
-    `Hallo ${clientName}! Ihre Bilder sind fertig! Schauen Sie hier: ${galleryLink} - New Age Fotografie`,
-
-  /**
-   * Special offer
-   */
-  specialOffer: (clientName: string, discount: string) =>
-    `Hallo ${clientName}! Exklusiv für Sie: ${discount} auf Ihr nächstes Fotoshoot. Jetzt buchen! - New Age Fotografie`,
-
-  /**
-   * Thank you message
-   */
-  thankYou: (clientName: string) =>
-    `Hallo ${clientName}! Vielen Dank für Ihr Vertrauen. Ihre Bilder sind in Bearbeitung. Freuen uns auf Ihr Feedback! - New Age Fotografie`,
-};
+// SMSTemplates lived here: five German messages, each signed '- New Age Fotografie'. Also a
+// dead export with no callers, removed for the same reason as EmailTemplates above.
 
 export default SMSService;

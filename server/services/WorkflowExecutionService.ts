@@ -26,6 +26,7 @@ import {
 } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
+import { getSiteIdentity } from '../lib/siteIdentity';
 import { getSmtpTransporter, getFromAddress } from '../utils/smtp-helper';
 
 interface ExecutionContext {
@@ -310,7 +311,7 @@ export class WorkflowExecutionService {
       }
 
       // Replace variables in template
-      let subject = template.subject || 'Notification from New Age Fotografie';
+      let subject = template.subject || `Notification from ${getSiteIdentity().name}`;
       let htmlContent = template.htmlContent || '';
       let textContent = template.textContent || '';
 
@@ -337,7 +338,7 @@ export class WorkflowExecutionService {
       }
 
       const info = await this.emailTransporter.sendMail({
-        from: `"${template.fromName || 'New Age Fotografie'}" <${template.fromEmail || process.env.SMTP_USER}>`,
+        from: `"${template.fromName || getSiteIdentity().name}" <${template.fromEmail || process.env.SMTP_USER}>`,
         to: recipientEmail,
         subject,
         text: textContent,

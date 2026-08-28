@@ -15,18 +15,30 @@
  * never affects the checkout/payment path — recording is best-effort.
  */
 
+import { getSiteIdentity } from '../lib/siteIdentity';
+
 const GRACE_MS = 60 * 60 * 1000; // remind 1h after an abandoned start
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // don't remind sessions older than a week
 
+/**
+ * The studio's own site.
+ *
+ * The fallback here was the ORIGIN studio's live domain. On any instance without
+ * PUBLIC_SITE_URL set, a buyer's abandoned customers were emailed a "finish your order"
+ * button pointing at newagefotografie.com — their own recovery campaign handing their
+ * traffic to a different photographer.
+ *
+ * There is no safe default for this, so there is no longer one. An unconfigured instance
+ * returns '' and the reminder is SKIPPED below rather than sent somewhere wrong: a
+ * reminder never sent costs one sale, a reminder sent to a competitor costs the customer.
+ */
 function siteOrigin(): string {
-  return (process.env.PUBLIC_SITE_URL || 'https://www.newagefotografie.com').replace(/\/+$/, '');
+  return String(getSiteIdentity().url || '').replace(/\/+$/, '');
 }
 
-function fromAddress(): string {
-  const email = process.env.BUSINESS_MAILBOX_USER || process.env.SMTP_USER || 'no-reply@localhost';
-  const name = process.env.BUSINESS_NAME || 'New Age Fotografie';
-  return `"${name}" <${email}>`;
-}
+// fromAddress() was removed: it hardcoded the origin studio as the display name, and
+// duplicated a decision getFromAddress() in utils/smtp-helper already makes — including the
+// part about most providers rejecting a From that is not the authenticated account.
 
 /** Record a started-but-unpaid checkout. Best-effort; never throws. */
 export async function recordAbandonedCheckout(input: {
@@ -80,7 +92,6 @@ export async function sendAbandonedCheckoutReminders(reason = 'tick'): Promise<n
     const { db } = await import('../db');
     const { abandonedCheckouts, emailAutomations, emailAutomationLogs } = await import('@shared/schema');
     const { and, eq, lt, gt } = await import('drizzle-orm');
-    const nodemailer = (await import('nodemailer')).default;
 
     const now = Date.now();
     const cutoff = new Date(now - GRACE_MS);
@@ -114,20 +125,34 @@ export async function sendAbandonedCheckoutReminders(reason = 'tick'): Promise<n
       tpl = rows[0] || null;
     } catch { /* templates optional */ }
 
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.easyname.com',
-      port: 465,
-      secure: true,
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-      auth: {
-        user: process.env.BUSINESS_MAILBOX_USER || process.env.SMTP_USER || '',
-        pass: process.env.EMAIL_PASSWORD || process.env.SMTP_PASS || '',
-      },
-    });
+    // This built its own transport hardcoded to smtp.easyname.com — the ORIGIN studio's mail
+    // provider, with no environment override. Every other tenant's reminders were posted to
+    // easyname using the tenant's own credentials, which fails for anyone not hosted there.
+    // So this was a delivery bug wearing a branding bug's clothes.
+    //
+    // getSmtpTransporter() is the seam the rest of the app already sends through: it reads the
+    // studio's configured host from the database first, then SMTP_HOST.
+    const { getSmtpTransporter, getFromAddress } = await import('../utils/smtp-helper');
+    const transporter = await getSmtpTransporter();
+    const from = await getFromAddress();
 
-    const shopUrl = `${siteOrigin()}/vouchers`;
+    const origin = siteOrigin();
+    if (!origin) {
+      console.warn(
+        '[abandoned-cart] no site URL configured (PUBLIC_SITE_URL / APP_URL) — skipping reminders.\n'
+        + '                A recovery email is worthless without a link back, and the old default\n'
+        + '                pointed at the origin studio.',
+      );
+      return;
+    }
+    const shopUrl = `${origin}/vouchers`;
+
+    // The studio's own name and language, for the built-in copy below. A studio that wrote its
+    // own template in Automations never reaches this.
+    const identity = getSiteIdentity();
+    const studio = identity.name;
+    const german = String(identity.lang || 'en').toLowerCase().startsWith('de');
+
     let sent = 0;
 
     for (const row of due) {
@@ -141,24 +166,27 @@ export async function sendAbandonedCheckoutReminders(reason = 'tick'): Promise<n
 
         const subject = tpl?.emailSubject
           ? render(tpl.emailSubject)
-          : 'Sie waren fast fertig – Ihr Fotoshooting wartet 🎁';
+          : german
+          ? 'Sie waren fast fertig – Ihr Fotoshooting wartet 🎁'
+          : 'You were nearly done — your photo session is waiting 🎁';
         const html = tpl?.emailBodyHtml
           ? render(tpl.emailBodyHtml)
           : `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-               <h2 style="color:#7C3AED;">Sie waren fast fertig!</h2>
-               <p>Hallo ${name},</p>
-               <p>Sie haben kürzlich einen Kauf bei New Age Fotografie begonnen, aber nicht abgeschlossen.
-               Ihr Wunsch-Fotoshooting wartet noch auf Sie.</p>
+               <h2 style="color:#7C3AED;">${german ? 'Sie waren fast fertig!' : 'You were nearly done!'}</h2>
+               <p>${german ? 'Hallo' : 'Hi'} ${name},</p>
+               <p>${german
+                 ? `Sie haben kürzlich einen Kauf bei ${studio} begonnen, aber nicht abgeschlossen. Ihr Wunsch-Fotoshooting wartet noch auf Sie.`
+                 : `You started an order with ${studio} recently but did not finish it. Your session is still waiting for you.`}</p>
                <p style="margin:28px 0;">
                  <a href="${shopUrl}" style="background:#7C3AED;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
-                   Jetzt abschließen
+                   ${german ? 'Jetzt abschließen' : 'Complete your order'}
                  </a>
                </p>
-               <p>Bei Fragen sind wir gerne für Sie da.</p>
-               <p>Ihr New Age Fotografie Team</p>
+               <p>${german ? 'Bei Fragen sind wir gerne für Sie da.' : 'If you have any questions, just reply to this email.'}</p>
+               <p>${german ? `Ihr ${studio} Team` : `The ${studio} team`}</p>
              </div>`;
 
-        await transporter.sendMail({ from: fromAddress(), to: row.email, subject, html });
+        await transporter.sendMail({ from, to: row.email, subject, html });
 
         // Mark reminded (guard against a race with the webhook: only if still pending).
         await db
