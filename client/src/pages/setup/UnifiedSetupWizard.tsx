@@ -161,7 +161,16 @@ export default function UnifiedSetupWizard() {
     //
     // Only the site-wide slots. The service slots cannot be NAMED before the Authority Map
     // exists, so they stay behind the crawl in the later step.
-    { key: 'photographs', group: 'Your studio', label: 'Your photographs', essential: true, render: () => <SiteImagesPhase only="site" startScan onComplete={goNext} /> },
+    // only="all", not "site". The service slots were rendered NOWHERE in the wizard — the
+    // component has always supported them and the endpoint has always returned them, but this
+    // step asked for the three site-wide ones and no later step asked for the rest. A studio
+    // finished onboarding having been shown three of nine, and the other six were reachable
+    // only by knowing Website Studio existed.
+    //
+    // Showing them here costs no waiting: the site slots render immediately and the service
+    // block polls, filling itself in when the crawl names the pages. Which is the same reason
+    // the split was made in the first place — it just never needed to hide them.
+    { key: 'photographs', group: 'Your studio', label: 'Your photographs', essential: true, render: () => <SiteImagesPhase only="all" startScan onComplete={goNext} /> },
     { key: 'security', group: 'Account', label: 'Admin account', essential: true, render: () => <SecurityStep onComplete={goNext} onBack={goBack} /> },
     { key: 'lead_sources', group: 'Content', label: 'Lead sources', render: () => <LeadSourcesPhase onComplete={goNext} /> },
     { key: 'integrations', group: 'Content', label: 'Integrations', render: () => <IntegrationsPhase status={setupStatus?.phases?.integrations} features={setupStatus?.features} onComplete={goNext} /> },
@@ -178,7 +187,11 @@ export default function UnifiedSetupWizard() {
     // after Storage, without which there is nowhere to put an upload.
     // The half that needed the crawl. Its site-wide slots were asked for at the
     // photographs step above, so this one shows the services.
-    { key: 'site_images', group: 'Content', label: 'Service photographs', render: () => <SiteImagesPhase only="pillar" onComplete={goNext} /> },
+    // Kept, not deleted. The photographs step above now offers every slot, so this is no
+    // longer where a studio first meets the service images — but it is still the entry in the
+    // long path for going back to them on their own, and deleting a step because a shorter
+    // route also covers it is precisely what the 'deferral, not removal' rule exists to stop.
+    { key: 'site_images', group: 'Content', label: 'Revisit service photographs', render: () => <SiteImagesPhase only="pillar" onComplete={goNext} /> },
     { key: 'fix_first', group: 'Content', label: 'Fix-first', render: () => <FixFirstPhase onComplete={goNext} /> },
     { key: 'drafts', group: 'Content', label: 'Starter content', render: () => <DraftsPhase onComplete={finish} /> },
   ];

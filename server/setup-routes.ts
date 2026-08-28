@@ -127,7 +127,11 @@ async function storeSectionImage(req: any, res: Response) {
 
     // A pillar slot must correspond to a pillar this studio actually has. The section key
     // convention is the one HomePage already uses for its service cards: services-<slug>.
-    if (!FIXED_IMAGE_SECTIONS.has(section)) {
+    // page-<slug>-1 / -2 are a page's own two content photographs. Keyed by the LANDING PAGE
+    // slug rather than the services- key, because that is what the renderer knows about
+    // itself; the two derivations differ (landing-mapping's slugify trims and caps at 60).
+    const isPageContent = /^page-[a-z0-9-]{1,80}-[12]$/.test(section);
+    if (!FIXED_IMAGE_SECTIONS.has(section) && !isPageContent) {
       if (!/^services-[a-z0-9-]{1,80}$/.test(section)) {
         return res.status(400).json({ error: `Unknown image slot "${section}".` });
       }
@@ -140,6 +144,18 @@ async function storeSectionImage(req: any, res: Response) {
       );
       if (!known.has(section)) {
         return res.status(400).json({ error: `"${section}" is not one of this studio's services.` });
+      }
+    }
+    // A page-content slot has to name a page this studio actually has, for the same reason a
+    // pillar slot does: without it the section key is a free-form string an unauthenticated
+    // caller can write rows under.
+    if (isPageContent) {
+      const pageSlug = section.replace(/^page-/, '').replace(/-[12]$/, '');
+      const { rows: pageRows } = await db.execute(
+        sql`SELECT 1 FROM landing_pages WHERE slug = ${pageSlug} LIMIT 1`,
+      ) as any;
+      if (!(pageRows ?? []).length) {
+        return res.status(400).json({ error: `"${section}" is not one of this studio's pages.` });
       }
     }
 
@@ -213,6 +229,7 @@ async function storeSectionImage(req: any, res: Response) {
  */
 router.get('/site-images', async (_req: Request, res: Response) => {
   try {
+    const { slugify: landingSlugify } = await import('./lib/landing-mapping');
     const { rows: cfgRows } = await db.execute(sql`SELECT authority_map, logo_url FROM studio_configs LIMIT 1`) as any;
     const cfg = (cfgRows ?? [])[0] || {};
     const pillars = (cfg.authority_map?.pillars || []) as any[];
@@ -238,8 +255,8 @@ router.get('/site-images', async (_req: Request, res: Response) => {
     const { rows: imgRows } = await db.execute(sql`SELECT section, url, alt FROM homepage_images WHERE is_active`) as any;
     const have = new Map<string, any>(((imgRows ?? []) as any[]).map((r) => [r.section, r]));
 
-    const slot = (section: string, label: string, hint: string, group: string) => ({
-      section, label, hint, group,
+    const slot = (section: string, label: string, hint: string, group: string, page = '') => ({
+      section, label, hint, group, page,
       url: have.get(section)?.url || null,
       alt: have.get(section)?.alt || null,
       filled: !!have.get(section)?.url,
@@ -249,11 +266,24 @@ router.get('/site-images', async (_req: Request, res: Response) => {
       slot('hero', 'Homepage hero', 'The first image a visitor sees. Landscape, at least 1600px wide.', 'site'),
       slot('content-1', 'First content block', 'Sits beside your opening paragraphs. Square or portrait works best.', 'site'),
       slot('content-2', 'Second content block', 'Sits beside your second section. Square or portrait.', 'site'),
+      // Three per service page, not one.
+      //
+      // A photographer's service page carried a single picture and then several hundred words
+      // of type, because only the hero slot was ever offered — the two content slots existed
+      // in the renderer and had nothing stored for any page but the homepage. Grouped by page
+      // so the studio can see and change a page at a time rather than reading a flat list of
+      // nine identical-looking cards.
       ...pillars
         .filter((p) => p?.href && p?.label)
-        .map((p) => {
-          const key = 'services-' + String(p.href).replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-          return slot(key, p.label, `Shown on the ${p.label} card and page.`, 'pillar');
+        .flatMap((p) => {
+          const bare = String(p.href).replace(/^\/+|\/+$/g, '');
+          const key = 'services-' + bare.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          const pageSlug = landingSlugify(bare || String(p.label));
+          return [
+            slot(key, 'Main image', `Top of the ${p.label} page, and its card on your homepage.`, 'pillar', p.label),
+            slot(`page-${pageSlug}-1`, 'First content block', 'Beside the opening paragraphs of that page.', 'pillar', p.label),
+            slot(`page-${pageSlug}-2`, 'Second content block', 'Beside the second section of that page.', 'pillar', p.label),
+          ];
         }),
     ];
 

@@ -38,6 +38,8 @@ interface Slot {
   label: string;
   hint: string;
   group: 'site' | 'pillar';
+  /** Which page this slot belongs to, so the service slots can be grouped by page. */
+  page?: string;
   url: string | null;
   filled: boolean;
 }
@@ -430,12 +432,33 @@ export default function SiteImagesPhase({
           </h3>
           {data?.pillarsReady ? (
             <>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                These are the services we found on your website. One photograph each — it
-                appears on the service card and at the top of that page.
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                These are the services we found on your website. We have already chosen a
+                photograph for each from your own site — change any you would rather pick
+                yourself.
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {pillars.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} storageReady={storageReady} />)}
+              {/*
+                One block per page rather than one flat grid. Nine cards named "Main image",
+                "First content block", "Second content block" three times over is unreadable
+                without knowing which page each belongs to, and the page is the thing the
+                studio is actually thinking about.
+              */}
+              <div className="space-y-6">
+                {Array.from(new Set(pillars.map((s) => s.page || ''))).map((pageName) => {
+                  const forPage = pillars.filter((s) => (s.page || '') === pageName);
+                  return (
+                    <div key={pageName || 'other'}>
+                      {pageName && (
+                        <h4 className="text-sm font-medium text-slate-800 dark:text-slate-200 mb-2">{pageName}</h4>
+                      )}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {forPage.map((s) => (
+                          <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} storageReady={storageReady} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </>
           ) : (

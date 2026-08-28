@@ -117,6 +117,9 @@ check('the chosen image is copied into the studio\'s own storage',
 // uploaded three photographs, paid to store them, and saw one.
 const renderer = read('client/src/features/landing-pages/components/public/PublicLandingPageRenderer.tsx');
 const contentHook = read('client/src/hooks/useHomepageContentImages.ts');
+// Read here rather than beside its own section: the per-page checks below need it, and a
+// const used before its declaration is a dead-zone crash that kills the whole verifier.
+const assign = read('server/lib/assignCrawledImages.ts');
 
 check('the two content photographs reach the generated page',
   renderer.includes('image={contentImages.one}') && renderer.includes('image={contentImages.two}'),
@@ -146,9 +149,33 @@ for (const name of ['PublicLandingPageProblemSection', 'PublicLandingPageOfferSe
 // The same renderer draws every pillar page. Handing it homepage images unconditionally would
 // put one studio's two photographs on "Wildlife Prints", "Photography Courses" and every other
 // service — which is worse than showing none, because it looks deliberate.
-check('and only on the page that IS the homepage',
-  contentHook.includes('slug === homeSlug') && contentHook.includes('enabled: isHomepage'),
-  'gated on studio_configs.homepage_landing_slug, and not fetched at all elsewhere');
+// This used to assert that content photographs appeared ONLY on the homepage, and that was
+// the right rule for the system it was written in: there were exactly two content images in
+// existence, so handing them to every page would have put the same two pictures on "Boudoir
+// Photography", "Queer Wedding Photography" and every other service — which looks deliberate,
+// and is worse than showing none.
+//
+// What changed is supply, not the reasoning. The crawl records forty of the studio's own
+// photographs and each page is now given its OWN pair, keyed by that page's slug. The rule
+// worth keeping was never "only the homepage may have pictures" — it was "no two pages may
+// show the same picture", and that is what is checked now.
+check('every page draws its OWN pair, never another page\'s',
+  contentHook.includes('export function contentSectionsFor')
+  && /return \[`page-\$\{slug\}-1`, `page-\$\{slug\}-2`\];/.test(contentHook)
+  && contentHook.includes("return ['content-1', 'content-2'];"),
+  'keyed by slug, so a pillar cannot read the homepage\'s images or another pillar\'s');
+
+// And the assignment side must never hand one photograph to two slots.
+check('and the assignment never reuses a photograph',
+  assign.includes('claimed.add(') && assign.includes('claimed.has('),
+  'three services showing one picture reads as broken in a way three empty blocks do not');
+
+// The homepage has no service name to match on, so it took the first unclaimed pictures in
+// crawl order — which on a real studio were BodyPositiveBoudoir and BoudoirPhotographyNYC,
+// the two best matches for the Boudoir page. Boudoir then fell back to one named "Samanee".
+check('and the homepage leaves the named photographs for the pages that need them',
+  assign.includes('pillarAffinity'),
+  'a picture whose name says boudoir should still be there when the Boudoir page asks');
 
 // ── Both doors into homepage_images copy the bytes ──────────────────────────
 //
@@ -232,7 +259,6 @@ check('and the panel shows where the bytes actually landed',
 // Photography". The photographs were in the database the entire time; only the decision
 // about which went where was missing, and for a photographer's own files that decision is
 // often written on the tin: BoudoirPhotographyNYC.jpg, QueerWeddingPhotographyNYC.jpg.
-const assign = read('server/lib/assignCrawledImages.ts');
 const pipeline = read('server/lib/homepage-pipeline.ts');
 const store = read('server/lib/siteImageStore.ts');
 

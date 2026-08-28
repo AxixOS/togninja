@@ -115,6 +115,27 @@ export async function assignCrawledSiteImages(
     // reads as broken in a way three empty blocks do not.
     const claimed = new Set<string>();
 
+    // The studio's services, needed by BOTH scopes: the pillar scope matches against them,
+    // and the homepage scope needs to know which photographs to leave alone.
+    const { rows: mapRows } = await pool.query(`SELECT authority_map FROM studio_configs LIMIT 1`);
+    const allPillars = (((mapRows as any[])[0]?.authority_map?.pillars || []) as any[])
+      .filter((p) => p?.href && p?.label);
+
+    /**
+     * How strongly a photograph belongs to some ONE service.
+     *
+     * The homepage has no label to match on, so it used to take the first unclaimed pictures
+     * in crawl order — and on a real studio those were BodyPositiveBoudoir and
+     * BoudoirPhotographyNYC, the two best matches for the Boudoir page. The homepage cannot
+     * tell they were special; the Boudoir page then fell back to a photograph named Samanee.
+     *
+     * So the homepage now prefers pictures that belong to NO service in particular, leaving
+     * the named ones for the pages that can actually use the name. Crawl order still decides
+     * between equals, which on most sites is the order they lead with.
+     */
+    const pillarAffinity = (label: string): number =>
+      allPillars.reduce((max, p) => Math.max(max, score(label, String(p.label), String(p.href))), 0);
+
     let wanted: Array<{ section: string; label: string; href: string }> = [];
     if (scope === 'site') {
       wanted = [
@@ -123,15 +144,32 @@ export async function assignCrawledSiteImages(
         { section: 'content-2', label: '', href: '' },
       ];
     } else {
-      const { rows } = await pool.query(`SELECT authority_map FROM studio_configs LIMIT 1`);
-      const pillars = ((rows as any[])[0]?.authority_map?.pillars || []) as any[];
-      wanted = pillars
-        .filter((p) => p?.href && p?.label)
-        .map((p) => ({
-          section: 'services-' + String(p.href).replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          label: String(p.label),
-          href: String(p.href),
-        }));
+      const { slugify: landingSlugify } = await import('./landing-mapping');
+      wanted = [];
+      for (const p of allPillars) {
+        const label = String(p.label);
+        const href = String(p.href);
+        // The hero, keyed the way the wizard's slots and HomePage's service cards are.
+        wanted.push({
+          section: 'services-' + href.replace(/^\/+|\/+$/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          label,
+          href,
+        });
+        // And the page's own two content photographs.
+        //
+        // A service page on a photographer's website carried one picture and then several
+        // hundred words of type. The sections that take these already existed and already
+        // drew them; there was simply nothing stored for any page but the homepage, because
+        // when that was written the whole system held exactly two content photographs and
+        // sharing them across every service would have looked deliberate. With forty of the
+        // studio's own to draw on, each page gets its own pair and none is ever reused.
+        //
+        // Keyed by the LANDING PAGE slug, which is what the renderer knows about itself and
+        // is NOT the services- key: landing-mapping's slugify trims dashes and caps at 60.
+        const pageSlug = landingSlugify(href.replace(/^\/+|\/+$/g, '') || label);
+        wanted.push({ section: `page-${pageSlug}-1`, label, href });
+        wanted.push({ section: `page-${pageSlug}-2`, label, href });
+      }
     }
 
     const empty = wanted.filter((w) => {
@@ -160,12 +198,20 @@ export async function assignCrawledSiteImages(
       assignment.set(slot.section, img);
       claimed.add(String(img.url));
     }
-    // Everything still unassigned takes the next unclaimed photograph in crawl order — which
-    // is roughly the order they appear on the studio's own site, so the earliest are usually
-    // the ones they lead with.
+    // Everything still unassigned takes the next unclaimed photograph, in crawl order —
+    // roughly the order they appear on the studio's own site, so the earliest are usually the
+    // ones they lead with.
+    //
+    // On the homepage that order is adjusted to take the LEAST service-specific picture first,
+    // so a photograph whose name says "boudoir" is still there when the Boudoir page asks.
+    const fallbackOrder = scope === 'site'
+      ? [...found].sort((a: any, b: any) =>
+          pillarAffinity(String(a.label || '')) - pillarAffinity(String(b.label || '')))
+      : found;
+
     for (const slot of empty) {
       if (assignment.has(slot.section)) continue;
-      const img = found.find((i: any) => !claimed.has(String(i.url)) && !usedUrls.has(String(i.url)));
+      const img = fallbackOrder.find((i: any) => !claimed.has(String(i.url)) && !usedUrls.has(String(i.url)));
       if (!img) break;
       assignment.set(slot.section, img);
       claimed.add(String(img.url));

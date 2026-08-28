@@ -96,11 +96,34 @@ check('the photographs step starts the website read',
   images.includes('if (!startScan) return;')
   && images.includes("fetch('/api/setup/homepage/generate'"));
 
-check('it asks only for the slots that need no crawl',
-  wiz.includes('only="site"') && wiz.includes('only="pillar"'));
+// This asserted the step was SPLIT — site slots early, service slots in a later step. The
+// split was sound reasoning applied to the wrong lever: the site slots need no crawl and the
+// service slots do, so they went in two steps, and the second was never marked essential. The
+// default path therefore skipped it, and a studio finished onboarding having been offered
+// three photographs out of nine while the other six existed, were listed by the endpoint, and
+// were rendered nowhere.
+//
+// One step now shows all of them. The property that split was protecting — never make the
+// studio WAIT for the crawl — is unchanged and is what gets checked: the site slots render
+// immediately, and only the service block is gated on the crawl having named the pages.
+// Asserted on the ESSENTIAL step specifically. The first version of this check said no
+// only="pillar" step may exist at all, which would have meant deleting the revisit entry from
+// the long path — the opposite of the deferral-not-removal rule checked further down. What
+// matters is that the step every studio actually walks offers every slot.
+check('every slot is offered in the step every studio walks',
+  /essential: true, render: \(\) => <SiteImagesPhase only="all"/.test(wiz),
+  'the service slots existed and were listed by the endpoint, and were shown to nobody');
 
-check('the service slots still wait for the crawl',
-  images.includes("only === 'site' ? [] : slots.filter"));
+check('the service slots still wait for the crawl, and only they do',
+  images.includes("only === 'site' ? [] : slots.filter")
+  && images.includes('data?.pillarsReady ? ('),
+  'the site slots must not be held back by a read that has not finished');
+
+// A studio who wants none of this must still be able to leave. Nine slots is a lot of cards to
+// look at, and an unfilled one blocking Continue would turn an optional step into a wall.
+check('and nothing blocks Continue on an unfilled slot',
+  !/disabled=\{[^}]*shownFilled/.test(images),
+  'every slot is optional — the auto-assignment has already filled them anyway');
 
 // One component in two modes. A second copy would have drifted from this one within a week,
 // which is a thing this codebase has already paid for several times.
