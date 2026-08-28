@@ -261,5 +261,42 @@ check('but keeps the fetch for shells that carry no stamp',
   /\/api\/studio-config/.test(themeScopeSrc),
   'dev server and the fatal-catch sendFile both serve an unstamped shell');
 
+// ── Choosing a look without seeing one ─────────────────────────────────────
+//
+// The step offered two grey wireframes and nine cards showing a line of type and a coloured
+// button: eighteen combinations, none of them visible. A studio could see exactly one, by
+// finishing setup — so seeing them all meant onboarding eighteen times.
+//
+// The obvious fix is screenshots, and the obvious problem with screenshots is that they are
+// only true on the day they are taken. Two bugs fixed this same week were sections that drew a
+// photograph in one layout and not the other; a screenshot would have gone on showing the
+// version that worked. So the preview renders the REAL sections, and this checks that it does.
+const preview = read('client/src/pages/setup/phases/LookPreview.tsx');
+const lookPhase = read('client/src/pages/setup/phases/LookPhase.tsx');
+
+check('the look step previews the choice',
+  /LookPreview/.test(lookPhase) && /themeId=\{theme\}/.test(lookPhase) && /layoutId=\{layout\}/.test(lookPhase),
+  'both axes — the colours AND the arrangement');
+
+check('and previews it with the components that actually ship',
+  /from '@\/features\/landing-pages\/components\/public\/PublicLandingPageHero'/.test(preview)
+  && /PublicLandingPageProblemSection/.test(preview)
+  && /PublicLandingPageOfferSection/.test(preview),
+  'a hand-drawn miniature is a second implementation, and it drifts');
+
+// The layout half is the half a colour swatch cannot show, and ThemeScope reads the layout from
+// the studio's own config — which on the setup page is the one already stamped into the shell.
+// Without an override the preview showed every colour and one arrangement.
+check('and can be forced to the layout being previewed',
+  /layout\?: string \| null;/.test(themeScopeSrc)
+  && /const layoutId = layoutOverride \?\?/.test(themeScopeSrc),
+  'otherwise it is stuck on whatever the instance already has');
+
+// It is a picture of a choice, not content, and it must not be operable — a Book Now inside a
+// preview that submits something would be a genuine trap.
+check('the preview cannot be clicked or read aloud',
+  /pointerEvents: 'none'/.test(preview) && /aria-hidden="true"/.test(preview),
+  'sample copy read to a screen reader is noise, and its buttons are not real');
+
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);

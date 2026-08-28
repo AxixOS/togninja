@@ -9,7 +9,18 @@ import { SiteLayoutProvider } from './SiteLayoutContext';
  * preset visibly re-skins the page without refactoring every section. Reads the preset from
  * /api/studio-config (siteTheme) unless one is passed in (e.g. an admin live preview).
  */
-export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePreset }> = ({ children, preset }) => {
+export const ThemeScope: React.FC<{
+  children: React.ReactNode;
+  preset?: ThemePreset;
+  /**
+   * Force a layout instead of using the studio's own.
+   *
+   * Only the setup preview passes this. Without it a preview could show every COLOUR but was
+   * stuck on whatever layout the instance already had — which is exactly half of what a studio
+   * is choosing between on that screen, and the half the swatches cannot show at all.
+   */
+  layout?: string | null;
+}> = ({ children, preset, layout: layoutOverride }) => {
   /**
    * The studio's theme and layout, stamped into the HTML shell by server/vite.ts so the FIRST
    * paint is already theirs.
@@ -46,7 +57,7 @@ export const ThemeScope: React.FC<{ children: React.ReactNode; preset?: ThemePre
   const theme = preset || getThemePreset(injected?.theme ?? (data as any)?.theme?.id);
   // An explicit preset means an admin preview of one particular theme; the layout still
   // comes from what the studio has actually chosen.
-  const layoutId = injected?.layout ?? (data as any)?.layout ?? null;
+  const layoutId = layoutOverride ?? injected?.layout ?? (data as any)?.layout ?? null;
   const c = theme.colors;
   const f = theme.fonts;
 
