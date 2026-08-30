@@ -108,6 +108,27 @@ services:
       - key: ENCRYPTION_KEY
         generateValue: true
 
+      # ── Who pays to SHOW the product ─────────────────────────────────────
+      #
+      # This is NOT the studio's key below — it is the provider's, and it funds the one thing
+      # a studio cannot fund before they have decided to buy: the homepage and service pages
+      # onboarding writes FOR them, from their own website, in the first ten minutes.
+      #
+      # Without it onboarding crawls the studio's site, reads it correctly, and then generates
+      # nothing — a first run that looks like the product does not work. The boot log says so
+      # in as many words, which is the only reason it is diagnosable at all.
+      #
+      # A TENANT key, minted per instance, never the console key and never one shared between
+      # instances. POST /v1/ai/keys with {tenantId, label} returns it once; it carries a
+      # lifetime budget of its own, so a studio clicking Generate repeatedly costs the
+      # provider a bounded amount and then stops. provision-instance.mjs mints one
+      # automatically; this path is a click in a browser, so it is pasted.
+      #
+      # Leave it blank and the instance still boots and runs the CRM perfectly well. It simply
+      # cannot generate a site, and says so rather than failing quietly.
+      - key: AXIXOS_INTERNAL_API_KEY
+        sync: false
+
       # ── The studio's own AI account (optional) ───────────────────────────
       #
       # Deliberately theirs. The product's rule is that the platform pays to SHOW a feature

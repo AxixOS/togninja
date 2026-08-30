@@ -300,5 +300,32 @@ check('and so does provisioning an instance that cannot generate',
 check('and the handover sheet says which of the three it got',
   /Site generation is funded by/.test(prov),
   'stated where the provider is already looking');
+
+// ── The one-click path can generate a site ─────────────────────────────────
+//
+// The Blueprint got the database, both secrets and the schema right, and then had no platform
+// AI at all — neither AXIXOS_INTERNAL_API_KEY nor a platform OpenAI key. The OPENAI_API_KEY it
+// does carry is documented, correctly, as the STUDIO's own for ongoing use.
+//
+// So a studio clicking Deploy got an instance that crawls their website, reads it, and then
+// generates nothing: a first run that looks like the product does not work. That is the same
+// hole provision-instance.mjs was just made to refuse, still open on the path that is actually
+// one click — and this file's own header says one click is what makes it somebody's live
+// business.
+check('the Blueprint carries platform AI',
+  /AXIXOS_INTERNAL_API_KEY/.test(y),
+  'without it onboarding reads their site and produces nothing');
+
+// sync: false, so it is PASTED per instance. A value hard-coded here would be one credential
+// in a public repository, shared by every studio who ever clicks Deploy — which is worse than
+// the gap it fixes.
+check('and asks for it per instance rather than shipping one',
+  /- key: AXIXOS_INTERNAL_API_KEY\s*\n\s*sync: false/.test(y),
+  'a key committed here is one credential for every tenant, in a public repo');
+
+// The distinction is the whole billing model and it is easy to collapse by accident.
+check('and does not confuse it with the studio\'s own key',
+  /Who pays to SHOW the product/.test(y) && /own AI account/.test(y),
+  'platform pays to show, studio pays to use — two keys, two payers, two comments');
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);
