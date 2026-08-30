@@ -393,10 +393,28 @@ const walkSetup = (d) => {
   }
 };
 walkSetup(setupDir);
-const deadLinks = wizardFiles.filter((f) => /href="\/admin/.test(read(f)));
+// ONE exemption, and it is conditional on the fact that earns it.
+//
+// SetupCompleteCard renders only after the whole wizard has finished, and the account step
+// signs the owner in — it sets the same req.session.userId the login route does, precisely so
+// they are not made to retype a password they chose two steps earlier. So by the time this card
+// exists there IS a session, and its /admin link goes somewhere.
+//
+// The exemption is therefore granted only while that sign-in is still there. Remove it and this
+// check fails on the card, which is the correct place for that breakage to surface: the link
+// would start bouncing off authenticateUser and reading, again, as the page crashing.
+const signsOwnerIn = /\(req\.session as any\)\.userId = user\.id;/.test(
+  read('server/technical-setup-routes.ts'),
+);
+const EXEMPT = signsOwnerIn ? ['SetupCompleteCard.tsx'] : [];
+const deadLinks = wizardFiles
+  .filter((f) => !EXEMPT.some((e) => f.endsWith(e)))
+  .filter((f) => /href="\/admin/.test(read(f)));
 check('no setup screen links into the authenticated admin area',
   deadLinks.length === 0,
-  deadLinks.length ? deadLinks.map((f) => f.split('/').pop()).join(', ') : 'no session exists until step four');
+  deadLinks.length
+    ? deadLinks.map((f) => f.split('/').pop()).join(', ')
+    : `no session exists until step four${signsOwnerIn ? '; the completion card is after it' : ''}`);
 
 // A run that stopped has to say so on the screen the studio is ACTUALLY looking at. The panels
 // live in ScanningPhase, which is step five; generation runs during step three.
@@ -521,6 +539,35 @@ check('social links are matched by host, not by substring',
   && !/pick\(\/\(\?:twitter\|x\)/.test(reader),
   'the same suffix mistake the crawled-image host check warns about');
 
+
+console.log('\n=== finishing setup shows the studio what they made ===');
+// Finishing POSTed the completion endpoints and navigate('/admin'). So a studio went from the
+// last wizard step straight into a dashboard, having never once been shown the website they had
+// just spent ten minutes making, with nothing on screen offering to open it.
+const doneCard = read('client/src/pages/setup/SetupCompleteCard.tsx');
+// Comment-stripped, for the fourth time this session in the same way: the wizard now carries
+// a comment reading "Was navigate('/admin')" to explain why it no longer does, and that
+// sentence failed the check for the behaviour it documents having been removed.
+const wizCode = wiz.split(/\r?\n/).filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+check('finishing does not dump the studio into the dashboard',
+  /setFinished\(true\)/.test(wizCode) && !/navigate\('\/admin'\)/.test(wizCode),
+  'it navigated away without ever offering the site');
+
+check('and offers the site as well as the admin',
+  /href="\/"/.test(doneCard) && /href="\/admin"/.test(doneCard));
+
+// New tab on purpose: sending them to the site would lose the other door, and a studio who
+// wants both should not have to navigate back to find it.
+check('the site opens in a new tab, so the other door survives',
+  /target="_blank"/.test(doneCard) && /rel="noopener noreferrer"/.test(doneCard));
+
+// THE HONEST PART. The essentials path never asks for SMTP, Stripe or storage, so a studio can
+// reach this card unable to send an email, take a payment or store a photograph. Saying
+// "you're all set" and nothing else would be the most misleading screen in the product.
+check('and names what still will not work',
+  /technical\/status/.test(doneCard) && /still to connect/.test(doneCard),
+  'read through the capability layer, which since v1.9.204 measures rather than asserts');
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');

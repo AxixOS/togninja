@@ -38,6 +38,7 @@ import LeadSourcesPhase from './phases/LeadSourcesPhase';
 import IntegrationsPhase from './phases/IntegrationsPhase';
 import ScanningPhase from './phases/ScanningPhase';
 import SiteImagesPhase from './phases/SiteImagesPhase';
+import SetupCompleteCard from './SetupCompleteCard';
 import PricingPhase from './phases/PricingPhase';
 import FixFirstPhase from './phases/FixFirstPhase';
 import DraftsPhase from './phases/DraftsPhase';
@@ -111,6 +112,8 @@ export default function UnifiedSetupWizard() {
    * not the path a new buyer is dropped into.
    */
   const [essentialsOnly, setEssentialsOnly] = useState(true);
+  // Finishing shows a screen, it does not just leave. See SetupCompleteCard.
+  const [finished, setFinished] = useState(false);
 
   const goNext = () => {
     refresh();
@@ -129,9 +132,14 @@ export default function UnifiedSetupWizard() {
       await fetch('/api/setup/technical/complete', { method: 'POST' });
       await fetch('/api/setup/complete', { method: 'POST' });
     } catch {
-      /* redirect regardless */
+      /* the wizard is done either way — the completion flags are not what makes the site work */
     }
-    navigate('/admin');
+    // Was navigate('/admin'). A studio went from the last wizard step straight into a
+    // dashboard, having never been shown the website they had just spent ten minutes making,
+    // and with nothing offering to open it. They get the choice now, and are told plainly what
+    // is still unconnected while they are in the frame of mind for connecting it.
+    setFinished(true);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
   const STEPS: StepDef[] = [
@@ -225,6 +233,14 @@ export default function UnifiedSetupWizard() {
     }
     g.steps.push({ def, idx });
   });
+
+  if (finished) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+        <SetupCompleteCard />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
