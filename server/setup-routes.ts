@@ -338,7 +338,15 @@ const cleanCredentials = (v: any): any[] | undefined => {
     }))
     .filter((c) => !!c.label)
     .slice(0, 12);
-  return out;
+  // EMPTY IS "NOTHING SUBMITTED", not "delete their qualifications".
+  //
+  // This returned [] here, and [] is a value drizzle happily writes — so a blank textarea
+  // erased the studio's degrees, memberships and insurance. It sat under a comment promising
+  // "`|| undefined` throughout ... reopening this step must not wipe an answer the form did
+  // not resubmit", which was true of every neighbouring field and not of this one: the guard
+  // above only returns undefined when the input is not an array at all, and the form always
+  // sends an array ('' splits to [''], which filters to []).
+  return out.length ? out : undefined;
 };
 const escapeHtml = (s: string) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1651,27 +1659,50 @@ router.post('/basics', async (req: Request, res: Response) => {
       // only in the request that carried it — see the round-trip note in GET /status.
       businessType: cleanStr(businessType, 80),
       timezone,
-      dateFormat: dateFormat || 'auto',
-      primaryColor: primaryColor || '#3B82F6',
-      logoUrl: logo || null,
-      metaDescription: tagline || '',
-      address: address || null,
-      // `|| undefined`, NOT `|| null`: drizzle drops an undefined key from the SET
-      // clause, so a form that submits nothing leaves the stored value alone. The
-      // adjacent `address || null` does the opposite and NULLs a studio's address
-      // every time someone reopens this step — and the wizard invites exactly that
-      // ("click any completed step to go back — nothing is lost"). City now feeds the
-      // served JSON-LD, so inheriting that behaviour would publish the wipe.
+      /**
+       * BLANK MEANS "NOT ANSWERED", NEVER "DELETE WHAT YOU HAVE".
+       *
+       * `|| undefined`, NOT `|| null`: drizzle drops an undefined key from the SET clause, so
+       * a form that submits nothing leaves the stored value alone. `x || null` does the
+       * opposite and NULLs the studio's answer.
+       *
+       * The comment on `city` used to say exactly this while pointing at `address || null` on
+       * the line above it as the counter-example — documented as wrong, and left in place.
+       * Fourteen fields were on the wrong side of it. That was survivable only because the
+       * form was normally filled in; on 30 Aug 2026 it stopped being, when the wizard began
+       * rendering this step before the saved answers arrived. A studio then typed their name
+       * into a blank card, pressed Continue, and every one of these would have gone to null —
+       * address, phone, website, all three socials, the map pin, the VAT number.
+       *
+       * The client posts all twenty-five fields on every submit whatever card you were on, so
+       * "did they mean to clear this?" cannot be answered here. Preserving is the only safe
+       * reading, and clearing a field for real belongs in Settings, where one field is being
+       * edited on purpose.
+       */
+      logoUrl: logo || undefined,
+      metaDescription: cleanStr(tagline, 300),
+      address: address || undefined,
       city: (typeof city === 'string' && city.trim()) ? city.trim().slice(0, 80) : undefined,
-      phone: phone || null,
-      website: website || null,
-      latitude: latitude || null,
-      longitude: longitude || null,
-      facebookUrl: facebookUrl || null,
-      instagramUrl: instagramUrl || null,
-      twitterUrl: twitterUrl || null,
-      currency: currency || 'EUR',
-      vatNumber: vatNumber || null,
+      phone: phone || undefined,
+      website: website || undefined,
+      latitude: latitude || undefined,
+      longitude: longitude || undefined,
+      facebookUrl: facebookUrl || undefined,
+      instagramUrl: instagramUrl || undefined,
+      twitterUrl: twitterUrl || undefined,
+      vatNumber: vatNumber || undefined,
+      /**
+       * The three with a PRODUCT DEFAULT rather than a blank.
+       *
+       * These cannot simply preserve: a brand-new studio has nothing stored, and the row needs
+       * a sensible currency, date format and colour. But applying the default on every save
+       * means a blank form resets a studio who chose otherwise — silently switching their
+       * prices to euros. So the default is applied only when creating the row (see the insert
+       * below); an update keeps what is there.
+       */
+      dateFormat: dateFormat || undefined,
+      primaryColor: primaryColor || undefined,
+      currency: currency || undefined,
       // The studio's own site language. Page visibility, generated copy and locale
       // defaults all key off this; before it was captured here they keyed off SITE_LANG,
       // a deploy-time variable the buyer never sees.
@@ -1696,10 +1727,15 @@ router.post('/basics', async (req: Request, res: Response) => {
         .set({ ...fields, studioName: businessName })
         .where(eq(studioConfigs.id, existing.id));
     } else {
+      // The defaults belong HERE, on the row being created, and nowhere else. Applying them
+      // on every save is what let a blank form reset a studio's chosen currency to euros.
       await db.insert(studioConfigs).values({
         studioName: businessName,
         ownerEmail: 'setup@togninja.com',
         ...fields,
+        dateFormat: fields.dateFormat || 'auto',
+        primaryColor: fields.primaryColor || '#3B82F6',
+        currency: fields.currency || 'EUR',
       } as any);
     }
     // Page visibility and the sitemap read the language on the very next request, and

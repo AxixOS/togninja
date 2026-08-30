@@ -54,6 +54,9 @@ interface BasicsPhaseProps {
     credentials?: any[];
   };
   onComplete: () => void;
+  /** Leaves the step. Every other step had this; this one did not, so its first card was a
+   *  dead end — see the Back control in the footer. */
+  onBack?: () => void;
 }
 
 const BUSINESS_TYPES = [
@@ -186,7 +189,7 @@ const SITE_LANGUAGES = [
 ];
 
 
-export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProps) {
+export default function BasicsPhase({ initialData, onComplete, onBack }: BasicsPhaseProps) {
   const [formData, setFormData] = useState({
     businessName: initialData?.businessName || '',
     businessType: initialData?.businessType || '',
@@ -1148,11 +1151,24 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
           )}
         </div>
         <div className="flex items-center gap-2">
-          {card > 0 && (
+          {/*
+            Back always exists now. It was `card > 0`, so the FIRST card had no way back at
+            all — and this phase was the only one the wizard never handed an onBack, while
+            every technical step got one. A studio on "Your business" wanting to change the
+            look they had just picked had one route: notice that the sidebar steps are
+            clickable. That is not a route, it is a discovery.
+
+            From card one it leaves the step; after that it moves between cards.
+          */}
+          {card > 0 ? (
             <Button type="button" variant="ghost" onClick={goPrevCard} disabled={saveMutation.isPending}>
               Back
             </Button>
-          )}
+          ) : onBack ? (
+            <Button type="button" variant="ghost" onClick={onBack} disabled={saveMutation.isPending}>
+              Back
+            </Button>
+          ) : null}
           {/* The last card is entirely optional, so it says so rather than pretending to be a gate. */}
           {isLastCard && (
             <Button type="button" variant="ghost" onClick={handleSubmit} disabled={saveMutation.isPending}>

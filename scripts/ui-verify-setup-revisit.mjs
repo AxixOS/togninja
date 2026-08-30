@@ -71,6 +71,68 @@ for (const f of ['ownerName', 'ownerRole', 'ownerPortraitUrl', 'foundingYear', '
 check('the form declares them on initialData',
   /ownerName\?: string;/.test(basics) && /foundingYear\?: string;/.test(basics));
 
+console.log('\n=== the form is not built before the answers arrive ===');
+
+const wizard = codeOnly(read('client/src/pages/setup/UnifiedSetupWizard.tsx'));
+
+// Every phase seeds state with `useState({ field: initialData?.field || '' })`, and that
+// initializer runs once. Rendering a phase while the status query is still in flight seeds
+// every field blank and never looks again — so the studio meets an empty form, and pressing
+// Continue writes those blanks over their stored address, phone, website and socials.
+check('the wizard tracks whether the status query has resolved',
+  /isPending: statusPending/.test(wizard));
+check('and renders nothing until it has', /if \(statusPending\)/.test(wizard));
+// Before the steps, not after — a gate below the render is not a gate.
+const gateAt = wizard.indexOf('if (statusPending)');
+const rendersAt = wizard.indexOf('current.render()');
+check('the wait comes before the phase is rendered',
+  gateAt > 0 && rendersAt > 0 && gateAt < rendersAt,
+  gateAt < 0 ? 'the gate is gone' : rendersAt < 0 ? 'the render call moved — check this' : `gate@${gateAt} render@${rendersAt}`);
+
+console.log('\n=== a blank submit cannot delete what is stored ===');
+
+// The `fields` object POST /basics builds. `x || null` there means an unanswered field
+// overwrites the stored one; drizzle drops `undefined` keys, so `|| undefined` preserves.
+// Fourteen fields were on the wrong side of this, including `address` — which the comment
+// on `city` had named as the counter-example and left in place.
+const fieldsBlock = (() => {
+  const at = setupRoutes.indexOf('    const fields = {');
+  if (at < 0) return '';
+  const end = setupRoutes.indexOf('    const existing = await getConfigRow();', at);
+  return setupRoutes.slice(at, end > 0 ? end : at + 4000);
+})();
+check('the basics fields block was found', fieldsBlock.length > 0);
+const nulls = [...fieldsBlock.matchAll(/^\s*([a-zA-Z]+):\s*[a-zA-Z?.\s]*\|\|\s*null,/gm)].map((m) => m[1]);
+check('no field wipes a stored value to null', nulls.length === 0, nulls.join(', ') || 'none');
+// `|| ''` is the same wipe wearing a different hat — metaDescription used it.
+const blanks = [...fieldsBlock.matchAll(/^\s*([a-zA-Z]+):\s*[a-zA-Z?.\s]*\|\|\s*'',/gm)].map((m) => m[1]);
+check('and none wipes it to an empty string', blanks.length === 0, blanks.join(', ') || 'none');
+
+// Empty array is a value drizzle writes. cleanCredentials returned [] for a blank textarea,
+// erasing a studio's degrees and insurance — under a comment promising it could not.
+check('blank credentials are not stored as an empty list',
+  /return out\.length \? out : undefined;/.test(setupRoutes));
+
+// A currency default applied on every save resets a studio who chose otherwise. It belongs
+// on the row being created and nowhere else.
+const insert = (() => {
+  const at = setupRoutes.indexOf('await db.insert(studioConfigs).values({');
+  return at < 0 ? '' : setupRoutes.slice(at, at + 500);
+})();
+check('product defaults are applied only when creating the row',
+  /dateFormat: fields\.dateFormat \|\| 'auto'/.test(insert)
+  && /currency: fields\.currency \|\| 'EUR'/.test(insert));
+
+console.log('\n=== there is always a way back ===');
+
+// This phase was the only one the wizard never handed an onBack, and its Back control was
+// gated on `card > 0` — so the first card was a dead end and the only route backwards was
+// noticing that the sidebar steps happen to be clickable.
+check('the wizard hands Basics a way out', /<BasicsPhase[^>]*onBack=\{goBack\}/.test(wizard));
+check('the phase accepts it', /onBack\?: \(\) => void;/.test(basics));
+check('and the first card offers Back too',
+  /card > 0 \? \([\s\S]{0,320}\) : onBack \? \(/.test(basics));
+
 console.log('\n=== finishing setup without an account cannot lock the instance ===');
 
 // POST /complete is exempt from authentication at the mount — it must be, it is what a

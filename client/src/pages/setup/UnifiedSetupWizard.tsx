@@ -83,7 +83,7 @@ export default function UnifiedSetupWizard() {
     }
   });
 
-  const { data: setupStatus } = useQuery<any>({
+  const { data: setupStatus, isPending: statusPending } = useQuery<any>({
     queryKey: ['setup-status'],
     queryFn: () => fetch('/api/setup/status').then((r) => r.json()),
   });
@@ -149,7 +149,7 @@ export default function UnifiedSetupWizard() {
     // step. Somebody buying a product for photographers should be asked what they want it to
     // LOOK like before they are asked for their company registration.
     { key: 'look', group: 'Your studio', label: 'Choose your look', essential: true, render: () => <LookPhase onComplete={goNext} /> },
-    { key: 'basics', group: 'Your studio', label: 'Business basics', essential: true, render: () => <BasicsPhase initialData={setupStatus?.phases?.basics?.data} onComplete={goNext} /> },
+    { key: 'basics', group: 'Your studio', label: 'Business basics', essential: true, render: () => <BasicsPhase initialData={setupStatus?.phases?.basics?.data} onComplete={goNext} onBack={goBack} /> },
     { key: 'domain', group: 'Infrastructure', label: 'Domain & URLs', render: () => <DomainStep onComplete={goNext} onBack={goBack} /> },
     { key: 'email', group: 'Infrastructure', label: 'Email', render: () => <EmailStep onComplete={goNext} onBack={goBack} /> },
     { key: 'stripe', group: 'Infrastructure', label: 'Payments', render: () => <StripeStep onComplete={goNext} onBack={goBack} /> },
@@ -238,6 +238,37 @@ export default function UnifiedSetupWizard() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
         <SetupCompleteCard />
+      </div>
+    );
+  }
+
+  /**
+   * NOTHING RENDERS UNTIL THE STUDIO'S SAVED ANSWERS ARE HERE.
+   *
+   * Every phase seeds its form with `useState({ field: initialData?.field || '' })`, and a
+   * useState initializer runs exactly once — on the first render. This component rendered
+   * them immediately, while the query above was still in flight, so `initialData` was
+   * undefined and every field seeded blank. When the answers arrived a moment later the prop
+   * updated and the state did not, because that is what useState does.
+   *
+   * So a studio who reopened a completed step met an empty form. The sidebar beside it said
+   * "nothing is lost", their answers were sitting in the database, and the server was sending
+   * them — the form had simply been built before they arrived and never looked again.
+   *
+   * WORSE THAN LOOKING EMPTY. POST /basics writes several fields as `x || null`, so pressing
+   * Continue on that blank form overwrites the stored address, phone, website and socials
+   * with nulls. The form being blank was one bad render away from being a data wipe.
+   *
+   * Waiting is the honest fix and it fixes every phase at once, rather than teaching each one
+   * to re-synchronise. It is one request against a wizard that then stays open for minutes.
+   */
+  if (statusPending) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-slate-600">Loading your setup…</p>
+        </div>
       </div>
     );
   }
