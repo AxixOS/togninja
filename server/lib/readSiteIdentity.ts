@@ -134,12 +134,59 @@ function phone(ld: any[], html: string): string | undefined {
  * have. The meta description is the fallback. Both are frequently a whole paragraph, so this
  * is capped hard — a tagline that runs to sixty words is worse than none.
  */
+/**
+ * Is this a description, or a bag of search terms?
+ *
+ * Meta descriptions are written for search engines at least as often as for people, and on a
+ * photographer's site the search-engine version is usually the SAME PHRASE repeated with the
+ * town in front of it. A real one, from a real studio, offered as their tagline:
+ *
+ *   "Hoi An photographer - Hoi An photography - Hoi An local photographer - Hoi An
+ *    Professional photographer - Hoi An wedding photographer - Hoi An Studio - ..."
+ *
+ * Nothing about that is a tagline, and a studio handed it has to notice and delete it. A
+ * suggestion that must be undone is worse than no suggestion, because the field is optional and
+ * says so — the cost of offering nothing is zero and the cost of offering this is an edit plus
+ * the impression that the product does not know what it is looking at.
+ *
+ * Two tells, both cheap and neither needing a model:
+ *
+ *   A LIST. Four or more segments separated by dashes, pipes or bullets is a keyword line, not a
+ *     sentence. Commas are NOT counted — "prints, workshops, courses and lessons from …" is a
+ *     perfectly good tagline and reads as one.
+ *   REPETITION. A content word appearing three times in 160 characters is stuffing. Only words
+ *     of four letters or more are counted, so "the" and "and" in an ordinary sentence do not
+ *     trip it.
+ */
+function looksLikeKeywords(v: string): boolean {
+  const segments = v.split(/s+[|•–—-]s+/).filter(Boolean);
+  if (segments.length >= 4) return true;
+
+  const words = v.toLowerCase().match(/[a-zÀ-ɏ]{4,}/g) || [];
+  if (words.length < 4) return false;
+  const counts = new Map<string, number>();
+  for (const w of words) counts.set(w, (counts.get(w) || 0) + 1);
+  for (const n of counts.values()) if (n >= 3) return true;
+
+  return false;
+}
+
 function tagline(ld: any[], meta: Record<string, string>): string | undefined {
-  const raw = meta['og:description'] || meta['description'] || ld.find((n) => n?.description)?.description;
-  if (!raw) return undefined;
-  const v = clean(raw, 300);
-  if (v.length < 10) return undefined;
-  return v.length > 160 ? clean(v.slice(0, 157) + '…', 160) : v;
+  // In preference order, and each candidate judged on its own: a site can have a stuffed meta
+  // description and a perfectly good og:description, or the reverse.
+  const candidates = [
+    meta['og:description'],
+    meta['description'],
+    ld.find((n) => n?.description)?.description,
+  ];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const v = clean(raw, 300);
+    if (v.length < 10) continue;
+    if (looksLikeKeywords(v)) continue;
+    return v.length > 160 ? clean(v.slice(0, 157) + '…', 160) : v;
+  }
+  return undefined;
 }
 
 function socials(ld: any[], html: string): Pick<SiteSuggestions, 'instagramUrl' | 'facebookUrl' | 'twitterUrl'> {

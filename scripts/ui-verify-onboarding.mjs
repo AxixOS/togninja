@@ -568,6 +568,41 @@ check('the site opens in a new tab, so the other door survives',
 check('and names what still will not work',
   /technical\/status/.test(doneCard) && /still to connect/.test(doneCard),
   'read through the capability layer, which since v1.9.204 measures rather than asserts');
+
+// A suggested tagline must be a description, not a bag of search terms.
+//
+// Meta descriptions are written for search engines at least as often as for people, and on a
+// photographer's site that version is usually one phrase repeated with the town in front. Real,
+// from a real studio, offered to them as their tagline:
+//
+//   "Hoi An photographer - Hoi An photography - Hoi An local photographer - Hoi An
+//    Professional photographer - Hoi An wedding photographer - Hoi An Studio - ..."
+//
+// A suggestion that has to be undone is worse than none: the field is optional and says so, so
+// offering nothing costs nothing, and offering that costs an edit plus the impression that the
+// product cannot tell what it is looking at.
+check('a keyword line is not offered as a tagline',
+  /function looksLikeKeywords/.test(reader) && /looksLikeKeywords\(v\)\) continue;/.test(reader),
+  'meta descriptions are as often written for crawlers as for people');
+
+// Commas must NOT count as list separators. "prints, workshops, courses and lessons from …" is
+// a good tagline and reads as one; rejecting it would throw away the useful case to catch the
+// useless one. Verified against a real site whose tagline is exactly that shape.
+check('and a comma-separated sentence still is',
+  !/split\(\/[^/]*,[^/]*\/\)/.test(reader.match(/function looksLikeKeywords[\s\S]*?\n}/)?.[0] || ''),
+  'dashes, pipes and bullets only');
+
+// Only words of four letters or more are counted for repetition, so "the" and "and" appearing
+// three times in an ordinary sentence do not trip it — which is exactly what the BBC's
+// description does.
+check('and repetition is counted on content words only',
+  /\{4,\}/.test(reader.match(/function looksLikeKeywords[\s\S]*?\n}/)?.[0] || ''),
+  'a three-letter stopword repeating is not stuffing');
+
+// Each source judged on its own: a site can have a stuffed meta description and a perfectly
+// good og:description, or the reverse. Taking the first present one would inherit the worse.
+check('and each candidate source is judged separately',
+  /const candidates = \[/.test(reader) && /for \(const raw of candidates\)/.test(reader));
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');
