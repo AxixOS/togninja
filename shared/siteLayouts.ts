@@ -51,3 +51,32 @@ export function getSiteLayout(id?: string | null): SiteLayout {
 export function normalizeLayoutId(id?: string | null): string {
   return getSiteLayout(id).id;
 }
+
+/**
+ * Which ground a section band actually paints, once the layout has had its say.
+ *
+ * Classic alternates white and a tinted band — that stripe is what gives a classic page its
+ * sectioned, tray-stacked look. Editorial has no bands at all: `gray` resolves to the same
+ * raised ground as `white`, and the rhythm comes from space instead.
+ *
+ * THE RULE LIVES HERE because more than one thing needs to know it and they must not disagree.
+ * PublicLandingPageSectionWrapper paints the real page from it; the setup thumbnail draws a
+ * miniature from it. Left in the wrapper, the thumbnail would have to copy the claim, and a
+ * copied claim is the drift this codebase keeps finding — the seam between a striped classic
+ * page and a continuous editorial one is one of the two things a studio is choosing between,
+ * so a thumbnail that got it backwards would be actively misleading rather than merely rough.
+ *
+ * Returns a SEMANTIC ground, not a class or a colour: the wrapper speaks Tailwind and the
+ * thumbnail speaks custom properties, and neither should have to know the other's idiom.
+ */
+export type SectionBg = 'white' | 'gray' | 'purple' | 'gradient';
+export type SectionGround = 'raised' | 'surface' | 'gradient';
+
+export function sectionGround(layoutId: string | null | undefined, bg: SectionBg): SectionGround {
+  if (bg === 'gradient') return 'gradient';
+  // The one layout-dependent case, and the whole reason this function exists.
+  if (bg === 'gray') return layoutId === 'editorial' ? 'raised' : 'surface';
+  // purple is a deliberate emphasis band and stays tinted in both arrangements.
+  if (bg === 'purple') return 'surface';
+  return 'raised';
+}

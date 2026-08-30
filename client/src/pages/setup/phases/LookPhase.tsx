@@ -5,6 +5,7 @@ import { Check, Loader2, Palette } from 'lucide-react';
 import { THEME_PRESETS } from '../../../../../shared/themePresets';
 import { SITE_LAYOUTS, DEFAULT_LAYOUT_ID } from '../../../../../shared/siteLayouts';
 import LookPreview from './LookPreview';
+import LookThumbnail from './LookThumbnail';
 
 /**
  * The first thing a photographer is asked, and the first thing they see working.
@@ -117,30 +118,12 @@ export default function LookPhase({ onComplete }: LookPhaseProps) {
                     on ? 'border-violet-500 bg-violet-50/40' : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  {/* A drawing of the composition, not a colour swatch — the palette is the
-                      next question and mixing the two here would confuse them. */}
-                  <div
-                    aria-hidden="true"
-                    className="h-24 rounded-lg bg-gray-100 p-2 mb-3 flex gap-1.5 overflow-hidden"
-                  >
-                    {l.id === 'editorial' ? (
-                      <>
-                        <div className="flex-1 bg-gray-400 rounded-sm" />
-                        <div className="w-1/3 flex flex-col justify-end gap-1 pb-1">
-                          <div className="h-2 bg-gray-400 rounded-sm" />
-                          <div className="h-1 w-2/3 bg-gray-300 rounded-sm" />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex-1 flex flex-col gap-1.5">
-                        <div className="h-8 bg-gray-400 rounded-sm" />
-                        <div className="flex-1 flex gap-1.5">
-                          <div className="flex-1 bg-gray-300 rounded-sm" />
-                          <div className="flex-1 bg-gray-300 rounded-sm" />
-                          <div className="flex-1 bg-gray-300 rounded-sm" />
-                        </div>
-                      </div>
-                    )}
+                  {/* Its own arrangement, painted in the palette currently selected below —
+                      so the card answers "what will THIS do to my site", not "what shape is it".
+                      The grey wireframe that was here showed no colour at all, which is half of
+                      what the studio is choosing. */}
+                  <div className="mb-3">
+                    <LookThumbnail layoutId={l.id} themeId={theme} />
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -174,33 +157,15 @@ export default function LookPhase({ onComplete }: LookPhaseProps) {
                     on ? 'border-violet-500' : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  {/* Rendered from the preset's real tokens, so what is shown here is what
-                      the site will use rather than an approximation kept in step by hand. */}
-                  <div className="p-4" style={{ background: t.colors.bg }}>
-                    <div
-                      className="text-sm font-semibold leading-tight"
-                      style={{ color: t.colors.heading, fontFamily: t.fonts.heading }}
-                    >
-                      {t.name}
-                    </div>
-                    <div className="text-[0.7rem] mt-1 leading-snug" style={{ color: t.colors.muted }}>
-                      Aa &mdash; the quick brown fox
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-3">
-                      <span
-                        className="inline-block rounded px-2 py-1 text-[0.65rem] font-medium"
-                        style={{ background: t.colors.primary, color: t.colors.onPrimary || '#fff' }}
-                      >
-                        Book now
-                      </span>
-                      <span
-                        className="h-4 w-4 rounded-full shrink-0"
-                        style={{ background: t.colors.accent }}
-                      />
-                    </div>
-                  </div>
+                  {/* Its own palette, in the arrangement currently selected above.
+                      This was a hand-built panel — a name, a line of type, a pill and an accent
+                      dot — which showed the colours honestly but said nothing about the bones,
+                      and the dot corresponded to nothing on a real page. The thumbnail puts the
+                      brand colour where the page actually uses it. */}
+                  <LookThumbnail themeId={t.id} layoutId={layout} className="rounded-none border-0" />
                   <div className="px-3 py-2 bg-white border-t border-gray-100 flex items-center gap-1.5">
-                    <span className="text-[0.7rem] text-gray-500 truncate">{t.description.split('—')[0].trim()}</span>
+                    <span className="text-[0.7rem] font-medium text-gray-900 truncate">{t.name}</span>
+                    <span className="text-[0.7rem] text-gray-400 truncate hidden sm:inline">{t.description.split('—')[0].trim()}</span>
                     {on && <Check className="w-3.5 h-3.5 text-violet-600 ml-auto shrink-0" />}
                   </div>
                 </button>

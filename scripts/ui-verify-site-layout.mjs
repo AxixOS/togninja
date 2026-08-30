@@ -194,7 +194,12 @@ const MUST_RESPOND = [
 const notResponding = MUST_RESPOND.filter((name) => {
   const p = `${SECTION_DIR}/${name}.tsx`;
   if (!existsSync(p)) return true;
-  return !/useIsEditorial\(\)/.test(read(p));
+  // Either accessor. Both read the same SiteLayoutContext — useIsEditorial() collapses it to a
+  // boolean, useSiteLayout() returns the id — and the property here is "this section reacts to
+  // the layout at all", not which of the two it happens to call. The wrapper moved to the id
+  // form when it started passing the layout to sectionGround(), and pinning the boolean one
+  // would have failed a change that made it MORE layout-aware, not less.
+  return !/useIsEditorial\(\)|useSiteLayout\(\)/.test(read(p));
 });
 
 check('every section responds to the layout',
@@ -311,6 +316,43 @@ check('and can be forced to the layout being previewed',
 check('the preview cannot be clicked or read aloud',
   /pointerEvents: 'none'/.test(preview) && /aria-hidden="true"/.test(preview),
   'sample copy read to a screen reader is noise, and its buttons are not real');
+
+
+// ── Both cards show both axes ──────────────────────────────────────────────
+//
+// The step asks two questions on two rows. The arrangement cards were grey wireframes with no
+// colour at all; the colour cards showed real tokens and a line of type but nothing about the
+// arrangement. Each answered half its own question, so eighteen combinations were judged from
+// cards that could not show any of them, and the only way to see a real one was to finish setup.
+const thumb = read('client/src/pages/setup/phases/LookThumbnail.tsx');
+// Comments may NAME what the code does; only code may satisfy the checks. The docblock here
+// explains at length that the band rule comes from sectionGround(), and that sentence passed
+// the check for calling it — while the call itself had been replaced by a copied conditional.
+const thumbCode = thumb.split(/\r?\n/).filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+
+check('each card paints the axis it is not asking about',
+  /<LookThumbnail layoutId=\{l\.id\} themeId=\{theme\}/.test(lookPhase)
+  && /<LookThumbnail themeId=\{t\.id\} layoutId=\{layout\}/.test(lookPhase),
+  'a layout card in the chosen palette, a palette card in the chosen layout');
+
+// It is a DIAGRAM and the live preview below stays the ground truth — but it must not invent a
+// palette. Every fill comes from the preset; nothing is approximated by eye.
+check('the thumbnail invents no colours',
+  !/#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}\b/.test(thumb.replace(/#ffffff/g, '')),
+  'every fill is a preset token, so a retune moves the chip with it');
+
+// The one STRUCTURAL claim it makes — classic stripes its bands, editorial runs continuous — is
+// the seam a studio is choosing between. Copied, it could drift and then actively mislead;
+// called, it cannot.
+check('and takes the band rule from the same function the real page uses',
+  /sectionGround\(/.test(thumbCode) && /sectionGround\(/.test(read('client/src/features/landing-pages/components/public/PublicLandingPageSectionWrapper.tsx')),
+  'one statement of the rule, in shared/siteLayouts, called by both');
+
+// All ten presets define radius; nothing on the public site reads it. Classic's corners are
+// hardcoded rounded and editorial's explicitly square, so corners belong to the arrangement.
+check('and does not vary corners by palette',
+  !/\bradius\b/.test(thumb.replace(/^\s*\*.*$/gm, '')),
+  'preset.radius is read by nothing on the real page — a chip using it would show a difference that does not exist');
 
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);
