@@ -22,6 +22,10 @@ const GoogleSettingsPage: React.FC = () => {
   const [s, setS] = useState<GoogleState>({ googleClientId: '', googleClientSecret: '', googleClientSecretSet: false, googleCalendarId: '', googlePlacesApiKey: '', googlePlacesApiKeySet: false, googlePlacesPlaceId: '' });
   // What the server said about connecting live reviews on the last save.
   const [placesNote, setPlacesNote] = useState<string | null>(null);
+  // Google's own address for this listing, when it does not match the one on file. Separate
+  // from placesNote because it is not about whether reviews connected — it is a discrepancy
+  // between what the studio published and what their clients are actually navigating by.
+  const [addressNote, setAddressNote] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -61,6 +65,7 @@ const GoogleSettingsPage: React.FC = () => {
       const data = await res.json().catch(() => ({}));
       setMessage({ type: 'success', text: 'Google settings saved.' });
       setPlacesNote(data?.placesNote || null);
+      setAddressNote(data?.addressNote || null);
       setS(prev => ({
         ...prev,
         googleClientSecret: '',
@@ -162,6 +167,19 @@ const GoogleSettingsPage: React.FC = () => {
           {placesNote && (
             <div className="rounded-lg p-3 bg-gray-50 border border-gray-200 text-sm text-gray-700">
               {placesNote}
+            </div>
+          )}
+
+          {/* Amber, not grey: this one is asking them to go and look at something. It is
+              never applied automatically — the two can legitimately differ, and an address
+              goes onto invoices. */}
+          {addressNote && (
+            <div className="rounded-lg p-3 bg-amber-50 border border-amber-200 text-sm text-amber-900">
+              {addressNote}
+              <span className="block mt-1 text-amber-800">
+                Nothing has been changed. Update it under Business Details if Google&apos;s version
+                is the one you want shown.
+              </span>
             </div>
           )}
         </div>

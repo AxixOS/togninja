@@ -485,7 +485,19 @@ router.post('/extras', async (req: Request, res: Response) => {
     // something a photographer can look up — Google does not show it anywhere. Resolve
     // it from the studio's own name and address, which onboarding already captured.
     // Best effort: never block the save, and never guess when Google is ambiguous.
-    const resolvePlacesAfterSave = !!googlePlacesApiKey && !googlePlacesPlaceId;
+    //
+    // NOT when one is already stored. Onboarding now reads the place id straight out of the
+    // Google Maps link the studio pastes, which is exact. Text Search is a guess from a name
+    // and an address — a good one, and conservative, but it accepts a single candidate, and a
+    // single WRONG candidate would replace a definitively correct id with another business's.
+    // Falling back to a guess over a known answer is the wrong direction.
+    const storedPlaceId = await (async () => {
+      try {
+        const existing = await config.get('google_places_place_id');
+        return existing ? String(existing).trim() : '';
+      } catch { return ''; }
+    })();
+    const resolvePlacesAfterSave = !!googlePlacesApiKey && !googlePlacesPlaceId && !storedPlaceId;
     if (pulseApiKey) siUpdate.pulse_api_key_encrypted = encrypt(pulseApiKey);
     if (pulseMode) siUpdate.pulse_mode = String(pulseMode).toLowerCase();
     if (pulseProfiles && typeof pulseProfiles === 'object') {
@@ -521,6 +533,40 @@ router.post('/extras', async (req: Request, res: Response) => {
       }
     }
 
+    /**
+     * What Google actually publishes for them, now that there is a key to ask with.
+     *
+     * The address the studio typed during setup comes from their own website, and their own
+     * website is frequently behind: the listing this was built against says
+     * "Đà Nẵng 51314" where their about page still says "Hoi An", because the province was
+     * merged. Google's version is the one their clients are navigating by.
+     *
+     * OFFERED, NEVER APPLIED. It is returned as a note for the studio to act on, because the
+     * two can legitimately differ — a studio-only entrance, a unit number Google drops — and
+     * silently rewriting an address that goes onto invoices is not a thing to do on their
+     * behalf. Whole block is best-effort: no key, no listing or a refused request all just
+     * mean no note.
+     */
+    let addressNote: string | undefined;
+    if (googlePlacesApiKey) {
+      config.invalidate();
+      try {
+        const { getPlaceProfile } = await import('./services/googleReviews.js');
+        const profile = await getPlaceProfile();
+        if (profile?.address) {
+          const stored = String((await config.get('address')) || '').trim();
+          const flatten = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, '');
+          if (!stored) {
+            addressNote = `Google lists your address as "${profile.address}".`;
+          } else if (flatten(stored) !== flatten(profile.address)) {
+            addressNote = `Google lists your address as "${profile.address}", which differs from the one on file ("${stored}"). Google's is what clients searching for you will see.`;
+          }
+        }
+      } catch (e: any) {
+        console.warn('[technical-setup] place profile lookup failed:', e?.message || e);
+      }
+    }
+
     // Update studio_configs for analytics
     const scId = await ensureStudioConfig();
     const scUpdate: Record<string, any> = {};
@@ -536,7 +582,7 @@ router.post('/extras', async (req: Request, res: Response) => {
     // placesNote reports whether live reviews actually got connected. Saving an API key
     // and hearing only "saved" left a studio believing reviews were on when the place id
     // was still missing and the section rendered nothing.
-    res.json({ success: true, ...(placesNote ? { placesNote } : {}) });
+    res.json({ success: true, ...(placesNote ? { placesNote } : {}), ...(addressNote ? { addressNote } : {}) });
   } catch (error) {
     console.error('[technical-setup] Extras save error:', error);
     res.status(500).json({ error: 'Failed to save extra settings' });

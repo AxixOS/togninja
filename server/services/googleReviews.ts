@@ -50,6 +50,52 @@ async function getPlaceId(): Promise<string> {
 }
 
 /**
+ * What Google itself publishes for this studio: name, address, phone.
+ *
+ * The documented Places Details endpoint, on the studio's own key and their own listing —
+ * the same call the reviews already make, with three more fields on the mask.
+ *
+ * WHY IT IS WORTH ASKING FOR. Google's version is the one their clients navigate by, and it
+ * is routinely not the version on their website. The listing that prompted this reads
+ * "26 Đặng Văn Ngữ, Hội An Đông, Đà Nẵng 51314, Vietnam" on Google and
+ * "Address: 26 Dang Van Ngu, Hoi An" on the studio's own about page — different district,
+ * different province (Quảng Nam was merged into Đà Nẵng), no diacritics. Both are "right";
+ * only one matches what Google shows someone trying to find them.
+ *
+ * Returns null rather than throwing. This is a suggestion offered on top of an address the
+ * studio already has, so every failure — no key, no place id, a refused request — simply
+ * means no suggestion, and nothing upstream should have to handle it.
+ */
+export async function getPlaceProfile(): Promise<{ name: string; address: string; phone: string } | null> {
+  const key = await getPlacesKey();
+  const placeId = await getPlaceId();
+  if (!key || !placeId) return null;
+  try {
+    const res = await fetch(`${PLACE_DETAILS_URL}/${encodeURIComponent(placeId)}?languageCode=en`, {
+      headers: {
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'displayName,formattedAddress,internationalPhoneNumber',
+      },
+    });
+    if (!res.ok) {
+      console.warn(`[googlePlaces] details ${res.status} for place profile`);
+      return null;
+    }
+    const j: any = await res.json();
+    const address = typeof j?.formattedAddress === 'string' ? j.formattedAddress.trim() : '';
+    if (!address) return null;
+    return {
+      name: (j?.displayName?.text || '').trim(),
+      address,
+      phone: (j?.internationalPhoneNumber || '').trim(),
+    };
+  } catch (e: any) {
+    console.warn('[googlePlaces] place profile failed:', e?.message || e);
+    return null;
+  }
+}
+
+/**
  * Find the studio's OWN place id from the details onboarding already captured.
  *
  * Requiring a studio to paste a place id was the real blocker here: it is not shown

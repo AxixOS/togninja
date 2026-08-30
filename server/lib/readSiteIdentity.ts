@@ -23,6 +23,10 @@ import { assertPublicHttpUrl } from './safePublicUrl';
 export interface SiteSuggestions {
   businessName?: string;
   city?: string;
+  /** The street address, as the studio's own website writes it. */
+  address?: string;
+  /** Which page it came off, when that was not the homepage. */
+  addressSourceUrl?: string;
   phone?: string;
   tagline?: string;
   instagramUrl?: string;
@@ -114,6 +118,99 @@ function city(ld: any[]): string | undefined {
     if (one?.addressLocality) return clean(one.addressLocality, 80);
   }
   return undefined;
+}
+
+/**
+ * Readable text, for the handful of things sites write as prose rather than mark up.
+ *
+ * Block tags become newlines first. Without that, "Address: 26 Dang Van Ngu, Hoi An" and the
+ * "Hotline:" in the NEXT list item collapse onto one line, and the address swallows the
+ * phone number behind it.
+ */
+function htmlToText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<(script|style|noscript|svg|head)[\s\S]*?<\/\1>/gi, ' ')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|td|tr|h[1-6]|section|article)>/gi, '\n')
+      .replace(/<[^>]+>/g, ' '),
+  ).replace(/[ \t ]+/g, ' ');
+}
+
+/** The address as marked up, which is the only form worth trusting without a second look. */
+function postalAddress(ld: any[]): string | undefined {
+  for (const n of ld) {
+    const addr = n?.address;
+    const one = Array.isArray(addr) ? addr[0] : addr;
+    if (!one) continue;
+    if (typeof one === 'string' && one.trim().length > 6) return clean(one, 200);
+    const parts = [one.streetAddress, one.postalCode, one.addressLocality, one.addressRegion]
+      .map((p: unknown) => (typeof p === 'string' ? p.trim() : ''))
+      .filter(Boolean);
+    if (parts.length >= 2) return clean(parts.join(', '), 200);
+  }
+  return undefined;
+}
+
+// Enough languages to cover who actually buys this. The wizard already runs in several, and
+// a photographer in Hoi An writes "Địa chỉ", not "Address".
+const ADDRESS_LABELS = [
+  'address', 'adresse', 'địa chỉ', 'dia chi', 'dirección', 'direccion', 'indirizzo',
+  'adres', 'endereço', 'endereco', 'adresa', 'adress',
+];
+// What tends to be written straight after it on the same line.
+const NEXT_LABEL = /\s(?:hotline|tel|telefon|phone|email|e-mail|mail|fax|mobile|zalo|whatsapp|imess|opening|hours)\b/i;
+
+/**
+ * The address written out in prose, labelled.
+ *
+ * A fallback, and deliberately a narrow one: it fires only on an explicit label. The
+ * alternative — looking for anything that RESEMBLES an address anywhere on the page — finds
+ * the venue a studio shot at last week just as readily as their own front door.
+ */
+function labelledAddress(html: string): string | undefined {
+  const text = htmlToText(html);
+  for (const label of ADDRESS_LABELS) {
+    const m = text.match(new RegExp(label + '\\s*[:：]\\s*([^\\n]{6,160})', 'i'));
+    if (!m) continue;
+    const v = m[1].split(NEXT_LABEL)[0].trim().replace(/[|·•,;]+$/, '').trim();
+    // A street address carries a number somewhere. "Address: come and see us" does not, and
+    // a suggestion that wrong is worse than none — the studio has to notice it and undo it.
+    if (!/\d/.test(v) || v.length < 6) continue;
+    return clean(v, 200);
+  }
+  return undefined;
+}
+
+// Their own about/contact page, in the languages this wizard ships in. hoianfilm.com proved
+// why this list cannot be English-only: their address is on /gioi-thieu-hoi-an-film-studio.
+const CONTACT_PATH = /(^|[/\-_])(about|about-us|contact|contact-us|kontakt|impressum|ueber-uns|uber-uns|gioi-thieu|lien-he|nosotros|contacto|chi-siamo|contatti|a-propos|apropos|sobre|quienes-somos|studio)([/\-_.?#]|$)/i;
+const CONTACT_TEXT = /(about|contact|kontakt|impressum|über uns|giới thiệu|gioi thieu|liên hệ|lien he|contacto|contatti|sobre|à propos)/i;
+
+/** Same-host about/contact pages the homepage itself links to, most promising first. */
+function contactLinks(html: string, base: URL): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const re = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]{0,160}?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    let u: URL;
+    try { u = new URL(m[1].trim(), base); } catch { continue; }
+    // Same host only. Following outward would hand a studio an address off whichever
+    // directory or venue partner their footer happens to link to.
+    if (u.hostname !== base.hostname) continue;
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+    if (u.pathname === base.pathname) continue;
+    const text = decodeEntities(m[2].replace(/<[^>]+>/g, ' ')).trim();
+    if (!CONTACT_PATH.test(u.pathname) && !CONTACT_TEXT.test(text)) continue;
+    u.hash = '';
+    const key = u.toString();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+    if (out.length >= 3) break;
+  }
+  return out;
 }
 
 function phone(ld: any[], html: string): string | undefined {
@@ -248,6 +345,8 @@ export function extractSiteIdentity(html: string, sourceUrl: string): SiteSugges
   if (name) out.businessName = name;
   const town = city(ld);
   if (town) out.city = town;
+  const addr = postalAddress(ld) || labelledAddress(html);
+  if (addr) out.address = addr;
   const tel = phone(ld, html);
   if (tel) out.phone = tel;
   const line = tagline(ld, meta);
@@ -272,5 +371,40 @@ export async function readSiteIdentity(rawUrl: string): Promise<SiteSuggestions>
   const url = await assertPublicHttpUrl(rawUrl);
   const { fetchPageHtml } = await import('./site-crawler');
   const { html } = await fetchPageHtml(url.toString(), 12000);
-  return extractSiteIdentity(html, url.toString());
+  const out = extractSiteIdentity(html, url.toString());
+
+  /**
+   * The about/contact page, when the homepage did not say where the studio actually is.
+   *
+   * Homepages very often do not. hoianfilm.com is the case that forced this: their homepage
+   * carries no address anywhere in its markup, while their About page states
+   * "Address: 26 Dang Van Ngu, Hoi An" plainly — so reading one page and stopping meant
+   * asking a studio to type in something their own website had already published.
+   *
+   * At most three pages, all on their own host, and only while something is still missing.
+   * Fills gaps ONLY: a homepage answer is the better answer and is never overwritten.
+   * The tagline is deliberately not taken from here — an About page's opening line is a
+   * worse tagline than the homepage's, not a substitute for a missing one.
+   */
+  const stillMissing = () => !out.address || !out.phone || !out.city;
+  if (stillMissing()) {
+    for (const link of contactLinks(html, url)) {
+      if (!stillMissing()) break;
+      try {
+        const safe = await assertPublicHttpUrl(link);
+        const sub = await fetchPageHtml(safe.toString(), 10000);
+        const more = extractSiteIdentity(sub.html, safe.toString());
+        for (const k of ['address', 'phone', 'city', 'businessName', 'instagramUrl', 'facebookUrl', 'twitterUrl'] as const) {
+          if (!out[k] && more[k]) {
+            (out as any)[k] = more[k];
+            if (k === 'address') out.addressSourceUrl = safe.toString();
+          }
+        }
+      } catch {
+        // One unreadable sub-page must not cost the studio what the homepage already gave us.
+      }
+    }
+  }
+
+  return out;
 }

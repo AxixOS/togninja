@@ -1519,6 +1519,7 @@ router.post('/basics', async (req: Request, res: Response) => {
       twitterUrl,
       vatNumber,
       siteLanguage,
+      googlePlacesPlaceId,
     } = req.body;
 
     if (!businessName || !businessType || !timezone) {
@@ -1606,6 +1607,36 @@ router.post('/basics', async (req: Request, res: Response) => {
     invalidateSiteLanguage();
     invalidateStudioAddress();
     { const code = normalizeSiteLanguage(siteLanguage); if (code) await applySiteLanguageToI18n(code); }
+
+    /**
+     * The Google place id, if the studio pasted a Maps link on this step.
+     *
+     * It lives in studio_integrations, not studio_configs, so it cannot ride along in
+     * `fields` above. Writing it here means the reviews feature is already pointed at the
+     * right listing by the time anyone opens Technical Setup — where the only alternative
+     * is a text box asking for a value most people have never heard of and would have to
+     * go and look up, for a listing they had already identified during setup.
+     *
+     * Only ever on a non-empty value. Reopening this step submits an empty string, and
+     * that must not undo a resolution — the same trap `city` documents above.
+     */
+    if (typeof googlePlacesPlaceId === 'string' && googlePlacesPlaceId.trim()) {
+      const placeId = googlePlacesPlaceId.trim().slice(0, 200);
+      try {
+        const integRow = await getIntegrationsRow();
+        if (integRow) {
+          await db.update(studioIntegrations)
+            .set({ google_places_place_id: placeId } as any)
+            .where(eq(studioIntegrations.id, integRow.id));
+        } else {
+          await db.insert(studioIntegrations).values({ google_places_place_id: placeId } as any);
+        }
+      } catch (e: any) {
+        // Never fail the step over this. Name, address and language are the point of
+        // /basics; a place id the studio did not know they were providing is a bonus.
+        console.warn('[basics] could not store google place id:', e?.message || e);
+      }
+    }
 
     res.json({ success: true, nextStep: 'integrations', businessInfo });
   } catch (error) {

@@ -205,6 +205,10 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
     website: initialData?.website || '',
     latitude: initialData?.latitude || '',
     longitude: initialData?.longitude || '',
+    // Read out of the Maps link alongside the coordinates. Not shown as a field — nobody
+    // types one of these — but saved, because it is what Google reviews needs and the
+    // alternative is asking a studio to go and find it in Technical Setup later.
+    googlePlacesPlaceId: '',
     facebookUrl: initialData?.facebookUrl || '',
     instagramUrl: initialData?.instagramUrl || '',
     twitterUrl: initialData?.twitterUrl || '',
@@ -232,6 +236,10 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
   const [mapLink, setMapLink] = useState('');
   const [mapStatus, setMapStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [mapError, setMapError] = useState('');
+  // What the link actually resolved TO. "Location found" alone cannot tell a studio whether it
+  // found their listing or a different business at a similar spot — which is the kind of
+  // mistake that stays invisible until their map points somewhere else.
+  const [mapPlace, setMapPlace] = useState<{ name: string | null; id: string | null }>({ name: null, id: null });
 
   const resolveMapLink = async () => {
     const url = mapLink.trim();
@@ -246,7 +254,16 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
       });
       const data = await res.json();
       if (!res.ok || !data?.latitude) throw new Error(data?.error || 'Could not read that link.');
-      setFormData(prev => ({ ...prev, latitude: String(data.latitude), longitude: String(data.longitude) }));
+      setFormData(prev => ({
+        ...prev,
+        latitude: String(data.latitude),
+        longitude: String(data.longitude),
+        // Carried through the save so the studio never has to go and find it. It is what the
+        // Google reviews feature needs, and hunting for a place id in Technical Setup is a
+        // genuinely obscure task to hand someone for a value that was in the link they pasted.
+        googlePlacesPlaceId: data.placeId || prev.googlePlacesPlaceId || '',
+      }));
+      setMapPlace({ name: data.placeName || null, id: data.placeId || null });
       setMapStatus('ok');
     } catch (e: any) {
       setMapError(e?.message || 'Could not read that link.');
@@ -432,6 +449,7 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
         };
         take('businessName', sug.businessName, 'name');
         take('city', sug.city, 'town');
+        take('address', sug.address, 'address');
         take('phone', sug.phone, 'phone');
         take('tagline', sug.tagline, 'tagline');
         take('instagramUrl', sug.instagramUrl, 'Instagram');
@@ -442,7 +460,14 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
       });
       setReadNote(
         applied.length
-          ? `Filled in your ${applied.join(', ')}. Check each one and change anything we got wrong.`
+          ? `Filled in your ${applied.join(', ')}. Check each one and change anything we got wrong.` +
+            // Say WHERE an address came from when it was not the page they gave us. It is the
+            // one suggestion here that is likely to be out of date — a studio that has moved
+            // updates their map listing long before they update their own about page — and
+            // "from your about page" is what tells them to actually look at it.
+            (sug.addressSourceUrl && applied.includes('address')
+              ? ' Your address came from your own about page, so check it is still current.'
+              : '')
           : 'We read your site but could not find anything to fill in — please add it below.',
       );
     } catch {
@@ -912,19 +937,16 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
           </button>
           {showLocation && (
             <div className="p-4 pt-0 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="address">Business Address</Label>
-                <Textarea
-                  id="address"
-                  placeholder="123 Main Street&#10;Vienna, 1010&#10;Austria"
-                  value={formData.address}
-                  onChange={(e) => handleChange('address', e.target.value)}
-                  rows={3}
-                />
-                <p className="text-xs text-gray-500">
-                  Used on invoices, emails, and your public website.
-                </p>
-              </div>
+              {/* THE LINK COMES FIRST, and the address after it.
+
+                  It read the other way round: type your address out, then paste a link that we
+                  used only for two coordinates. That is back to front. The link is the thing a
+                  studio can produce in three taps and cannot get wrong, and it identifies the
+                  business exactly — so it is asked for first, and confirmed by NAME.
+
+                  The address below is then a check rather than a blank box: their own website
+                  usually fills it in, and what Google holds for the pin above is the version
+                  their clients are actually navigating by. */}
               {/* Plain-English replacement for raw Latitude/Longitude: paste the
                   Google Maps link and we work the coordinates out. */}
               <div className="space-y-2">
@@ -954,12 +976,31 @@ export default function BasicsPhase({ initialData, onComplete }: BasicsPhaseProp
                 </p>
                 {mapStatus === 'ok' && (
                   <p className="text-xs text-green-700">
-                    ✓ Location found — we&apos;ll show your studio on the map.
+                    ✓ {mapPlace.name ? <>Found <strong>{mapPlace.name}</strong> — we&apos;ll show it on the map.</> : <>Location found — we&apos;ll show your studio on the map.</>}
+                    {mapPlace.name && (
+                      <span className="block text-gray-500 font-normal mt-0.5">
+                        Not your studio? Paste the link from your own Google Business Profile.
+                      </span>
+                    )}
                   </p>
                 )}
                 {mapStatus === 'error' && (
                   <p className="text-xs text-red-600">{mapError}</p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="address">Business Address</Label>
+                <Textarea
+                  id="address"
+                  placeholder="123 Main Street&#10;Vienna, 1010&#10;Austria"
+                  value={formData.address}
+                  onChange={(e) => handleChange('address', e.target.value)}
+                  rows={3}
+                />
+                <p className="text-xs text-gray-500">
+                  Used on invoices, emails, and your public website.
+                </p>
               </div>
 
               {/* Advanced: the raw coordinates, for anyone who prefers them */}

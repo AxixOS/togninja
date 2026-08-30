@@ -10606,7 +10606,49 @@ ${getBizName()} Team`;
       if (!found) {
         return res.status(404).json({ error: "We couldn't read a location from that link. Try the full Google Maps link, or enter the coordinates manually." });
       }
-      res.json({ latitude: found.lat, longitude: found.lng, resolvedUrl: finalUrl });
+
+      // ── Everything else the expanded URL is already carrying ────────────────
+      //
+      // This followed the redirect, took the two coordinates and discarded the rest of a URL
+      // that names the business and identifies it permanently:
+      //
+      //   /maps/place/Hoi+An+Photographer/@15.89,108.32,17z/data=…
+      //     !1s0x31420f116b040573:0xe125e1fde045085e   the CID pair
+      //     !16s%2Fg%2F11h7dbvtp6                      the knowledge-graph place id
+      //
+      // THE PLACE ID MATTERS BEYOND THIS SCREEN. google_places_place_id is what the reviews
+      // feature needs, and a studio currently has to go and find it themselves in Technical
+      // Setup — a genuinely obscure task — when it was sitting in a link they had already
+      // pasted. Neither search provider can supply it: AxixOS returns web results
+      // ({name, website, content, relevanceScore}) and so does Tavily. Nothing needs to be
+      // searched for; it only needed reading.
+      //
+      // THE NAME MATTERS ON THIS SCREEN. "Location found" alone cannot tell a studio whether
+      // it found THEIR listing or a different business at a similar spot, which is exactly the
+      // mistake that would go unnoticed until their map pointed somewhere else.
+      const placeName = (() => {
+        const m = finalUrl.match(/\/maps\/place\/([^/@]+)/);
+        if (!m) return null;
+        try { return decodeURIComponent(m[1].replace(/\+/g, ' ')).trim().slice(0, 120) || null; }
+        catch { return null; }
+      })();
+
+      // Preferred first: /g/… is Google's stable knowledge-graph id. The hex CID pair is the
+      // older form and still resolves, so it is kept as the fallback.
+      const placeId = (() => {
+        const kg = finalUrl.match(/!16s(%2F|\/)g(%2F|\/)([A-Za-z0-9_-]+)/);
+        if (kg) return `/g/${kg[3]}`;
+        const cid = finalUrl.match(/!1s(0x[0-9a-f]+:0x[0-9a-f]+)/i);
+        return cid ? cid[1] : null;
+      })();
+
+      res.json({
+        latitude: found.lat,
+        longitude: found.lng,
+        resolvedUrl: finalUrl,
+        placeName,
+        placeId,
+      });
     } catch (error: any) {
       console.error('[geo] resolve-map-link failed:', error?.message || error);
       res.status(500).json({ error: 'Could not read that link. Please try again.' });
