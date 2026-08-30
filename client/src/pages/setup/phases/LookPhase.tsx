@@ -97,26 +97,6 @@ export default function LookPhase({ onComplete }: LookPhaseProps) {
       </CardHeader>
 
       <CardContent className="space-y-10">
-        {/* ── What it will look like ──────────────────────────────────────
-            First, and above both pickers, because it is the answer to the question the
-            pickers ask. Two wireframes and nine type samples describe eighteen combinations
-            without showing any of them, and a studio could only see one by finishing setup —
-            so seeing all eighteen meant onboarding eighteen times. */}
-        <section>
-          <div className="flex items-baseline justify-between gap-4 mb-3">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900">Your site, as you choose</h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Real pages, not a mock-up. Your own photographs and words replace these.
-              </p>
-            </div>
-            <span className="text-xs text-gray-400 shrink-0">
-              {SITE_LAYOUTS.find((l) => l.id === layout)?.name} · {THEME_PRESETS.find((t) => t.id === theme)?.name}
-            </span>
-          </div>
-          <LookPreview themeId={theme} layoutId={layout} />
-        </section>
-
         {/* ── Arrangement ─────────────────────────────────────────────────── */}
         <section>
           <h3 className="text-sm font-semibold text-gray-900">How your pages are put together</h3>
@@ -234,6 +214,25 @@ export default function LookPhase({ onComplete }: LookPhaseProps) {
             {problem}
           </div>
         )}
+        {/* ── What it will look like, after both choices ──────────────────────────────────────
+            First, and above both pickers, because it is the answer to the question the
+            pickers ask. Two wireframes and nine type samples describe eighteen combinations
+            without showing any of them, and a studio could only see one by finishing setup —
+            so seeing all eighteen meant onboarding eighteen times. */}
+        <section>
+          <div className="flex items-baseline justify-between gap-4 mb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Your site, as you choose</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Real pages, not a mock-up. Your own photographs and words replace these.
+              </p>
+            </div>
+            <span className="text-xs text-gray-400 shrink-0">
+              {SITE_LAYOUTS.find((l) => l.id === layout)?.name} · {THEME_PRESETS.find((t) => t.id === theme)?.name}
+            </span>
+          </div>
+          <LookPreview themeId={theme} layoutId={layout} />
+        </section>
       </CardContent>
 
       <CardFooter className="flex justify-end gap-2">

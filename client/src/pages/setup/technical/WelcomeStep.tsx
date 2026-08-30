@@ -20,6 +20,7 @@ interface Props {
 const CHECKLIST = [
   {
     icon: Globe,
+    key: 'domain',
     title: 'Domain & URLs',
     description: 'Your app URL and public website address',
     time: '1 min',
@@ -27,6 +28,7 @@ const CHECKLIST = [
   },
   {
     icon: Mail,
+    key: 'email',
     title: 'Email / SMTP',
     description: 'SMTP server details for sending emails (and optional IMAP for receiving)',
     time: '2–3 min',
@@ -34,6 +36,7 @@ const CHECKLIST = [
   },
   {
     icon: CreditCard,
+    key: 'stripe',
     title: 'Stripe Payments',
     description: 'Publishable key, secret key, and webhook secret from Stripe dashboard',
     time: '2 min',
@@ -41,6 +44,7 @@ const CHECKLIST = [
   },
   {
     icon: HardDrive,
+    key: 'storage',
     title: 'File Storage',
     description: 'Backblaze B2 / AWS S3 / Cloudflare R2 credentials for file uploads',
     time: '2 min',
@@ -48,6 +52,7 @@ const CHECKLIST = [
   },
   {
     icon: Sparkles,
+    key: 'extras',
     title: 'AI & Extras',
     // Was "all optional", and the OpenAI key sat inside it. That key is what reads the
     // studio's existing website and writes the new one — skip it and onboarding crawls
@@ -59,6 +64,7 @@ const CHECKLIST = [
   },
   {
     icon: Shield,
+    key: 'security',
     title: 'Admin Account',
     description: 'Create your secure admin login',
     time: '1 min',
@@ -86,7 +92,15 @@ export default function WelcomeStep({ onComplete, status }: Props) {
         <div className="grid gap-3">
           {CHECKLIST.map((item) => {
             const Icon = item.icon;
-            const done = status?.steps?.[item.title.toLowerCase().split(' ')[0]] ?? false;
+            // item.key, not a word sliced off the title.
+            //
+            // This read status.steps[title.toLowerCase().split(' ')[0]], so 'File Storage'
+            // looked for a key called file and 'AI & Extras' looked for ai, while the server
+            // sends storage and extras. Those two could therefore NEVER show as done however
+            // configured they were, and the three that happened to match — domain, email,
+            // stripe — showed whatever the server said, which was a hardcoded true. Three
+            // green ticks and two permanently grey ones, none of them measuring anything.
+            const done = status?.steps?.[item.key] ?? false;
 
             return (
               <div

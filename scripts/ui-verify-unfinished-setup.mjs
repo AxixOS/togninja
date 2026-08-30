@@ -161,5 +161,41 @@ check('and the store prefers a caller-supplied id over that lookup',
   read('server/lib/siteImageStore.ts').includes('let draftId: string | null = input.heroPageId || null;'),
   'the lookup stays for uploads arriving after generation, where there is no caller id');
 
+
+// ── The setup checklist must MEASURE, not assert ───────────────────────────
+//
+// /api/setup/technical/status answers two different questions and used to answer both with
+// the first one. technicalSetupComplete asks "should the wizard be shown" — and no is right
+// once an admin exists, because a studio must not be trapped in onboarding. steps asks "what
+// is actually connected", which is a different question entirely, and the bypass branch
+// returned every one of them hardcoded true.
+//
+// Live consequence, seen on the demo: the endpoint reported domain, email, stripe, storage and
+// extras all configured with progress 100, while the admin banner four inches away said "5
+// things left to connect". A studio reading the checklist saw green ticks against Stripe and
+// SMTP on an instance that had never been given either key.
+const techStatus = read('server/technical-setup-routes.ts');
+
+check('connection status is read from the database, not asserted',
+  /async function measureSteps\(\)/.test(techStatus)
+  && !/steps: \{ domain: true, email: true, stripe: true/.test(techStatus),
+  'the bypass branch used to hardcode every step true');
+
+check('and both branches measure the same way',
+  (techStatus.match(/measureSteps\(\)/g) || []).length >= 3,
+  'two branches with two opinions is how they came to disagree');
+
+// The client half of the same bug. The tick key was sliced off the title's first word, so
+// "File Storage" looked for `file` and "AI & Extras" for `ai` while the server sends `storage`
+// and `extras` — two rows that could never be ticked however configured they were.
+const welcome = read('client/src/pages/setup/technical/WelcomeStep.tsx');
+check('the checklist reads the key the server sends',
+  /status\?\.steps\?\.\[item\.key\]/.test(welcome)
+  && !/item\.title\.toLowerCase\(\)\.split/.test(welcome),
+  'a key derived from a display string breaks when the string is edited');
+
+check('and every checklist row names its own key',
+  (welcome.match(/^\s*key: '(domain|email|stripe|storage|extras|security)',$/gm) || []).length === 6,
+  'six rows, six keys, matched to the six the server reports');
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);

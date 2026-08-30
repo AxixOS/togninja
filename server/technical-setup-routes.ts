@@ -27,6 +27,26 @@ const router = Router();
 // GET /api/setup/technical/status
 // Returns current technical setup progress
 // ──────────────────────────────────────────────────────────────
+/**
+ * What is ACTUALLY connected, read from the database every time.
+ *
+ * Extracted so the bypass branch and the fresh-instance branch cannot disagree — they did,
+ * and the bypass was the one that lied. A studio is far better served by "Stripe is not
+ * connected" on an instance that works than by a green tick on one that cannot take a payment.
+ */
+async function measureSteps() {
+  const [sc] = await db.select().from(studioConfigs).limit(1);
+  const [si] = await db.select().from(studioIntegrations).limit(1);
+  return {
+    domain: !!(sc?.appUrl || sc?.frontendUrl),
+    email: !!(si?.smtp_host && si?.smtp_user),
+    stripe: !!(si?.stripe_publishable_key && si?.stripe_secret_key_encrypted),
+    storage: !!(si?.storage_access_key_id && si?.storage_bucket),
+    extras: !!(si?.openai_api_key_encrypted),
+    security: true,
+  };
+}
+
 router.get('/status', async (_req: Request, res: Response) => {
   try {
     // ── BULLETPROOF CHECK: Use raw SQL so we don't depend on Drizzle column mapping ──
@@ -53,7 +73,15 @@ router.get('/status', async (_req: Request, res: Response) => {
       console.log(`[technical-setup] Bypassing wizard (admin=${hasAdmin}, env=${process.env.SKIP_ONBOARDING})`);
       return res.json({
         technicalSetupComplete: true,
-        steps: { domain: true, email: true, stripe: true, storage: true, extras: true, security: true },
+        // TWO DIFFERENT QUESTIONS, and this answered both with the first one.
+        //
+        // technicalSetupComplete asks "should the wizard be shown", and no is right — a studio
+        // with an admin account must not be trapped in onboarding. steps asks "what is actually
+        // connected", which is not the same thing. Every one was hardcoded true, so a live
+        // instance reported Stripe, SMTP and storage configured while the admin banner beside
+        // it said "5 things left to connect", and the checklist showed green ticks against
+        // services that had never been given a key.
+        steps: await measureSteps(),
         progress: 100,
         hasStudioConfig: true,
         hasIntegrations: true,
@@ -64,14 +92,8 @@ router.get('/status', async (_req: Request, res: Response) => {
     const [sc] = await db.select().from(studioConfigs).limit(1);
     const [si] = await db.select().from(studioIntegrations).limit(1);
 
-    const steps = {
-      domain: !!(sc?.appUrl || sc?.frontendUrl),
-      email: !!(si?.smtp_host && si?.smtp_user),
-      stripe: !!(si?.stripe_publishable_key && si?.stripe_secret_key_encrypted),
-      storage: !!(si?.storage_access_key_id && si?.storage_bucket),
-      extras: !!(si?.openai_api_key_encrypted),
-      security: false, // already checked above and was false
-    };
+    // security is false here specifically: this branch is only reached when no admin exists.
+    const steps = { ...(await measureSteps()), security: false };
 
     const completedCount = Object.values(steps).filter(Boolean).length;
     const totalSteps = Object.keys(steps).length;
