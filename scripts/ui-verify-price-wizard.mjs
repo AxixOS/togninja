@@ -16,6 +16,7 @@
 import { readFileSync } from 'fs';
 
 const read = (p) => readFileSync(p, 'utf8');
+const wiz = read('client/src/pages/setup/UnifiedSetupWizard.tsx');
 const page = read('client/src/pages/admin/AdminPriceWizardPage.tsx');
 const extractor = read('server/services/OpenAIPriceExtractor.ts');
 const research = read('server/services/PriceResearchService.ts');
@@ -114,5 +115,53 @@ check('both providers exclude the studio\'s own site',
 check('review aggregators and cost guides are excluded',
   /trustanalytica\./.test(filter) && /latestcost\./.test(filter));
 
+
+// ── The market research runs during setup ──────────────────────────────────
+//
+// Finding the photographers working in a studio's own town is one of the few genuinely
+// uncommon things this product does, and it lived at /admin/price-wizard behind a
+// 1,768-line management screen — reachable only by a studio who already knew to look.
+const pricing = read('client/src/pages/setup/phases/PricingPhase.tsx');
+// Comments may NAME the endpoints this deliberately does not call — the file explains at
+// length why /research and /scrape cannot run here. Testing the prose failed the check for
+// the very sentence that documents the rule being followed.
+const pricingCode = pricing
+  .split(/\r?\n/)
+  .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+  .join('\n');
+
+check('the setup wizard shows the price research',
+  /key: 'pricing'/.test(wiz) && /PricingPhase/.test(wiz));
+
+// ORDERING IS LOAD-BEARING. /api/price-wizard sits behind authenticateUser, and the admin
+// account is created by the step before. Placed any earlier, every call 401s.
+const securityAt = wiz.indexOf("key: 'security'");
+const pricingAt = wiz.indexOf("key: 'pricing'");
+check('and only after there is an admin to be',
+  securityAt > 0 && pricingAt > securityAt,
+  'the price-wizard API is authenticated; before the account step it cannot be called at all');
+
+// It calls DISCOVERY, which runs on this instance's own gateway key under search.competitor.
+// /research and /scrape refuse without the STUDIO's OpenAI key, correctly — reading a
+// competitor's prices is use, not show — so a step built on those would fail on every new
+// instance, which is every instance that reaches this screen.
+check('it uses the half that needs no key of the studio\'s',
+  /price-wizard\/discover/.test(pricingCode) && !/price-wizard\/(research|scrape)/.test(pricingCode),
+  'research and scrape require the studio\'s own OpenAI key and would 400 here');
+
+// And says so, rather than offering a button that fails.
+check('and says plainly what the other half needs',
+  /your own OpenAI key/.test(pricing));
+
+// The studio pays for competitor research "because they asked for it" — the words are in
+// AxixosSearchService. Running it unprompted during setup would make that untrue.
+check('the research is asked for, never automatic',
+  /onClick=\{run\}/.test(pricing) && !/useEffect\([^)]*run\(\)/.test(pricing),
+  'an automatic run bills a studio for something they did not request');
+
+// Every other step in the essentials path can be passed through; this one is optional by
+// nature and must not become a wall in front of the finish line.
+check('and the step can always be skipped',
+  /Skip for now/.test(pricing));
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);

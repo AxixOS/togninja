@@ -29,11 +29,22 @@ console.log('\n=== the short path exists ===');
 // asserted instead is the ceiling that keeps the path short, and separately that each
 // essential step is one a studio genuinely cannot launch without or can dismiss in a click.
 const essentials = [...wiz.matchAll(/essential: true/g)].length;
-check('the essential path stays short', essentials >= 3 && essentials <= 5, essentials + ' steps');
+check('the essential path stays short', essentials >= 3 && essentials <= 6, essentials + ' steps');
 
-// Named, so adding a fifth is a decision someone makes here rather than a number quietly
+// Named, so adding one is a decision someone makes here rather than a number quietly
 // creeping up.
-const ESSENTIAL_KEYS = ['look', 'basics', 'photographs', 'security', 'scanning'];
+//
+// SIXTH, ADDED 28 AUG 2026: 'pricing'. Finding the photographers working in the studio's own
+// town is among the few genuinely uncommon things this product does, and it sat at
+// /admin/price-wizard behind a management screen — met only by a studio who already knew to
+// look for it. Shown during setup it is an argument for buying; shown afterwards it is a
+// feature nobody found.
+//
+// It qualifies under the second half of the rule above rather than the first: no studio needs
+// it to launch, and it is dismissed with the "Skip for now" beside it, which the checks
+// further down assert is still there. If the path ever needs shortening again this is the
+// first of the six to demote — mark it non-essential and it moves to the long path intact.
+const ESSENTIAL_KEYS = ['look', 'basics', 'photographs', 'security', 'pricing', 'scanning'];
 const markedEssential = [...wiz.matchAll(/\{ key: '([a-z_]+)'[^}]*essential: true/g)].map((m) => m[1]);
 check('the essential steps are the expected ones',
   ESSENTIAL_KEYS.length === markedEssential.length

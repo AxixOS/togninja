@@ -38,6 +38,7 @@ import LeadSourcesPhase from './phases/LeadSourcesPhase';
 import IntegrationsPhase from './phases/IntegrationsPhase';
 import ScanningPhase from './phases/ScanningPhase';
 import SiteImagesPhase from './phases/SiteImagesPhase';
+import PricingPhase from './phases/PricingPhase';
 import FixFirstPhase from './phases/FixFirstPhase';
 import DraftsPhase from './phases/DraftsPhase';
 
@@ -172,6 +173,14 @@ export default function UnifiedSetupWizard() {
     // the split was made in the first place — it just never needed to hide them.
     { key: 'photographs', group: 'Your studio', label: 'Your photographs', essential: true, render: () => <SiteImagesPhase only="all" startScan onComplete={goNext} /> },
     { key: 'security', group: 'Account', label: 'Admin account', essential: true, render: () => <SecurityStep onComplete={goNext} onBack={goBack} /> },
+    // AFTER the admin account, and that ordering is load-bearing: /api/price-wizard sits
+    // behind authenticateUser, and until the previous step runs there is no admin to be.
+    //
+    // Here rather than in the admin because this is one of the few genuinely uncommon things
+    // the product does — it finds the photographers working in the studio's own town — and it
+    // was reachable only by a studio who already knew to go looking for it. Shown while they
+    // are still deciding whether the product is worth having.
+    { key: 'pricing', group: 'Content', label: 'What others charge', essential: true, render: () => <PricingPhase onComplete={goNext} /> },
     { key: 'lead_sources', group: 'Content', label: 'Lead sources', render: () => <LeadSourcesPhase onComplete={goNext} /> },
     { key: 'integrations', group: 'Content', label: 'Integrations', render: () => <IntegrationsPhase status={setupStatus?.phases?.integrations} features={setupStatus?.features} onComplete={goNext} /> },
     // "Scan content" read as a website crawl. This step reads the data already in the
