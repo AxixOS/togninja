@@ -214,5 +214,34 @@ check('and progress is computed from those steps',
   !/steps: bypassSteps,\s*\n\s*progress: 100,/.test(techStatus)
   && /Object\.values\(bypassSteps\)\.filter\(Boolean\)\.length/.test(techStatus),
   'it said 100 while four of the six were false');
+
+// ── A spent homepage allowance must not cancel the rest ────────────────────
+//
+// ai.landing, ai.authority_from_crawl and ai.pillar carry SEPARATE budgets on the gateway —
+// ai.pillar is sixty. So running out of homepage generations says nothing about whether the
+// service map and the pages behind it can be built.
+//
+// The quota branch returned before the chain that builds them. Observed live: a crawl that read
+// ten pages and named six services — "You shoot Giới Thiệu, Wedding, Lưu Trữ Ảnh Cưới and 2
+// more" — finished onboarding with ZERO pillars persisted, no service pages, no photographs
+// assigned and no starter products, none of which had been refused anything.
+check('a spent homepage allowance still builds the services',
+  /const buildServicesAndPages = \(\) =>/.test(pipeline)
+  && (pipeline.match(/buildServicesAndPages\(\);/g) || []).length >= 2,
+  'called from the quota branch as well as the normal path');
+
+// The order is what makes it work: defined before the generation attempt, because the quota
+// branch sits inside that attempt's catch.
+const defAt = pipeline.indexOf('const buildServicesAndPages = () =>');
+const quotaCallAt = pipeline.indexOf("state.status = 'quota_exceeded'");
+check('and is defined before the branch that needs it',
+  defAt > 0 && quotaCallAt > defAt,
+  'a const used above its declaration is a dead-zone crash, in a path only a spent budget reaches');
+
+// One definition, not two. Duplicating the chain into the quota branch would have been the
+// quick version and the two copies would have drifted — which is the failure this codebase
+// has spent the week removing.
+check('and the chain exists once',
+  (pipeline.match(/import\('\.\/authority-from-crawl\.js'\)/g) || []).length === 1);
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);

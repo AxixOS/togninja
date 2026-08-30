@@ -372,6 +372,92 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
 
     const context = buildContext(config, pages.rows);
 
+    /**
+     * Everything downstream of the crawl that is NOT the homepage: the authority map, the
+     * service pages behind it, their photographs, and the starter voucher products.
+     *
+     * A FUNCTION, because two paths need it. It used to sit inline below the homepage
+     * generation, and the quota branch returns before reaching it — so a studio who had used
+     * their ten included homepage generations got no service map, no service pages, no
+     * images and no products either.
+     *
+     * That is throwing away work that is separately funded. ai.landing, ai.authority_from_crawl
+     * and ai.pillar carry their OWN budgets on the gateway — ai.pillar is sixty — so a spent
+     * homepage allowance says nothing about whether the rest can be built. Observed live: a
+     * studio whose crawl read ten pages and named six services finished onboarding with zero
+     * pillars persisted, because the homepage refusal returned three lines before this ran.
+     *
+     * If these are also out of allowance they refuse on their own and say so. Being refused
+     * twice is a fair outcome; not being attempted is not.
+     */
+    const buildServicesAndPages = () => {
+      import('./authority-from-crawl.js')
+        .then((m) => m.generateAuthorityMapFromCrawl(jobId))
+        .then(async () => {
+          const { scaffoldPillarPages } = await import('./authority-scaffold.js');
+          // The SAME city and language the homepage was written from, so the pillar pages
+          // cannot describe a different place or arrive in a different language than the
+          // page linking to them.
+          const r = await scaffoldPillarPages('platform', {
+            city: context.city,
+            language: context.language,
+            publish: true,
+          });
+          console.log(`[homepage-pipeline] pillar pages: ${r.created} created, ${r.skipped} already existed, ${r.remaining} left for a later build`);
+
+          // Now, and not before: storeSiteImage mirrors a service photograph onto the pillar
+          // page's own hero_image_url, and a landing_pages row that does not exist yet matches
+          // nothing. Running this earlier would have filled the wizard's slots while leaving
+          // every service page exactly as blank as it was.
+          //
+          // Without it a studio reached the end of onboarding with a homepage full of their own
+          // work and service pages that were flat colour under a heading — the photographs were
+          // in the database the whole time and only the choice was missing.
+          try {
+            const { assignCrawledSiteImages } = await import('./assignCrawledImages');
+            const imgs = await assignCrawledSiteImages('pillars');
+            // And then everything still unused, spread across every page. Runs last on purpose:
+            // the hero and content slots get first refusal on the photographs whose names match
+            // a service, and the gallery takes what is left rather than competing for them.
+            const extra = await assignCrawledSiteImages('galleries');
+            if (extra.filled > 0) {
+              console.log(`[homepage-pipeline] galleries: ${extra.filled} further photograph(s) placed`);
+            }
+            if (imgs.filled > 0) {
+              console.log(`[homepage-pipeline] service pages: ${imgs.filled} photograph(s) assigned from the crawl`);
+              await note(
+                state,
+                'found',
+                `Added a photograph to ${imgs.filled} of your service page${imgs.filled === 1 ? '' : 's'}`,
+              );
+            }
+          } catch (e: any) {
+            console.warn('[homepage-pipeline] service page images skipped:', e?.message || e);
+          }
+          if (r.aborted) {
+            // Says it in the log AND on the studio's own progress list, because the alternative
+            // is a menu that is quietly two services shorter than the site it was built from,
+            // with nothing anywhere explaining why. The nav filters unbuilt pillars out (see the
+            // hasPage flag on /api/authority-map), so the failure is invisible without this.
+            console.warn(`[homepage-pipeline] pillar build stopped after "${r.aborted.afterPillar}": ${r.aborted.code}`);
+            await note(
+              state,
+              'problem',
+              `${r.created + r.published} service page(s) built — the rest can be finished from Website Studio`,
+            );
+          }
+
+          // A voucher shop stocked with the studio's OWN services, from the same map.
+          // Created inactive and unpriced — see starter-products for why nothing here
+          // invents a price.
+          const { seedStarterProductsFromServices } = await import('./starter-products.js');
+          const sp = await seedStarterProductsFromServices();
+          console.log(`[homepage-pipeline] starter voucher products: ${sp.created} created (inactive, awaiting prices), ${sp.skipped} already existed`);
+        })
+        .catch((err) => console.warn('[homepage-pipeline] authority map / pillar pages failed:', err?.message || err));
+    };
+
+
     // Generate.
     state.stage = 'writing';
     await note(state, 'writing', 'Writing your homepage in your own words');
@@ -390,6 +476,17 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
         state.status = 'quota_exceeded'; state.stage = 'quota_exceeded';
         state.error = e?.message || 'This studio has used its included site generations';
         await writeGenState(state);
+        // The HOMEPAGE allowance is spent. That says nothing about the rest.
+        //
+        // ai.landing, ai.authority_from_crawl and ai.pillar carry separate budgets on the
+        // gateway — ai.pillar is sixty — so returning here threw away a service map, service
+        // pages, their photographs and the starter products, none of which had been refused
+        // anything. Observed live: a crawl that read ten pages and named six services finished
+        // with zero pillars persisted, because this return ran first.
+        //
+        // If these are also out of allowance they refuse individually and say so. Being
+        // refused twice is a fair outcome; not being asked is not.
+        buildServicesAndPages();
         return;
       }
       // "Not right now" is not "not switched on".
@@ -438,70 +535,9 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     // Chained, because the scaffold reads the map the previous step writes. Both are
     // fire-and-forget: a failure here must not fail the pipeline, and the studio can
     // still click "Build pillar pages" afterwards.
-    import('./authority-from-crawl.js')
-      .then((m) => m.generateAuthorityMapFromCrawl(jobId))
-      .then(async () => {
-        const { scaffoldPillarPages } = await import('./authority-scaffold.js');
-        // The SAME city and language the homepage was written from, so the pillar pages
-        // cannot describe a different place or arrive in a different language than the
-        // page linking to them.
-        const r = await scaffoldPillarPages('platform', {
-          city: context.city,
-          language: context.language,
-          publish: true,
-        });
-        console.log(`[homepage-pipeline] pillar pages: ${r.created} created, ${r.skipped} already existed, ${r.remaining} left for a later build`);
-
-        // Now, and not before: storeSiteImage mirrors a service photograph onto the pillar
-        // page's own hero_image_url, and a landing_pages row that does not exist yet matches
-        // nothing. Running this earlier would have filled the wizard's slots while leaving
-        // every service page exactly as blank as it was.
-        //
-        // Without it a studio reached the end of onboarding with a homepage full of their own
-        // work and service pages that were flat colour under a heading — the photographs were
-        // in the database the whole time and only the choice was missing.
-        try {
-          const { assignCrawledSiteImages } = await import('./assignCrawledImages');
-          const imgs = await assignCrawledSiteImages('pillars');
-          // And then everything still unused, spread across every page. Runs last on purpose:
-          // the hero and content slots get first refusal on the photographs whose names match
-          // a service, and the gallery takes what is left rather than competing for them.
-          const extra = await assignCrawledSiteImages('galleries');
-          if (extra.filled > 0) {
-            console.log(`[homepage-pipeline] galleries: ${extra.filled} further photograph(s) placed`);
-          }
-          if (imgs.filled > 0) {
-            console.log(`[homepage-pipeline] service pages: ${imgs.filled} photograph(s) assigned from the crawl`);
-            await note(
-              state,
-              'found',
-              `Added a photograph to ${imgs.filled} of your service page${imgs.filled === 1 ? '' : 's'}`,
-            );
-          }
-        } catch (e: any) {
-          console.warn('[homepage-pipeline] service page images skipped:', e?.message || e);
-        }
-        if (r.aborted) {
-          // Says it in the log AND on the studio's own progress list, because the alternative
-          // is a menu that is quietly two services shorter than the site it was built from,
-          // with nothing anywhere explaining why. The nav filters unbuilt pillars out (see the
-          // hasPage flag on /api/authority-map), so the failure is invisible without this.
-          console.warn(`[homepage-pipeline] pillar build stopped after "${r.aborted.afterPillar}": ${r.aborted.code}`);
-          await note(
-            state,
-            'problem',
-            `${r.created + r.published} service page(s) built — the rest can be finished from Website Studio`,
-          );
-        }
-
-        // A voucher shop stocked with the studio's OWN services, from the same map.
-        // Created inactive and unpriced — see starter-products for why nothing here
-        // invents a price.
-        const { seedStarterProductsFromServices } = await import('./starter-products.js');
-        const sp = await seedStarterProductsFromServices();
-        console.log(`[homepage-pipeline] starter voucher products: ${sp.created} created (inactive, awaiting prices), ${sp.skipped} already existed`);
-      })
-      .catch((err) => console.warn('[homepage-pipeline] authority map / pillar pages failed:', err?.message || err));
+    // The map, the service pages, their photographs and the starter products. Runs here on
+    // the normal path, and ALSO from the quota branch above — see the note there.
+    buildServicesAndPages();
 
     // Land the generated copy in the pages the studio actually edits. Until now the
     // output existed only as a landing page, so Website Studio still showed neutral
