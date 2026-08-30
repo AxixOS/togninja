@@ -1112,7 +1112,9 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     }
     // Reset the studio_configs singleton to blank pre-onboarding state (keep the row +
     // technical integration creds so storage keeps working).
-    try { await db.execute(sql`UPDATE studio_configs SET creative_setup_complete = false, technical_setup_complete = false, onboarding_state = NULL`); } catch {}
+    // The three columns that decide whether onboarding can run AT ALL are no longer cleared
+    // here. See reopenOnboarding() at the end of this handler: it runs last and checks its
+    // own work, because this line silently failing is what shut the demo out of its wizard.
     try { await db.execute(sql`UPDATE studio_configs SET homepage_gen_state = NULL, homepage_landing_slug = NULL, homepage_draft_landing_id = NULL, pricing_embed_url = NULL`); } catch {}
     // `city` belongs in this list for the same reason as `address`: it is now served as
     // addressLocality in the crawler-visible head, so a city left behind by a reset is
@@ -1311,6 +1313,82 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       const { invalidateStorageConfig } = await import('./services/s3-storage');
       invalidateStorageConfig();
     } catch { /* cache refresh is best-effort */ }
+
+    /**
+     * REOPEN ONBOARDING. Last, one column at a time, and read back.
+     *
+     * These three decide whether a studio can onboard at all, and getting them wrong is not
+     * cosmetic like a leftover phone number. creative_setup_complete gates the /api/setup
+     * mount, where true means "mutations need authentication" — and this same reset has just
+     * truncated admin_users, so there is no account to authenticate with, and the step that
+     * CREATES one is inside the wizard those mutations drive. The instance is then shut:
+     * cannot save, cannot sign in, cannot reach the step that would fix it.
+     *
+     * That is exactly what happened, on 30 Aug 2026. All three sat in ONE statement wrapped
+     * in a bare `catch {}`, run early — right after twenty-three TRUNCATE ... CASCADE calls
+     * through a pooler. It threw, the catch swallowed it, the very next statement succeeded,
+     * and the response still said "Demo data cleared. Open /setup to start onboarding again."
+     * Every setup POST returned 401 and nothing anywhere said why.
+     *
+     * Three changes, one per part of that:
+     *   LAST, so no other statement in this handler can fail ahead of it.
+     *   ONE COLUMN PER STATEMENT, so a problem with one cannot take the other two with it.
+     *   READ BACK, because a write that is never verified and never reported is a write that
+     *   can quietly not happen. A failed reset an operator is told about is recoverable.
+     */
+    const reopenOnboarding = async (): Promise<string[]> => {
+      const failed: string[] = [];
+      const writes: Array<[string, () => Promise<unknown>]> = [
+        ['creative_setup_complete', () => db.execute(sql`UPDATE studio_configs SET creative_setup_complete = false`)],
+        ['technical_setup_complete', () => db.execute(sql`UPDATE studio_configs SET technical_setup_complete = false`)],
+        ['onboarding_state', () => db.execute(sql`UPDATE studio_configs SET onboarding_state = NULL`)],
+      ];
+      for (const [col, run] of writes) {
+        try {
+          await run();
+        } catch (e: any) {
+          console.error('[reset-demo] could not clear ' + col + ':', e?.message || e);
+          failed.push(col);
+        }
+      }
+      // Read back regardless of what the writes claimed. This is the check that was missing.
+      try {
+        const chk: any = await db.execute(sql`
+          SELECT creative_setup_complete AS creative,
+                 technical_setup_complete AS technical,
+                 (onboarding_state IS NULL) AS state_cleared
+            FROM studio_configs LIMIT 1`);
+        const row = chk?.rows?.[0];
+        if (row) {
+          if (row.creative === true && !failed.includes('creative_setup_complete')) failed.push('creative_setup_complete');
+          if (row.technical === true && !failed.includes('technical_setup_complete')) failed.push('technical_setup_complete');
+          if (row.state_cleared === false && !failed.includes('onboarding_state')) failed.push('onboarding_state');
+        }
+      } catch (e: any) {
+        console.error('[reset-demo] could not verify the reopen:', e?.message || e);
+        failed.push('verification');
+      }
+      return failed;
+    };
+
+    const reopenFailed = await reopenOnboarding();
+    if (reopenFailed.length) {
+      console.error(
+        '[reset-demo] ONBOARDING DID NOT REOPEN — ' + reopenFailed.join(', ') + '. While '
+        + 'creative_setup_complete stays true with no admin account, every /api/setup mutation '
+        + 'returns 401 and the wizard cannot be completed. Restarting the service clears it '
+        + '(see the detector in server/index.ts), or clear the columns by hand.',
+      );
+      return res.status(500).json({
+        ok: false,
+        error:
+          'Demo data was cleared, but onboarding could not be reopened ('
+          + reopenFailed.join(', ') + '). The wizard would reject every save. '
+          + 'Restart the service and try again.',
+        reopenFailed,
+      });
+    }
+
     return res.json({
       ok: true,
       message: aiReady

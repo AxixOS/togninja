@@ -88,14 +88,21 @@ router.get('/status', async (_req: Request, res: Response) => {
 
     // Environment variable override: SKIP_ONBOARDING=true bypasses wizard entirely
     if (process.env.SKIP_ONBOARDING === 'true' || hasAdmin) {
-      // Best-effort: persist the flag to DB so this short-circuits next time
-      try {
-        await db.execute(sql`
-          UPDATE studio_configs 
-          SET technical_setup_complete = true, creative_setup_complete = true
-          WHERE id = (SELECT id FROM studio_configs LIMIT 1)
-        `);
-      } catch { /* best-effort, not critical */ }
+      // NO WRITE HERE ANY MORE.
+      //
+      // This GET used to persist technical_setup_complete = true AND creative_setup_complete
+      // = true, "so this short-circuits next time". Two problems, and the second is serious.
+      //
+      // A GET that mutates is surprising by itself: this endpoint is polled by the admin
+      // shell and by three setup screens, so merely LOOKING at a page rewrote both flags.
+      //
+      // And creative_setup_complete is not this endpoint's flag to set. It gates the whole
+      // /api/setup mount, where true means "every mutation needs authentication". Writing it
+      // from a status poll can shut a studio out of their own wizard between one page load
+      // and the next, and the SKIP_ONBOARDING half of this condition makes that reachable
+      // with NO admin account at all — precisely the state in which nobody can authenticate.
+      // Nothing reads what this wrote: the branch answers from the condition it just
+      // evaluated, so removing the write changes no behaviour here.
 
       console.log(`[technical-setup] Bypassing wizard (admin=${hasAdmin}, env=${process.env.SKIP_ONBOARDING})`);
       const bypassSteps = await measureSteps();
