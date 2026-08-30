@@ -605,6 +605,11 @@ app.use((req, res, next) => {
         // the About page said "the photographer" and the JSON-LD had no Person at all.
         // Experience and expertise are the two things a crawl cannot reliably infer and a
         // model must never invent, so they are asked for and stored.
+        // What kind of business this is. It was ASKED FOR and REQUIRED by the basics save,
+        // then thrown away — no column, so nothing to send back when the studio reopened the
+        // step, and the save then rejected them for not re-answering a question whose answer
+        // the server had discarded. Storing it is what makes "nothing is lost" true.
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS business_type TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_name TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_role TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_portrait_url TEXT`);

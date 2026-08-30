@@ -47,6 +47,9 @@ export const studioConfigs = pgTable("studio_configs", {
   
   // Business Info
   businessName: text("business_name"),
+  // Required by the basics step, so it has to be stored — otherwise reopening that step
+  // cannot show the answer back, and the same validation then rejects the save.
+  businessType: text("business_type"),
   address: text("address"),
   city: text("city"),
   state: text("state"),

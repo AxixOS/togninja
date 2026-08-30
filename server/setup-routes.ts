@@ -612,6 +612,13 @@ router.get('/status', async (_req: Request, res: Response) => {
         data: config
           ? {
               businessName: config.businessName,
+              // WITHOUT THIS, GOING BACK WAS A DEAD END. The sidebar says "click any completed
+              // step to go back and change it — nothing is lost", and this step was the one
+              // place that was untrue: businessType is REQUIRED by POST /basics, so reopening
+              // the step with a blank select and pressing Continue returned
+              // "Missing required fields: businessName, businessType, timezone". The studio had
+              // answered it; the server had simply never kept the answer.
+              businessType: (config as any).businessType || '',
               timezone: config.timezone,
               currency: config.currency || integ?.default_currency || 'EUR',
               vatNumber: config.vatNumber || '',
@@ -637,6 +644,18 @@ router.get('/status', async (_req: Request, res: Response) => {
               facebookUrl: config.facebookUrl || '',
               instagramUrl: config.instagramUrl || '',
               twitterUrl: config.twitterUrl || '',
+              // WHO THE STUDIO IS — stored since the About-you card was added, never sent
+              // back. Reopening Basics showed an empty "Your name", "Your role" and
+              // "Photographing since" to a studio that had filled all three in, which reads
+              // as the wizard having forgotten them. The save is protected (cleanStr returns
+              // undefined for blank, and drizzle drops undefined keys) so nothing was
+              // actually lost — but a studio has no way of knowing that, and re-typing an
+              // answer to keep it is exactly what "nothing is lost" promises they need not do.
+              ownerName: (config as any).ownerName || '',
+              ownerRole: (config as any).ownerRole || '',
+              ownerPortraitUrl: (config as any).ownerPortraitUrl || '',
+              foundingYear: (config as any).foundingYear ? String((config as any).foundingYear) : '',
+              credentials: (config as any).credentials || [],
             }
           : null,
       },
@@ -1628,6 +1647,9 @@ router.post('/basics', async (req: Request, res: Response) => {
 
     const fields = {
       businessName,
+      // Now kept. It was validated as required and then discarded, so the answer existed
+      // only in the request that carried it — see the round-trip note in GET /status.
+      businessType: cleanStr(businessType, 80),
       timezone,
       dateFormat: dateFormat || 'auto',
       primaryColor: primaryColor || '#3B82F6',
@@ -2034,6 +2056,37 @@ router.post('/drafts/:draftId/skip', async (req: Request, res: Response) => {
 
 router.post('/complete', async (_req: Request, res: Response) => {
   try {
+    /**
+     * SETUP IS NOT COMPLETE WITHOUT AN ACCOUNT, and saying it is locks the instance.
+     *
+     * This route is exempt from authentication at the /api/setup mount — deliberately, and it
+     * has to be, because it is what a first-run wizard calls to finish, before any session
+     * exists. But it also sets creative_setup_complete, which is the flag that mount reads to
+     * decide whether mutations need authentication. So calling it with admin_users empty flips
+     * the instance to "finished, authenticate please" when there is nobody who could: the
+     * account step lives inside the wizard whose every save now returns 401. Cannot save,
+     * cannot sign in, cannot reach the step that would fix it.
+     *
+     * That is what shut the demo on 30 Aug 2026 — a reset truncates admin_users, and anything
+     * that then reached this endpoint (a stale tab restoring its step index from
+     * sessionStorage and landing on the last step is enough) closed the door behind itself.
+     *
+     * The check is a fact about setup, not a permission: an instance with no account has
+     * certainly not completed onboarding, whatever else is true. It refuses rather than
+     * pretending to succeed, so the caller learns the wizard is not finished. Note this does
+     * NOT loosen the gate — that was reviewed and rejected, because /api/setup is mounted
+     * ahead of /api/setup/technical and opening it would expose the endpoint that CREATES an
+     * admin account to anonymous callers.
+     */
+    const admins: any = await db.execute(sql`SELECT count(*)::int AS n FROM admin_users`);
+    if (Number(admins?.rows?.[0]?.n ?? 0) === 0) {
+      return res.status(409).json({
+        error:
+          'Setup cannot be completed before an admin account exists — finish the account step first.',
+        needs: 'admin-account',
+      });
+    }
+
     await patchState({ draftsComplete: true });
 
     // Persist the completion flag so the wizard doesn't reappear after restart.

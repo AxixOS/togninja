@@ -43,6 +43,15 @@ interface BasicsPhaseProps {
     twitterUrl?: string;
     logoUrl?: string;
     vatNumber?: string;
+    // The About-you card. These were read from initialData below but never declared here,
+    // and never sent by GET /api/setup/status either — so the card rendered blank on every
+    // revisit and the five type errors sitting on those lines were the symptom, in the
+    // codebase, of the bug a studio saw as "it forgot everything I typed".
+    ownerName?: string;
+    ownerRole?: string;
+    ownerPortraitUrl?: string;
+    foundingYear?: string;
+    credentials?: any[];
   };
   onComplete: () => void;
 }
