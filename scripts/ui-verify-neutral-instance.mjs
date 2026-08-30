@@ -263,5 +263,28 @@ ratchet('the origin studio\'s name is not spreading', /New Age Fotografie/, NAME
 ratchet('nor is its domain', /newagefotografie|newage-fotografie/i, DOMAIN_BASELINE,
   'a domain fallback is a working link to another studio');
 
+
+// ── A reset must not leave the previous studio in the process ──────────────
+//
+// hydrateEnvFromDb copies studio_configs into process.env at boot, and renderIndexHtml stamps
+// the shell <title> from process.env.BUSINESS_NAME BEFORE consulting the database. So blanking
+// the column was not enough: after a reset and a re-onboard onto a different business, every
+// browser tab still read "Affinity Boudoir", and would have until the process restarted.
+//
+// Observed live on the demo — the served HTML carried <title>Affinity Boudoir</title> against
+// an instance whose studio_configs had been emptied.
+const resetSrc = read('server/setup-routes.ts');
+
+check('a reset clears the env it hydrated from the rows it emptied',
+  /CONFIG_HYDRATED_ENV_KEYS/.test(resetSrc) && /delete process\.env\[key\]/.test(resetSrc),
+  'the column was blanked and the running process kept serving the old name');
+
+// ONLY the hydrated ones. That list exists to tell a value copied from a row apart from one an
+// operator set on the service, which is the same distinction isBootSnapshot() was written for.
+// An operator's APP_URL must survive a reset; a copy of an emptied row must not.
+check('and only those, never an operator\'s own',
+  /hydrateEnvFromDb recorded itself|Only the keys hydrateEnvFromDb recorded/.test(resetSrc)
+  && !/delete process\.env\.APP_URL|delete process\.env\.BUSINESS_NAME/.test(resetSrc),
+  'deleting by name would take operator-set values with it');
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);

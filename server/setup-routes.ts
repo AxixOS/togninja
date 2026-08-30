@@ -1186,6 +1186,28 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     try { await db.execute(sql`UPDATE studio_integrations SET storage_region = NULL`); } catch {}
     invalidateSiteLanguage();
     invalidateStudioAddress();
+
+    // THE PREVIOUS STUDIO'S NAME OUTLIVED THEIR ROW.
+    //
+    // hydrateEnvFromDb copies studio_configs values into process.env at boot — BUSINESS_NAME,
+    // CONTACT_EMAIL, APP_URL and the rest — and renderIndexHtml stamps the shell <title> from
+    // process.env.BUSINESS_NAME FIRST, before the database. So a reset blanked the column and
+    // the running process went on serving the old name: after re-onboarding onto a different
+    // business entirely, every browser tab still said "Affinity Boudoir", and would have until
+    // the next restart.
+    //
+    // Only the keys hydrateEnvFromDb recorded itself. That list exists precisely to tell a
+    // value COPIED FROM A ROW apart from one an operator set on the service — the same
+    // distinction isBootSnapshot() in siteIdentity was written for. An operator's APP_URL must
+    // survive a reset; a copy of a row that has just been emptied must not.
+    try {
+      const hydrated = (process.env.CONFIG_HYDRATED_ENV_KEYS || '').split(',').map((k) => k.trim()).filter(Boolean);
+      for (const key of hydrated) delete process.env[key];
+      process.env.CONFIG_HYDRATED_ENV_KEYS = '';
+      if (hydrated.length) console.log(`[reset-demo] cleared ${hydrated.length} env value(s) hydrated from the emptied rows: ${hydrated.join(', ')}`);
+    } catch (e: any) {
+      console.warn('[reset-demo] could not clear hydrated env:', e?.message || e);
+    }
     // Clear tenant-entered STORAGE credentials so a fresh test falls back to the instance's
     // env storage. A stale/invalid stored key (e.g. a Supabase publishable key pasted in a
     // prior run) otherwise overrides the valid env creds and fails uploads (InvalidAccessKeyId).
