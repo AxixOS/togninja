@@ -312,6 +312,17 @@ export default function SiteImagesPhase({
   const readFindings = Array.isArray(gen?.findings) ? gen.findings : [];
   /** The run ended without producing service slots. Not "still reading". */
   const readStopped = GEN_TERMINAL.includes(gen?.status) && gen?.status !== 'ready';
+  /**
+   * The allowance ran out, which is NOT a failure to read the site.
+   *
+   * These were one state, and the copy for it blamed reading — "We couldn't read your services
+   * from your website this time" — four lines below a panel saying "You shoot Giới Thiệu,
+   * Wedding, Lưu Trữ Ảnh Cưới and 2 more". The crawl had worked perfectly; the WRITING was
+   * refused. A studio reading both at once learns that the product does not know what it just
+   * did, and the remedy they are pointed at is the wrong one: a read failure means check the
+   * address, an exhausted allowance means it will not work however many times they retry.
+   */
+  const quotaSpent = gen?.status === 'quota_exceeded';
 
   if (isLoading) {
     return (
@@ -374,9 +385,14 @@ export default function SiteImagesPhase({
           */}
           {readStopped && (
             <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-              We could not finish writing your homepage this time. Nothing on this screen is
-              affected, your setup is not held up, and you can create one from Website Studio
-              once setup is done.
+              {quotaSpent
+                ? `We read your website but have used up the site writing included with this
+                   instance, so the homepage was not written. Nothing on this screen is affected
+                   and your setup is not held up — your photographs and everything else save
+                   normally.`
+                : `We could not finish writing your homepage this time. Nothing on this screen is
+                   affected, your setup is not held up, and you can create one from Website Studio
+                   once setup is done.`}
             </p>
           )}
         </div>
@@ -472,9 +488,14 @@ export default function SiteImagesPhase({
                watching an animation describing work that had already stopped. */
             readStopped ? (
               <div className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4">
-                We couldn't read your services from your website this time, so there are no
-                per-service slots to fill here. Nothing is lost — you can add images to any
-                page from Website Studio once setup is done.
+                {quotaSpent
+                  ? `We found your services, but the site writing included with this instance has
+                     been used up, so the pages behind them were not built and there are no
+                     per-service slots yet. Nothing is lost — you can add images to any page from
+                     Website Studio once setup is done.`
+                  : `We couldn't read your services from your website this time, so there are no
+                     per-service slots to fill here. Nothing is lost — you can add images to any
+                     page from Website Studio once setup is done.`}
               </div>
             ) : (
             <div className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4 flex items-start gap-3">

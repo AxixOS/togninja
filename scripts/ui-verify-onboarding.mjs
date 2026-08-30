@@ -603,6 +603,31 @@ check('and repetition is counted on content words only',
 // good og:description, or the reverse. Taking the first present one would inherit the worse.
 check('and each candidate source is judged separately',
   /const candidates = \[/.test(reader) && /for \(const raw of candidates\)/.test(reader));
+
+// ── A spent allowance is not a failure to read ─────────────────────────────
+//
+// Both were one state, so the copy for an exhausted allowance blamed the crawl:
+//
+//     "You shoot Giới Thiệu, Wedding, Lưu Trữ Ảnh Cưới and 2 more"          ← the panel
+//     "We couldn't read your services from your website this time"          ← four lines below
+//
+// Seen on the live demo. The crawl had worked perfectly — ten pages read, six services named,
+// forty photographs found — and the WRITING was refused because the instance had used its ten
+// included generations. A studio reading both at once learns the product does not know what it
+// just did, and is pointed at the wrong remedy: a read failure means check the address, a spent
+// allowance means retrying cannot help however many times they try.
+check('an exhausted allowance is told apart from a failed read',
+  // Defined once and branched on in BOTH places the old single state spoke: the homepage line
+  // and the services block. One without the other leaves half the screen still blaming the
+  // crawl, which is the half a studio reads first.
+  /const quotaSpent = gen\?\.status === 'quota_exceeded';/.test(images)
+  && (images.match(/quotaSpent$\s*\?/gm) || images.match(/\{quotaSpent/g) || []).length >= 2,
+  'the two have different remedies, so they cannot share a sentence');
+
+// And it must not claim the reading failed when the findings say it succeeded.
+check('and does not blame the crawl for it',
+  /We found your services, but the site writing included/.test(images),
+  'the services were found — the pages behind them were not built');
 console.log(bad
   ? `\n  ${bad} CHECK(S) FAILED — a new studio still cannot get to their site quickly\n`
   : '\n  ALL CHECKS PASSED — three steps to a site, nothing deleted, every deferred key gated\n');
