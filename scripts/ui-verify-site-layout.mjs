@@ -54,7 +54,21 @@ check('the theme scope provides it', /<SiteLayoutProvider/.test(themeScope));
 //
 // Collect every --tn-* the theme actually emits, then every --tn-* any section consumes.
 // Anything consumed but not emitted resolves to nothing at runtime, silently.
-const emitted = new Set([...themeScope.matchAll(/--tn-[a-z-]+(?=:)/g)].map((m) => m[0]));
+// Two emission forms, because the tokens moved out of the stylesheet and onto the element.
+//
+//   .tn-theme{--tn-primary:…}            a rule in the emitted <style>
+//   ['--tn-primary' as any]: c.primary   a key in the inline style object
+//
+// They had to move: a class-scoped rule has the same specificity in every instance, so the
+// last ThemeScope mounted won for all of them, and a page showing nine differently-themed
+// previews painted nine identical ones. Inline custom properties are per-element.
+//
+// This check went red on that change and was RIGHT to — the definitions genuinely left the
+// place it was looking. It reads both forms now rather than only the new one, because the
+// stylesheet is still where a future variable would most naturally be added.
+const emitted = new Set(
+  [...themeScope.matchAll(/--tn-[a-z-]+(?=:|' as any\])/g)].map((m) => m[0]),
+);
 
 const consumed = new Map();
 if (existsSync(SECTION_DIR)) {

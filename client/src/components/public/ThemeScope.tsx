@@ -72,9 +72,39 @@ export const ThemeScope: React.FC<{
 :root,body{font-family:${f.body};}
 `;
 
+  /**
+   * The tokens as an INLINE STYLE, not a .tn-theme rule.
+   *
+   * They were emitted as `.tn-theme{--tn-primary:…}` inside this component's own <style>. That
+   * is fine for one ThemeScope and silently wrong for two: every instance emits a rule with
+   * identical specificity against the same class, so the LAST one mounted wins for all of them.
+   * One page with nine differently-themed previews would paint nine identical cards, and the
+   * bug looks like "the preview is broken" rather than "CSS is doing exactly what it says".
+   *
+   * Inline custom properties are per-element and inherit to children, so each scope carries its
+   * own palette and the component-mapping rules below — which are identical for every instance
+   * and only reference the variables — keep working unchanged.
+   */
+  const tokenStyle: React.CSSProperties = {
+    ['--tn-primary' as any]: c.primary,
+    ['--tn-primary-d' as any]: c.primaryDark,
+    ['--tn-accent' as any]: c.accent,
+    ['--tn-bg' as any]: c.bg,
+    ['--tn-surface' as any]: c.surface,
+    ['--tn-heading' as any]: c.heading,
+    ['--tn-muted' as any]: c.muted,
+    ['--tn-raised' as any]: c.raised || `color-mix(in srgb, ${c.bg} 88%, white)`,
+    ['--tn-border' as any]: c.border || `color-mix(in srgb, ${c.heading} 14%, transparent)`,
+    ['--tn-on-primary' as any]: c.onPrimary || '#ffffff',
+    ['--tn-text' as any]: c.text,
+    ['--tn-font-heading' as any]: f.heading,
+    background: c.bg,
+    color: c.text,
+    fontFamily: f.body,
+  };
+
   const css = `${globalFont}
-.tn-theme{--tn-primary:${c.primary};--tn-primary-d:${c.primaryDark};--tn-accent:${c.accent};--tn-bg:${c.bg};--tn-surface:${c.surface};--tn-heading:${c.heading};--tn-muted:${c.muted};--tn-raised:${c.raised || `color-mix(in srgb, ${c.bg} 88%, white)`};--tn-border:${c.border || `color-mix(in srgb, ${c.heading} 14%, transparent)`};--tn-on-primary:${c.onPrimary || '#ffffff'};--tn-text:${c.text};background:${c.bg};color:${c.text};font-family:${f.body};}
-.tn-theme h1,.tn-theme h2,.tn-theme h3,.tn-theme h4,.tn-theme h5,.tn-theme h6{font-family:${f.heading};color:${c.heading};}
+.tn-theme h1,.tn-theme h2,.tn-theme h3,.tn-theme h4,.tn-theme h5,.tn-theme h6{font-family:var(--tn-font-heading);color:var(--tn-heading);}
 
 /* ── Type scale ──────────────────────────────────────────────────────────────
    The components size their own headings with utilities (text-3xl md:text-4xl
@@ -137,7 +167,7 @@ export const ThemeScope: React.FC<{
    contrast steps and the theme flattened them, so a hero's supporting line rendered in
    the same grey as a footnote — the token layer was destroying hierarchy rather than
    supplying it. Three steps restored: body, secondary, tertiary. */
-.tn-theme .text-gray-700{color:${c.text}!important;}
+.tn-theme .text-gray-700{color:var(--tn-text)!important;}
 .tn-theme .text-gray-600{color:var(--tn-muted)!important;}
 .tn-theme .text-gray-500{color:color-mix(in srgb,var(--tn-muted) 76%,var(--tn-bg))!important;}
 .tn-theme .bg-purple-500,.tn-theme .bg-purple-600,.tn-theme .bg-purple-700{background-color:var(--tn-primary)!important;}
@@ -195,7 +225,7 @@ export const ThemeScope: React.FC<{
   return (
     // data-layout is on the wrapper so CSS can reach it too. The context below is what
     // sections read when the change is structural rather than cosmetic — most of them are.
-    <div className="tn-theme" data-layout={layoutId || undefined}>
+    <div className="tn-theme" data-layout={layoutId || undefined} style={tokenStyle}>
       <style dangerouslySetInnerHTML={{ __html: css }} />
       <SiteLayoutProvider layout={layoutId}>{children}</SiteLayoutProvider>
     </div>
