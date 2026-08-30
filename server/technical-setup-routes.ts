@@ -36,13 +36,40 @@ const router = Router();
  */
 async function measureSteps() {
   const [sc] = await db.select().from(studioConfigs).limit(1);
-  const [si] = await db.select().from(studioIntegrations).limit(1);
+
+  // ASK WHAT ACTUALLY DECIDES, not two columns that look like it.
+  //
+  // The first version of this read studio_integrations directly, and was wrong in BOTH
+  // directions on the same instance. Storage reported false on the live demo while its
+  // photographs were demonstrably being served out of Backblaze — because storage is resolved
+  // by getS3Config(), which reads the environment as well as the database, and this was only
+  // looking at two columns. Meanwhile the same screen's banner, driven by capabilityStates(),
+  // said something different again.
+  //
+  // Two opinions about one question is how they came to disagree, and the studio was shown
+  // both at once. capabilityStates() is what the admin banner already uses and what gates the
+  // features themselves, so it is the answer that is true by construction: if it says email is
+  // unavailable, sending an email really will fail.
+  let caps: Array<{ key: string; available: boolean }> = [];
+  try {
+    const { capabilityStates } = await import('./lib/capabilities');
+    caps = (await capabilityStates()) as any[];
+  } catch (e: any) {
+    console.warn('[technical-setup] capability read failed, falling back to columns:', e?.message || e);
+  }
+  const can = (key: string): boolean => caps.find((c) => c.key === key)?.available ?? false;
+
+  // Fallback only for the case above — no capability list at all.
+  const [si] = caps.length ? [null as any] : await db.select().from(studioIntegrations).limit(1);
+
   return {
-    domain: !!(sc?.appUrl || sc?.frontendUrl),
-    email: !!(si?.smtp_host && si?.smtp_user),
-    stripe: !!(si?.stripe_publishable_key && si?.stripe_secret_key_encrypted),
-    storage: !!(si?.storage_access_key_id && si?.storage_bucket),
-    extras: !!(si?.openai_api_key_encrypted),
+    // Not a capability: it is a field the studio types, and APP_URL from the environment
+    // counts, which is how a Blueprint-provisioned instance has one without being asked.
+    domain: !!(sc?.appUrl || sc?.frontendUrl || process.env.APP_URL || process.env.PUBLIC_SITE_URL),
+    email: caps.length ? can('sending_email') : !!(si?.smtp_host && si?.smtp_user),
+    stripe: caps.length ? can('online_payments') : !!(si?.stripe_publishable_key && si?.stripe_secret_key_encrypted),
+    storage: caps.length ? can('file_storage') : !!(si?.storage_access_key_id && si?.storage_bucket),
+    extras: caps.length ? can('ai_features') : !!(si?.openai_api_key_encrypted),
     security: true,
   };
 }
@@ -71,6 +98,7 @@ router.get('/status', async (_req: Request, res: Response) => {
       } catch { /* best-effort, not critical */ }
 
       console.log(`[technical-setup] Bypassing wizard (admin=${hasAdmin}, env=${process.env.SKIP_ONBOARDING})`);
+      const bypassSteps = await measureSteps();
       return res.json({
         technicalSetupComplete: true,
         // TWO DIFFERENT QUESTIONS, and this answered both with the first one.
@@ -81,8 +109,12 @@ router.get('/status', async (_req: Request, res: Response) => {
         // instance reported Stripe, SMTP and storage configured while the admin banner beside
         // it said "5 things left to connect", and the checklist showed green ticks against
         // services that had never been given a key.
-        steps: await measureSteps(),
-        progress: 100,
+        steps: bypassSteps,
+        // Computed, not asserted. This said 100 while four of the six steps were false — the
+        // same claim the steps themselves had just stopped making.
+        progress: Math.round(
+          (Object.values(bypassSteps).filter(Boolean).length / Object.keys(bypassSteps).length) * 100,
+        ),
         hasStudioConfig: true,
         hasIntegrations: true,
       });

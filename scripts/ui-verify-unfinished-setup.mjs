@@ -197,5 +197,22 @@ check('the checklist reads the key the server sends',
 check('and every checklist row names its own key',
   (welcome.match(/^\s*key: '(domain|email|stripe|storage|extras|security)',$/gm) || []).length === 6,
   'six rows, six keys, matched to the six the server reports');
+
+// One question, one answer. The checklist and the admin banner both report what is connected,
+// and they read from different places — so on the live demo the checklist said storage was
+// unconfigured while that instance's photographs were being served out of Backblaze, because
+// storage resolves through getS3Config() (environment AND database) and the checklist was
+// reading two columns. Wrong in both directions on one screen.
+check('the checklist measures through the capability layer',
+  // The IMPORT, not the identifier. Checking for the name alone was satisfied by a local stub
+  // called capabilityStates, so the bite that replaced the real one sailed straight through.
+  /await import\('\.\/lib\/capabilities'\)/.test(techStatus)
+  && /can\('file_storage'\)/.test(techStatus) && /can\('sending_email'\)/.test(techStatus),
+  'the same source the admin banner uses, so the two cannot disagree');
+
+check('and progress is computed from those steps',
+  !/steps: bypassSteps,\s*\n\s*progress: 100,/.test(techStatus)
+  && /Object\.values\(bypassSteps\)\.filter\(Boolean\)\.length/.test(techStatus),
+  'it said 100 while four of the six were false');
 console.log(`\n  ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}\n`);
 process.exit(failed === 0 ? 0 : 1);
