@@ -356,6 +356,36 @@ check('and runs after the slots that match by name',
   galleriesAt > 0 && pillarsAt2 > 0 && galleriesAt > pillarsAt2,
   'otherwise a gallery takes the boudoir photograph the Boudoir hero wanted');
 
+console.log('\n=== what gets assigned is a photograph, not a sponsor\'s logo ===');
+
+// Observed live on a Vienna studio: the ERSTE bank logo assigned to "First content block" and
+// the Pick n Pay logo to "Second content block". Nothing in the path could tell a logo from a
+// photograph — the only filter was a substring regex over the URL, so erste.png passed.
+//
+// And the ranking PREFERRED them. Site slots carry no label, so every pair scores 0 and the
+// name-matching pass is skipped; the fallback then sorts by pillarAffinity ascending — least
+// service-specific first — and a brand mark shares no token with any service, so it sorts to
+// the front. The heuristic protecting the Boudoir page was handing the homepage to sponsors.
+// The CALL, not the definition — stubbing the call out left the function in place and this
+// check green over an image that was never measured. Caught by biting.
+check('shape is measured before an image is used',
+  /const shape = await photographShape\(dl\.buffer\);/.test(assign));
+check('with sharp, on bytes already in hand', /await import\('sharp'\)/.test(assign));
+check('a logo-sized image is refused',
+  /w < MIN_PHOTO_WIDTH \|\| h < MIN_PHOTO_HEIGHT/.test(assign));
+check('and so is a banner strip', /aspect > MAX_PHOTO_ASPECT/.test(assign));
+// Fails OPEN: emptying every slot over a metadata quirk is worse than the occasional logo,
+// and the studio can replace any slot from the screen this runs behind.
+check('an unmeasurable image is not thrown away',
+  /catch \{\s*return \{ ok: true, why: 'could not be measured' \};/.test(assign));
+// One refusal must not cost the slot — otherwise the filter trades a wrong picture for none.
+// The USE. Renaming only the declaration left the bound still applied and the check green.
+check('a refused candidate falls through to the next',
+  /tried >= MAX_TRIES_PER_SLOT/.test(assign));
+check('and is not retried for another slot', /rejected\.add\(url\)/.test(assign));
+check('the check actually gates the store',
+  /if \(!shape\.ok\) \{[\s\S]{0,200}continue;/.test(assign));
+
 console.log(`
   ${failed === 0 ? 'all checks passed' : failed + ' FAILED'}
 `);

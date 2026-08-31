@@ -58,6 +58,53 @@ function score(imageLabel: string, pillarLabel: string, pillarHref: string): num
   return hits;
 }
 
+/**
+ * IS THIS A PHOTOGRAPH, OR SOMEBODY'S LOGO?
+ *
+ * Nothing in this path could tell. The only filter was a fourteen-substring regex over the
+ * URL (crawledImages.ts NOT_A_PHOTOGRAPH), so an image called erste.png passed every check
+ * and was treated as the studio's own work. Observed live on a Vienna studio: the ERSTE bank
+ * logo assigned to "First content block" and the Pick n Pay logo to "Second content block" —
+ * their homepage about to publish two sponsors' brand marks as their photography.
+ *
+ * The ranking made it likelier, not less. Site slots carry no label, so the name-matching
+ * pass scores every pair 0 and is skipped, and the fallback sorts by pillarAffinity ASCENDING
+ * — least service-specific first, so that a picture named "boudoir" survives for the Boudoir
+ * page. A brand logo shares no token with any service, scores 0, and sorts to the very front.
+ * The heuristic protecting one page was handing the homepage to sponsors.
+ *
+ * SHAPE IS THE SIGNAL, and it costs nothing: the bytes are already in hand, and sharp is
+ * already a dependency, so this is a header parse with no extra network. A photograph
+ * published on a photography site is big. A logo is small, and often a wide strip.
+ *
+ * Fails OPEN. An unreadable header or a sharp that throws returns ok, because emptying every
+ * slot over a metadata quirk is worse than the occasional logo — and the studio can replace
+ * any slot from this very screen.
+ */
+const MIN_PHOTO_WIDTH = 500;
+const MIN_PHOTO_HEIGHT = 350;
+const MAX_PHOTO_ASPECT = 3;
+
+async function photographShape(buffer: Buffer): Promise<{ ok: boolean; why: string }> {
+  try {
+    const sharp = (await import('sharp')).default;
+    const md = await sharp(buffer).metadata();
+    const w = Number(md.width) || 0;
+    const h = Number(md.height) || 0;
+    if (!w || !h) return { ok: true, why: 'dimensions unknown' };
+    if (w < MIN_PHOTO_WIDTH || h < MIN_PHOTO_HEIGHT) {
+      return { ok: false, why: `${w}x${h}, too small for a photograph` };
+    }
+    const aspect = Math.max(w / h, h / w);
+    if (aspect > MAX_PHOTO_ASPECT) {
+      return { ok: false, why: `${w}x${h}, banner-shaped` };
+    }
+    return { ok: true, why: `${w}x${h}` };
+  } catch {
+    return { ok: true, why: 'could not be measured' };
+  }
+}
+
 async function download(url: string): Promise<{ buffer: Buffer; mime: string; name: string } | null> {
   try {
     const r = await fetch(url, { redirect: 'follow' });
@@ -248,14 +295,59 @@ export async function assignCrawledSiteImages(
       claimed.add(String(img.url));
     }
 
+    /**
+     * A REJECTED CANDIDATE FALLS THROUGH TO THE NEXT ONE.
+     *
+     * This took the single chosen image, and if the fetch failed it left the slot empty and
+     * moved on. Now that a download can also be refused for being a logo, one refusal would
+     * cost the studio the whole slot — so each slot gets its preference first and then the
+     * rest of the ordered candidates behind it.
+     *
+     * Bounded: a site with nothing but logos should give up rather than download forty of
+     * them. And a picture rejected for one slot is rejected for all of them — its shape does
+     * not change depending on which box it was going in.
+     */
+    const MAX_TRIES_PER_SLOT = 6;
+    const rejected = new Set<string>();
+    const storedUrls = new Set<string>();
+
     for (const slot of empty) {
-      const img = assignment.get(slot.section);
-      if (!img) continue;
-      const dl = await download(String(img.url));
-      if (!dl) {
-        console.warn(`[auto-images] could not fetch ${String(img.url).slice(0, 80)} for ${slot.section}`);
-        continue;
+      const preferred = assignment.get(slot.section);
+      const queue = [preferred, ...fallbackOrder].filter(Boolean);
+      let stored = false;
+      let tried = 0;
+
+      for (const img of queue) {
+        if (stored || tried >= MAX_TRIES_PER_SLOT) break;
+        const url = String(img.url);
+        if (storedUrls.has(url) || rejected.has(url) || usedUrls.has(url)) continue;
+        tried++;
+
+        const dl = await download(url);
+        if (!dl) {
+          console.warn(`[auto-images] could not fetch ${url.slice(0, 80)} for ${slot.section}`);
+          rejected.add(url);
+          continue;
+        }
+
+        const shape = await photographShape(dl.buffer);
+        if (!shape.ok) {
+          console.log(`[auto-images] skipped ${url.slice(0, 80)} for ${slot.section} — ${shape.why}`);
+          rejected.add(url);
+          continue;
+        }
+
+        storedUrls.add(url);
+        stored = true;
+        await storeCandidate(slot, img, dl);
       }
+
+      if (!stored) {
+        console.log(`[auto-images] ${slot.section} left empty — no candidate looked like a photograph`);
+      }
+    }
+
+    async function storeCandidate(slot: any, img: any, dl: { buffer: Buffer; mime: string; name: string }) {
       try {
         await storeSiteImage({
           section: slot.section,
