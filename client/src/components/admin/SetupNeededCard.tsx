@@ -36,6 +36,9 @@ import { useCapabilities } from '../../hooks/useCapabilities';
 
 const COLLAPSE_KEY = 'setupNeededCollapsed';
 
+/** Rows that are work rather than credentials, so the button can say the right verb. */
+const TASK_KEYS = new Set(['set_prices', 'import_clients']);
+
 /**
  * What to fix first, in the order a photography business actually needs it.
  *
@@ -45,15 +48,22 @@ const COLLAPSE_KEY = 'setupNeededCollapsed';
  * its registry order, after these.
  */
 const FIRST: string[] = [
+  // OPENAI FIRST. It is the one key that unlocks work rather than plumbing — the Price
+  // Wizard, the writing, the image analysis — and it is what makes the next item possible.
+  // It was fifth, behind three payment rows, on the reasoning that a business must be able
+  // to take money. True, but a studio cannot take money for packages that have no prices.
+  'ai_features',
+  'set_prices',           // nothing is for sale until these exist. A task, not a key.
   'sending_email',        // invoices, contracts and confirmations reach nobody without it
   'online_payments',      // and nothing can be paid for
   'payment_confirmation', // paid invoices stay marked unpaid until someone notices
+  'import_clients',       // every screen opens empty until they arrive. Also a task.
   'file_storage',         // galleries cannot be delivered
-  'ai_features',          // the writing and pricing help this product is bought for
+  'google_reviews',       // the reviews they have already earned, shown on their own site
 ];
 
 export default function SetupNeededCard() {
-  const { capabilities, loading } = useCapabilities();
+  const { capabilities, tasks, loading } = useCapabilities();
   const [collapsed, setCollapsed] = useState(() => {
     try { return sessionStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
   });
@@ -62,8 +72,37 @@ export default function SetupNeededCard() {
 
   // Only the studio's own. A platform-owned key is not theirs to add, and asking for it would
   // be asking for something they cannot give — capabilities.ts Rule 3.
-  const missing = Object.values(capabilities)
-    .filter((c: any) => c.owner === 'studio' && !c.available)
+  /**
+   * Credentials AND tasks, in one list.
+   *
+   * The card asked the capability registry alone, which answers "what needs a key". Two of
+   * the biggest things stopping a studio need no key at all — their prices and their clients
+   * — so neither could ever appear here however prominent the card became. Setting prices in
+   * particular is the one that decides whether the shop this product just built can sell
+   * anything.
+   */
+  const asRows = [
+    ...Object.values(capabilities)
+      .filter((c: any) => c.owner === 'studio' && !c.available)
+      .map((c: any) => ({
+        key: c.key,
+        label: c.label,
+        blockedMessage: c.blockedMessage,
+        settingsPath: c.settingsPath,
+        status: c.status,
+      })),
+    ...tasks
+      .filter((t) => !t.done)
+      .map((t) => ({
+        key: t.key,
+        label: t.label,
+        blockedMessage: t.blockedMessage,
+        settingsPath: t.path,
+        status: undefined as string | undefined,
+      })),
+  ];
+
+  const missing = asRows
     .sort((a: any, b: any) => {
       const ai = FIRST.indexOf(a.key);
       const bi = FIRST.indexOf(b.key);
@@ -166,7 +205,7 @@ export default function SetupNeededCard() {
                 to={c.settingsPath}
                 className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
               >
-                Connect
+                {TASK_KEYS.has(c.key) ? 'Set up' : 'Connect'}
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             )}

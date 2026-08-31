@@ -71,11 +71,48 @@ console.log('\n=== it is ordered by what a business actually needs ===');
 // The registry's order is roughly how the integrations were built. Reaching clients and being
 // paid come before writing help.
 check('an explicit priority is applied', /const FIRST/.test(card));
-const first = (cardRaw.match(/const FIRST: string\[\] = \[([\s\S]*?)\]/) || ['', ''])[1];
-check('email and payments lead it',
-  first.indexOf('sending_email') >= 0
-  && first.indexOf('sending_email') < first.indexOf('ai_features'),
-  'email before AI help');
+const first = (cardRaw.match(/const FIRST: string\[\] = \[([\s\S]*?)\n\];/) || ['', ''])[1];
+// The key that unlocks WORK comes before the ones that unlock plumbing, and prices come
+// before payments — a studio cannot take money for packages that have no price on them.
+const order = ['ai_features', 'set_prices', 'sending_email', 'online_payments', 'import_clients'];
+for (let i = 1; i < order.length; i++) {
+  check(`  "${order[i - 1]}" is asked for before "${order[i]}"`,
+    first.indexOf(order[i - 1]) >= 0
+    && first.indexOf(order[i]) > first.indexOf(order[i - 1]));
+}
+
+console.log('\n=== it lists work, not only credentials ===');
+
+// The card asked the capability registry alone, which answers "what needs a key". Two of the
+// biggest things stopping a studio need no key at all, so neither could ever appear here
+// however prominent the card became.
+const tasksLib = codeOnly(read('server/lib/firstTasks.ts'));
+check('the first tasks are computed', /export async function firstTasks/.test(tasksLib));
+// Seeded starter packages exist with price 0 and is_active false, so counting rows would
+// report "done" the moment onboarding created them.
+check('prices count as set only when something is actually priced',
+  /price IS NOT NULL AND price > 0/.test(tasksLib));
+check('clients count as imported when any exist', /FROM crm_clients/.test(tasksLib));
+check('the endpoint serves them', /tasks,/.test(codeOnly(read('server/routes/capabilities.ts'))));
+check('the hook carries them', /setTasks/.test(codeOnly(read('client/src/hooks/useCapabilities.ts'))));
+check('and the card renders them beside the credentials', /\.\.\.tasks\s*$/m.test(card) || /\.\.\.tasks/.test(card));
+// "Connect" over "Setting your prices" is nonsense.
+check('a task is not described as a connection', /TASK_KEYS\.has\(c\.key\) \? 'Set up' : 'Connect'/.test(card));
+// Kept out of CAPABILITIES on purpose: that registry means "gated on a credential", and
+// every refusal in the product reads it.
+check('tasks are not smuggled into the capability registry',
+  !/set_prices|import_clients/.test(caps));
+
+console.log('\n=== the things that were simply missing ===');
+
+// Neither existed in the registry, so neither could ever be asked for — while onboarding goes
+// to real trouble to capture the Google place id from the studio's own map link.
+check('Google reviews is a known capability', /key: 'google_reviews'/.test(caps));
+check('and can be resolved', /google_places_api_key/.test(caps));
+check('ShootCleaner is a known capability', /key: 'shootcleaner'/.test(caps));
+// The column shipped with the feature; the key was never registered, so nothing could read it.
+check('and its key is registered where config can read it',
+  /shootcleaner_api_key: \{ table: 'studio_configs'/.test(codeOnly(read('server/config-reader.ts'))));
 
 console.log('\n=== it does not nag twice, and does not vanish ===');
 

@@ -5,13 +5,19 @@
 // with three different-looking refusals.
 import { Router, type Request, type Response } from 'express';
 import { capabilityStates } from '../lib/capabilities';
+import { firstTasks } from '../lib/firstTasks';
 
 const router = Router();
 
 router.get('/', async (_req: Request, res: Response) => {
   try {
     const states = await capabilityStates();
+    // The things that need DOING rather than connecting — prices and clients. Same question
+    // the dashboard is asking, so the same request; kept out of CAPABILITIES because that
+    // registry means "gated on a credential" and eight other callers rely on it meaning that.
+    const tasks = await firstTasks().catch(() => []);
     res.json({
+      tasks,
       capabilities: states.map((c) => ({
         key: c.key,
         label: c.label,
@@ -33,7 +39,7 @@ router.get('/', async (_req: Request, res: Response) => {
     // the client as "no gates known", which leaves every screen usable — the opposite
     // failure, padlocking everything because a query threw, would be far worse.
     console.warn('[capabilities] could not evaluate:', e?.message || e);
-    res.json({ capabilities: [] });
+    res.json({ capabilities: [], tasks: [] });
   }
 });
 

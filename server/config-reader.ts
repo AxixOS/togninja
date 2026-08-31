@@ -189,6 +189,9 @@ const DB_FIELD_MAP: Record<string, { table: 'studio_configs' | 'studio_integrati
   // Per-tenant Social & Reviews (set in the setup wizard, not host env)
   google_places_api_key: { table: 'studio_integrations', column: 'google_places_api_key_encrypted' },
   google_places_place_id: { table: 'studio_integrations', column: 'google_places_place_id' },
+  // The column has existed since the ShootCleaner work shipped; it was never registered here,
+  // so nothing could resolve it and no capability could be written against it.
+  shootcleaner_api_key: { table: 'studio_configs', column: 'shootcleaner_api_key' },
   pulse_api_key: { table: 'studio_integrations', column: 'pulse_api_key_encrypted' },
   pulse_profiles: { table: 'studio_integrations', column: 'pulse_profiles' },
   pulse_mode: { table: 'studio_integrations', column: 'pulse_mode' },

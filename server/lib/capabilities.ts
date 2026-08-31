@@ -126,6 +126,33 @@ export const CAPABILITIES: Capability[] = [
       + 'account, ship under your name, and Prodigi supports you directly.',
   },
   {
+    // Missing from this registry entirely, so it could never be asked for — while the
+    // onboarding wizard goes to real trouble to capture the place id from the studio's own
+    // Maps link. Half the work was being done and none of it was being finished.
+    key: 'google_reviews',
+    label: 'Showing your Google reviews',
+    requires: ['google_places_api_key', 'google_places_place_id'],
+    owner: 'studio',
+    settingsPath: '/admin/settings/google',
+    worksWithout: 'Your site works; it just will not show the reviews you have already earned.',
+    blockedMessage:
+      'Add your Google Places key to show your real reviews and rating on your site. We '
+      + 'already know which listing is yours from the map link you gave during setup.',
+  },
+  {
+    // Same omission. The columns and the whole export path have existed since ShootCleaner
+    // shipped; the key was not even registered in config-reader, so nothing could read it.
+    key: 'shootcleaner',
+    label: 'Sending shoots to ShootCleaner',
+    requires: ['shootcleaner_api_key'],
+    owner: 'studio',
+    settingsPath: '/admin/settings/technical-setup',
+    worksWithout: 'Galleries, culling and delivery all work; only the hand-off is missing.',
+    blockedMessage:
+      'Add your ShootCleaner key to send a shoot straight from a gallery for culling and '
+      + 'editing, instead of exporting and re-uploading it by hand.',
+  },
+  {
     key: 'calendar_sync',
     label: 'Two-way calendar sync',
     requires: ['google_client_id', 'google_client_secret'],

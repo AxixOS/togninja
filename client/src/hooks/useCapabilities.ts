@@ -27,8 +27,18 @@ export interface CapabilityInfo {
   worksWithout: string;
 }
 
+/** Something to DO rather than connect — prices, clients. See server/lib/firstTasks.ts. */
+export interface FirstTask {
+  key: string;
+  label: string;
+  blockedMessage: string;
+  path: string;
+  done: boolean;
+}
+
 interface State {
   capabilities: Record<string, CapabilityInfo>;
+  tasks: FirstTask[];
   loading: boolean;
   /** Re-read after the studio saves a key, so the padlock goes away without a reload. */
   refresh: () => void;
@@ -36,6 +46,7 @@ interface State {
 
 export function useCapabilities(): State {
   const [capabilities, setCapabilities] = useState<Record<string, CapabilityInfo>>({});
+  const [tasks, setTasks] = useState<FirstTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
 
@@ -49,19 +60,20 @@ export function useCapabilities(): State {
         const map: Record<string, CapabilityInfo> = {};
         for (const c of d.capabilities || []) map[c.key] = c;
         setCapabilities(map);
+        setTasks(Array.isArray(d.tasks) ? d.tasks : []);
       })
       .catch(() => {
         // A failed check must never padlock. An empty map means "no gates known", which
         // leaves every screen usable — the opposite failure, locking the product because one
         // request timed out, would be far worse than briefly letting somebody press a button
         // that then reports its own error.
-        if (!cancelled) setCapabilities({});
+        if (!cancelled) { setCapabilities({}); setTasks([]); }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [tick]);
 
-  return { capabilities, loading, refresh: () => setTick((t) => t + 1) };
+  return { capabilities, tasks, loading, refresh: () => setTick((t) => t + 1) };
 }
 
 /**
