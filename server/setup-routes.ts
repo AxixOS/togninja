@@ -1230,7 +1230,13 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       // studio's property.
       'ga4_measurement_id', 'meta_pixel_id',
       // Presentation the wizard collects.
-      'tagline', 'primary_color',
+      //
+      // 'tagline' was here and is NOT A COLUMN — the tagline is stored in meta_description,
+      // which the explicit UPDATE above already clears. So this entry has thrown on every
+      // reset since it was written, been swallowed by the per-statement catch, and cleared
+      // nothing. Harmless by luck rather than design: had the tagline NOT been covered
+      // elsewhere, it would have leaked for exactly as long, just as quietly.
+      'primary_color',
       // The chosen style preset. Now that it drives the whole public site rather than just
       // the landing pages, a preset left behind means the next studio opens on the previous
       // studio's colours and typeface.
@@ -1251,7 +1257,53 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       // GBP studio following a GBP studio looks right for the wrong reason and any currency
       // defect stays invisible until the first tenant who uses a different one.
       'currency', 'vat_number', 'timezone', 'date_format',
+      /**
+       * WHO THE STUDIO IS. The worst of the leaks and the last to be noticed, because until
+       * v1.9.214 these were stored and never sent back to the form — so they survived every
+       * reset invisibly, and only became visible when the About-you card started showing
+       * what was in the database.
+       *
+       * Observed on a supposedly fresh instance: "Matthew Jones", "Founder and Lead
+       * Photographer", 1999, and a credentials list containing the ORIGIN studio's own
+       * marketing copy — "Fast 30 Jahre. Drei Länder. Über 27.000 Familien." — presented to
+       * a new studio as their own answers, on the page that publishes them to Google.
+       */
+      'owner_name', 'owner_role', 'owner_portrait_url', 'founding_year', 'credentials',
+      // The address shown as the studio's own. Left behind, a new tenant's site published
+      // hello@axixos.com as their contact address. owner_email is NOT NULL and so cannot be
+      // cleared this way — see the statement after this loop.
+      'email',
+      /**
+       * Added to studio_configs YESTERDAY and left out of this list on the same day.
+       *
+       * That is the argument against this list existing at all: it is an allow-list of things
+       * to clear, so every column anyone adds is retained BY DEFAULT and the reset rots
+       * quietly as the schema grows. business_type went into the schema, the save and the
+       * round-trip, and nobody thought of the reset — so it leaked on the very next one.
+       */
+      'business_type',
+      // Presentation and paperwork the previous tenant chose. document_design carries their
+      // letterhead; the tax fields carry their rate, which a new studio in another country
+      // would inherit and invoice on.
+      'active_template', 'secondary_color', 'document_design', 'default_tax_rate', 'tax_label',
     ];
+    /**
+     * owner_email is NOT NULL, so it cannot go in the list above.
+     *
+     * Every statement in this handler is wrapped in its own swallowing try/catch, so putting
+     * it there would have thrown, been eaten, and left the previous tenant's address in place
+     * with nothing reported — the exact failure mode that hid the reopen bug in v1.9.213.
+     *
+     * Reset to the placeholder the insert path in POST /basics already uses for a studio who
+     * has not given one, rather than an empty string, so the column holds the same neutral
+     * value a genuinely fresh instance would have.
+     */
+    try {
+      await db.execute(sql`UPDATE studio_configs SET owner_email = 'setup@togninja.com'`);
+    } catch (e: any) {
+      console.warn('[reset-demo] could not clear owner_email:', e?.message || e);
+    }
+
     for (const col of CLEAR_TO_EMPTY) {
       try { await db.execute(sql.raw(`UPDATE studio_configs SET ${col} = ''`)); } catch { /* absent on this instance */ }
     }
