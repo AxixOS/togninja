@@ -203,7 +203,11 @@ for (const key of ['domain', 'email', 'stripe', 'storage', 'extras', 'calendar',
 check('the long version is still reachable', /Set everything up now/.test(wiz));
 // A toggle that changes the list without resetting the cursor renders the wrong step.
 check('toggling resets the step index', /setEssentialsOnly\(\(v\) => !v\); setIndex\(0\)/.test(wiz));
-check('a stale index cannot render undefined', /const safeIndex = Math\.min\(index/.test(wiz));
+// The CLAMP, not the name of what is clamped. This pinned `Math.min(index`, so renaming the
+// input to `resolvedIndex` — because the position now comes from the server when this tab has
+// never been told — failed a check whose property was untouched. Fourth time in this file.
+check('a stale index cannot render undefined',
+  /const safeIndex = Math\.min\([a-zA-Z]+, Math\.max\(VISIBLE\.length - 1, 0\)\)/.test(wiz));
 
 console.log('\n=== every deferred key is gated somewhere ===');
 // This is the promise the short path makes: skip it now, meet it where it matters.

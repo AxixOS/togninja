@@ -611,6 +611,48 @@ router.get('/status', async (_req: Request, res: Response) => {
     const basicsComplete = hasVal(config?.businessName);
     const integrationsComplete = state.integrationsComplete || ci.stripeConnected;
 
+    /**
+     * WHICH OF THE WIZARD'S OWN STEPS ARE DONE.
+     *
+     * The wizard knew where the studio was ONLY from sessionStorage, and drew its progress bar
+     * from the cursor position: percent = index / lastIndex. So opening /setup in a second tab
+     * — which the "Finish setup" link on the dashboard does — showed step 1 of 6 and "0%
+     * complete" to a studio whose look, basics, photographs and admin account were all saved.
+     * Nothing was lost, but it reads exactly like everything was, and it invites redoing work
+     * that is already done.
+     *
+     * currentStep below cannot answer this: it names the OLD eighteen-step flow's stages
+     * (basics -> integrations -> scanning), not the six the wizard actually shows. So this
+     * reports each of those six by name, from the database, which is the only place that
+     * survives a new tab, another machine, or cleared storage.
+     *
+     * Deliberately cheap: two counts and four field reads on a route the wizard already polls.
+     */
+    const countOf = async (sql_: any): Promise<number> => {
+      try {
+        const r: any = await db.execute(sql_);
+        return Number(r?.rows?.[0]?.n ?? 0);
+      } catch {
+        return 0;
+      }
+    };
+    const photographCount = await countOf(sql`SELECT count(*)::int AS n FROM homepage_images WHERE is_active`);
+    const adminCount = await countOf(sql`SELECT count(*)::int AS n FROM admin_users`);
+    const pricingCount = await countOf(sql`SELECT count(*)::int AS n FROM price_wizard_sessions`);
+
+    const stepsComplete = {
+      // A look is chosen the moment either half of it is stored; both have defaults, so the
+      // stored value is what says the studio was actually asked.
+      look: hasVal((config as any)?.siteLayout) || hasVal((config as any)?.siteThemePreset),
+      basics: basicsComplete,
+      photographs: photographCount > 0,
+      // The account step is the one thing here that cannot be half-done.
+      security: adminCount > 0,
+      // Optional by design — having opened it at all is the most that can be claimed.
+      pricing: pricingCount > 0,
+      scanning: !!state.scanComplete,
+    };
+
     const phases = {
       basics: {
         complete: basicsComplete,
@@ -704,6 +746,9 @@ router.get('/status', async (_req: Request, res: Response) => {
       currentStep,
       progressPct: Math.round((doneCount / 5) * 100),
       phases,
+      // The six steps the wizard actually shows, by name. See the note where it is built:
+      // the wizard could otherwise only ask sessionStorage, which a second tab does not have.
+      stepsComplete,
       setupMode: !config?.creativeSetupComplete,
       demoMode: process.env.DEMO_MODE === 'true',
       features: hubIntegration.getFeatureFlags(),

@@ -167,6 +167,43 @@ check('the read only starts when one has not already run',
   /gen\.status !== 'idle'/.test(images));
 check('and never twice in the same visit', /kicked/.test(images));
 
+console.log('\n=== a new tab does not throw away a morning\'s work ===');
+
+// The wizard knew where the studio was ONLY from sessionStorage, which belongs to one tab —
+// and drew its progress bar from cursor position, percent = index / lastIndex. So the
+// dashboard's "Finish setup" link, opening /setup fresh, showed "Step 1 of 6, 0% complete" to
+// a studio whose look, basics, photographs and admin account were all saved. Nothing was
+// lost; it read exactly as though everything had been.
+// Anchored on the RESPONSE. /stepsComplete/ over the file matched the const that builds it,
+// so deleting the line that SENDS it stayed green — the same trap as every other
+// declaration-not-use check in this repo.
+const statusResponse = (() => {
+  const at = setupRoutes.indexOf('      currentStep,');
+  return at < 0 ? '' : setupRoutes.slice(at, at + 500);
+})();
+check('the server reports the six steps by name', /stepsComplete/.test(statusResponse));
+for (const k of ['look', 'basics', 'photographs', 'security', 'pricing', 'scanning']) {
+  check(`  "${k}" is reported`, new RegExp('\\b' + k + ':').test(
+    setupRoutes.slice(setupRoutes.indexOf('const stepsComplete'), setupRoutes.indexOf('const stepsComplete') + 900)));
+}
+check('the wizard reads it', /setupStatus\?\.stepsComplete/.test(wizard));
+// null, not 0 — "we do not know yet" has to be distinguishable from "they are at the start".
+check('an unknown position is not assumed to be the start', /useState<number \| null>/.test(wizard));
+// The USE, not the declaration — pointing resolvedIndex back at 0 left the const in place.
+check('and resolves to the first unfinished step',
+  /index === null \? firstUnfinished : index/.test(wizard));
+// Progress is work done, not how far they have clicked. Otherwise stepping back to change a
+// colour scheme looks like undoing four steps.
+check('progress counts finished steps',
+  /completedCount \/ VISIBLE\.length/.test(wizard));
+check('not cursor position', !/safeIndex \/ last/.test(wizard));
+// strictNullChecks is off here, so `null + 1` silently became 1 — resuming at step four and
+// sending the studio to step two on Continue. Nothing would have reported it.
+check('moving on works from a resumed position',
+  /setIndex\(Math\.min\(safeIndex \+ 1/.test(wizard) && /setIndex\(Math\.max\(safeIndex - 1/.test(wizard));
+check('and the sidebar agrees with the card on screen',
+  /const active = idx === safeIndex;/.test(wizard));
+
 console.log('\n=== there is always a way back ===');
 
 // This phase was the only one the wizard never handed an onBack, and its Back control was

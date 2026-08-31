@@ -73,13 +73,17 @@ export default function UnifiedSetupWizard() {
   // sessionStorage rather than the URL: the step is not a thing to link to or go back
   // through, and it belongs to this sitting rather than to the machine.
   const STEP_KEY = 'setupStepIndex';
-  const [index, setIndex] = useState<number>(() => {
+  // null, not 0, when there is nothing stored. The difference matters: 0 means "they are on
+  // the first step", null means "we do not know yet" — and the server does. See the resume
+  // effect below.
+  const [index, setIndex] = useState<number | null>(() => {
     try {
       const raw = sessionStorage.getItem(STEP_KEY);
-      const n = raw === null ? 0 : Number(raw);
+      if (raw === null) return null;
+      const n = Number(raw);
       return Number.isFinite(n) && n >= 0 ? n : 0;
     } catch {
-      return 0;
+      return null;
     }
   });
 
@@ -95,6 +99,7 @@ export default function UnifiedSetupWizard() {
   // Written on every move so a reload resumes where they were. Clamped on read rather than
   // here, because VISIBLE changes length when the studio switches to the long path.
   useEffect(() => {
+    if (index === null) return;
     try { sessionStorage.setItem(STEP_KEY, String(index)); } catch {}
   }, [index]);
 
@@ -123,10 +128,14 @@ export default function UnifiedSetupWizard() {
       void finish();
       return;
     }
-    setIndex((i) => Math.min(i + 1, VISIBLE.length - 1));
+    // safeIndex, NOT the raw state. `index` is null until this tab knows where the studio is,
+    // and the functional form computed `null + 1` — which is 1, so a studio resumed at step
+    // four and sent to step two by pressing Continue. strictNullChecks is off in this project,
+    // so nothing would have said so. safeIndex is always the step actually on screen.
+    setIndex(Math.min(safeIndex + 1, VISIBLE.length - 1));
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  const goBack = () => setIndex((i) => Math.max(i - 1, 0));
+  const goBack = () => setIndex(Math.max(safeIndex - 1, 0));
   const finish = async () => {
     try {
       await fetch('/api/setup/technical/complete', { method: 'POST' });
@@ -217,11 +226,41 @@ export default function UnifiedSetupWizard() {
   // is deleted, and a studio who wants every step still has them.
   const VISIBLE = essentialsOnly ? STEPS.filter((st) => st.essential) : STEPS;
 
+  /**
+   * WHERE THEY ACTUALLY ARE, when this tab has never been told.
+   *
+   * The stored index lives in sessionStorage, which belongs to ONE TAB. The dashboard's
+   * "Finish setup" link opens /setup fresh, so the studio met step 1 of 6 and "0% complete"
+   * with their look, basics, photographs and admin account all saved — the wizard apparently
+   * having forgotten a morning's work. It had not; it was reading the only place it knew,
+   * and that place was empty.
+   *
+   * So when there is nothing stored, ask the server which steps are done and open the first
+   * that is not. Falls back to the beginning, which is the honest answer for a studio who
+   * genuinely has done nothing.
+   */
+  const completed: Record<string, boolean> = setupStatus?.stepsComplete || {};
+  const firstUnfinished = (() => {
+    const at = VISIBLE.findIndex((st) => !completed[st.key]);
+    return at < 0 ? Math.max(VISIBLE.length - 1, 0) : at;
+  })();
+  const resolvedIndex = index === null ? firstUnfinished : index;
+
   // A stale index after toggling would render the wrong step or crash on undefined.
-  const safeIndex = Math.min(index, Math.max(VISIBLE.length - 1, 0));
+  const safeIndex = Math.min(resolvedIndex, Math.max(VISIBLE.length - 1, 0));
   const last = Math.max(VISIBLE.length - 1, 0);
   const current = VISIBLE[safeIndex] || VISIBLE[0];
-  const progressPct = last > 0 ? Math.round((safeIndex / last) * 100) : 0;
+
+  /**
+   * Progress is WORK DONE, not cursor position.
+   *
+   * This was `safeIndex / last`, so it measured how far along the studio had clicked rather
+   * than how much was finished — which is why a fresh tab read 0% over a nearly complete
+   * setup, and why stepping back to change a colour scheme appeared to undo everything.
+   * Counting finished steps means going back to edit one no longer looks like losing four.
+   */
+  const completedCount = VISIBLE.filter((st) => completed[st.key]).length;
+  const progressPct = VISIBLE.length ? Math.round((completedCount / VISIBLE.length) * 100) : 0;
 
   // Group step indices for the sidebar
   const groups: { name: string; steps: { def: StepDef; idx: number }[] }[] = [];
@@ -362,9 +401,20 @@ export default function UnifiedSetupWizard() {
                   <div className="text-xs uppercase tracking-wider text-gray-400 font-semibold mb-2 px-1">{g.name}</div>
                   <div className="space-y-1">
                     {g.steps.map(({ def, idx }) => {
-                      const done = idx < index;
-                      const active = idx === index;
-                      const visited = idx <= index;
+                      // safeIndex, not the raw state, and the server's answer for the tick.
+                      //
+                      // These three read `index` while the card beside them renders `safeIndex` — so
+                      // whenever the two differed nothing showed as active while a step was
+                      // plainly on screen. With the resume fix `index` is also null until this
+                      // tab learns where the studio is, and every comparison against null is
+                      // false, which would have greyed out the whole sidebar.
+                      //
+                      // A step is ticked when the SERVER says it is finished, so a studio who
+                      // returns in a new tab sees the four things they did this morning ticked
+                      // rather than a blank list.
+                      const done = completed[def.key] || idx < safeIndex;
+                      const active = idx === safeIndex;
+                      const visited = idx <= safeIndex || completed[def.key];
                       return (
                         <button
                           key={def.key}
