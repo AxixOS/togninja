@@ -306,7 +306,11 @@ check('and no photograph is used on two pages',
 const scaffoldBlock = (() => {
   const awaitAt = pipeline.indexOf('await scaffoldPillarPages(');
   if (awaitAt < 0) return '';
-  const openAt = pipeline.lastIndexOf('.then(async () => {', awaitAt);
+  // `.then(async (` — with or without parameters. This pinned the empty-argument form, so
+  // giving that callback the map's outcome to inspect broke a check whose property was
+  // untouched. The property is "the pillar images are assigned inside the callback that
+  // awaited the scaffold", and it does not care what arguments the callback takes.
+  const openAt = pipeline.lastIndexOf('.then(async (', awaitAt);
   if (openAt < 0) return '';
   let depth = 0;
   for (let i = pipeline.indexOf('{', openAt); i < pipeline.length; i++) {
