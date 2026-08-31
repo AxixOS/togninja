@@ -154,11 +154,14 @@ function SlotCard({
   onUploaded,
   ownImages,
   storageReady = true,
+  crawlRunning = false,
 }: {
   slot: Slot;
   onUploaded: () => void;
   ownImages: CrawledImage[];
   storageReady?: boolean;
+  /** The read is still going, so this studio's own photographs are not all here yet. */
+  crawlRunning?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -220,14 +223,34 @@ function SlotCard({
           size="sm"
           className="mt-3 w-full"
           onClick={() => inputRef.current?.click()}
-          disabled={upload.isPending || !storageReady}
+          disabled={upload.isPending || !storageReady || crawlRunning}
         >
           {slot.filled ? 'Replace' : 'Add image'}
         </Button>
+        {/*
+          NOTHING TO CLICK WHILE THE READ IS STILL GOING.
+
+          These slots were live from the moment the step opened, next to a panel saying
+          "Meanwhile, we are reading your website". So the offer was: go and find a file on
+          your computer now, while we fetch the photographs already on your site. A studio who
+          took it did the work twice — uploaded a hero by hand, then watched their own
+          pictures appear underneath a minute later.
+
+          Disabled, with the reason said out loud, is the honest version. It is a short wait
+          and it ends with a better choice than the one being taken away.
+        */}
+        {crawlRunning && (
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Waiting until we have finished reading your website — your own photographs will
+            appear here to choose from.
+          </p>
+        )}
         {/* The picker goes through the same upload path, so it is subject to the same
             answer — offering it while uploads cannot succeed shows a studio their own
             photographs and then refuses to give them one. */}
-        {storageReady && <OwnPhotographs slot={slot} images={ownImages} onUsed={onUploaded} />}
+        {storageReady && !crawlRunning && (
+          <OwnPhotographs slot={slot} images={ownImages} onUsed={onUploaded} />
+        )}
       </div>
     </div>
   );
@@ -436,7 +459,7 @@ export default function SiteImagesPhase({
             Your site
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {site.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} storageReady={storageReady} />)}
+            {site.map((s) => <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} storageReady={storageReady} crawlRunning={readRunning} />)}
           </div>
         </section>
         )}
@@ -469,7 +492,7 @@ export default function SiteImagesPhase({
                       )}
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                         {forPage.map((s) => (
-                          <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} storageReady={storageReady} />
+                          <SlotCard key={s.section} slot={s} onUploaded={refresh} ownImages={ownImages} storageReady={storageReady} crawlRunning={readRunning} />
                         ))}
                       </div>
                     </div>

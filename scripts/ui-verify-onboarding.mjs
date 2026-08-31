@@ -148,13 +148,21 @@ check('and nothing blocks Continue on an unfilled slot',
 check('the step is told whether uploads can succeed',
   setupRoutes.includes('storageReady,') && setupRoutes.includes('getS3Config().isConfigured'));
 
+// Matched on the CONDITION, not the whole expression. This pinned the exact string
+// `disabled={upload.isPending || !storageReady}`, so adding a second, unrelated reason to
+// disable the button — waiting for the crawl to finish — failed a check whose property was
+// still perfectly true. A guard that breaks when the code around it grows teaches people to
+// edit the guard, which is how it stops meaning anything.
 check('and refuses up front rather than after a file picker',
-  images.includes('disabled={upload.isPending || !storageReady}')
+  /disabled=\{[^}]*!storageReady[^}]*\}/.test(images)
   && images.includes('We cannot store photographs yet'));
 
 // The picker uses the same upload path, so it must be subject to the same answer.
+// Same reasoning as above: what matters is that storageReady stands in front of the picker,
+// not that it is the only thing standing there.
 check('the own-photograph picker is gated with it',
-  images.includes('{storageReady && <OwnPhotographs'));
+  /\{storageReady &&[^}]{0,40}<OwnPhotographs/.test(images)
+  || /\{storageReady && !crawlRunning && \([\s\S]{0,80}<OwnPhotographs/.test(images));
 
 // Defaulting to true matters: a client running against a server that has not redeployed
 // yet must behave exactly as before, not lock every studio out of uploading.

@@ -123,6 +123,26 @@ check('product defaults are applied only when creating the row',
   /dateFormat: fields\.dateFormat \|\| 'auto'/.test(insert)
   && /currency: fields\.currency \|\| 'EUR'/.test(insert));
 
+console.log('\n=== the studio is not invited to do work twice ===');
+
+// The image slots were live from the moment the step opened, beside a panel reading
+// "Meanwhile, we are reading your website". So a studio could go and find a hero on their
+// computer while the crawl was fetching the photographs already on their site — doing the
+// job by hand a minute before the better option appeared underneath it.
+const images = codeOnly(read('client/src/pages/setup/phases/SiteImagesPhase.tsx'));
+check('the slot knows the read is still running', /crawlRunning/.test(images));
+check('uploading waits for it',
+  /disabled=\{upload\.isPending \|\| !storageReady \|\| crawlRunning\}/.test(images));
+// A disabled control with no reason beside it reads as broken rather than deliberate.
+check('and says why', /Waiting until we have finished reading your website/.test(images));
+// Offering the picker mid-crawl shows a partial set as though it were all of them.
+check('their own photographs are offered only once the set is complete',
+  /storageReady && !crawlRunning &&/.test(images));
+// Both groups of slots, not just the site-wide three.
+check('every slot gets the flag',
+  (images.match(/crawlRunning=\{readRunning\}/g) || []).length === 2,
+  `${(images.match(/crawlRunning=\{readRunning\}/g) || []).length} of 2 call sites`);
+
 console.log('\n=== there is always a way back ===');
 
 // This phase was the only one the wizard never handed an onBack, and its Back control was
