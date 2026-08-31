@@ -1,5 +1,5 @@
 import { ExternalLink, LayoutDashboard, PartyPopper, AlertTriangle } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useCapabilities } from '@/hooks/useCapabilities';
 import { Button } from '@/components/ui/button';
 
 /**
@@ -25,25 +25,33 @@ import { Button } from '@/components/ui/button';
  * admin existed, and this card would have congratulated a studio on a CRM that could not send
  * an invoice.
  */
-const LABEL: Record<string, string> = {
-  email: 'sending email to clients',
-  stripe: 'taking card payments',
-  storage: 'storing photographs',
-  extras: 'writing your website copy',
-  domain: 'your public web address',
-};
+// The LABEL map that used to live here is gone with the six-key steps object it
+// translated. Capability labels are written once, in server/lib/capabilities.ts, and
+// every screen that names a missing piece now uses those words.
 
 export default function SetupCompleteCard() {
-  const { data: tech } = useQuery<any>({
-    queryKey: ['/api/setup/technical/status', 'complete-card'],
-    queryFn: async () => (await fetch('/api/setup/technical/status')).json(),
-    staleTime: 0,
-  });
+  /**
+   * THE SAME SOURCE THE DASHBOARD USES, because they were answering with different numbers.
+   *
+   * This counted falsy entries in GET /api/setup/technical/status's `steps`, which is a fixed
+   * six-key object built by measureSteps() — and only FOUR of those keys are capabilities
+   * (email, stripe, storage, extras). So this card could never report more than five things,
+   * and in practice looked at four of the ten in the registry. It said "3 things still to
+   * connect" while the dashboard banner, reading /api/capabilities, said 6 at the same moment.
+   *
+   * A studio who saw both learned that the product does not know its own state. The registry
+   * is the thing every refusal in the product already reads, so it is the one that answers.
+   */
+  const { capabilities, tasks } = useCapabilities();
 
-  // security is the admin account, which by definition exists by the time this renders.
-  const missing = Object.entries((tech?.steps || {}) as Record<string, boolean>)
-    .filter(([k, v]) => !v && k !== 'security' && LABEL[k])
-    .map(([k]) => LABEL[k]);
+  const missing = [
+    ...Object.values(capabilities)
+      .filter((c: any) => c.owner === 'studio' && !c.available)
+      .map((c: any) => String(c.label).toLowerCase()),
+    // The work that needs no credential — prices and clients — for the same reason the
+    // dashboard lists it: a studio who cannot sell anything is not finished.
+    ...tasks.filter((t) => !t.done).map((t) => t.label.toLowerCase()),
+  ];
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">

@@ -1183,7 +1183,13 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     // "fresh" reset inherited the previous studio's published website copy and its
     // uploaded images — an end-to-end onboarding test then started with the last
     // tenant's homepage text still in place, which is the opposite of a clean slate.
-    for (const t of ['manual_page_content', 'homepage_images', 'portfolio_images', 'ui_translations', 'i18n_settings', 'website_pages', 'crawl_jobs', 'theme_analysis', 'onboarding_sessions', 'user_sessions', 'questionnaire_responses', 'questionnaire_links', 'competitor_prices', 'price_list_suggestions', 'competitor_research', 'price_wizard_sessions', 'gallery_order_items', 'gallery_orders', 'print_orders', 'workflow_step_executions', 'workflow_executions', 'workflow_instances', 'workflow_analytics']) {
+    for (const t of ['manual_page_content', 'homepage_images', 'portfolio_images', 'ui_translations', 'i18n_settings', 'website_pages', 'crawl_jobs', 'theme_analysis', 'onboarding_sessions', 'user_sessions', 'questionnaire_responses', 'questionnaire_links', 'competitor_prices', 'price_list_suggestions', 'competitor_research', 'price_wizard_sessions',
+      // price_list_items was NOT here while price_list_suggestions was — so the research was
+      // cleared and THE PRICES THEMSELVES survived. That is the studio's own price list, the
+      // one that fills "Select from Price List" on an invoice, so a new studio inherited the
+      // previous one's packages and could bill a client with them. Found by checking the row
+      // counts after a reset rather than by reading the list: two rows were still there.
+      'price_list_items', 'gallery_order_items', 'gallery_orders', 'print_orders', 'workflow_step_executions', 'workflow_executions', 'workflow_instances', 'workflow_analytics']) {
       try { await db.execute(sql.raw(`TRUNCATE ${t} RESTART IDENTITY CASCADE`)); } catch { /* skip */ }
     }
     // Reset the studio_configs singleton to blank pre-onboarding state (keep the row +

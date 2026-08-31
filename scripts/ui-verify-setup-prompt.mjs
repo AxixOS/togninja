@@ -126,5 +126,18 @@ check('the thin strip stands down on the dashboard',
 check('the card collapses rather than disappearing', /setCollapsed/.test(card));
 check('and has no dismiss-for-ever', !/DISMISS_KEY/.test(card));
 
+console.log('\n=== every screen counts the same things ===');
+
+// The completion card said "3 things still to connect" while the dashboard banner said 6 at
+// the same moment. The card counted falsy entries in measureSteps()' fixed six-key object, of
+// which only four are capabilities — so it could never report more than five, and looked at
+// four of the ten in the registry. A studio who saw both learned the product does not know its
+// own state.
+const completeCard = codeOnly(read('client/src/pages/setup/SetupCompleteCard.tsx'));
+check('the completion card reads the capability registry', /useCapabilities\(\)/.test(completeCard));
+check('and not the technical-status step object', !/technical\/status/.test(completeCard));
+check('it counts the studio-owned ones', /c\.owner === 'studio' && !c\.available/.test(completeCard));
+check('and the outstanding work too', /tasks\.filter\(\(t\) => !t\.done\)/.test(completeCard));
+
 console.log(bad ? `\n${bad} FAILING\n` : '\nall good\n');
 process.exit(bad ? 1 : 0);
