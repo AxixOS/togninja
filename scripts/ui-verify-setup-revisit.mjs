@@ -143,6 +143,30 @@ check('every slot gets the flag',
   (images.match(/crawlRunning=\{readRunning\}/g) || []).length === 2,
   `${(images.match(/crawlRunning=\{readRunning\}/g) || []).length} of 2 call sites`);
 
+console.log('\n=== the photographs appear when they are found ===');
+
+// The picker was fetched once, on the same mount that STARTS the crawl, with a five minute
+// staleTime and nothing invalidating the key — so it was guaranteed to show an empty list for
+// that entire visit. Observed as "it found them but very delayed": 34 photographs sitting in
+// the database, invisible because the screen had stopped asking.
+const ownQuery = (() => {
+  const at = images.indexOf("queryKey: ['setup-crawled-images']");
+  return at < 0 ? '' : images.slice(Math.max(0, at - 200), at + 500);
+})();
+check('the crawled-photograph query was found', ownQuery.length > 0);
+check('it asks again while the read is unfinished', /refetchInterval/.test(ownQuery));
+check('and stops once the run is over', /GEN_TERMINAL\.includes\(run\.status\)/.test(ownQuery));
+check('a finished run refreshes it once more',
+  /invalidateQueries\(\{ queryKey: \['setup-crawled-images'\] \}\)/.test(images));
+
+// The server's only idempotency guard is status === 'running'. An unconditional POST on mount
+// therefore started a WHOLE NEW run whenever it arrived at a finished one — new crawl_jobs
+// row, and crawledImages() reads only the newest job, so the studio's photographs vanished
+// from the picker they had come back to use. The sidebar invites exactly that revisit.
+check('the read only starts when one has not already run',
+  /gen\.status !== 'idle'/.test(images));
+check('and never twice in the same visit', /kicked/.test(images));
+
 console.log('\n=== there is always a way back ===');
 
 // This phase was the only one the wizard never handed an onBack, and its Back control was

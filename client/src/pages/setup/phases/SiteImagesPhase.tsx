@@ -297,6 +297,28 @@ export default function SiteImagesPhase({
     queryKey: ['setup-crawled-images'],
     queryFn: () => fetch('/api/setup/crawled-images').then((r) => r.json()),
     staleTime: 5 * 60 * 1000,
+    /**
+     * ASK AGAIN WHILE THE READ IS STILL GOING.
+     *
+     * This was fetched exactly once, on the same mount that STARTS the crawl, with a five
+     * minute staleTime and nothing anywhere invalidating the key. So the answer was
+     * guaranteed to be the empty list for that whole visit, however long the studio waited
+     * and however many photographs the crawler had by then found. Their pictures were
+     * arriving in the database the entire time; the screen had simply stopped asking.
+     *
+     * Observed as "it found them but very delayed" — the delay was not the crawl, it was
+     * this. Thirty-four photographs, sitting there, invisible until something else happened
+     * to invalidate the query.
+     *
+     * Polls only while the run is unfinished, and stops the moment it is. Read from the
+     * cache rather than a prop because the status query is declared below this one; a
+     * terminal state ends the polling for both.
+     */
+    refetchInterval: () => {
+      const run = qc.getQueryData<any>(['homepage-gen-status']);
+      if (!run || GEN_TERMINAL.includes(run.status)) return false;
+      return 3000;
+    },
   });
   const ownImages = own?.images || [];
 
@@ -312,12 +334,8 @@ export default function SiteImagesPhase({
   // while the studio picks photographs, so two useful things happen at once instead of one
   // of them being watched. The endpoint refuses to double-fire a running job, so the scan
   // step calling it again later is harmless, and skipping this step changes nothing.
-  useEffect(() => {
-    if (!startScan) return;
-    fetch('/api/setup/homepage/generate', { method: 'POST' }).catch(() => {
-      /* The scan step will try again. Never block the upload on this. */
-    });
-  }, [startScan]);
+  // Moved below the status query — it now has to know what the run is doing before firing.
+  // See the effect after `readFindings`.
 
   // What the read is finding, while they choose photographs. The same feed the scan step
   // shows — not a second progress display with its own idea of what is happening.
@@ -333,6 +351,42 @@ export default function SiteImagesPhase({
   });
   const readRunning = gen?.status === 'running';
   const readFindings = Array.isArray(gen?.findings) ? gen.findings : [];
+
+  /**
+   * START THE READ, BUT ONLY IF ONE HAS NOT ALREADY HAPPENED.
+   *
+   * This was an unconditional POST on mount. The server's only idempotency guard is
+   * `status === 'running'`, so a mount arriving at a FINISHED run sailed past it and started
+   * a brand new pipeline: a fresh crawl_jobs row, and crawledImages() reads only the newest
+   * job — so the studio's thirty-four photographs vanished from the picker until the new
+   * crawl caught up. It also resets the draft id, so a hero uploaded in that window attaches
+   * to nothing.
+   *
+   * That is not hypothetical and it is not new: the sidebar invites going back to a completed
+   * step ("nothing is lost"), and doing so re-ran the whole thing and emptied the picker the
+   * studio had come back to use. It also spends one of five lifetime runs each time.
+   *
+   * ScanningPhase has always done this correctly — `hp.status === 'idle' && hp.hasWebsite`.
+   * This is the same test. `kicked` stops a second fire in the window before the status query
+   * refreshes.
+   */
+  const [kicked, setKicked] = useState(false);
+  useEffect(() => {
+    if (!startScan || kicked || !gen) return;
+    if (gen.status !== 'idle' || gen.hasWebsite === false) return;
+    setKicked(true);
+    fetch('/api/setup/homepage/generate', { method: 'POST' }).catch(() => {
+      /* The scan step will try again. Never block the upload on this. */
+    });
+  }, [startScan, kicked, gen]);
+
+  // The last word on the picker. A run that has just finished has photographs the poll above
+  // stopped asking for one tick earlier, so the terminal transition asks once more.
+  useEffect(() => {
+    if (gen && GEN_TERMINAL.includes(gen.status)) {
+      qc.invalidateQueries({ queryKey: ['setup-crawled-images'] });
+    }
+  }, [gen?.status, qc]);
   /** The run ended without producing service slots. Not "still reading". */
   const readStopped = GEN_TERMINAL.includes(gen?.status) && gen?.status !== 'ready';
   /**

@@ -103,8 +103,13 @@ check('a hero uploaded before generation reaches the draft',
 // before or after the draft is written, and either way the picture is on it.
 
 // ── The upload runs while the site is read ──────────────────────────────────
+// Matched on the PROPERTY — startScan gates it, and it POSTs the generate endpoint — rather
+// than on one exact line. This pinned `if (!startScan) return;`, so adding the condition that
+// stops a revisit re-crawling and wiping the studio's own photographs out of the picker broke
+// a check whose meaning was untouched. Third time this file has taught that lesson; a guard
+// that fails when the code around it grows gets edited rather than heeded.
 check('the photographs step starts the website read',
-  images.includes('if (!startScan) return;')
+  /if \(!startScan[^)]*\) return;/.test(images)
   && images.includes("fetch('/api/setup/homepage/generate'"));
 
 // This asserted the step was SPLIT — site slots early, service slots in a later step. The
