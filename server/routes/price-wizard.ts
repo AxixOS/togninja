@@ -87,12 +87,52 @@ router.post('/discover', async (req, res) => {
 
     const { location, services } = sessionResult.rows[0];
 
-    // Discover competitors
-    const competitors = await discovery.discoverCompetitors({
-      location,
-      services,
-      maxResults,
-    });
+    /**
+     * THE REAL SEARCH FIRST. This endpoint used only the fallback.
+     *
+     * It called discovery.discoverCompetitors() and nothing else — the Google-scrape service
+     * whose own comment says "real discovery is handled by Tavily (see PriceResearchService);
+     * this direct Google-scrape [is best-effort]". It fetches google.com/search from the
+     * server, so from a datacenter IP it gets a consent page rather than results. Zero, every
+     * city, every time — and this is the endpoint the ONBOARDING pricing step calls, so the
+     * feature had never worked there. Observed live: nothing found in Hoi An, then nothing in
+     * Vienna, a city with hundreds of photographers who publish their prices.
+     *
+     * The working providers were one function away the whole time. searchProvider() resolves
+     * the studio's own key first, then the platform's — the same resolution /research uses.
+     * The scrape stays as a last resort rather than the only resort.
+     */
+    let competitors: Array<{ name: string; website: string; location?: string; source: string }> = [];
+    let discoverySource: 'provider' | 'scrape' = 'provider';
+    const provider = await searchProvider();
+    if (provider.apiKey) {
+      try {
+        const found = provider.kind === 'axixos'
+          ? await new (await import('../services/AxixosSearchService.js')).AxixosSearchService()
+              .searchCompetitors(location, services, maxResults)
+          : await new (await import('../services/TavilySearchService.js')).TavilySearchService(provider.apiKey)
+              .searchCompetitors(location, services, maxResults);
+        competitors = found.map((c: any) => ({
+          name: c.name,
+          website: c.website,
+          location,
+          source: provider.kind || 'provider',
+        }));
+        console.log(`[price-wizard] ${provider.kind} (${provider.source}) found ${competitors.length} in ${location}`);
+      } catch (e: any) {
+        console.warn('[price-wizard] provider search failed:', e?.message || e);
+      }
+    }
+
+    if (competitors.length === 0) {
+      discoverySource = 'scrape';
+      competitors = await discovery.discoverCompetitors({ location, services, maxResults });
+    }
+
+    // Told apart deliberately. "We looked and there are none" and "we could not look" are
+    // different facts about a studio's market, and the step used to report the second as the
+    // first — telling a Vienna photographer nobody else works there.
+    const searchable = !!provider.apiKey;
 
     // Save to database
     const saved = [];
@@ -125,6 +165,9 @@ router.post('/discover', async (req, res) => {
       sessionId,
       competitorsFound: saved.length,
       competitors: saved,
+      // So the screen can say which of the two happened rather than guessing.
+      searchable,
+      discoverySource,
     });
 
   } catch (error: any) {
@@ -929,7 +972,12 @@ router.post('/quick-start', async (req, res) => {
         status: 'manual',
         manual: true,
         createdAt: session.created_at,
-        message: 'Session created. Automated discovery needs a search provider (AXIXOS_INTERNAL_API_KEY). Add competitors and prices manually, then click "Generate Suggestions" — or configure the provider and run AI Research.',
+        // Names no environment variable. This said "needs a search provider
+        // (AXIXOS_INTERNAL_API_KEY)" to a photographer — unactionable, since they have no
+        // shell, and a leak of how the platform is wired. searchProvider.ts documents the
+        // rule; this message predated it. If the platform has not configured search, that is
+        // the platform's problem, so the copy says what still works instead.
+        message: 'Session created. Automated competitor discovery is not switched on for this instance, so nothing was searched for. You can add competitors and their prices by hand and still get suggestions.',
       });
     }
 

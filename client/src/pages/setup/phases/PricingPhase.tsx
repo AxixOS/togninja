@@ -58,6 +58,10 @@ export default function PricingPhase({ onComplete }: { onComplete: () => void })
   const [competitors, setCompetitors] = useState<any[]>([]);
   const [note, setNote] = useState<string | null>(null);
 
+  // Did a real search run? False when the platform has no search provider, in which case an
+  // empty result says nothing whatever about the studio's market.
+  const [searchable, setSearchable] = useState(true);
+
   const run = async () => {
     if (!town.trim()) { setNote('Add the town or area you work in first.'); return; }
     setState('running');
@@ -86,6 +90,9 @@ export default function PricingPhase({ onComplete }: { onComplete: () => void })
 
       if (found?.error) throw new Error(found.error);
       setCompetitors(Array.isArray(found?.competitors) ? found.competitors : []);
+      // Whether a search was actually possible. Without it, "no provider configured" and
+      // "this town has no photographers" arrive at this screen as the same empty list.
+      setSearchable(found?.searchable !== false);
       setState('done');
     } catch (e: any) {
       // Never a dead end. This step is optional and the studio can reach the full wizard any
@@ -143,7 +150,9 @@ export default function PricingPhase({ onComplete }: { onComplete: () => void })
             <p className="text-sm text-gray-700">
               {competitors.length
                 ? `Found ${competitors.length} photographer${competitors.length === 1 ? '' : 's'} working in ${town}.`
-                : `We could not find other photographers listed in ${town}. That is worth knowing too.`}
+                : searchable
+                  ? `We could not find other photographers listed in ${town}. That is worth knowing too.`
+                  : `We could not run the search just now, so this is not a finding about ${town} — competitor research is not switched on for this instance yet. Everything else is unaffected, and you can run this later from Price Wizard.`}
             </p>
 
             {competitors.length > 0 && (
