@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, X, Settings2 } from 'lucide-react';
 import { useCapabilities } from '../../hooks/useCapabilities';
 
@@ -26,11 +26,18 @@ const DISMISS_KEY = 'setupBannerDismissed';
 
 export default function SetupProgressBanner() {
   const { capabilities, loading } = useCapabilities();
+  const { pathname } = useLocation();
   const [hidden, setHidden] = useState(() => {
     try { return sessionStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; }
   });
 
-  if (loading || hidden) return null;
+  // NOT ON THE DASHBOARD. SetupNeededCard says the same thing there, at the size the thing
+  // deserves and with a link straight to the screen that takes each key. Two amber notices
+  // about the same subject, one above the other, makes both easier to stop reading — and the
+  // strip is the one that cannot be acted on.
+  const onDashboard = pathname === '/admin' || pathname.startsWith('/admin/dashboard');
+
+  if (loading || hidden || onDashboard) return null;
 
   const all = Object.values(capabilities);
   // Only the studio's own. A platform-owned key is not theirs to add, and listing it here

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import EmbeddedCRMChat from '../../components/chat/EmbeddedCRMChat';
 import GCalStatusBanner from '../../components/admin/GCalStatusBanner';
+import SetupNeededCard from '@/components/admin/SetupNeededCard';
 import HomepageDraftBanner from '../../components/admin/HomepageDraftBanner';
 import DemoResetButton from '../../components/admin/DemoResetButton';
 import { supabase } from '../../lib/supabase';
@@ -695,6 +696,10 @@ const AdminDashboardPage: React.FC = () => {
     <AdminLayout>
       {/* DEBUG: AI Chat moved to bottom - June 26, 2025 */}
       <div className="space-y-6">
+        {/* What still needs connecting before this CRM can invoice anyone. FIRST, above the
+            headline figures: those four zeros are the consequence of the list below, and a
+            studio reading them in the other order concludes the product does not work. */}
+        <SetupNeededCard />
         {/* Google Calendar health alert — shown only when sync is configured but failing */}
         <GCalStatusBanner />
         {/* Demo-only: wipe + restart onboarding for A–Z testing (hidden on real studios) */}
