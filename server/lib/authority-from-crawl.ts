@@ -16,23 +16,48 @@ import { complete, parseModelJson, type Payer } from './openaiClient';
  * Best-effort + fire-and-forget: it never throws into the caller and never clobbers a map
  * the studio has already customised (only populates when the column is still empty).
  */
-export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void> {
+/**
+ * WHY IT DID NOTHING, when it does nothing.
+ *
+ * This returned void and had six silent exits, each at most a console.warn on the host. So a
+ * run could finish reporting success while producing no map, no pillar pages and no
+ * per-service image slots — and the reason existed only in a log nobody using this product
+ * can reach. Observed live on a Paris studio whose ten crawled pages held eighteen thousand
+ * characters of perfectly good text: status ready, services ready, authority_map null.
+ *
+ * The pipeline had already been taught to record a FAILURE (v1.9.223) — but this function is
+ * fire-and-forget by contract and never throws, so that catch could never fire for it. The
+ * instrumentation was one level too high.
+ *
+ * Still never throws. It just says what happened.
+ */
+export interface AuthorityMapResult {
+  ok: boolean;
+  /** Plain enough to show a studio. Null when it worked. */
+  reason: string | null;
+}
+
+export async function generateAuthorityMapFromCrawl(jobId: string): Promise<AuthorityMapResult> {
   try {
-    if (!hasOpenAI()) return;
+    if (!hasOpenAI()) {
+      return { ok: false, reason: 'This instance has no AI configured, so your services could not be read.' };
+    }
 
     // Single-tenant per instance: the singleton studio_configs row.
     const scRes = await pool.query(`SELECT id, authority_map FROM studio_configs LIMIT 1`);
     const studio = scRes.rows[0];
-    if (!studio) return;
-    // Don't overwrite a map the studio (or a prior run) has already set.
-    if (studio.authority_map) return;
+    if (!studio) return { ok: false, reason: 'No studio configuration row exists yet.' };
+    // Don't overwrite a map the studio (or a prior run) has already set. Not a failure.
+    if (studio.authority_map) return { ok: true, reason: null };
 
     const pagesRes = await pool.query(
       `SELECT title, text_content FROM website_pages WHERE crawl_job_id = $1 ORDER BY created_at ASC LIMIT 25`,
       [jobId],
     );
     const pages = pagesRes.rows || [];
-    if (!pages.length) return;
+    if (!pages.length) {
+      return { ok: false, reason: 'The crawl of your website produced no readable pages.' };
+    }
 
     // Aggregate the crawled text (cap ~12k chars) for the distil prompt.
     const corpus = pages
@@ -70,8 +95,17 @@ export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void
       // Fire-and-forget by contract: this function must never throw into its caller. An
       // unfunded platform, a spent allowance and a malformed reply all mean the same thing
       // here — no map this time, and never 'your site could not be read'.
-      console.warn(`[authority-from-crawl] profile extraction unavailable (${e?.code || e?.message}) — skipping map generation`);
-      return null as any;
+      // THE MOST LIKELY EXIT, and the one that used to be invisible. This call runs on the
+      // purpose ai.authority_from_crawl, which carries its OWN gateway budget — separate from
+      // the ai.landing budget that writes the homepage. So the homepage can be written
+      // perfectly while this refuses, which is exactly the shape of the reported bug: a live
+      // homepage and no service pages behind it.
+      const why = String(e?.code || e?.message || 'unknown');
+      console.warn(`[authority-from-crawl] profile extraction unavailable (${why}) — skipping map generation`);
+      return {
+        ok: false,
+        reason: `Reading your services needs a separate allowance from writing your homepage, and that call did not go through (${why}).`,
+      };
     }
 
     // 2) Generate the Authority Map from the studio's own profile.
@@ -94,7 +128,9 @@ export async function generateAuthorityMapFromCrawl(jobId: string): Promise<void
     //    depended on whether anyone had loaded a page in the previous minute.
     await saveAuthorityMap(map);
     console.log('✅ Authority Map generated from crawl for studio', studio.id, '(niche:', profile.niche || 'n/a', ')');
+    return { ok: true, reason: null };
   } catch (e: any) {
     console.warn('⚠️ generateAuthorityMapFromCrawl failed (non-fatal):', e?.message || e);
+    return { ok: false, reason: String(e?.message || e || 'unknown error').slice(0, 200) };
   }
 }

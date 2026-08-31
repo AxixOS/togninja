@@ -424,7 +424,29 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
       void writeGenState(state);
       import('./authority-from-crawl.js')
         .then((m) => m.generateAuthorityMapFromCrawl(jobId))
-        .then(async () => {
+        .then(async (mapResult: any) => {
+          /**
+           * A MAP THAT DID NOT GET BUILT IS NOT A SUCCESS.
+           *
+           * generateAuthorityMapFromCrawl never throws — it is fire-and-forget by contract —
+           * so the catch below could never fire for it, and this chain went on to report
+           * services 'ready' with no map, no pillar pages and no per-service image slots.
+           * Seen live: status ready, services {status:'ready',pillarsCreated:0},
+           * authority_map null, on a site whose ten crawled pages held eighteen thousand
+           * characters of good text.
+           *
+           * It now returns why, and stopping here is the honest response: everything below
+           * this line builds ON the map, so continuing would only produce zeros.
+           */
+          if (mapResult && mapResult.ok === false) {
+            state.services = {
+              status: 'failed',
+              reason: mapResult.reason || 'Your services could not be read from your website.',
+              pillarsCreated: 0,
+            };
+            await writeGenState(state);
+            return;
+          }
           const { scaffoldPillarPages } = await import('./authority-scaffold.js');
           // The SAME city and language the homepage was written from, so the pillar pages
           // cannot describe a different place or arrive in a different language than the
@@ -435,6 +457,23 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
             publish: true,
           });
           console.log(`[homepage-pipeline] pillar pages: ${r.created} created, ${r.skipped} already existed, ${r.remaining} left for a later build`);
+
+          // Recorded, so "ready" means pages exist rather than "nothing threw". A map that
+          // built but scaffolded zero pillars is its own outcome and used to look identical
+          // to a run that built ten.
+          state.services = {
+            status: 'running',
+            reason: null,
+            pillarsCreated: Number(r.created) || 0,
+          };
+          if ((Number(r.created) || 0) === 0 && (Number(r.skipped) || 0) === 0) {
+            state.services = {
+              status: 'failed',
+              reason: 'Your services were read, but no service pages could be built from them.',
+              pillarsCreated: 0,
+            };
+          }
+          await writeGenState(state);
 
           // Now, and not before: storeSiteImage mirrors a service photograph onto the pillar
           // page's own hero_image_url, and a landing_pages row that does not exist yet matches

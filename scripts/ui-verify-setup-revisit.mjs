@@ -206,6 +206,28 @@ check('the status endpoint passes it on', /services: \(st as any\)\.services/.te
 // reason still reached the screen from a variable that no longer existed.
 check('and the panel shows it', /Reported: \{servicesReason\}/.test(images));
 
+// INSTRUMENTING THE CALLER WAS NOT ENOUGH. generateAuthorityMapFromCrawl is fire-and-forget
+// by contract and never throws, so the catch above could never fire for it — it has six
+// silent exits, each at most a console.warn on the host. A run therefore reported services
+// 'ready' having produced no map, no pillar pages and no per-service slots. Seen live on a
+// site whose ten crawled pages held eighteen thousand characters of perfectly good text.
+const authority = codeOnly(read('server/lib/authority-from-crawl.ts'));
+check('the authority builder reports an outcome, not void',
+  /Promise<AuthorityMapResult>/.test(authority));
+check('every early exit gives a reason',
+  (authority.match(/return \{ ok: false, reason:/g) || []).length >= 3,
+  `${(authority.match(/return \{ ok: false, reason:/g) || []).length} reasons`);
+// The likeliest exit: ai.authority_from_crawl carries its OWN gateway budget, separate from
+// the ai.landing budget that writes the homepage — so the homepage can be written perfectly
+// while this refuses, which is exactly the shape of the bug.
+check('a refused profile call explains itself rather than returning null',
+  !/return null as any;/.test(authority));
+check('the pipeline stops when the map did not build',
+  /mapResult && mapResult\.ok === false/.test(pipeline));
+// Zero pillars built is its own outcome, and used to look identical to ten.
+check('building zero service pages is not called success',
+  /no service pages could be built from them/.test(pipeline));
+
 console.log('\n=== the picker offers photographs, not sponsors ===');
 
 // The server-side assignment measures shape now; this list did not, so a studio was still
