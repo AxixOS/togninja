@@ -129,7 +129,8 @@ console.log('\n=== the studio is not invited to do work twice ===');
 // "Meanwhile, we are reading your website". So a studio could go and find a hero on their
 // computer while the crawl was fetching the photographs already on their site — doing the
 // job by hand a minute before the better option appeared underneath it.
-const images = codeOnly(read('client/src/pages/setup/phases/SiteImagesPhase.tsx'));
+const imagesRaw = read('client/src/pages/setup/phases/SiteImagesPhase.tsx');
+const images = codeOnly(imagesRaw);
 check('the slot knows the read is still running', /crawlRunning/.test(images));
 check('uploading waits for it',
   /disabled=\{upload\.isPending \|\| !storageReady \|\| crawlRunning\}/.test(images));
@@ -166,6 +167,40 @@ check('a finished run refreshes it once more',
 check('the read only starts when one has not already run',
   /gen\.status !== 'idle'/.test(images));
 check('and never twice in the same visit', /kicked/.test(images));
+
+console.log('\n=== waiting stops when the work does ===');
+
+// Observed live after five minutes of "Still reading your website. Your services will appear
+// here in a moment.": status 'ready', authority_map null, one landing page. The reading had
+// finished; the services were never coming. The panel polled every four seconds for as long
+// as the tab stayed open.
+//
+// readStopped excludes 'ready' on purpose — a successful run is not a failure to report. But
+// the services panel used it to decide whether to keep WAITING, and a written homepage does
+// not mean the service pages arrived: they are a separate chain with its own budget.
+check('the pillars poll gives up when the run ends',
+  /if \(run && GEN_TERMINAL\.includes\(run\.status\)\) return false;/.test(images));
+check('the services panel asks whether the run finished, not whether it failed',
+  /const readFinished = GEN_TERMINAL\.includes\(gen\?\.status\)/.test(images)
+  && /readFinished \? \(/.test(images));
+// Three different endings need three different sentences. Telling a studio "we couldn't read
+// your services from your website" while their services are listed at the top of the same
+// screen is the kind of wrong that discredits the rest of the page.
+check('a written homepage with no service pages says exactly that',
+  /could not build the pages behind your/.test(imagesRaw));
+
+console.log('\n=== the picker offers photographs, not sponsors ===');
+
+// The server-side assignment measures shape now; this list did not, so a studio was still
+// offered "34 photographs" that were largely Mattel, Vapiano, Canon and Trayport.
+// The WIRING, not the helper. `naturalWidth` sits inside judge(), which survives deleting the
+// onLoad that calls it — so the check passed over thumbnails nothing measured. Caught biting.
+check('thumbnails are measured as they load',
+  /onLoad=\{\(e\) => judge\(img\.url, e\.currentTarget\)\}/.test(images) && /naturalWidth/.test(images));
+check('with the same thresholds as the server', /w < 500 \|\| h < 350/.test(images));
+check('and the grid shows only what passed', /\{shown\.map\(\(img\)/.test(images));
+// A count that still says 34 while showing 9 is its own small lie.
+check('the count follows what is shown', /\$\{shown\.length\} photograph/.test(images));
 
 console.log('\n=== a new tab does not throw away a morning\'s work ===');
 

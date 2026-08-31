@@ -81,6 +81,32 @@ function OwnPhotographs({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The sponsors' logos, hidden as the browser learns their size.
+   *
+   * The server-side assignment now measures shape before using an image, so a bank logo no
+   * longer lands on the homepage by itself. This list did not get the same treatment, so the
+   * studio was still offered "34 photographs" that were largely Mattel, Vapiano, Canon and
+   * Trayport — every brand their site has ever mentioned, presented as their own work to
+   * choose a hero from.
+   *
+   * Measuring these server-side would mean downloading thirty-four images per request on a
+   * list endpoint. The browser is already fetching every one of them for the preview, so the
+   * dimensions arrive at no cost at all — naturalWidth/naturalHeight on the load event the
+   * thumbnail was going to fire anyway. Same thresholds as assignCrawledImages.ts.
+   */
+  const [notPhotographs, setNotPhotographs] = useState<Set<string>>(new Set());
+  const judge = (url: string, el: HTMLImageElement) => {
+    const w = el.naturalWidth || 0;
+    const h = el.naturalHeight || 0;
+    if (!w || !h) return;
+    const banner = Math.max(w / h, h / w) > 3;
+    if (w < 500 || h < 350 || banner) {
+      setNotPhotographs((prev) => (prev.has(url) ? prev : new Set(prev).add(url)));
+    }
+  };
+
+  const shown = images.filter((i) => !notPhotographs.has(i.url));
 
   if (!images.length) return null;
 
@@ -112,13 +138,13 @@ function OwnPhotographs({
         onClick={() => setOpen((v) => !v)}
         className="w-full text-xs text-violet-700 dark:text-violet-300 hover:underline"
       >
-        {open ? 'Hide your photographs' : `Use one of your ${images.length} photographs`}
+        {open ? 'Hide your photographs' : `Use one of your ${shown.length} photograph${shown.length === 1 ? '' : 's'}`}
       </button>
 
       {open && (
         <div className="mt-2">
           <div className="grid grid-cols-3 gap-1.5 max-h-44 overflow-y-auto">
-            {images.map((img) => (
+            {shown.map((img) => (
               <button
                 key={img.url}
                 type="button"
@@ -129,7 +155,13 @@ function OwnPhotographs({
               >
                 {/* Loaded straight from their own site for the preview. Only the one they
                     choose gets downloaded and stored in their bucket. */}
-                <img src={img.url} alt={img.label} loading="lazy" className="w-full h-full object-cover" />
+                <img
+                  src={img.url}
+                  alt={img.label}
+                  loading="lazy"
+                  onLoad={(e) => judge(img.url, e.currentTarget)}
+                  className="w-full h-full object-cover"
+                />
                 {busy === img.url && (
                   <span className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -325,7 +357,25 @@ export default function SiteImagesPhase({
   const { data, isLoading } = useQuery<SiteImages>({
     queryKey: ['setup-site-images'],
     queryFn: () => fetch('/api/setup/site-images').then((r) => r.json()),
-    refetchInterval: (q) => (q.state.data?.pillarsReady ? false : 4000),
+    /**
+     * Stop when the pillars arrive OR when the run that would produce them has ended.
+     *
+     * This waited only on pillarsReady, so a run that finished without building any service
+     * pages left it polling every four seconds for as long as the tab stayed open — under a
+     * spinner reading "Still reading your website. Your services will appear here in a
+     * moment." Observed live after five minutes: status 'ready', authority_map null, one
+     * landing page. The reading had finished; the services were never coming.
+     *
+     * The status poll above this one already learned this lesson and carries the comment
+     * about copy that "went on saying 'Still reading your website' ... for ever, over a run
+     * that was finished". This is the same mistake in the panel next to it.
+     */
+    refetchInterval: (q) => {
+      if (q.state.data?.pillarsReady) return false;
+      const run = qc.getQueryData<any>(['homepage-gen-status']);
+      if (run && GEN_TERMINAL.includes(run.status)) return false;
+      return 4000;
+    },
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['setup-site-images'] });
@@ -389,6 +439,20 @@ export default function SiteImagesPhase({
   }, [gen?.status, qc]);
   /** The run ended without producing service slots. Not "still reading". */
   const readStopped = GEN_TERMINAL.includes(gen?.status) && gen?.status !== 'ready';
+  /**
+   * The run is over, however it ended — 'ready' included.
+   *
+   * readStopped deliberately excludes 'ready', because a successful run is not a failure to
+   * report. But the services panel was using it to decide whether to keep WAITING, and a
+   * successful homepage does not mean the service pages arrived: the authority map and the
+   * pillars are a separate chain, with their own budget, that can produce nothing while the
+   * homepage is written perfectly well. That is exactly what happened — status 'ready',
+   * authority_map null, no pillar pages — and the panel waited for them for ever.
+   *
+   * Whether to keep waiting and whether something went wrong are different questions. This
+   * answers the first.
+   */
+  const readFinished = GEN_TERMINAL.includes(gen?.status);
   /**
    * The allowance ran out, which is NOT a failure to read the site.
    *
@@ -563,16 +627,25 @@ export default function SiteImagesPhase({
                "Still reading" were shown whenever the list was empty, with no reference to
                whether the run was still going — so a run that ended in a refusal left a studio
                watching an animation describing work that had already stopped. */
-            readStopped ? (
+            readFinished ? (
               <div className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4">
                 {quotaSpent
                   ? `We found your services, but the site writing included with this instance has
                      been used up, so the pages behind them were not built and there are no
                      per-service slots yet. Nothing is lost — you can add images to any page from
                      Website Studio once setup is done.`
-                  : `We couldn't read your services from your website this time, so there are no
-                     per-service slots to fill here. Nothing is lost — you can add images to any
-                     page from Website Studio once setup is done.`}
+                  : readStopped
+                    ? `We couldn't read your services from your website this time, so there are no
+                       per-service slots to fill here. Nothing is lost — you can add images to any
+                       page from Website Studio once setup is done.`
+                    /* Read fine, homepage written, service pages not built. Its own sentence,
+                       because the two above would both be untrue here: the crawl worked and the
+                       allowance was not the problem. Saying "we couldn't read your website" to a
+                       studio whose services are listed at the top of this very screen is the
+                       kind of wrong that makes someone distrust the rest of the page. */
+                    : `Your homepage is written, but we could not build the pages behind your
+                       services this time, so there are no per-service slots here yet. Nothing is
+                       lost — the pages can be created from Website Studio once setup is done.`}
               </div>
             ) : (
             <div className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4 flex items-start gap-3">
