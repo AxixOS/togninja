@@ -453,6 +453,10 @@ export default function SiteImagesPhase({
    * answers the first.
    */
   const readFinished = GEN_TERMINAL.includes(gen?.status);
+  // The service pages are their own chain and now report their own outcome. 'failed' is a
+  // fact the pipeline recorded, not something inferred from an empty list.
+  const servicesFailed = gen?.services?.status === 'failed';
+  const servicesReason = String(gen?.services?.reason || '').trim();
   /**
    * The allowance ran out, which is NOT a failure to read the site.
    *
@@ -643,9 +647,22 @@ export default function SiteImagesPhase({
                        allowance was not the problem. Saying "we couldn't read your website" to a
                        studio whose services are listed at the top of this very screen is the
                        kind of wrong that makes someone distrust the rest of the page. */
-                    : `Your homepage is written, but we could not build the pages behind your
-                       services this time, so there are no per-service slots here yet. Nothing is
-                       lost — the pages can be created from Website Studio once setup is done.`}
+                    : (
+                      <>
+                        Your homepage is written, but we could not build the pages behind your
+                        services this time, so there are no per-service slots here yet. Nothing
+                        is lost — the pages can be created from Website Studio once setup is
+                        done.
+                        {/* The recorded reason, when there is one. It used to exist only as a
+                            console.warn on the host, so the first question anyone asked about
+                            this — why? — had no answer available to the person looking at it. */}
+                        {servicesFailed && servicesReason && (
+                          <span className="block mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+                            Reported: {servicesReason}
+                          </span>
+                        )}
+                      </>
+                    )}
               </div>
             ) : (
             <div className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4 flex items-start gap-3">

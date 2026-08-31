@@ -73,6 +73,29 @@ export interface HomepageGenState {
    * platform-funded. Without a number that survives the next run there is nothing to count.
    */
   runs: number;
+
+  /**
+   * WHAT BECAME OF THE SERVICE PAGES, which is the half of this run nobody could see.
+   *
+   * buildServicesAndPages() is fired without await — deliberately, so the homepage does not
+   * wait on it — and its only failure handling was `.catch(err => console.warn(...))`. So the
+   * status went to 'ready' whatever happened to it, and every reason it might have failed
+   * ended up in a log line on the host that nobody reading this product can reach.
+   *
+   * Observed on newagefotografie.com, a site with eleven services in its navigation: status
+   * 'ready', authority_map null, one landing page, and a wizard panel waiting for service
+   * pages that were never coming. Nothing anywhere recorded why, so the first question —
+   * did the authority map refuse, throw, or never run — could not be answered at all.
+   *
+   * 'ready' here means the pages were built. It is deliberately separate from the top-level
+   * status, because the homepage genuinely can succeed while this fails.
+   */
+  services: {
+    status: 'running' | 'ready' | 'failed';
+    /** Said plainly enough to show a studio, when there is something to say. */
+    reason: string | null;
+    pillarsCreated: number;
+  } | null;
 }
 
 /** Append a finding and flush, so the client sees it on its next poll. */
@@ -249,6 +272,10 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     startedAt: new Date().toISOString(), website: website || null,
     via: null, quota: null,
     runs: priorRuns + 1,
+    // Reset per run like everything except `runs`: last run's outcome says nothing about this
+    // one, and a stale 'ready' here would tell the wizard to stop waiting for pages that this
+    // run has not built yet.
+    services: null,
   };
 
   try {
@@ -391,6 +418,10 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
      * twice is a fair outcome; not being attempted is not.
      */
     const buildServicesAndPages = () => {
+      // Recorded from the moment it starts, so "still going" and "finished badly" are
+      // distinguishable by anything reading the state — which, before this, they were not.
+      state.services = { status: 'running', reason: null, pillarsCreated: 0 };
+      void writeGenState(state);
       import('./authority-from-crawl.js')
         .then((m) => m.generateAuthorityMapFromCrawl(jobId))
         .then(async () => {
@@ -454,7 +485,30 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
           const sp = await seedStarterProductsFromServices();
           console.log(`[homepage-pipeline] starter voucher products: ${sp.created} created (inactive, awaiting prices), ${sp.skipped} already existed`);
         })
-        .catch((err) => console.warn('[homepage-pipeline] authority map / pillar pages failed:', err?.message || err));
+        .then(async () => {
+          if (state.services?.status === 'running') {
+            state.services = { ...state.services, status: 'ready' };
+            await writeGenState(state);
+          }
+        })
+        .catch(async (err) => {
+          // THE WHOLE POINT OF THIS BRANCH. It used to console.warn and stop, so a studio sat
+          // in front of a spinner while the only record of what went wrong went to a log on
+          // the host. Written down now, and shown.
+          const reason = String(err?.message || err || 'unknown error').slice(0, 300);
+          console.warn('[homepage-pipeline] authority map / pillar pages failed:', reason);
+          state.services = {
+            status: 'failed',
+            reason,
+            pillarsCreated: state.services?.pillarsCreated || 0,
+          };
+          try {
+            await writeGenState(state);
+          } catch {
+            /* the run is already over; a failed write here must not throw into an unhandled
+               rejection and take the process with it */
+          }
+        });
     };
 
 

@@ -189,6 +189,23 @@ check('the services panel asks whether the run finished, not whether it failed',
 check('a written homepage with no service pages says exactly that',
   /could not build the pages behind your/.test(imagesRaw));
 
+// buildServicesAndPages is fired without await and its only failure handling was a
+// console.warn, so the top-level status went 'ready' whatever became of it and the reason
+// lived on the host where nobody using this product can reach it. Observed on a site with
+// eleven services in its nav: 'ready', authority_map null, one landing page, no explanation.
+const pipeline = codeOnly(read('server/lib/homepage-pipeline.ts'));
+check('the services chain records that it started',
+  /state\.services = \{ status: 'running'/.test(pipeline));
+check('and records a failure instead of only logging it',
+  /state\.services = \{\s*status: 'failed'/.test(pipeline));
+check('the reason is kept, not just printed', /reason,/.test(pipeline));
+check('it is reset per run, so last run\'s outcome is not reported as this one\'s',
+  /services: null,/.test(pipeline));
+check('the status endpoint passes it on', /services: \(st as any\)\.services/.test(setupRoutes));
+// The rendered use, not the const — renaming the declaration left this green while the
+// reason still reached the screen from a variable that no longer existed.
+check('and the panel shows it', /Reported: \{servicesReason\}/.test(images));
+
 console.log('\n=== the picker offers photographs, not sponsors ===');
 
 // The server-side assignment measures shape now; this list did not, so a studio was still

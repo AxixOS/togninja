@@ -1080,6 +1080,10 @@ router.get('/homepage/status', async (_req: Request, res: Response) => {
       // says "ready". No secret in either: 'gateway' | 'openai', and three integers.
       via: (st as any).via ?? null,
       quota: (st as any).quota ?? null,
+      // What became of the SERVICE pages, which is a separate chain from the homepage and can
+      // fail while the homepage succeeds. Without it the wizard could only infer "not here
+      // yet" and waited for pages that were never coming.
+      services: (st as any).services ?? null,
     });
   } catch (error: any) {
     console.error('Homepage status error:', error?.message || error);
