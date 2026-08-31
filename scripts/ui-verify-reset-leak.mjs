@@ -48,9 +48,14 @@ check('the reset handler was found', reset.length > 0);
 // Every field that was found leaking. Named individually because each is a separate promise
 // to the next studio, and because a count would pass while the wrong dozen were cleared.
 const MUST_CLEAR = [
+  // Who the previous studio was.
   'owner_name', 'owner_role', 'owner_portrait_url', 'founding_year', 'credentials',
-  'email', 'business_type', 'active_template', 'secondary_color', 'document_design',
-  'default_tax_rate', 'tax_label',
+  'email', 'business_type', 'document_design',
+  // Found by auditing the schema against the list rather than against the symptoms — the
+  // difference between fixing what was reported and fixing what is wrong. state and zip are
+  // the two thirds of an address that were missed while address, city and country were cleared.
+  'domain', 'subdomain', 'state', 'zip', 'opening_hours', 'meta_title',
+  'enabled_features', 'site_theme_tokens',
 ];
 for (const col of MUST_CLEAR) {
   check(`  "${col}" is cleared`, new RegExp(`'${col}'`).test(reset));
@@ -64,6 +69,28 @@ check('owner_email is reset to a neutral value, not NULL',
   /SET owner_email = 'setup@togninja\.com'/.test(reset));
 check('and is not in the NULL list, where it would throw and be swallowed',
   !/'owner_email'/.test(reset));
+
+console.log('\n=== the next studio does not inherit Vienna\'s clock ===');
+
+// THE DANGEROUS ONE. shared/schema.ts defaults timezone to 'UTC' deliberately. Cleared to
+// NULL, config-reader stops hydrating DEFAULT_CAL_TZ and six call sites in
+// services/calendarService.ts and services/googleCalendarSyncService.ts fall through to a
+// hardcoded 'Europe/Vienna' — the ORIGIN studio's timezone. The reset, whose entire purpose is
+// to leave no trace of the previous tenant, was handing the next one Vienna's clock and
+// booking their clients' shoots against it.
+check('timezone is reset to a value, not NULL', /\['timezone', 'UTC'\]/.test(reset));
+check('and is not in the NULL list', !/'timezone'/.test(reset.slice(reset.indexOf('CLEAR_TO_NULL'), reset.indexOf('CLEAR_TO_DEFAULT'))));
+// The others have product defaults too: a NULL template or colour renders as nothing rather
+// than as the product's own default, and a NULL tax label prints on an invoice.
+for (const col of ['date_format', 'primary_color', 'active_template', 'tax_label']) {
+  check(`  "${col}" comes back as its default`, new RegExp(`\\['${col}', '`).test(reset));
+}
+// The fallbacks that make this matter. If these ever stop being hardcoded the check above is
+// less critical — but while they exist, a NULL timezone is a de-branding leak.
+const cal = read('server/services/calendarService.ts');
+check('the Vienna fallback this protects against still exists',
+  /Europe\/Vienna/.test(cal),
+  'if this fails, check whether the fallback moved rather than deleting the guard above');
 
 console.log('\n=== every name in the list is a real column ===');
 

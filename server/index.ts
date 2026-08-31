@@ -649,6 +649,24 @@ app.use((req, res, next) => {
         // twenty-three — and divided by a zero range, printing "higher than Infinity% of
         // competitors".
         await db.execute(sql`ALTER TABLE price_list_suggestions ADD COLUMN IF NOT EXISTS sample_size INTEGER`);
+        /**
+         * The four columns POST /activate-suggestion has always written and none of which
+         * existed. Its UPDATE named user_adjusted_price, activated_product_id, activated_at
+         * and updated_at; the table had none of them, so the statement threw, the handler
+         * returned 500, and the client — which has no else branch — did nothing at all.
+         *
+         * "When I click confirm, nothing happens", reported by a studio trying to set the
+         * prices this product had just researched for them.
+         *
+         * The damage was not only the silence. The price_list_items INSERT runs BEFORE that
+         * UPDATE and there was no transaction, so every attempt created a price-list item and
+         * then failed, leaving the suggestion pending. The demo showed two orphaned items
+         * against three suggestions, all still pending_review — one row per click.
+         */
+        await db.execute(sql`ALTER TABLE price_list_suggestions ADD COLUMN IF NOT EXISTS user_adjusted_price NUMERIC(10,2)`);
+        await db.execute(sql`ALTER TABLE price_list_suggestions ADD COLUMN IF NOT EXISTS activated_product_id UUID`);
+        await db.execute(sql`ALTER TABLE price_list_suggestions ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ`);
+        await db.execute(sql`ALTER TABLE price_list_suggestions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
         // The studio-level document design defaults: header image, the cover-image library,
         // and whether to prefer the client own gallery. Per-document overrides use the same
         // shape, so one merge covers both (see server/lib/documentHeader.ts).

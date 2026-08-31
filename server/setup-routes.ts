@@ -1236,7 +1236,8 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       // reset since it was written, been swallowed by the per-statement catch, and cleared
       // nothing. Harmless by luck rather than design: had the tagline NOT been covered
       // elsewhere, it would have leaked for exactly as long, just as quietly.
-      'primary_color',
+      // primary_color, timezone and date_format moved to CLEAR_TO_DEFAULT below —
+      // they have product defaults and NULL is not the same as unanswered.
       // The chosen style preset. Now that it drives the whole public site rather than just
       // the landing pages, a preset left behind means the next studio opens on the previous
       // studio's colours and typeface.
@@ -1256,7 +1257,7 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       // A re-onboarded studio inherited the previous tenant's currency and timezone, so a
       // GBP studio following a GBP studio looks right for the wrong reason and any currency
       // defect stays invisible until the first tenant who uses a different one.
-      'currency', 'vat_number', 'timezone', 'date_format',
+      'currency', 'vat_number',
       /**
        * WHO THE STUDIO IS. The worst of the leaks and the last to be noticed, because until
        * v1.9.214 these were stored and never sent back to the form — so they survived every
@@ -1282,10 +1283,47 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
        * round-trip, and nobody thought of the reset — so it leaked on the very next one.
        */
       'business_type',
-      // Presentation and paperwork the previous tenant chose. document_design carries their
-      // letterhead; the tax fields carry their rate, which a new studio in another country
-      // would inherit and invoice on.
-      'active_template', 'secondary_color', 'document_design', 'default_tax_rate', 'tax_label',
+      // The previous tenant's letterhead.
+      'document_design',
+      /**
+       * Nine more found by auditing the schema against this list rather than against the
+       * symptoms — the difference between fixing what was reported and fixing what is wrong.
+       *
+       * domain and subdomain are the tenant's own identity. state and zip are the two thirds
+       * of their address that were missed while address, city and country were cleared.
+       * opening_hours, meta_title, enabled_features and site_theme_tokens are answers, or
+       * settings, belonging to whoever was here before.
+       */
+      'domain', 'subdomain', 'state', 'zip', 'opening_hours', 'meta_title',
+      'enabled_features', 'site_theme_tokens',
+    ];
+
+    /**
+     * COLUMNS THAT MUST COME BACK TO A VALUE, NOT TO NULL.
+     *
+     * These have product defaults, and NULL is not the same as "unanswered" for any of them —
+     * for one of them it is actively dangerous.
+     *
+     * TIMEZONE IS THE DANGEROUS ONE. The schema defaults it to 'UTC' deliberately. Cleared to
+     * NULL, config-reader stops hydrating DEFAULT_CAL_TZ, and six call sites in
+     * services/calendarService.ts and services/googleCalendarSyncService.ts fall through to a
+     * hardcoded 'Europe/Vienna' — the ORIGIN studio's timezone. So the reset, whose whole
+     * purpose is to leave no trace of the previous tenant, was quietly handing the next one
+     * Vienna's clock and booking their clients' shoots against it.
+     *
+     * The rest are cosmetic by comparison but wrong in the same direction: a NULL template or
+     * colour renders as nothing rather than as the product's own default, and a NULL tax label
+     * prints on an invoice.
+     */
+    const CLEAR_TO_DEFAULT: Array<[string, string]> = [
+      ['timezone', 'UTC'],
+      ['date_format', 'auto'],
+      ['primary_color', '#7C3AED'],
+      ['secondary_color', '#F59E0B'],
+      ['active_template', 'template-01-modern-minimal'],
+      ['font_family', 'Inter'],
+      ['default_tax_rate', '0'],
+      ['tax_label', 'VAT'],
     ];
     /**
      * owner_email is NOT NULL, so it cannot go in the list above.
@@ -1302,6 +1340,12 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
       await db.execute(sql`UPDATE studio_configs SET owner_email = 'setup@togninja.com'`);
     } catch (e: any) {
       console.warn('[reset-demo] could not clear owner_email:', e?.message || e);
+    }
+
+    for (const [col, value] of CLEAR_TO_DEFAULT) {
+      try {
+        await db.execute(sql.raw(`UPDATE studio_configs SET ${col} = '${value}'`));
+      } catch { /* column absent on this instance */ }
     }
 
     for (const col of CLEAR_TO_EMPTY) {

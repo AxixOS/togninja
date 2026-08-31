@@ -477,15 +477,34 @@ const AdminPriceWizardPage: React.FC = () => {
         })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        alert(`Price activated and added to your Price List!\n\nService: ${data.service_name}\nPrice: ${formatPrice(data.activated_price)}\n\nYou can now use this price when creating invoices.`);
-        if (selectedSession) fetchSessionDetails(selectedSession);
-        setShowActivationModal(false);
-        setActivationSuggestion(null);
-        setActivationPrice('');
-        setActivationDescription('');
+      /**
+       * THE ELSE BRANCH THAT WAS NOT HERE.
+       *
+       * `if (response.ok)` and nothing else, so every failure was met with total silence: no
+       * message, the dialog still open, the spinner stopped. Reported exactly as "when I click
+       * confirm, nothing happens" — by a studio whose activation was returning 500 on every
+       * attempt, because the UPDATE behind it named four columns the table did not have.
+       *
+       * A request that fails has to say so. The server sends its reason in `error`; showing it
+       * is the difference between a bug someone can report and a product that appears inert.
+       */
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({} as any));
+        alert(
+          'Could not add that price to your list.\n\n'
+          + (body?.error || `The server returned ${response.status}.`)
+          + '\n\nNothing has been changed. Please try again, or report this if it keeps happening.',
+        );
+        return;
       }
+
+      const data = await response.json();
+      alert(`Price activated and added to your Price List!\n\nService: ${data.service_name}\nPrice: ${formatPrice(data.activated_price)}\n\nYou can now use this price when creating invoices.`);
+      if (selectedSession) fetchSessionDetails(selectedSession);
+      setShowActivationModal(false);
+      setActivationSuggestion(null);
+      setActivationPrice('');
+      setActivationDescription('');
     } catch (err) {
       alert('Failed to activate price');
     } finally {

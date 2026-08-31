@@ -629,9 +629,25 @@ router.post('/activate-suggestion', async (req, res) => {
 
     const finalPrice = adjustedPrice || suggestion.suggested_price;
 
+    /**
+     * BOTH WRITES OR NEITHER.
+     *
+     * The price-list INSERT below and the UPDATE that marks the suggestion activated were two
+     * loose statements. That UPDATE names four columns the table did not have — so it threw
+     * every time, AFTER the INSERT had already committed. Each click therefore added a
+     * price-list item and left the suggestion pending, so clicking again added another. The
+     * demo carried two orphaned items against three still-pending suggestions: one per attempt.
+     *
+     * The columns are created at boot now, but the shape was wrong regardless. These two
+     * writes are one act, and a failure in the second has to undo the first.
+     */
+    const tx = await pool.connect();
+    try {
+      await tx.query('BEGIN');
+
     // Create price list entry so it appears in Invoice "Select from Price List"
     const serviceName = `${suggestion.service_type} (${suggestion.tier})`;
-    const priceListResult = await pool.query(`
+    const priceListResult = await tx.query(`
       INSERT INTO price_list_items (
         name,
         category,
@@ -652,9 +668,9 @@ router.post('/activate-suggestion', async (req, res) => {
     const priceListItem = priceListResult.rows[0];
 
     // Mark suggestion as activated with the final price and link to price list item
-    await pool.query(`
+    await tx.query(`
       UPDATE price_list_suggestions
-      SET 
+      SET
         status = 'activated',
         user_adjusted_price = $2,
         activated_product_id = $3,
@@ -663,14 +679,24 @@ router.post('/activate-suggestion', async (req, res) => {
       WHERE id = $1
     `, [suggestionId, finalPrice, priceListItem.id]);
 
-    res.json({
-      success: true,
-      suggestion_id: suggestionId,
-      price_list_id: priceListItem.id,
-      service_name: priceListItem.name,
-      activated_price: finalPrice,
-      message: 'Price activated and added to your Price List successfully'
-    });
+      await tx.query('COMMIT');
+
+      res.json({
+        success: true,
+        suggestion_id: suggestionId,
+        price_list_id: priceListItem.id,
+        service_name: priceListItem.name,
+        activated_price: finalPrice,
+        message: 'Price activated and added to your Price List successfully'
+      });
+    } catch (inner: any) {
+      // No half-done activation: without this the item exists and the suggestion still says
+      // pending, so the next click makes a second one.
+      await tx.query('ROLLBACK').catch(() => {});
+      throw inner;
+    } finally {
+      tx.release();
+    }
 
   } catch (error: any) {
     console.error('Error activating suggestion:', error);
