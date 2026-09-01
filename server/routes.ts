@@ -8715,11 +8715,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         client = await storage.getCrmClient(invoice.clientId);
       }
       
-      // Return complete invoice with items and client (public view)
+      // Return complete invoice with items and client (public view).
+      // `onlinePaymentAvailable` mirrors exactly what create-payment-session
+      // checks — the same getStripe(), not the module-level client — so a studio
+      // that never connected Stripe never shows a PAY NOW button that would 503
+      // the moment the client clicks it, and a studio whose key lives in the
+      // database keeps the button it is entitled to.
       res.json({
         ...invoice,
         items,
-        client
+        client,
+        onlinePaymentAvailable: Boolean(await getStripe())
       });
     } catch (error) {
       console.error("Error fetching public invoice:", error);
@@ -9103,6 +9109,15 @@ ${getBizName()} Team`;
 
   // ==================== INVOICE STRIPE PAYMENT ROUTES ====================
   
+  // Whether this instance can actually take a card payment right now. Used by the
+  // invoice form to explain why the online-payment option is unavailable, and by
+  // anything else that wants to hide a checkout entry point instead of failing on it.
+  // Resolved through getStripe() for the reason stripeClient.ts documents: the
+  // module-level client is null for a studio whose key lives in the database.
+  app.get("/api/payments/status", async (_req: Request, res: Response) => {
+    res.json({ stripeConfigured: Boolean(await getStripe()) });
+  });
+
   // Create Stripe Checkout Session for invoice payment
   app.post("/api/invoices/:id/create-payment-session", async (req: Request, res: Response) => {
     try {

@@ -26,6 +26,7 @@ interface Invoice {
   document_type?: string;
   documentType?: string;
   disable_online_payment?: boolean;
+  online_payment_available?: boolean;
   created_at: string;
   client?: {
     name: string;
@@ -112,6 +113,9 @@ const PublicInvoicePage: React.FC = () => {
         payment_terms: data.paymentTerms || data.payment_terms || 'Net 30',
         notes: data.notes,
         disable_online_payment: data.disableOnlinePayment || data.disable_online_payment || false,
+        // Older responses predate this field; treating "missing" as available keeps
+        // studios that DO have Stripe working if they run an older server build.
+        online_payment_available: data.onlinePaymentAvailable !== false,
         footer_text: data.footerText || data.footer_text,
         paid_amount: parseFloat(data.paidAmount || data.paid_amount || '0'),
         created_at: data.issueDate || data.issue_date || data.createdAt || data.created_at,
@@ -316,6 +320,11 @@ const PublicInvoicePage: React.FC = () => {
     );
   }
 
+  // Whether this invoice can be paid on this page at all: the studio has not turned
+  // card payment off for it, AND this instance has a usable Stripe key. Everything
+  // that leads a client toward checkout hangs off this — the button and the tip.
+  const canPayOnline = !invoice.disable_online_payment && invoice.online_payment_available !== false;
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Payment Status Banner */}
@@ -389,9 +398,12 @@ const PublicInvoicePage: React.FC = () => {
       {/* Invoice Content */}
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div ref={invoiceRef} className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <InvoiceTemplate 
+          {/* PAY NOW is hidden when the studio switched it off for this invoice, and
+              when the instance has no working Stripe key — a button that can only
+              503 is worse than no button on a document the client must pay. */}
+          <InvoiceTemplate
             invoice={invoice}
-            showPayButton={!invoice.disable_online_payment}
+            showPayButton={canPayOnline}
             onPayNow={handlePayNow}
             isProcessingPayment={isProcessingPayment}
           />
@@ -404,7 +416,7 @@ const PublicInvoicePage: React.FC = () => {
           tip on a settled invoice is noise. Nothing is preselected: a tip that has to be
           actively removed is a dark pattern, and a photographer who wants the client back
           next year is worse off for it. */}
-      {!invoice.disable_online_payment && String(invoice.status).toLowerCase() !== 'paid' && (
+      {canPayOnline && String(invoice.status).toLowerCase() !== 'paid' && (
         <div className="max-w-4xl mx-auto px-4 pb-8 no-print">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
             <p className="text-sm font-medium text-gray-900">

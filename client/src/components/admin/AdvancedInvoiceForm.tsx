@@ -56,6 +56,9 @@ interface InvoiceFormData {
   discount_type: 'fixed' | 'percentage';
   discount_value: number;
   discount_amount: number;
+  // Hides the PAY NOW button on the public invoice page — for invoices that are
+  // settled by bank transfer. Stored per invoice as crm_invoices.disable_online_payment.
+  disable_online_payment: boolean;
   items: InvoiceItem[];
 }
 
@@ -152,6 +155,17 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
   const saveNotes = (text: string): void => {
     localStorage.setItem('invoiceDefaultNotes', text);
   };
+  // A studio that settles by bank transfer sets this once and every new invoice
+  // inherits it, the same way the footer and payment terms are remembered.
+  const getSavedDisableOnlinePayment = (): boolean => {
+    return localStorage.getItem('invoiceDisableOnlinePayment') === 'true';
+  };
+  const saveDisableOnlinePayment = (value: boolean): void => {
+    localStorage.setItem('invoiceDisableOnlinePayment', String(value));
+  };
+  // null while unknown. false means this instance has no working Stripe key, so the
+  // public invoice hides PAY NOW regardless of what is set here.
+  const [stripeAvailable, setStripeAvailable] = useState<boolean | null>(null);
   const [footerSaved, setFooterSaved] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
   const [termsSaved, setTermsSaved] = useState(false);
@@ -166,6 +180,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
     discount_type: 'fixed',
     discount_value: 0,
     discount_amount: 0,
+    disable_online_payment: getSavedDisableOnlinePayment(),
     items: [
       {
         id: '1',
@@ -238,6 +253,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
           discount_type: 'fixed',
           discount_value: 0,
           discount_amount: 0,
+          disable_online_payment: getSavedDisableOnlinePayment(),
           items: [{ id: '1', description: '', quantity: 1, unit_price: 0, tax_rate: getLastUsedVatRate() }]
         });
         setClientSearch('');
@@ -248,6 +264,11 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
       }
       fetchClients();
       fetchPriceList();
+      // Whether card payment is possible at all on this instance.
+      fetch('/api/payments/status')
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => setStripeAvailable(data ? Boolean(data.stripeConfigured) : null))
+        .catch(() => setStripeAvailable(null));
     }
   }, [isOpen]);
 
@@ -463,6 +484,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
           discount_type: invoice.discount_type || invoice.discountType || 'fixed',
           discount_value: parseFloat(invoice.discount_value || invoice.discountValue || '0') || 0,
           discount_amount: parseFloat(invoice.discount_amount || invoice.discountAmount || '0') || 0,
+          disable_online_payment: Boolean(invoice.disable_online_payment ?? invoice.disableOnlinePayment ?? false),
           items: items.length > 0 ? items.map((item: any, index: number) => ({
             id: item.id || String(index + 1),
             description: item.description || '',
@@ -478,8 +500,7 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
           }]
         });
         console.log('✅ Form data loaded with', items.length, 'items');
-        
-        // Load online payment toggle
+
         // Load document type
         const docType = invoice.document_type || invoice.documentType || 'invoice';
         if (docType === 'invoice' || docType === 'quote' || docType === 'estimate') {
@@ -703,6 +724,11 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
         documentType,
         notes: formData.notes,
         footerText: formData.footer_text,
+        // Sent on create and on edit — the edit route COALESCEs, so an explicit
+        // false is what clears the flag again. With no Stripe key the box is shown
+        // ticked and locked, so store that too rather than saving something the
+        // studio was never offered.
+        disableOnlinePayment: formData.disable_online_payment || stripeAvailable === false,
         items: formData.items.map(item => ({
           description: item.description,
           quantity: item.quantity,
@@ -1213,6 +1239,33 @@ const AdvancedInvoiceForm: React.FC<AdvancedInvoiceFormProps> = ({
                     = {formData.currency} {(formData.items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0) * formData.discount_value / 100).toFixed(2)} discount
                   </p>
                 )}
+              </div>
+            </div>
+
+            {/* Online payment (PAY NOW button on the public invoice link) */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <input
+                  type="checkbox"
+                  id="disableOnlinePayment"
+                  checked={formData.disable_online_payment || stripeAvailable === false}
+                  disabled={stripeAvailable === false}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, disable_online_payment: e.target.checked }));
+                    saveDisableOnlinePayment(e.target.checked);
+                  }}
+                  className="h-4 w-4 mt-0.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-60"
+                />
+                <label htmlFor="disableOnlinePayment" className="ml-2 text-sm">
+                  <span className="font-medium text-blue-900">
+                    🏦 Hide online payment button — bank transfer only
+                  </span>
+                  <span className="block text-blue-700 mt-1">
+                    {stripeAvailable === false
+                      ? 'Stripe is not connected on this studio, so PAY NOW is already hidden on every invoice. Connect Stripe in Settings to offer card payment.'
+                      : 'The client sees the invoice without the PAY NOW button and pays using the bank details in your footer. Your choice is remembered for new invoices.'}
+                  </span>
+                </label>
               </div>
             </div>
 
