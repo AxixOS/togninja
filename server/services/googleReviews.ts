@@ -32,12 +32,22 @@ export interface GoogleReviewsData {
  * lets each studio we sell to connect THEIR OWN Google Business Profile.
  */
 async function getPlacesKey(): Promise<string> {
-  try {
-    const { config } = await import('../config-reader.js');
-    const fromDb = await config.get('google_places_api_key');
-    if (fromDb) return String(fromDb).trim();
-  } catch { /* fall through to env */ }
-  return (process.env.GOOGLE_PLACES_API_KEY || '').trim();
+  /**
+   * Resolved through placesProvider now, which answers the question this used to skip:
+   * WHOSE key is this.
+   *
+   * The old body read the studio's column and then fell back to a bare
+   * GOOGLE_PLACES_API_KEY, so a studio running entirely on the platform's key looked
+   * identical to one who had set up their own — and nothing anywhere could say who was
+   * paying. It also spent the platform's key on the live public site, where the cost scales
+   * with a tenant's visitors rather than with signups.
+   *
+   * placesKeyInUse keeps the studio's own key working everywhere, and lends the platform's
+   * only while onboarding is unfinished — which is exactly the preview this was wanted for.
+   */
+  const { placesKeyInUse } = await import('../lib/placesProvider.js');
+  const p = await placesKeyInUse();
+  return p.apiKey || '';
 }
 
 async function getPlaceId(): Promise<string> {

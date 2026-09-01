@@ -135,9 +135,15 @@ export const CAPABILITIES: Capability[] = [
     owner: 'studio',
     settingsPath: '/admin/settings/google',
     worksWithout: 'Your site works; it just will not show the reviews you have already earned.',
+    // Says WHY they are being asked for something they can already see working. During setup
+    // the platform's own Places key pays, so a studio meets their real reviews on the first
+    // preview without handing anything over — see server/lib/placesProvider.ts. That stops
+    // when onboarding finishes, and their own key takes over their own traffic. Without this
+    // sentence the request reads as being asked for a key for a feature already running.
     blockedMessage:
-      'Add your Google Places key to show your real reviews and rating on your site. We '
-      + 'already know which listing is yours from the map link you gave during setup.',
+      'Add your Google Places key to keep showing your real reviews and rating on your live '
+      + 'site. We showed them during setup on our own account; from here they run on yours. '
+      + 'We already know which listing is yours from the map link you gave.',
   },
   {
     // Same omission. The columns and the whole export path have existed since ShootCleaner
