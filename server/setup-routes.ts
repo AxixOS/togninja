@@ -636,6 +636,17 @@ router.get('/status', async (_req: Request, res: Response) => {
         return 0;
       }
     };
+    // Raw, because drizzle cannot see either column — see the note on `look` below.
+    const lookChosen = await (async () => {
+      try {
+        const r: any = await db.execute(sql`
+          SELECT (coalesce(nullif(trim(site_layout), ''), nullif(trim(site_theme_preset), '')) IS NOT NULL) AS chosen
+            FROM studio_configs LIMIT 1`);
+        return r?.rows?.[0]?.chosen === true;
+      } catch {
+        return false;
+      }
+    })();
     const photographCount = await countOf(sql`SELECT count(*)::int AS n FROM homepage_images WHERE is_active`);
     const adminCount = await countOf(sql`SELECT count(*)::int AS n FROM admin_users`);
     const pricingCount = await countOf(sql`SELECT count(*)::int AS n FROM price_wizard_sessions`);
@@ -643,7 +654,17 @@ router.get('/status', async (_req: Request, res: Response) => {
     const stepsComplete = {
       // A look is chosen the moment either half of it is stored; both have defaults, so the
       // stored value is what says the studio was actually asked.
-      look: hasVal((config as any)?.siteLayout) || hasVal((config as any)?.siteThemePreset),
+      //
+      // READ WITH RAW SQL, not off the config row. site_layout and site_theme_preset are two
+      // of the six columns created by boot ALTER TABLE statements and never declared in
+      // shared/schema.ts, so drizzle does not select them — `config.siteLayout` is undefined
+      // whatever the database holds. This therefore reported look as unfinished ALWAYS.
+      //
+      // Seen live: a studio who had finished the whole wizard clicked "Finish setup" on the
+      // dashboard and landed back on step one at 83%, because the first "unfinished" step was
+      // a look they had chosen twenty minutes earlier. The row said editorial/mono; the object
+      // drizzle handed back said nothing at all.
+      look: lookChosen,
       basics: basicsComplete,
       photographs: photographCount > 0,
       // The account step is the one thing here that cannot be half-done.

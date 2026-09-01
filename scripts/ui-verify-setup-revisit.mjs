@@ -261,6 +261,31 @@ for (const k of ['look', 'basics', 'photographs', 'security', 'pricing', 'scanni
     setupRoutes.slice(setupRoutes.indexOf('const stepsComplete'), setupRoutes.indexOf('const stepsComplete') + 900)));
 }
 check('the wizard reads it', /setupStatus\?\.stepsComplete/.test(wizard));
+
+// SIX COLUMNS ARE INVISIBLE TO DRIZZLE. This project creates columns two ways — declared in
+// shared/schema.ts, or added at boot with ALTER TABLE ... ADD COLUMN IF NOT EXISTS — and the
+// second kind is not in the drizzle table definition, so `select()` never returns it. Reading
+// one off the config row therefore yields undefined WHATEVER the database holds.
+//
+// That is not hypothetical: stepsComplete.look read config.siteLayout and config.siteThemePreset,
+// so it reported the look step unfinished always. A studio who had completed the whole wizard
+// clicked "Finish setup" and landed back on step one at 83%, because the first "unfinished"
+// step was a look they had chosen twenty minutes earlier. The row said editorial/mono.
+const bootCols = new Set([...boot.matchAll(/ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS ([a-z0-9_]+)/g)].map((m) => m[1]));
+const schemaCols = (() => {
+  const at = schema.indexOf('export const studioConfigs = pgTable');
+  if (at < 0) return new Set();
+  const block = schema.slice(at, schema.indexOf('});', at));
+  return new Set([...block.matchAll(/\("([a-z0-9_]+)"/g)].map((m) => m[1]));
+})();
+const invisible = [...bootCols].filter((c) => !schemaCols.has(c));
+const camel = (c) => c.replace(/_([a-z0-9])/g, (_, ch) => ch.toUpperCase());
+const readOffRow = invisible.filter((c) => new RegExp(`config[^\\n]{0,12}\\.${camel(c)}\\b`).test(setupRoutes));
+check('no drizzle-invisible column is read off the config row',
+  readOffRow.length === 0,
+  readOffRow.length
+    ? readOffRow.map((c) => `${c} (as config.${camel(c)}) — always undefined`).join(', ')
+    : `${invisible.length} invisible columns, none read that way`);
 // null, not 0 — "we do not know yet" has to be distinguishable from "they are at the start".
 check('an unknown position is not assumed to be the start', /useState<number \| null>/.test(wizard));
 // The USE, not the declaration — pointing resolvedIndex back at 0 left the const in place.
