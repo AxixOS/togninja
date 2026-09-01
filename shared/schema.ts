@@ -61,6 +61,19 @@ export const studioConfigs = pgTable("studio_configs", {
    * plainly in the row.
    */
   businessTypes: jsonb("business_types"),
+  /**
+   * HOW MANY TIMES THIS INSTANCE HAS BEEN WIPED. Bumped by reset-demo, read by nothing else.
+   *
+   * The homepage pipeline is fire-and-forget and keeps writing for MINUTES after the wizard
+   * says "ready" — measured on the live demo: crawl at 06:49:17, draft at 06:49:47,
+   * homepage_images rows still landing at 06:52:53. Nothing cancelled it on reset, and
+   * homepage_images carries no run id, so a row written by the previous studio's run is
+   * indistinguishable from one written by this studio's.
+   *
+   * A run captures this at its start and stops when it no longer matches. That is the whole
+   * mechanism: an integer that says "the world you started in is gone".
+   */
+  resetEpoch: integer("reset_epoch").default(0),
   address: text("address"),
   city: text("city"),
   state: text("state"),

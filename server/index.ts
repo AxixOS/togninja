@@ -612,6 +612,9 @@ app.use((req, res, next) => {
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS business_type TEXT`);
         // Everything else they shoot. business_type stays the primary; this carries the rest.
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS business_types JSONB`);
+        // The run fence. See resetEpoch in shared/schema.ts: a pipeline that outlives a reset
+        // keeps writing the previous studio's photographs into the new studio's slots.
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS reset_epoch INTEGER DEFAULT 0`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_name TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_role TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_portrait_url TEXT`);

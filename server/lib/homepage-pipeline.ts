@@ -104,7 +104,44 @@ async function note(state: HomepageGenState, kind: GenFinding['kind'], text: str
   await writeGenState(state);
 }
 
+/**
+ * The epoch this instance is on right now. See resetEpoch in shared/schema.ts.
+ *
+ * Returns null when it cannot be read, and every caller treats null as "carry on" — a run
+ * killed by a transient query error would be worse than a stale write, and the column is
+ * absent entirely on an instance that has not booted the migration yet.
+ */
+async function currentEpoch(): Promise<number | null> {
+  try {
+    const r = await pool.query('SELECT coalesce(reset_epoch, 0) AS e FROM studio_configs LIMIT 1');
+    const v = Number(r.rows?.[0]?.e);
+    return Number.isFinite(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Has this instance been reset out from under a run that started at `startedEpoch`? */
+async function supersededSince(startedEpoch: number | null): Promise<boolean> {
+  if (startedEpoch === null) return false;
+  const now = await currentEpoch();
+  return now !== null && now !== startedEpoch;
+}
+
+/**
+ * The epoch the run currently in flight started on.
+ *
+ * Module-level rather than threaded through fourteen writeGenState calls and every note():
+ * this product is single-tenant per instance and POST /homepage/generate refuses to start a
+ * second run while one is 'running', so there is only ever one to fence.
+ */
+let activeEpoch: number | null = null;
+
 async function writeGenState(state: HomepageGenState): Promise<void> {
+  // A superseded run must not report progress. Without this the OLD run's "ready" lands on
+  // top of the NEW run's "running", and the wizard shows a studio a finished state belonging
+  // to somebody else's website.
+  if (await supersededSince(activeEpoch)) return;
   await pool.query(
     `UPDATE studio_configs SET homepage_gen_state = $1::jsonb, updated_at = now()
      WHERE id = (SELECT id FROM studio_configs LIMIT 1)`,
@@ -291,6 +328,10 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
   // Everything else is reset per run; `runs` is not. It is the only field that has to survive,
   // because it is what the open generate endpoint counts against.
   const priorRuns = Number((config?.homepageGenState as any)?.runs || 0);
+  // The world this run started in. Everything below stops when it stops matching — see
+  // supersededSince, and the fence bumped by reset-demo before it deletes anything.
+  const startedEpoch = await currentEpoch();
+  activeEpoch = startedEpoch;
   const state: HomepageGenState = {
     status: 'running', stage: 'crawling', pagesCrawled: 0, findings: [],
     draftId: null, slug: null, previewToken: null, error: null,
@@ -510,11 +551,12 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
           // in the database the whole time and only the choice was missing.
           try {
             const { assignCrawledSiteImages } = await import('./assignCrawledImages');
-            const imgs = await assignCrawledSiteImages('pillars');
+            const stillCurrent = async () => !(await supersededSince(startedEpoch));
+            const imgs = await assignCrawledSiteImages('pillars', { stillCurrent });
             // And then everything still unused, spread across every page. Runs last on purpose:
             // the hero and content slots get first refusal on the photographs whose names match
             // a service, and the gallery takes what is left rather than competing for them.
-            const extra = await assignCrawledSiteImages('galleries');
+            const extra = await assignCrawledSiteImages('galleries', { stillCurrent });
             if (extra.filled > 0) {
               console.log(`[homepage-pipeline] galleries: ${extra.filled} further photograph(s) placed`);
             }
@@ -727,7 +769,10 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
       // this, so at this moment the lookup inside storeSiteImage returns null and the hero
       // never reaches the page. Same trap the old code avoided by passing page.id directly,
       // walked straight back into when this moved behind a shared helper.
-      const r = await assignCrawledSiteImages('site', { heroPageId: page.id });
+      const r = await assignCrawledSiteImages('site', {
+        heroPageId: page.id,
+        stillCurrent: async () => !(await supersededSince(startedEpoch)),
+      });
       if (r.filled > 0) {
         await note(
           state,

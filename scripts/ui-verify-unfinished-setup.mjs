@@ -154,7 +154,10 @@ check('an uploaded photograph always wins over an auto-filled one',
 // Both failures are silent, and neither is visible in the row the wizard shows as filled. So
 // the check is that the pipeline HANDS OVER the id rather than trusting anything to find it.
 check('the auto-filled hero updates the created page, not a dead payload',
-  pipeline.includes("assignCrawledSiteImages('site', { heroPageId: page.id })"),
+  // Matched on the HANDOVER, not on one line of formatting. This pinned the whole single-line
+  // call, so adding the run fence beside heroPageId — and wrapping the call across lines —
+  // failed a check whose property is simply that the id is passed in rather than looked up.
+  /assignCrawledSiteImages\('site',[\s\S]{0,200}?heroPageId: page\.id/.test(pipeline),
   'anything that looks the id up instead is reading state written later in the same function');
 
 check('and the store prefers a caller-supplied id over that lookup',

@@ -142,7 +142,20 @@ export interface AssignResult {
  */
 export async function assignCrawledSiteImages(
   scope: 'site' | 'pillars' | 'galleries',
-  opts: { heroPageId?: string | null } = {},
+  opts: {
+    heroPageId?: string | null;
+    /**
+     * "Is the run that started me still the current one?"
+     *
+     * THIS IS THE SLOWEST THING THE PIPELINE DOES — up to forty images downloaded, measured,
+     * vision-described, IPTC-stamped and uploaded, one at a time. On the live demo it was
+     * still inserting rows THREE MINUTES after the wizard had told the studio it was
+     * finished. A reset inside that window emptied the tables and this went on refilling
+     * them with the PREVIOUS studio's photographs — and because it only ever fills an EMPTY
+     * slot, the next run then saw those rows, considered the slots taken, and left them.
+     */
+    stillCurrent?: () => Promise<boolean>;
+  } = {},
 ): Promise<AssignResult> {
   const out: AssignResult = { filled: 0, skipped: 0 };
   try {
@@ -335,6 +348,13 @@ export async function assignCrawledSiteImages(
           console.log(`[auto-images] skipped ${url.slice(0, 80)} for ${slot.section} — ${shape.why}`);
           rejected.add(url);
           continue;
+        }
+
+        // Before the write, not before the loop. The whole risk lives in the minutes this
+        // takes, so a check at the top would prove nothing by the time it mattered.
+        if (opts.stillCurrent && !(await opts.stillCurrent())) {
+          console.log('[auto-images] abandoning — this instance was reset while the run was still placing photographs');
+          return out;
         }
 
         storedUrls.add(url);

@@ -1193,6 +1193,34 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
     return res.status(403).json({ error: 'Reset is only available on demo instances (DEMO_MODE=true).' });
   }
   try {
+    /**
+     * FENCE ANY RUN STILL IN FLIGHT — FIRST, before a single row is deleted.
+     *
+     * The homepage pipeline is fire-and-forget and goes on writing for MINUTES after the
+     * wizard says "ready". Measured on this demo: crawl started 06:49:17, draft created
+     * 06:49:47, and homepage_images rows were still being inserted at 06:52:53 — three
+     * minutes past the point a studio is told it is finished.
+     *
+     * Nothing cancelled it. So a reset inside that window truncated the tables and the OLD
+     * run then refilled them with the PREVIOUS studio's photographs — and because
+     * assignCrawledSiteImages only ever fills an EMPTY slot, the new run looked at those
+     * rows, saw the slots taken, and left them alone. homepage_images carries no run id, so
+     * nothing downstream could tell the two apart.
+     *
+     * Reported as "photo from previous onboard, not this studios picture".
+     *
+     * Bumping the epoch is what makes a live run obsolete. It has to happen BEFORE the
+     * truncates: fencing afterwards leaves a window in which the old run writes into the
+     * freshly emptied tables, which is precisely the bug.
+     */
+    try {
+      await db.execute(sql`UPDATE studio_configs SET reset_epoch = coalesce(reset_epoch, 0) + 1`);
+    } catch (e: any) {
+      // Not fatal, but worth saying: without it a run still in flight can write into the
+      // tables this is about to clear, and nothing downstream will know.
+      console.warn('[reset-demo] could not bump the run fence:', e?.message || e);
+    }
+
     // Core data (CASCADE clears dependent rows: invoices/items, gallery images, sessions,
     // questionnaires, communications, etc. that reference clients/galleries).
     try {

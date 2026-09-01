@@ -320,7 +320,10 @@ const scaffoldBlock = (() => {
   return '';
 })();
 check('service images are assigned only once those pages exist',
-  /assignCrawledSiteImages\('pillars'\)/.test(scaffoldBlock),
+  // The CALL, with any arguments. This pinned the empty-argument form, so handing the
+  // assigner a run fence broke a check whose property — that it runs inside the callback
+  // that awaited the scaffold — was untouched.
+  /assignCrawledSiteImages\('pillars'[,)]/.test(scaffoldBlock),
   scaffoldBlock ? 'inside the callback that awaited the scaffold' : 'could not locate the scaffold callback');
 
 // ── The rest of the photographs land somewhere ─────────────────────────────

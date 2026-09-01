@@ -243,6 +243,54 @@ check('and the grid shows only what passed', /\{shown\.map\(\(img\)/.test(images
 // A count that still says 34 while showing 9 is its own small lie.
 check('the count follows what is shown', /\$\{shown\.length\} photograph/.test(images));
 
+console.log('\n=== a reset run cannot write into the next studio\'s site ===');
+
+// Measured on the live demo: crawl started 06:49:17, draft created 06:49:47, and
+// homepage_images rows were STILL being inserted at 06:52:53 — three minutes past the point
+// the wizard told the studio it was finished. Nothing cancelled the pipeline on reset, so a
+// reset inside that window emptied the tables and the OLD run refilled them with the PREVIOUS
+// studio's photographs. assignCrawledSiteImages only fills an EMPTY slot, so the new run then
+// saw those rows, considered the slots taken, and left them. homepage_images has no run id,
+// so nothing downstream could tell them apart.
+//
+// Reported as "photo from previous onboard, not this studios picture".
+check('the fence column exists in the schema', /resetEpoch: integer\("reset_epoch"\)/.test(schema));
+// Label deliberately distinct from the businessType check further up, which reads "and is
+// created on existing instances" too. Two checks sharing a label makes any tool that finds a
+// result line by its text — including the bite harness — silently report the wrong one.
+check('the fence column is created on existing instances',
+  /ADD COLUMN IF NOT EXISTS reset_epoch/.test(boot));
+check('a reset bumps it', /SET reset_epoch = coalesce\(reset_epoch, 0\) \+ 1/.test(setupRoutes));
+
+// BEFORE the truncates. Fencing afterwards leaves a window where the old run writes into the
+// freshly emptied tables, which is exactly the bug.
+const resetBody = (() => {
+  const at = setupRoutes.indexOf("router.post('/reset-demo'");
+  return at < 0 ? '' : setupRoutes.slice(at, at + 3000);
+})();
+const bumpAt = resetBody.indexOf('SET reset_epoch');
+const firstTruncateAt = resetBody.indexOf('TRUNCATE');
+check('the fence is raised before anything is deleted',
+  bumpAt > 0 && firstTruncateAt > 0 && bumpAt < firstTruncateAt,
+  bumpAt < 0 || firstTruncateAt < 0 ? 'one of the two moved' : `bump@${bumpAt} truncate@${firstTruncateAt}`);
+
+check('the run captures the epoch it started on', /activeEpoch = startedEpoch/.test(pipeline));
+// A dead run reporting "ready" over a live run's "running" shows a studio a finished state
+// belonging to somebody else's website.
+check('a superseded run stops reporting progress',
+  /if \(await supersededSince\(activeEpoch\)\) return;/.test(pipeline));
+// The three minutes live here, so the check has to be inside the loop, not before it.
+const assign = codeOnly(read('server/lib/assignCrawledImages.ts'));
+check('the image assigner can be told to stop', /stillCurrent\?: \(\) => Promise<boolean>/.test(assign));
+check('and asks before every write, not once at the start',
+  /if \(opts\.stillCurrent && !\(await opts\.stillCurrent\(\)\)\)/.test(assign));
+check('all three assign calls are fenced',
+  (pipeline.match(/stillCurrent/g) || []).length >= 3,
+  `${(pipeline.match(/stillCurrent/g) || []).length} references`);
+// A transient query failure must not kill a legitimate run.
+check('a run that cannot read the epoch is not killed',
+  /if \(startedEpoch === null\) return false;/.test(pipeline));
+
 console.log('\n=== the studio is not asked to do work already done ===');
 
 // The slots were filled server-side and the screen stopped asking. Polling stopped on
