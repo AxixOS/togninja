@@ -26,6 +26,8 @@ interface BasicsPhaseProps {
   initialData?: {
     businessName?: string;
     businessType?: string;
+    /** Everything else they shoot. See the chips under the Business Type select. */
+    businessTypes?: string[];
     timezone?: string;
     siteLanguage?: string;
     currency?: string;
@@ -193,6 +195,7 @@ export default function BasicsPhase({ initialData, onComplete, onBack }: BasicsP
   const [formData, setFormData] = useState({
     businessName: initialData?.businessName || '',
     businessType: initialData?.businessType || '',
+    businessTypes: initialData?.businessTypes || [],
     // UTC, not Vienna. Detection almost always wins, but when it does not, the fallback
     // should be a neutral zone rather than one particular studio's.
     timezone: initialData?.timezone || detectedTimezone || 'UTC',
@@ -620,6 +623,55 @@ export default function BasicsPhase({ initialData, onComplete, onBack }: BasicsP
           </Select>
           {errors.businessType && (
             <p className="text-sm text-red-500">{errors.businessType}</p>
+          )}
+
+          {/*
+            WHAT ELSE THEY SHOOT.
+
+            One dropdown said a studio is one thing. A family photographer who also does
+            weddings is completely ordinary, and had to pick the half of their business that
+            fitted the select — which then went to the model that writes their homepage as
+            though the rest did not exist.
+
+            Kept as PRIMARY + also, rather than a multi-select, because the two answers are
+            genuinely different: the first decides what the site leads with, the rest are
+            work it should also mention. Storing them as one flat list would lose that.
+          */}
+          {formData.businessType && (
+            <div className="pt-2">
+              <p className="text-sm font-medium text-gray-700">Do you also shoot any of these?</p>
+              <p className="text-xs text-gray-500 mb-2">
+                Optional. Your website will mention them too — pick as many as apply.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {BUSINESS_TYPES
+                  .filter((t) => t.value !== formData.businessType && t.value !== 'other')
+                  .map((t) => {
+                    const on = (formData.businessTypes || []).includes(t.value);
+                    return (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setFormData((prev: any) => {
+                          const cur: string[] = prev.businessTypes || [];
+                          return {
+                            ...prev,
+                            businessTypes: on ? cur.filter((v) => v !== t.value) : [...cur, t.value],
+                          };
+                        })}
+                        className={
+                          'rounded-full border px-3 py-1 text-sm transition-colors '
+                          + (on
+                            ? 'border-blue-600 bg-blue-50 text-blue-800'
+                            : 'border-gray-300 text-gray-700 hover:bg-gray-50')
+                        }
+                      >
+                        {t.label.replace(/ Photographer$/, '')}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
           )}
 
           {/* "Other" is useless on its own — capture the actual specialism. It's

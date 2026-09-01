@@ -690,6 +690,9 @@ router.get('/status', async (_req: Request, res: Response) => {
               // "Missing required fields: businessName, businessType, timezone". The studio had
               // answered it; the server had simply never kept the answer.
               businessType: (config as any).businessType || '',
+              // Round-tripped like everything else here: reopening the step must not lose
+              // the extra niches the studio ticked.
+              businessTypes: (config as any).businessTypes || [],
               timezone: config.timezone,
               currency: config.currency || integ?.default_currency || 'EUR',
               vatNumber: config.vatNumber || '',
@@ -1309,7 +1312,7 @@ router.post('/reset-demo', async (_req: Request, res: Response) => {
        * quietly as the schema grows. business_type went into the schema, the save and the
        * round-trip, and nobody thought of the reset — so it leaked on the very next one.
        */
-      'business_type',
+      'business_type', 'business_types',
       // The previous tenant's letterhead.
       'document_design',
       /**
@@ -1797,6 +1800,7 @@ router.post('/basics', async (req: Request, res: Response) => {
       vatNumber,
       siteLanguage,
       googlePlacesPlaceId,
+      businessTypes,
     } = req.body;
 
     if (!businessName || !businessType || !timezone) {
@@ -1830,6 +1834,20 @@ router.post('/basics', async (req: Request, res: Response) => {
       // Now kept. It was validated as required and then discarded, so the answer existed
       // only in the request that carried it — see the round-trip note in GET /status.
       businessType: cleanStr(businessType, 80),
+      /**
+       * The full set of what they shoot, primary included. A family studio that also does
+       * weddings could not say so through one dropdown.
+       *
+       * undefined when nothing usable arrives, so reopening this step cannot wipe the answer
+       * — the same rule as every field around it.
+       */
+      businessTypes: (() => {
+        if (!Array.isArray(businessTypes)) return undefined;
+        const out = [...new Set(
+          businessTypes.map((v) => String(v || '').trim().slice(0, 60)).filter(Boolean),
+        )].slice(0, 12);
+        return out.length ? out : undefined;
+      })(),
       timezone,
       /**
        * BLANK MEANS "NOT ANSWERED", NEVER "DELETE WHAT YOU HAVE".

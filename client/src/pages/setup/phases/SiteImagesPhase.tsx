@@ -371,7 +371,21 @@ export default function SiteImagesPhase({
      * that was finished". This is the same mistake in the panel next to it.
      */
     refetchInterval: (q) => {
-      if (q.state.data?.pillarsReady) return false;
+      /**
+       * PILLARS EXISTING IS NOT THE IMAGES BEING PLACED.
+       *
+       * This stopped the moment pillarsReady turned true — but the pipeline builds the map,
+       * scaffolds the pages, and only THEN assigns photographs to them
+       * (assignCrawledSiteImages 'pillars', then 'galleries'). So polling stopped in the gap
+       * between the slots existing and the pictures arriving, and twelve service slots sat
+       * visibly empty over a database that already had their photographs in it.
+       *
+       * Reported as: "then i chose one image and the rest filled up automatically" — the
+       * studio's own click called refresh(), which revealed work that had finished minutes
+       * earlier. They had no way to know they were not required.
+       *
+       * The run ending is the only honest stop condition: nothing can arrive after it.
+       */
       const run = qc.getQueryData<any>(['homepage-gen-status']);
       if (run && GEN_TERMINAL.includes(run.status)) return false;
       return 4000;
@@ -435,6 +449,10 @@ export default function SiteImagesPhase({
   useEffect(() => {
     if (gen && GEN_TERMINAL.includes(gen.status)) {
       qc.invalidateQueries({ queryKey: ['setup-crawled-images'] });
+      // And the slots themselves. The last photographs are placed in the final moments of the
+      // run, so the tick that observes the run ending is the one that must ask again — without
+      // it the studio's last-assigned images appear only when they next touch the screen.
+      qc.invalidateQueries({ queryKey: ['setup-site-images'] });
     }
   }, [gen?.status, qc]);
   /** The run ended without producing service slots. Not "still reading". */
@@ -679,12 +697,34 @@ export default function SiteImagesPhase({
         )}
       </CardContent>
 
+      {/*
+        THE BUTTON SAT ABOVE TWELVE MORE SLOTS AND READ AS DONE.
+
+        "3 of 15 added" was already here, next to a Continue button, with the three site
+        images filling the visible area and the twelve service slots below the fold. A studio
+        reported: "if i didnt know that the other blocks for images existed, i wouldnt know
+        they were there."
+
+        A fraction is not a prompt. It tells you where you are, not that there is somewhere
+        else to be — and it sits beside the control whose whole meaning is "this part is
+        finished". So the count now says what is BELOW, in words, and the button admits when
+        it is about to leave slots empty rather than saying the same "Continue" either way.
+      */}
       <CardFooter className="flex items-center justify-between pt-4">
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {shownFilled} of {shown.length} added
+          {shown.length - shownFilled > 0 && (
+            <span className="block text-slate-600 dark:text-slate-300">
+              {shown.length - shownFilled} more further down this page — every one is optional.
+            </span>
+          )}
         </p>
         <Button onClick={onComplete}>
-          {shownFilled === 0 ? 'Skip for now' : 'Continue'}
+          {shownFilled === 0
+            ? 'Skip for now'
+            : shownFilled < shown.length
+              ? `Continue without the other ${shown.length - shownFilled}`
+              : 'Continue'}
           <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </CardFooter>

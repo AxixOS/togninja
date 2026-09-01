@@ -176,6 +176,17 @@ function buildContext(config: any, rows: Array<{ url: string; title: string | nu
   // "United Kingdom". It stays as the fallback for a studio that gave an address but no city.
   const city = (config?.city || '').trim() || deriveCity(address);
 
+  // Primary first, then everything else they ticked, de-duplicated. Reads the array and
+  // falls back to the single value, so a studio who answered before business_types existed
+  // still contributes their one niche.
+  const shoots: string[] = (() => {
+    const many = Array.isArray(config?.businessTypes) ? config.businessTypes : [];
+    const all = [config?.businessType, ...many]
+      .map((v: unknown) => String(v || '').trim())
+      .filter(Boolean);
+    return [...new Set(all)].slice(0, 12);
+  })();
+
   const keywordsSet = new Set<string>();
   rows.forEach((r) => {
     const kw = r?.meta?.keywords;
@@ -199,6 +210,18 @@ function buildContext(config: any, rows: Array<{ url: string; title: string | nu
     businessName ? `Business name: ${businessName}` : '',
     tagline ? `Tagline: ${tagline}` : '',
     address ? `Address: ${address}` : '',
+    /**
+     * WHAT THEY ACTUALLY SHOOT — asked at step 2 and, until now, read by nothing.
+     *
+     * business_type was collected, validated as required, and never reached the model that
+     * writes the studio's website. primaryService below used the TAGLINE instead, so a studio
+     * whose tagline was a slogan got a homepage built around a slogan.
+     *
+     * business_types carries the full set, because a family studio that also shoots weddings
+     * is ordinary and one dropdown could not say so. Passing all of them lets the copy cover
+     * the work they actually do rather than the one label that fitted a select.
+     */
+    shoots.length ? `What this studio photographs: ${shoots.join(', ')}` : '',
     '',
     `Write the new homepage in the SAME LANGUAGE as the source content below. Reflect the`,
     `studio's real services, style and location. Keep the business name accurate. This is`,
@@ -217,7 +240,9 @@ function buildContext(config: any, rows: Array<{ url: string; title: string | nu
     // studio's content was filed under 'en' while its site read another row. Named
     // explicitly now so the two cannot drift apart again.
     language: config?.siteLanguage || process.env.SITE_LANG || 'en',
-    primaryService: tagline || 'Photography',
+    // What they shoot beats what their strapline says. This was the TAGLINE, so a studio
+    // whose tagline is a slogan got a homepage built around the slogan rather than the work.
+    primaryService: shoots[0] || tagline || 'Photography',
     city: city || undefined,
     tone: 'warm',
     pageType: 'homepage',

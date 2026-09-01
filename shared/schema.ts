@@ -50,6 +50,17 @@ export const studioConfigs = pgTable("studio_configs", {
   // Required by the basics step, so it has to be stored — otherwise reopening that step
   // cannot show the answer back, and the same validation then rejects the save.
   businessType: text("business_type"),
+  /**
+   * EVERYTHING ELSE THEY SHOOT. A family studio that also does weddings is ordinary, and one
+   * dropdown could not say so.
+   *
+   * businessType stays the PRIMARY — every existing reader keeps working unchanged — and this
+   * carries the full set. Declared HERE as well as in the boot ALTER, deliberately: six
+   * columns in this table exist only as boot ALTERs and are therefore invisible to drizzle's
+   * select(), which is how stepsComplete.look came to read undefined for a value that was
+   * plainly in the row.
+   */
+  businessTypes: jsonb("business_types"),
   address: text("address"),
   city: text("city"),
   state: text("state"),

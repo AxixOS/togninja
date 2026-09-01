@@ -25,7 +25,8 @@ const read = (p) => fs.readFileSync(p, 'utf8');
 const setupRoutes = codeOnly(read('server/setup-routes.ts'));
 const schema = codeOnly(read('shared/schema.ts'));
 const boot = codeOnly(read('server/index.ts'));
-const basics = codeOnly(read('client/src/pages/setup/phases/BasicsPhase.tsx'));
+const basicsRaw = read('client/src/pages/setup/phases/BasicsPhase.tsx');
+const basics = codeOnly(basicsRaw);
 
 // The object GET /api/setup/status hands to BasicsPhase as initialData.
 const payload = (() => {
@@ -193,7 +194,8 @@ check('a written homepage with no service pages says exactly that',
 // console.warn, so the top-level status went 'ready' whatever became of it and the reason
 // lived on the host where nobody using this product can reach it. Observed on a site with
 // eleven services in its nav: 'ready', authority_map null, one landing page, no explanation.
-const pipeline = codeOnly(read('server/lib/homepage-pipeline.ts'));
+const pipelineRaw = read('server/lib/homepage-pipeline.ts');
+const pipeline = codeOnly(pipelineRaw);
 check('the services chain records that it started',
   /state\.services = \{ status: 'running'/.test(pipeline));
 check('and records a failure instead of only logging it',
@@ -240,6 +242,56 @@ check('with the same thresholds as the server', /w < 500 \|\| h < 350/.test(imag
 check('and the grid shows only what passed', /\{shown\.map\(\(img\)/.test(images));
 // A count that still says 34 while showing 9 is its own small lie.
 check('the count follows what is shown', /\$\{shown\.length\} photograph/.test(images));
+
+console.log('\n=== the studio is not asked to do work already done ===');
+
+// The slots were filled server-side and the screen stopped asking. Polling stopped on
+// pillarsReady, but the pipeline builds the map, scaffolds the pages, and only THEN assigns
+// photographs to them — so it stopped in the gap between the slots existing and the pictures
+// arriving. Twelve service slots sat visibly empty over a database that already had them.
+// Reported as "then i chose one image and the rest filled up automatically": the studio's own
+// click called refresh() and revealed work finished minutes earlier.
+check('the slot poll does not stop when the pages appear',
+  !/if \(q\.state\.data\?\.pillarsReady\) return false;/.test(images));
+check('it stops when the run ends instead',
+  /if \(run && GEN_TERMINAL\.includes\(run\.status\)\) return false;/.test(images));
+// Scoped to the TERMINAL EFFECT. The bare key also appears in the refresh() helper that any
+// upload calls, so checking the file matched a line that has nothing to do with the run
+// ending — and deleting the one that does left this green.
+const terminalEffect = (() => {
+  const at = images.indexOf("if (gen && GEN_TERMINAL.includes(gen.status)) {");
+  return at < 0 ? '' : images.slice(at, at + 420);
+})();
+check('and the finished run refreshes the slots too',
+  /invalidateQueries\(\{ queryKey: \['setup-site-images'\] \}\)/.test(terminalEffect));
+
+// "3 of 15 added" sat next to Continue with twelve slots below the fold. A fraction tells you
+// where you are, not that there is somewhere else to be — and it sat beside the one control
+// whose whole meaning is "this part is finished".
+check('the footer says what is still below', /more further down this page/.test(imagesRaw));
+check('and the button admits what it is skipping',
+  /Continue without the other \$\{shown\.length - shownFilled\}/.test(imagesRaw));
+
+console.log('\n=== a studio can shoot more than one thing ===');
+
+// One dropdown said a studio is one thing. A family photographer who also does weddings had
+// to pick the half of their business that fitted the select.
+check('the extra niches have a column', /businessTypes: jsonb\("business_types"\)/.test(schema));
+check('declared in the schema, not only as a boot ALTER',
+  /business_types/.test(schema) && /ADD COLUMN IF NOT EXISTS business_types/.test(boot),
+  'both, so drizzle can actually see it');
+check('the save stores them', /businessTypes: \(\(\) => \{/.test(setupRoutes));
+check('and reopening the step gets them back',
+  /businessTypes: \(config as any\)\.businessTypes \|\| \[\]/.test(setupRoutes));
+check('a reset clears them', /'business_type', 'business_types',/.test(setupRoutes));
+check('the form offers them', /Do you also shoot any of these\?/.test(basicsRaw));
+
+// The point of the whole change: business_type was collected, validated as required, and read
+// by NOTHING that writes the studio's site. primaryService used the tagline instead.
+check('what they shoot reaches the model that writes their site',
+  /What this studio photographs/.test(pipelineRaw));
+check('and leads the copy, ahead of the strapline',
+  /primaryService: shoots\[0\] \|\| tagline/.test(pipeline));
 
 console.log('\n=== a new tab does not throw away a morning\'s work ===');
 

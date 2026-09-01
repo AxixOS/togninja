@@ -610,6 +610,8 @@ app.use((req, res, next) => {
         // step, and the save then rejected them for not re-answering a question whose answer
         // the server had discarded. Storing it is what makes "nothing is lost" true.
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS business_type TEXT`);
+        // Everything else they shoot. business_type stays the primary; this carries the rest.
+        await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS business_types JSONB`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_name TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_role TEXT`);
         await db.execute(sql`ALTER TABLE studio_configs ADD COLUMN IF NOT EXISTS owner_portrait_url TEXT`);
