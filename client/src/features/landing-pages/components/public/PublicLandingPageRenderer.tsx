@@ -18,6 +18,7 @@ import { PublicLandingPageProblemSection } from './PublicLandingPageProblemSecti
 import { PublicLandingPageOfferSection } from './PublicLandingPageOfferSection';
 import { useHomepageContentImages, usePageGalleryImages } from '@/hooks/useHomepageContentImages';
 import { PublicLandingPageGallerySection } from './PublicLandingPageGallerySection';
+import PublicLandingPageGoogleRating from './PublicLandingPageGoogleRating';
 import { PublicLandingPageBenefitsSection } from './PublicLandingPageBenefitsSection';
 import { PublicLandingPageWhyChooseUsSection } from './PublicLandingPageWhyChooseUsSection';
 import { PublicLandingPageInclusionsSection } from './PublicLandingPageInclusionsSection';
@@ -331,6 +332,21 @@ export function PublicLandingPageRenderer({
             else idx = 1; // 'top' → straight after the hero (first section)
             els.splice(Math.min(idx, els.length), 0, videoEl);
           }
+          /**
+           * The studio's real Google rating, immediately below the hero.
+           *
+           * Spliced for the same reason the gallery and the video are: the section order
+           * comes from content_json, which the generator writes, and the generator has no
+           * idea whether this studio has reviews. It cannot be a generated section.
+           *
+           * LAST, and at index 1, so it sits directly under the hero even when a video has
+           * also been placed at the top — the strip is one line and the video is a block, so
+           * putting the block first would push the rating out of the fold it exists to
+           * occupy. The component renders nothing at all unless the Places API returned a
+           * real rating, so this splice is free on a studio with no reviews.
+           */
+          els.splice(Math.min(1, els.length), 0, <PublicLandingPageGoogleRating key="google-rating" />);
+
           return els;
         })()}
 

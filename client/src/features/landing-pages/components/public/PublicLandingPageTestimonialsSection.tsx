@@ -6,6 +6,7 @@ import { alignText, alignJustify, type SectionAlign } from '../../utils/sectionA
 import { useIsEditorial } from '@/components/public/SiteLayoutContext';
 import { usePublicLabels } from '../../utils/publicLabels';
 import { useLanguage } from '../../../../context/LanguageContext';
+import { useGoogleReviews } from '../../../../hooks/useGoogleReviews';
 
 // Fallback review page if none is configured in Settings → Manual Website
 // Update → Site Settings → Reviews (the `reviews.googleUrl` value).
@@ -22,11 +23,40 @@ interface PublicLandingPageTestimonialsSectionProps {
   align?: SectionAlign;
 }
 
-export function PublicLandingPageTestimonialsSection({ data, align = 'center' }: PublicLandingPageTestimonialsSectionProps) {
+export function PublicLandingPageTestimonialsSection({ data: generated, align = 'center' }: PublicLandingPageTestimonialsSectionProps) {
   // Was the literal German string, shown on every studio site regardless of language.
   const editorial = useIsEditorial();
   const labels = usePublicLabels();
   const { t } = useLanguage();
+
+  /**
+   * REAL REVIEWS OUTRANK WRITTEN ONES, ALWAYS.
+   *
+   * The comment further down this file records that the generator was instructed to INVENT
+   * testimonials, and that a "Echte Google-Bewertungen" line above them was removed because
+   * it was not true. What was never done is the other half: preferring the real ones when
+   * they exist.
+   *
+   * So a studio with two hundred Google reviews had them fetched, rendered on a page a new
+   * studio never sees (HomePage.tsx, the built-in template, while onboarding points "/" at
+   * the GENERATED page), and showed invented quotes here instead. Their own clients' words,
+   * discarded in favour of a model's.
+   *
+   * Live data or nothing: useGoogleReviews returns null unless the Places API actually
+   * answered, so this falls back to the generated quotes rather than emptying the section.
+   */
+  const { data: live } = useGoogleReviews();
+  const data = (() => {
+    // A rating with no words is a number, and this section is about the words.
+    const withText = (live?.reviews || [])
+      .filter((r) => r.text && r.text.trim())
+      .slice(0, 6)
+      .map((r) => ({ quote: r.text.trim(), author: r.author, role: r.when || undefined }));
+    // Only when there is something to show. A studio whose reviews are all star-ratings and
+    // no text would otherwise lose this section entirely — the filter empties the list, and
+    // the early return below reads an empty list as "nothing to render".
+    return withText.length ? withText : generated;
+  })();
   const reviewsUrl = (() => {
     const v = t('reviews.googleUrl');
     return v && v !== 'reviews.googleUrl' ? v : DEFAULT_REVIEWS_URL;

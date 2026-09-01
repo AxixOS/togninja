@@ -81,5 +81,50 @@ console.log('\n=== the studio is told why they are still asked ===');
 // explaining the handover that reads as being charged for something already working.
 check('the request explains the handover', /from here they run on yours/.test(caps));
 
+console.log('\n=== the reviews reach the page a new studio actually gets ===');
+
+// GoogleReviews.tsx renders on HomePage.tsx — the built-in template — while onboarding sets
+// homepage_landing_slug so "/" serves the GENERATED landing page. So a studio's real reviews
+// were fetched, rendered, and shown on a page their site does not use. The only mention of
+// GoogleReviews anywhere in the landing-pages feature was a COMMENT saying reviews would be
+// rendered there. Exactly the shape of the content-images bug.
+const renderer = codeOnly(read('client/src/features/landing-pages/components/public/PublicLandingPageRenderer.tsx'));
+const rating = read('client/src/features/landing-pages/components/public/PublicLandingPageGoogleRating.tsx');
+const testimonials = codeOnly(read('client/src/features/landing-pages/components/public/PublicLandingPageTestimonialsSection.tsx'));
+
+check('the generated page renders the rating', /<PublicLandingPageGoogleRating/.test(renderer));
+// Index 1 — directly under the hero. The video also splices at 1, so this must be spliced
+// AFTER it or a video block pushes the one-line strip out of the fold it exists to occupy.
+const videoSplice = renderer.indexOf('videoPosition');
+const ratingSplice = renderer.indexOf('<PublicLandingPageGoogleRating');
+check('and splices it after the video, so it stays under the hero',
+  videoSplice > 0 && ratingSplice > videoSplice,
+  ratingSplice < 0 ? 'not spliced' : `video@${videoSplice} rating@${ratingSplice}`);
+check('at the fold, not at the end', /els\.splice\(Math\.min\(1, els\.length\), 0, <PublicLandingPageGoogleRating/.test(renderer));
+
+// Never a placeholder rating. The testimonials block once asserted "Echte Google-Bewertungen"
+// over quotes the generator had invented; this is the component that claim moved to, so it
+// must not render anything it cannot source.
+check('it renders nothing without a real rating',
+  /if \(!data \|\| !data\.rating \|\| !data\.count\) return null;/.test(rating));
+check('the count is shown beside the score', /Google review/.test(rating));
+// The HREF, not the name. data.mapsUri appears twice — the ternary deciding whether to render
+// a link at all, and the link itself — so neutering one left this green over an unverifiable
+// rating. Caught by biting.
+// BOTH HALVES, because there are two ways to lose the link and each is a real regression:
+// neutering the ternary means no anchor is rendered at all, and changing the href means the
+// anchor goes somewhere else. Checking only one passed over the other — the first version
+// asserted the href, and a bite that killed the condition sailed through it.
+check('and it links to the listing so the claim can be checked',
+  /data\.mapsUri \?/.test(rating) && /href=\{data\.mapsUri\}/.test(rating));
+
+// The other half: real words should displace invented ones.
+// The CALL, not the import. Replacing the hook call with a null left the import line behind,
+// and this matched that — passing over a section returned to showing invented quotes.
+check('real reviews outrank generated testimonials',
+  /const \{ data: live \} = useGoogleReviews\(\);/.test(testimonials));
+check('and a studio with only star-ratings keeps its section',
+  /return withText\.length \? withText : generated;/.test(testimonials));
+
 console.log(bad ? `\n${bad} FAILING\n` : '\nall good\n');
 process.exit(bad ? 1 : 0);
