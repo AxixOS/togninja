@@ -10,6 +10,7 @@ import { SEOHead } from '../components/SEO/SEOHead';
 import { RelatedTopicsBlock } from '../components/SEO/RelatedTopicsBlock';
 import { Helmet } from 'react-helmet-async';
 import { SITE } from '../config/site';
+import { combinePhone, dialCodeOptions, dialFor, defaultDialIso } from '../lib/dialCodes';
 
 const KontaktPage: React.FC = () => {
   // Use manual page content hook - allows admin to override any content
@@ -24,14 +25,20 @@ const KontaktPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // International dialling code for the phone field. Preselected from the studio's
+  // own number/address/locale, so most visitors never have to touch it.
+  const [dialIso, setDialIso] = useState(() => defaultDialIso(SITE));
+  const dialOptions = React.useMemo(() => dialCodeOptions(language), [language]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+
     try {
-      await submitContactForm(formData);
+      // The lead is stored with the number in international form, so a phone that
+      // arrives from abroad is still dialable from the studio's CRM.
+      await submitContactForm({ ...formData, phone: combinePhone(dialIso, formData.phone) });
       setSuccess(true);
       setFormData({ fullName: '', email: '', phone: '', message: '' });
     } catch (err) {
@@ -274,14 +281,40 @@ const KontaktPage: React.FC = () => {
                 </div>
                 <div>
                   <label htmlFor="phone" className="block text-sm font-medium text-gray-700">{t('contact.phone')}</label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  />
+                  {/* Country dialling code + local number. They submit as one
+                      international string, so nothing downstream changes. */}
+                  <div className="mt-1 flex gap-2">
+                    <select
+                      id="dialCode"
+                      name="dialCode"
+                      aria-label={t('contact.dialCode')}
+                      value={dialIso}
+                      onChange={(e) => setDialIso(e.target.value)}
+                      className="w-32 shrink-0 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    >
+                      <option value="">{t('contact.dialCode')}</option>
+                      {dialOptions.map((c) => (
+                        <option key={c.iso} value={c.iso}>
+                          {c.iso} {c.dial} — {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      inputMode="tel"
+                      autoComplete="tel-national"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+                  {dialFor(dialIso) && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {t('contact.dialCodeHint')} {combinePhone(dialIso, formData.phone) || dialFor(dialIso)}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label htmlFor="message" className="block text-sm font-medium text-gray-700">{t('contact.message')}</label>
