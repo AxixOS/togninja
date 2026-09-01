@@ -81,6 +81,29 @@ console.log('\n=== the studio is told why they are still asked ===');
 // explaining the handover that reads as being charged for something already working.
 check('the request explains the handover', /from here they run on yours/.test(caps));
 
+console.log('\n=== the stored identifier is one this API can use ===');
+
+// Three different things get called a "place id" and only one works here. A Google Maps share
+// link carries a KNOWLEDGE-GRAPH id (/g/...) in its !16s segment and a hex CID pair in !1s;
+// the Places API wants ChIJ... Asking for /v1/places/%2Fg%2F11ghxg_twp returns nothing, and
+// the studio is told their reviews are unavailable with a key that works perfectly.
+//
+// Two of my own changes collided to produce it: v1.9.212 stored the map-link id in
+// google_places_place_id, and v1.9.226 then skipped the Text Search that would have found a
+// usable one, because "a place id is already stored". Verified live: configured true,
+// available false, stored id /g/11ghxg_twp.
+check('there is a check for what the API can use', /export function isPlacesApiId/.test(reviews));
+check('knowledge-graph ids are rejected', /startsWith\('\/g\/'\)/.test(reviews));
+check('and hex CID pairs are too', /\^0x\[0-9a-f\]\+:0x\[0-9a-f\]\+\$/.test(reviews));
+// The point is not to reject: it is to go and find one that works.
+check('an unusable id triggers a resolve rather than a silent failure',
+  /if \(stored && !isPlacesApiId\(stored\)\)/.test(reviews));
+check('and the resolved id is kept, so it is found once', /UPDATE studio_integrations SET google_places_place_id/.test(reviews));
+// The guard that skipped the resolve asked the wrong question: "is something stored" rather
+// than "can this be used".
+check('the setup guard asks whether the stored id is usable, not merely present',
+  /v && isPlacesApiId\(v\) \? v : ''/.test(codeOnly(read('server/technical-setup-routes.ts'))));
+
 console.log('\n=== the reviews reach the page a new studio actually gets ===');
 
 // GoogleReviews.tsx renders on HomePage.tsx — the built-in template — while onboarding sets

@@ -50,13 +50,90 @@ async function getPlacesKey(): Promise<string> {
   return p.apiKey || '';
 }
 
+/**
+ * CAN THE PLACES API ACTUALLY USE THIS IDENTIFIER?
+ *
+ * Three different things get called a "place id" and only one of them works here.
+ *
+ *   ChIJ...            a Places API place ID. GET /v1/places/{this} works.
+ *   /g/11ghxg_twp      a KNOWLEDGE-GRAPH id, which is what a Google Maps share link
+ *                      carries in its !16s segment.
+ *   0x487c...:0x9a...  the hex CID/feature pair, from the same link's !1s segment.
+ *
+ * The last two are real identifiers for the same business and are useless to this API. Asking
+ * for /v1/places/%2Fg%2F11ghxg_twp returns nothing, the caller reads a failed fetch, and the
+ * studio is told their reviews are "not available" — with a key that works perfectly.
+ *
+ * Which is exactly what happened. v1.9.212 taught onboarding to read the id out of the map
+ * link a studio pastes, and stored the /g/ form in google_places_place_id — a column this
+ * file feeds straight to the Places API. v1.9.226 then stopped the Text Search that WOULD
+ * have found a usable one, on the reasoning that a place id was already stored. Both changes
+ * were mine and each was defensible alone.
+ *
+ * The map-link id is still worth keeping: it names the listing unambiguously, and a provider
+ * that accepts a cid or fid can use it directly. It just is not this one.
+ */
+export function isPlacesApiId(id: string): boolean {
+  const v = String(id || '').trim();
+  if (!v) return false;
+  if (v.startsWith('/g/') || v.startsWith('/m/')) return false;   // knowledge graph
+  if (/^0x[0-9a-f]+:0x[0-9a-f]+$/i.test(v)) return false;          // hex CID / feature id
+  return true;
+}
+
 async function getPlaceId(): Promise<string> {
+  let stored = '';
   try {
     const { config } = await import('../config-reader.js');
     const fromDb = await config.get('google_places_place_id');
-    if (fromDb) return String(fromDb).trim();
+    if (fromDb) stored = String(fromDb).trim();
   } catch { /* fall through to env */ }
-  return (process.env.GOOGLE_PLACES_PLACE_ID || '').trim();
+  if (!stored) stored = (process.env.GOOGLE_PLACES_PLACE_ID || '').trim();
+
+  // An identifier this API cannot use is worse than none: with none, the resolver below runs
+  // and finds a real one. With an unusable one stored, everything downstream believed the
+  // studio was configured and quietly failed every call.
+  if (stored && !isPlacesApiId(stored)) {
+    const resolved = await resolveAndStorePlacesId();
+    return resolved || '';
+  }
+  return stored;
+}
+
+/**
+ * Find this studio's real Places API id and keep it.
+ *
+ * resolvePlaceIdFromStudio already does the finding — Text Search on the studio's own name
+ * and address, deliberately refusing to guess when Google returns more than one candidate.
+ * What was missing is anything that CALLS it when the stored id turns out to be the wrong
+ * kind, and anything that writes the answer back so the next request does not repeat the work.
+ *
+ * Best effort throughout: no key, no match, an ambiguous match or a failed write all mean
+ * "no reviews this time", which is the same outcome as before and never an error shown to a
+ * studio.
+ */
+async function resolveAndStorePlacesId(): Promise<string | null> {
+  try {
+    const found = await resolvePlaceIdFromStudio();
+    if (!('placeId' in found) || !found.placeId) return null;
+    try {
+      const { pool } = await import('../db.js');
+      await pool.query(
+        `UPDATE studio_integrations SET google_places_place_id = $1`,
+        [found.placeId],
+      );
+      const { config } = await import('../config-reader.js');
+      config.invalidate();
+    } catch (e: any) {
+      // The id is still good for this request even if we could not keep it.
+      console.warn('[googlePlaces] resolved a place id but could not store it:', e?.message || e);
+    }
+    console.log(`[googlePlaces] map-link id was not a Places id — resolved "${found.name}" instead`);
+    return found.placeId;
+  } catch (e: any) {
+    console.warn('[googlePlaces] could not resolve a Places id:', e?.message || e);
+    return null;
+  }
 }
 
 /**

@@ -493,15 +493,24 @@ router.post('/extras', async (req: Request, res: Response) => {
     // it from the studio's own name and address, which onboarding already captured.
     // Best effort: never block the save, and never guess when Google is ambiguous.
     //
-    // NOT when one is already stored. Onboarding now reads the place id straight out of the
-    // Google Maps link the studio pastes, which is exact. Text Search is a guess from a name
-    // and an address — a good one, and conservative, but it accepts a single candidate, and a
-    // single WRONG candidate would replace a definitively correct id with another business's.
-    // Falling back to a guess over a known answer is the wrong direction.
+    // NOT when a USABLE one is already stored. Onboarding reads the place id straight out of
+    // the Google Maps link the studio pastes, which is exact — and Text Search is a guess from
+    // a name and an address, so falling back to a guess over a known answer is the wrong
+    // direction.
+    //
+    // But "stored" was the wrong test. The map link carries a KNOWLEDGE-GRAPH id (/g/...) or a
+    // hex CID, and the Places API can use neither — so this guard was skipping the resolve
+    // because an identifier existed, while that identifier made every Places call fail. A
+    // studio with a working key was told their reviews were unavailable.
+    //
+    // isPlacesApiId is the question that was actually meant: not "is something stored" but
+    // "can the API this feeds do anything with it".
     const storedPlaceId = await (async () => {
       try {
         const existing = await config.get('google_places_place_id');
-        return existing ? String(existing).trim() : '';
+        const v = existing ? String(existing).trim() : '';
+        const { isPlacesApiId } = await import('./services/googleReviews.js');
+        return v && isPlacesApiId(v) ? v : '';
       } catch { return ''; }
     })();
     const resolvePlacesAfterSave = !!googlePlacesApiKey && !googlePlacesPlaceId && !storedPlaceId;
