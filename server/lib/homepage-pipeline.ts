@@ -557,6 +557,34 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
             // the hero and content slots get first refusal on the photographs whose names match
             // a service, and the gallery takes what is left rather than competing for them.
             const extra = await assignCrawledSiteImages('galleries', { stillCurrent });
+
+            /**
+             * And ALL of them onto a portfolio page.
+             *
+             * The slots above take nine photographs — a hero, two content blocks, one per
+             * service. The crawl finds forty. The remaining thirty-one were offered in a
+             * picker and otherwise did nothing: a photographer's whole body of work sat in
+             * the database while their new site showed nine pictures.
+             *
+             * LAST, and after the galleries, for the same reason the galleries run after the
+             * pillars: the named slots get first refusal on the photographs whose filenames
+             * match a service, and the portfolio takes everything — including the ones
+             * already used, because a hero belongs in a portfolio too.
+             *
+             * Fenced like the rest. It copies forty files one at a time, which is the widest
+             * window in this pipeline for a reset to land in.
+             */
+            try {
+              const { seedPortfolioFromCrawl } = await import('./seedPortfolioFromCrawl.js');
+              const port = await seedPortfolioFromCrawl({ stillCurrent });
+              if (port.added > 0) {
+                await note(state, 'found', `Built your portfolio page from ${port.added} of your photographs`);
+              }
+            } catch (e: any) {
+              // Never fatal: the site works without a portfolio page, and this runs after
+              // everything the studio is actually waiting for.
+              console.warn('[homepage-pipeline] portfolio seed failed:', e?.message || e);
+            }
             if (extra.filled > 0) {
               console.log(`[homepage-pipeline] galleries: ${extra.filled} further photograph(s) placed`);
             }

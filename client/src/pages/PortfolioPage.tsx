@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import useEmblaCarousel from 'embla-carousel-react';
 import { useQuery } from '@tanstack/react-query';
+import PortfolioGrid from './PortfolioGrid';
 import Layout from '../components/layout/Layout';
 import { proxiedImgProps } from '../lib/imageProxy';
 import { RelatedTopicsBlock } from '../components/SEO/RelatedTopicsBlock';
@@ -323,6 +324,19 @@ const PortfolioPage: React.FC = () => {
     staleTime: 1000 * 60 * 5, // 5 minutes cache
   });
 
+  /**
+   * Everything that is not one of the six hardcoded categories.
+   *
+   * For a studio built from a crawl that is all of them — seedPortfolioFromCrawl files
+   * photographs under 'portfolio', deliberately, because which of somebody else's headings a
+   * stranger's photograph belongs to is not a thing this product knows.
+   */
+  const uncategorised = useMemo(() => {
+    if (!allImages) return [];
+    const known = new Set(categoryConfig.map((c) => c.id));
+    return allImages.filter((img) => !known.has(String(img.category)));
+  }, [allImages]);
+
   // Group images by category
   const imagesByCategory = useMemo(() => {
     if (!allImages) return {};
@@ -470,8 +484,26 @@ const PortfolioPage: React.FC = () => {
           </div>
         )}
 
+        {/*
+          THE GRID, when the images do not belong to anyone else's categories.
+
+          categoryConfig below is six hardcoded ids — family, newborn, maternity, wedding,
+          business, event — each linking to /fotoshootings. That is the ORIGIN studio's
+          taxonomy in their language, and it is the only thing this page could render. An
+          image filed under anything else appeared NOWHERE: the crawl's forty photographs
+          would have been invisible on the page built to show them.
+
+          So when nothing matches those six, the whole set is shown as one editorial grid
+          instead. A studio who has organised their work into the six keeps the carousels.
+        */}
+        {!isLoading && !error && uncategorised.length > 0 && (
+          <div className="pb-24">
+            <PortfolioGrid images={uncategorised} />
+          </div>
+        )}
+
         {/* Category Carousels */}
-        {!isLoading && !error && categoryConfig.map((category, index) => (
+        {!isLoading && !error && uncategorised.length === 0 && categoryConfig.map((category, index) => (
           <CategoryCarousel
             key={category.id}
             categoryId={category.id}
