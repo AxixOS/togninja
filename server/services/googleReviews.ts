@@ -247,6 +247,28 @@ export async function resolvePlaceIdFromStudio(): Promise<{ placeId: string; nam
  * `configured: false`, which told a studio owner neither what was missing nor where to
  * put it.
  */
+/**
+ * Did this instance's onboarding run actually read a rating?
+ *
+ * The pipeline records it in homepage_gen_state.reviews (see captureGoogleReviews.ts). Read
+ * from the column rather than through homepage-pipeline: that module imports
+ * captureGoogleReviews, which imports this file, and the import would close the cycle.
+ *
+ * False on anything unexpected. The only thing this decides is whether we tell a studio we
+ * already showed them their reviews, and that must never be said on a guess.
+ */
+async function reviewsWereShownDuringSetup(): Promise<boolean> {
+  try {
+    const { pool } = await import('../db.js');
+    const r = await pool.query('SELECT homepage_gen_state AS s FROM studio_configs LIMIT 1');
+    const raw = r.rows?.[0]?.s;
+    const state = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return state?.reviews?.status === 'ready';
+  } catch {
+    return false;
+  }
+}
+
 export async function googleReviewsStatus(): Promise<{ configured: boolean; needs?: 'api-key' | 'own-key' | 'place-id'; message?: string }> {
   const hasKey = !!(await getPlacesKey());
   if (!hasKey) {
@@ -270,12 +292,26 @@ export async function googleReviewsStatus(): Promise<{ configured: boolean; need
     const { placesProvider } = await import('../lib/placesProvider.js');
     const unGated = await placesProvider();
     if (unGated.apiKey && unGated.source === 'platform') {
+      /**
+       * ONLY CLAIM THE PREVIEW HAPPENED IF IT DID.
+       *
+       * "Your reviews were shown during setup" is true for any studio onboarded from v1.9.240,
+       * which is when the pipeline started asking. It is NOT true for one onboarded before
+       * that, because nothing asked — which was the whole defect — and telling them we showed
+       * them something they never saw is exactly the kind of claim v1.9.239 was about.
+       *
+       * Reads what the run recorded rather than inferring it, and defaults to NOT having
+       * claimed it: an unreadable state means we cannot say the preview happened, so we don't.
+       */
+      const shown = await reviewsWereShownDuringSetup();
       return {
         configured: false,
         needs: 'own-key',
-        message:
-          'Your Google reviews were shown during setup on our account. To keep them on your '
-          + 'live site, add your own Google Places API key in Settings → Technical Setup → Google.',
+        message: shown
+          ? 'Your Google reviews were shown during setup on our account. To keep them on your '
+            + 'live site, add your own Google Places API key in Settings → Technical Setup → Google.'
+          : 'To show your Google rating on your site, add your own Google Places API key in '
+            + 'Settings → Technical Setup → Google.',
       };
     }
     return {

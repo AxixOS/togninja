@@ -203,5 +203,15 @@ const recorded = (() => {
 check('and what is recorded carries no key',
   recorded.length > 0 && !/apiKey/.test(recorded) && /source/.test(recorded));
 
+// The handover sentence claims we already showed them their reviews. True for anyone
+// onboarded from v1.9.240, false for anyone before it — nothing asked then, which was the
+// defect. Claiming it anyway would be a sixth entry on the v1.9.239 list.
+check('the handover only claims a preview that happened',
+  /const shown = await reviewsWereShownDuringSetup\(\)/.test(reviews));
+check('and reads what the run recorded', /state\?\.reviews\?\.status === 'ready'/.test(reviews));
+// An unreadable state must not become a claim. The catch returns false, not true.
+check('an unreadable state is not treated as proof it happened',
+  /catch \{\s*return false;\s*\}/.test(reviews));
+
 console.log(bad ? `\n${bad} FAILING\n` : '\nall good\n');
 process.exit(bad ? 1 : 0);
