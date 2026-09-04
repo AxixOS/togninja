@@ -54,6 +54,26 @@ export default function SetupProgressBanner() {
 
   if (missing.length === 0) return null;
 
+  /**
+   * WHERE THE KEYS ARE ACTUALLY TAKEN — not the onboarding wizard.
+   *
+   * This linked to /setup, which is the six-step creative wizard. Everything this banner
+   * lists is a studio-owned INTEGRATION — payments, email, storage, print fulfilment — and
+   * none of them is on that wizard's essential path. So a studio who had already finished
+   * onboarding clicked "Finish setup", landed back in a completed wizard, pressed its finish
+   * button, was returned to the admin, and met this same banner again.
+   *
+   * Reported as: "The page tells me 6 things to connect, and when I click Finish Setup, I am
+   * in a loop." It was a loop in the literal sense — the link could not reach the thing it
+   * was describing, so following it changed nothing and offered the same invitation again.
+   *
+   * Every capability already carries the screen that takes it (capabilities.ts settingsPath),
+   * and SetupNeededCard on the dashboard has been using it the whole time. This is the same
+   * destination, chosen from the first missing capability that names one. /setup remains the
+   * fallback for the case where nothing does, which is where this started.
+   */
+  const target = missing.find((c) => c.settingsPath)?.settingsPath || '/setup';
+
   const dismiss = () => {
     setHidden(true);
     try { sessionStorage.setItem(DISMISS_KEY, '1'); } catch { /* fine */ }
@@ -86,10 +106,12 @@ export default function SetupProgressBanner() {
         </p>
 
         <Link
-          to="/setup"
+          to={target}
           className="ml-auto shrink-0 inline-flex items-center gap-1 font-medium text-amber-900 hover:text-amber-950 underline underline-offset-2"
         >
-          Finish setup
+          {/* "Finish setup" named the wizard, which is not where any of this is done and is
+              the reason following it went in a circle. */}
+          Connect these
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
 

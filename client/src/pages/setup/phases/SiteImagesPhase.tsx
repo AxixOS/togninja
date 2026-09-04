@@ -19,6 +19,27 @@ import { Loader2, ImagePlus, Check, ArrowRight, AlertCircle } from 'lucide-react
 const GEN_TERMINAL = ['ready', 'error', 'skipped', 'quota_exceeded'];
 
 /**
+ * The whole run is over — INCLUDING the service pages.
+ *
+ * Every poll on this screen used to stop on `GEN_TERMINAL.includes(run.status)` alone, under a
+ * comment arguing it was "the only honest stop condition: nothing can arrive after it".
+ * Something does. The top-level status turns terminal when the HOMEPAGE is written; the
+ * authority map and the pillar pages run on afterwards as their own chain, reporting their own
+ * status, and on the run this was found on they finished four and a half minutes later and
+ * created four pages.
+ *
+ * So polling stopped in that gap, and the panel that waits for service slots was left holding
+ * a run it believed had ended with nothing in it — which is how a studio was told their
+ * service pages could not be built while they were being built.
+ *
+ * Both conditions, deliberately: 'running' services on a run whose status never went terminal
+ * is still unfinished, and a terminal status with the services chain absent (null — it never
+ * started) is genuinely over.
+ */
+const genSettled = (run: any): boolean =>
+  !!run && GEN_TERMINAL.includes(run.status) && run?.services?.status !== 'running';
+
+/**
  * Collect the photographs the site is built around.
  *
  * Placed AFTER the crawl, deliberately. Half of these slots cannot be named until the
@@ -348,7 +369,7 @@ export default function SiteImagesPhase({
      */
     refetchInterval: () => {
       const run = qc.getQueryData<any>(['homepage-gen-status']);
-      if (!run || GEN_TERMINAL.includes(run.status)) return false;
+      if (!run || genSettled(run)) return false;
       return 3000;
     },
   });
@@ -387,7 +408,7 @@ export default function SiteImagesPhase({
        * The run ending is the only honest stop condition: nothing can arrive after it.
        */
       const run = qc.getQueryData<any>(['homepage-gen-status']);
-      if (run && GEN_TERMINAL.includes(run.status)) return false;
+      if (genSettled(run)) return false;
       return 4000;
     },
   });
@@ -410,7 +431,7 @@ export default function SiteImagesPhase({
     // firing every 2.5 seconds for as long as the step was mounted — long after the run had
     // ended in error, skipped or quota_exceeded — and the copy below went on saying "Still
     // reading your website" under an animated spinner, for ever, over a run that was finished.
-    refetchInterval: (q) => (startScan && !GEN_TERMINAL.includes(q.state.data?.status) ? 2500 : false),
+    refetchInterval: (q) => (startScan && !genSettled(q.state.data) ? 2500 : false),
     enabled: startScan,
   });
   const readRunning = gen?.status === 'running';
@@ -447,14 +468,19 @@ export default function SiteImagesPhase({
   // The last word on the picker. A run that has just finished has photographs the poll above
   // stopped asking for one tick earlier, so the terminal transition asks once more.
   useEffect(() => {
-    if (gen && GEN_TERMINAL.includes(gen.status)) {
+    // genSettled, not the homepage status. The photographs this exists to catch are the LAST
+    // ones placed, and on the run that prompted this the final line of the log was "Added a
+    // photograph to 12 of your service pages" — four and a half minutes after the homepage
+    // went terminal. Firing on the homepage meant the one refresh guaranteeing the studio
+    // sees their finished slots happened before the service pages had any.
+    if (genSettled(gen)) {
       qc.invalidateQueries({ queryKey: ['setup-crawled-images'] });
       // And the slots themselves. The last photographs are placed in the final moments of the
       // run, so the tick that observes the run ending is the one that must ask again — without
       // it the studio's last-assigned images appear only when they next touch the screen.
       qc.invalidateQueries({ queryKey: ['setup-site-images'] });
     }
-  }, [gen?.status, qc]);
+  }, [gen?.status, gen?.services?.status, qc]);
   /** The run ended without producing service slots. Not "still reading". */
   const readStopped = GEN_TERMINAL.includes(gen?.status) && gen?.status !== 'ready';
   /**
@@ -475,6 +501,26 @@ export default function SiteImagesPhase({
   // fact the pipeline recorded, not something inferred from an empty list.
   const servicesFailed = gen?.services?.status === 'failed';
   const servicesReason = String(gen?.services?.reason || '').trim();
+  /**
+   * The service pages are STILL BEING BUILT. Not finished, and not failed.
+   *
+   * readFinished goes true when the top-level status reaches a terminal value, and that
+   * happens when the HOMEPAGE is written — but the authority map and the pillar pages are a
+   * separate chain that runs on afterwards. Between the two, this panel had a run it
+   * considered over and a list that was still empty, so it printed the permanent-failure
+   * sentence over work that was in progress.
+   *
+   * Measured on the run that was reported: the homepage said "Your new homepage is live" at
+   * 15:11:03 and "Added a photograph to 12 of your service pages" landed at 15:15:46, with
+   * services.status ending 'ready' and pillarsCreated 4. For four and a half minutes a studio
+   * was told "we could not build the pages behind your services this time" while they were
+   * being built — and they then WERE built, so the sentence was not merely early, it was
+   * false. Reported as "the Setup wizard could not build the pages".
+   *
+   * The chain reports 'running' the whole time. Asking it directly is the fix; inferring the
+   * answer from the homepage's status is what caused this.
+   */
+  const servicesRunning = gen?.services?.status === 'running';
   /**
    * The allowance ran out, which is NOT a failure to read the site.
    *
@@ -649,7 +695,7 @@ export default function SiteImagesPhase({
                "Still reading" were shown whenever the list was empty, with no reference to
                whether the run was still going — so a run that ended in a refusal left a studio
                watching an animation describing work that had already stopped. */
-            readFinished ? (
+            readFinished && !servicesRunning ? (
               <div className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4">
                 {quotaSpent
                   ? `We found your services, but the site writing included with this instance has
@@ -685,10 +731,25 @@ export default function SiteImagesPhase({
             ) : (
             <div className="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4 flex items-start gap-3">
               <Loader2 className="w-4 h-4 mt-0.5 animate-spin flex-shrink-0" />
+              {/* Two different waits reach this spinner and they are not the same work. Once
+                  the homepage is done the reading is OVER and the service pages are being
+                  written — telling a studio we are "still reading your website" at that point
+                  describes a job that finished minutes ago, on the same screen that has
+                  already listed the services we read. */}
               <span>
-                Still reading your website. Your services will appear here in a moment, and
-                we'll ask for one photograph each. If you skipped the website step there
-                won't be any — you can add images from Website Studio later.
+                {servicesRunning ? (
+                  <>
+                    Building the pages behind your services. This runs on after your homepage
+                    is live and takes a few minutes — the slots will appear here as each page
+                    is made, and we'll ask for one photograph each.
+                  </>
+                ) : (
+                  <>
+                    Still reading your website. Your services will appear here in a moment, and
+                    we'll ask for one photograph each. If you skipped the website step there
+                    won't be any — you can add images from Website Studio later.
+                  </>
+                )}
               </span>
             </div>
             )

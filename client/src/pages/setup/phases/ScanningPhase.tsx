@@ -467,9 +467,26 @@ export default function ScanningPhase({ onComplete, isLast = false }: ScanningPh
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-10 h-10 text-green-600" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Scan Complete!</h3>
+              {/* NOTHING FOUND IS THE NORMAL RESULT FOR A NEW STUDIO, AND IS NOT A FAILURE.
+
+                  This sentence was unconditional, so an instance with no clients yet — which
+                  is every instance on its first day — was told "We found some opportunities to
+                  improve your setup" directly above three zeros. Reported as "I scanned, but
+                  zero opportunities on this website": the copy promised findings, the numbers
+                  denied them, and the studio was left deciding which one was broken.
+
+                  This scan reads the CRM, not the website. A studio who has not imported
+                  clients has nothing for it to read, and saying so plainly is both true and
+                  more use than a claim they can see is wrong. */}
+              <h3 className="text-xl font-semibold mb-2">
+                {(scanState.results.pagesScanned || 0) === 0 ? 'Nothing to check yet' : 'Scan Complete!'}
+              </h3>
               <p className="text-gray-500">
-                We found some opportunities to improve your setup
+                {(scanState.results.pagesScanned || 0) === 0
+                  ? 'This checks your client records for duplicates and gaps, and there are none here yet — nothing has gone wrong. It will have something to look at once you import or add clients.'
+                  : (scanState.results.issuesFound || 0) === 0
+                    ? 'We checked your client records and found nothing that needs fixing.'
+                    : 'We found some opportunities to improve your setup'}
               </p>
             </div>
             

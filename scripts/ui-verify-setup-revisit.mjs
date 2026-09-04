@@ -157,7 +157,10 @@ const ownQuery = (() => {
 })();
 check('the crawled-photograph query was found', ownQuery.length > 0);
 check('it asks again while the read is unfinished', /refetchInterval/.test(ownQuery));
-check('and stops once the run is over', /GEN_TERMINAL\.includes\(run\.status\)/.test(ownQuery));
+// genSettled is GEN_TERMINAL plus "the service-page chain is not still running". The property
+// is unchanged — this poll must stop — but the homepage going terminal is not the end of the
+// run, so stopping there abandoned the picker while photographs were still being placed.
+check('and stops once the run is over', /genSettled\(run\)/.test(ownQuery));
 check('a finished run refreshes it once more',
   /invalidateQueries\(\{ queryKey: \['setup-crawled-images'\] \}\)/.test(images));
 
@@ -180,10 +183,15 @@ console.log('\n=== waiting stops when the work does ===');
 // the services panel used it to decide whether to keep WAITING, and a written homepage does
 // not mean the service pages arrived: they are a separate chain with its own budget.
 check('the pillars poll gives up when the run ends',
-  /if \(run && GEN_TERMINAL\.includes\(run\.status\)\) return false;/.test(images));
+  /if \(genSettled\(run\)\) return false;/.test(images));
+// readFinished still answers "did the run end", and the panel still keys on it rather than on
+// readStopped — that distinction is the point of this check and is unchanged. What is added is
+// !servicesRunning: the homepage reaching a terminal state is not the service pages reaching
+// one, and for four and a half minutes on a real run this panel used the first to declare the
+// second had failed. It had, in fact, built four pages.
 check('the services panel asks whether the run finished, not whether it failed',
   /const readFinished = GEN_TERMINAL\.includes\(gen\?\.status\)/.test(images)
-  && /readFinished \? \(/.test(images));
+  && /readFinished && !servicesRunning \? \(/.test(images));
 // Three different endings need three different sentences. Telling a studio "we couldn't read
 // your services from your website" while their services are listed at the top of the same
 // screen is the kind of wrong that discredits the rest of the page.
@@ -302,12 +310,17 @@ console.log('\n=== the studio is not asked to do work already done ===');
 check('the slot poll does not stop when the pages appear',
   !/if \(q\.state\.data\?\.pillarsReady\) return false;/.test(images));
 check('it stops when the run ends instead',
-  /if \(run && GEN_TERMINAL\.includes\(run\.status\)\) return false;/.test(images));
+  /if \(genSettled\(run\)\) return false;/.test(images));
 // Scoped to the TERMINAL EFFECT. The bare key also appears in the refresh() helper that any
 // upload calls, so checking the file matched a line that has nothing to do with the run
 // ending — and deleting the one that does left this green.
+//
+// The effect's own condition moved to genSettled for the reason this whole section exists:
+// the photographs it is here to reveal are the LAST placed, and on the reported run the final
+// line of the log was "Added a photograph to 12 of your service pages", long after the
+// homepage went terminal. Firing on the homepage refreshed the slots before they had any.
 const terminalEffect = (() => {
-  const at = images.indexOf("if (gen && GEN_TERMINAL.includes(gen.status)) {");
+  const at = images.indexOf('if (genSettled(gen)) {');
   return at < 0 ? '' : images.slice(at, at + 420);
 })();
 check('and the finished run refreshes the slots too',

@@ -342,8 +342,12 @@ check('the photographs step knows every terminal state',
   declared.length > 0 && missingFromList.length === 0,
   missingFromList.length ? `not in GEN_TERMINAL: ${missingFromList.join(', ')}` : declared.join(', '));
 
+// The stop condition moved from the homepage status to genSettled, which is the same test
+// PLUS the service-page chain. It has to stop — a flat interval polls a finished job for as
+// long as the tab is open — but stopping at the homepage was too early: the pillars run on
+// after it, so the poll quit minutes before the work did.
 check('and stops polling when the run stops',
-  images.includes('GEN_TERMINAL.includes(q.state.data?.status)'),
+  images.includes('!genSettled(q.state.data)'),
   'a flat interval polls a finished job for as long as the tab is open');
 
 // ── A run that died with its process stops claiming to be running ───────────

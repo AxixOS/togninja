@@ -247,9 +247,37 @@ export async function resolvePlaceIdFromStudio(): Promise<{ placeId: string; nam
  * `configured: false`, which told a studio owner neither what was missing nor where to
  * put it.
  */
-export async function googleReviewsStatus(): Promise<{ configured: boolean; needs?: 'api-key' | 'place-id'; message?: string }> {
+export async function googleReviewsStatus(): Promise<{ configured: boolean; needs?: 'api-key' | 'own-key' | 'place-id'; message?: string }> {
   const hasKey = !!(await getPlacesKey());
   if (!hasKey) {
+    /**
+     * TWO DIFFERENT REASONS, WHICH USED TO PRODUCE THE SAME SENTENCE.
+     *
+     * getPlacesKey() returns nothing both when NOTHING is configured anywhere and when the
+     * platform's key exists but has stopped answering because onboarding is finished — the
+     * deliberate handover in placesProvider.ts. Reporting 'api-key' for both meant:
+     *
+     *   - a studio whose reviews appeared during setup and then vanished was told to "add a
+     *     key" with no hint that this was the expected end of something, or that the reviews
+     *     they had already seen were real and still theirs; and
+     *
+     *   - from outside, a live instance was indistinguishable from one where the platform key
+     *     had simply never been set on the host. Asked "were the reviews captured?", the
+     *     endpoint could not tell us which of those it was, so neither could anyone else.
+     *
+     * Only which ACCOUNT is missing is reported, never a key or any part of one.
+     */
+    const { placesProvider } = await import('../lib/placesProvider.js');
+    const unGated = await placesProvider();
+    if (unGated.apiKey && unGated.source === 'platform') {
+      return {
+        configured: false,
+        needs: 'own-key',
+        message:
+          'Your Google reviews were shown during setup on our account. To keep them on your '
+          + 'live site, add your own Google Places API key in Settings → Technical Setup → Google.',
+      };
+    }
     return {
       configured: false,
       needs: 'api-key',
