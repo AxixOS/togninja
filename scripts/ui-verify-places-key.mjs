@@ -149,5 +149,59 @@ check('real reviews outrank generated testimonials',
 check('and a studio with only star-ratings keeps its section',
   /return withText\.length \? withText : generated;/.test(testimonials));
 
+console.log('\n=== the preview the platform key exists for actually happens ===');
+
+// THE KEY WAS LENT AND NEVER SPENT. Everything above was built, deployed and correct, and it
+// never fired once: the rating renders on the PUBLIC SITE, a studio in the wizard is not on
+// the public site, and the finish handler posts /api/setup/complete BEFORE offering to show
+// them their new website — so by the time they first look, the key has stopped answering.
+// There was no reachable moment in the flow where the preview could be paid for. Confirmed
+// live 4 Sep 2026: the endpoint reported needs:'own-key', which only the platform branch can
+// produce, over an instance that had shown the studio nothing.
+const capture = codeOnly(read('server/lib/captureGoogleReviews.ts'));
+const pipeline = codeOnly(read('server/lib/homepage-pipeline.ts'));
+
+check('the pipeline asks for the rating itself', /await captureGoogleReviews\(/.test(pipeline));
+// BEFORE the homepage is written. The studio is watching the findings list from the
+// photographs step; a rating that arrives after they have moved on is one they never saw.
+const captureAt = pipeline.indexOf('captureGoogleReviews');
+const writingAt = pipeline.indexOf("state.stage = 'writing'");
+check('while the studio is still on the step that shows it',
+  captureAt > 0 && writingAt > 0 && captureAt < writingAt,
+  captureAt < 0 ? 'not called' : `capture@${captureAt} writing@${writingAt}`);
+// It writes a resolved place id, so a reset landing mid-run must not attach the previous
+// studio's listing to the new one.
+const captureCall = captureAt < 0 ? '' : pipeline.slice(captureAt, captureAt + 400);
+check('and it is fenced against a reset landing mid-run',
+  /stillCurrent/.test(captureCall) && /supersededSince\(startedEpoch\)/.test(captureCall));
+
+// THE GATED resolver, not the raw one. placesKeyInUse is what stops the platform paying once
+// onboarding is finished; reaching past it to placesProvider here would turn this into the
+// very thing the split exists to prevent — a platform key on a tenant's ongoing traffic.
+check('it spends through the gated resolver', /const provider = await placesKeyInUse\(\)/.test(capture));
+check('and never reaches past it to the raw provider', !/await placesProvider\(\)/.test(capture));
+// The reviews cache is process-wide. A studio being onboarded must not be handed the reading
+// taken for whoever occupied this instance before them.
+check('the reading is forced, not served from another tenant\'s cache',
+  /getGoogleReviews\(true\)/.test(capture));
+// The call that repairs a "/g/" map-link id. It only happens on a request that HAS a key, so
+// this is the instance's one chance: after onboarding there is none until the studio adds
+// their own, and the id can never be used or fixed in between.
+check('and asking repairs an unusable place id', /await googleReviewsStatus\(\)/.test(capture));
+
+// Never a rating that was not published. This is the claim the whole feature rests on.
+check('no rating is ever invented',
+  /if \(!r\.ok \|\| !r\.rating \|\| !r\.count\) return null;/.test(capture));
+// Recorded, not merely noted: "did it run and what did it say" cannot be answered by a
+// findings list when the answer is that nothing was found. The services block learned this.
+check('the outcome is recorded where it can be inspected', /state\.reviews = found\.ok/.test(pipeline));
+// Which ACCOUNT paid — never a key or any part of one.
+const recorded = (() => {
+  const at = pipeline.indexOf('state.reviews = found.ok');
+  return at < 0 ? '' : pipeline.slice(at, at + 400);
+})();
+check('and what is recorded carries no key',
+  recorded.length > 0 && !/apiKey/.test(recorded) && /source/.test(recorded));
+
 console.log(bad ? `\n${bad} FAILING\n` : '\nall good\n');
 process.exit(bad ? 1 : 0);

@@ -96,6 +96,21 @@ export interface HomepageGenState {
     reason: string | null;
     pillarsCreated: number;
   } | null;
+  /**
+   * What Google publishes about this studio, read while the platform's key still pays for it.
+   *
+   * Recorded rather than merely noted, for the reason the services block above was added: the
+   * first question about anything that did not appear is "did it run, and what did it say",
+   * and a finding in a list cannot answer that when the answer is "nothing was found". The
+   * source says which account paid. Never a key or any part of one.
+   */
+  reviews: {
+    status: 'ready' | 'none';
+    rating: number | null;
+    count: number | null;
+    source: 'studio' | 'platform' | null;
+    reason: string | null;
+  } | null;
 }
 
 /** Append a finding and flush, so the client sees it on its next poll. */
@@ -342,6 +357,7 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     // one, and a stale 'ready' here would tell the wizard to stop waiting for pages that this
     // run has not built yet.
     services: null,
+    reviews: null,
   };
 
   try {
@@ -461,6 +477,40 @@ export async function runHomepagePipeline(config: any, opts: { force?: boolean }
     const subjects = subjectsFromPages(pages.rows as any[]);
     if (subjects.length) {
       await note(state, 'found', `You shoot ${subjects.slice(0, 4).join(', ')}${subjects.length > 4 ? ` and ${subjects.length - 4} more` : ''}`);
+    }
+
+    /**
+     * THE STUDIO'S OWN GOOGLE RATING, HERE, WHILE THE PLATFORM'S KEY STILL PAYS FOR IT.
+     *
+     * Early on purpose. The studio is watching this list from the photographs step, and their
+     * rating is the most persuasive thing the product can put in front of them — it is theirs,
+     * it is real, and they have not handed over a credential to see it. Nothing anywhere asked
+     * for it before, so the key lent for exactly this had never once been spent (see
+     * captureGoogleReviews.ts for how that came about).
+     *
+     * It also repairs the place id. A pasted Maps link stores a knowledge-graph "/g/..." id
+     * that the Places API cannot use, and the resolver that replaces it only runs on a request
+     * that has a key — which, after onboarding, there is not. This is the instance's one
+     * chance to fix it, so it is worth making even for a studio with no reviews at all.
+     *
+     * Awaited, unlike buildServicesAndPages. Two HTTP calls against Google, and the homepage
+     * is not written until the crawl below has been distilled anyway — but a rating that
+     * appears after the studio has left the step is a rating they never saw.
+     */
+    try {
+      const { captureGoogleReviews, reviewsFinding } = await import('./captureGoogleReviews.js');
+      const found = await captureGoogleReviews({
+        stillCurrent: async () => !(await supersededSince(startedEpoch)),
+      });
+      state.reviews = found.ok
+        ? { status: 'ready', rating: found.rating ?? null, count: found.count ?? null, source: found.source ?? null, reason: null }
+        : { status: 'none', rating: null, count: null, source: found.source ?? null, reason: found.reason ?? null };
+      const line = reviewsFinding(found);
+      if (line) await note(state, 'found', line);
+      else await writeGenState(state);
+    } catch (e: any) {
+      // A rating is a bonus on top of a website. Nothing here may cost a studio their homepage.
+      console.warn('[homepage-pipeline] reviews capture failed:', e?.message || e);
     }
 
     const context = buildContext(config, pages.rows);
