@@ -325,6 +325,26 @@ const PortfolioPage: React.FC = () => {
   });
 
   /**
+   * The name the studio gave their portfolio, if they published one from ShootCleaner.
+   *
+   * That endpoint takes a required title and an optional intro, stored both, and showed
+   * neither — so a studio named their portfolio in one application and this page went on
+   * saying "Our Portfolio" underneath. Absent is the ordinary case and simply leaves the
+   * heading below untouched.
+   */
+  const { data: published } = useQuery<{ title?: string | null; intro?: string | null }>({
+    queryKey: ['/api/portfolio/meta'],
+    queryFn: async () => {
+      const res = await fetch('/api/portfolio/meta');
+      if (!res.ok) return {};
+      return res.json();
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+  const publishedTitle = String(published?.title || '').trim();
+  const publishedIntro = String(published?.intro || '').trim();
+
+  /**
    * Everything that is not one of the six hardcoded categories.
    *
    * For a studio built from a crawl that is all of them — seedPortfolioFromCrawl files
@@ -404,17 +424,37 @@ const PortfolioPage: React.FC = () => {
               <Camera className="w-10 h-10 text-white" />
             </motion.div>
             
+            {/* A published title is rendered whole, not split across two lines with the second
+                half in a gradient: that treatment is built for the fixed words "Our /
+                Portfolio" and an arbitrary studio title cannot be divided sensibly. */}
             <h1 className="text-5xl md:text-7xl font-bold text-white mb-6">
-              <span className="block">{t('portfolio.our')}</span>
-              <span className="bg-gradient-to-r from-pink-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
-                Portfolio
-              </span>
+              {publishedTitle ? (
+                <span className="bg-gradient-to-r from-pink-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
+                  {publishedTitle}
+                </span>
+              ) : (
+                <>
+                  <span className="block">{t('portfolio.our')}</span>
+                  <span className="bg-gradient-to-r from-pink-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
+                    Portfolio
+                  </span>
+                </>
+              )}
             </h1>
-            
+
             <p className="text-xl md:text-2xl text-purple-200 max-w-3xl mx-auto mb-8">
-              {t('portfolio.momentsThatLastForever')}
+              {publishedIntro || t('portfolio.momentsThatLastForever')}
             </p>
 
+            {/* NOT SHOWN OVER A STUDIO'S OWN WORDS.
+
+                This names family photos, baby photography and business portraits and links all
+                three to /fotoshootings — the ORIGIN studio's services, in their taxonomy. It is
+                a reasonable default for an instance that has said nothing about itself. It is
+                not reasonable underneath a title and standfirst a photographer wrote about
+                their own portfolio, where it contradicts them and sends their visitors to pages
+                about somebody else's business. */}
+            {!publishedTitle && !publishedIntro && (
             <p className="text-base md:text-lg text-purple-100/90 max-w-3xl mx-auto mb-8">
               {language === 'de' ? (
                 <>
@@ -434,6 +474,7 @@ const PortfolioPage: React.FC = () => {
                 </>
               )}
             </p>
+            )}
 
             <motion.button
               onClick={() => document.getElementById('portfolio-content')?.scrollIntoView({ behavior: 'smooth' })}

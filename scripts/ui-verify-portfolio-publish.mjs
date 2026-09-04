@@ -148,5 +148,39 @@ check('the scopes are advertised so Publish can be hidden rather than fail',
 check('and both are in the list /health returns',
   /READ_SCOPES = \[[^\]]*'portfolio:read'/.test(sc) && /WRITE_SCOPES = \[[^\]]*'portfolio:write'/.test(sc));
 
+console.log('\n=== the title they publish is a title somebody sees ===');
+
+// POST /portfolio takes a REQUIRED title and an optional intro and stored both, and nothing
+// rendered either — so a studio named their portfolio in one application and their public page
+// went on saying "Our Portfolio" underneath. A field a product insists on and then never shows
+// is worse than not asking for it.
+const routes = codeOnly(read('server/routes.ts'));
+const page = codeOnly(read('client/src/pages/PortfolioPage.tsx'));
+
+check('there is a public endpoint for it', /app\.get\("\/api\/portfolio\/meta"/.test(routes));
+const metaRoute = (() => {
+  const a = routes.indexOf('app.get("/api/portfolio/meta"');
+  if (a < 0) return '';
+  const b = routes.indexOf('app.get("/api/portfolio/images/:id"', a);
+  return b > a ? routes.slice(a, b) : routes.slice(a, a + 1200);
+})();
+check('it reads the published record', /SELECT title, intro FROM shootcleaner_portfolio/.test(metaRoute));
+// The row also holds source_user_id, which identifies an account in another application and
+// has no business on an endpoint that needs no key.
+check('and never exposes who published it',
+  metaRoute.length > 0 && !/source_user_id/.test(metaRoute));
+// The table is created lazily by the integration. On an instance where ShootCleaner has never
+// run it does not exist, and that is not a fault — the page keeps its own heading.
+check('a missing table is an empty answer, not a 500',
+  /catch \{[\s\S]{0,200}res\.json\(\{\}\);/.test(metaRoute));
+
+check('the page renders a published title', /publishedTitle \? \(/.test(page));
+check('and a published intro', /\{publishedIntro \|\| t\('portfolio\.momentsThatLastForever'\)\}/.test(page));
+// The default third paragraph names family photos, baby photography and business portraits and
+// links all three to /fotoshootings — the ORIGIN studio's services. Under a photographer's own
+// standfirst it contradicts them and sends their visitors to somebody else's pages.
+check('the origin studio\'s services are not shown over a studio\'s own words',
+  /\{!publishedTitle && !publishedIntro && \(/.test(page));
+
 console.log(bad ? `\n${bad} FAILING\n` : '\nall good\n');
 process.exit(bad ? 1 : 0);

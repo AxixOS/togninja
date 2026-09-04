@@ -15391,6 +15391,34 @@ ${getBizName()} CRM System
     }
   });
 
+  /**
+   * What the studio called their portfolio, when they published one from ShootCleaner.
+   *
+   * POST /api/integrations/shootcleaner/portfolio takes a required `title` and an optional
+   * `intro` and stored both, and nothing rendered either — so a studio typed a name for their
+   * portfolio in one application and their public page went on saying "Our Portfolio". A field
+   * a product asks for and then never shows is worse than not asking.
+   *
+   * TITLE AND INTRO ONLY. The row also holds source_user_id, which identifies an account in
+   * another application and has no business on a public endpoint that needs no key.
+   *
+   * Absent is the normal answer — most studios have never published from ShootCleaner — and so
+   * is a missing table, on an instance where that integration has never run. Both are {}, and
+   * the page keeps its own heading.
+   */
+  app.get("/api/portfolio/meta", async (_req: Request, res: Response) => {
+    try {
+      const rows = await runSql('SELECT title, intro FROM shootcleaner_portfolio LIMIT 1', []);
+      const row = (rows as any[])?.[0];
+      res.set('Cache-Control', 'no-store');
+      res.json(row ? { title: row.title ?? null, intro: row.intro ?? null } : {});
+    } catch {
+      // The table is created lazily by the integration; its absence is not a fault.
+      res.set('Cache-Control', 'no-store');
+      res.json({});
+    }
+  });
+
   // Get single portfolio image
   app.get("/api/portfolio/images/:id", authenticateUser, async (req: Request, res: Response) => {
     try {
